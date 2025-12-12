@@ -78,48 +78,48 @@ docker:
 # ------------------------
 # Helm lint
 # ------------------------
-helm:lint:
-  stage: helm
-  image: alpine/helm:3.14.0
-  script:
-    - helm lint ${CHART_PATH}
-  rules:
-    - if: '$CI_COMMIT_BRANCH'
+#helm:lint:
+#  stage: helm
+#  image: alpine/helm:3.14.0
+#  script:
+#    - helm lint ${CHART_PATH}
+#  rules:
+#    - if: '$CI_COMMIT_BRANCH'
 
 # ------------------------
 # Deploy: staging
 # ------------------------
-deploy:staging:
-  stage: deploy
-  image: alpine/helm:4.0.1
-  environment:
-    name: staging
-  script:
-    - helm upgrade --install ${APP_NAME} ${CHART_PATH} \
-      --namespace staging \
-      --create-namespace \
-      --set image.repository=${IMAGE_REGISTRY} \
-      --set image.tag=${IMAGE_TAG} \
-      --values ${CHART_PATH}/values-staging.yaml
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
+#deploy:staging:
+#  stage: deploy
+#  image: alpine/helm:4.0.1
+#  environment:
+#    name: staging
+#  script:
+#    - helm upgrade --install ${APP_NAME} ${CHART_PATH} \
+#      --namespace staging \
+#      --create-namespace \
+#      --set image.repository=${IMAGE_REGISTRY} \
+#      --set image.tag=${IMAGE_TAG} \
+#      --values ${CHART_PATH}/values-staging.yaml
+#  rules:
+#    - if: '$CI_COMMIT_BRANCH == "main"'
 
 # ------------------------
 # Deploy: production
 # ------------------------
-deploy:production:
-  stage: deploy
-  image: alpine/helm:3.23
-  environment:
-    name: production
-  script:
-    - helm upgrade --install ${APP_NAME} ${CHART_PATH} \
-      --namespace production \
-      --create-namespace \
-      --set image.repository=${IMAGE_REGISTRY} \
-      --set image.tag=${IMAGE_TAG} \
-      --values ${CHART_PATH}/values-production.yaml
-  rules:
-    - if: '$CI_COMMIT_BRANCH =~ /^release\/.*$/'
-      when: manual
-      allow_failure: false
+#deploy:production:
+#  stage: deploy
+#  image: alpine/helm:3.23
+#  environment:
+#    name: production
+#  script:
+#    - helm upgrade --install ${APP_NAME} ${CHART_PATH} \
+#      --namespace production \
+#      --create-namespace \
+#      --set image.repository=${IMAGE_REGISTRY} \
+#      --set image.tag=${IMAGE_TAG} \
+#      --values ${CHART_PATH}/values-production.yaml
+#  rules:
+#    - if: '$CI_COMMIT_BRANCH =~ /^release\/.*$/'
+#      when: manual
+#      allow_failure: false
