@@ -1,0 +1,125 @@
+stages:
+  - test
+  - build
+  - docker
+  - helm
+  - deploy
+
+variables:
+  GO_VERSION: "1.25.4"
+  CGO_ENABLED: "0"
+  APP_NAME: "bnpl"
+  IMAGE_REGISTRY: "$CI_REGISTRY_IMAGE"
+  IMAGE_TAG: "$CI_COMMIT_SHORT_SHA"
+
+.default_go:
+  image: golang:${GO_VERSION}
+  before_script:
+    - go version
+    - go env -w GOPROXY=https://proxy.golang.org,direct
+
+.default_docker:
+  image: docker:24
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+
+# ------------------------
+# Test & Lint
+# ------------------------
+test:
+  stage: test
+  extends: .default_go
+  script:
+    - go mod download
+    - go vet ./...
+    - CGO_ENABLED=1 go test ./... -race -coverprofile=coverage.out
+  artifacts:
+    when: always
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.out
+    expire_in: 1 week
+
+# ------------------------
+# Build binary
+# ------------------------
+build:
+  stage: build
+  extends: .default_go
+  script:
+    - mkdir -p build/bin
+    - go build -tags="go_json nomsgpack"  -trimpath -ldflags "-s -w" -o build/bin/${APP_NAME} ./cmd/bnpl
+  artifacts:
+    paths:
+      - build/bin/${APP_NAME}
+    expire_in: 1 week
+
+# ------------------------
+# Docker build & push
+# ------------------------
+docker:
+  stage: docker
+  extends: .default_docker
+  needs:
+    - build
+  script:
+    - docker build -t ${IMAGE_REGISTRY}:${IMAGE_TAG} .
+    - docker push ${IMAGE_REGISTRY}:${IMAGE_TAG}
+    - docker tag ${IMAGE_REGISTRY}:${IMAGE_TAG} ${IMAGE_REGISTRY}:latest
+    - docker push ${IMAGE_REGISTRY}:latest
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: always
+    - when: never
+
+# ------------------------
+# Helm lint
+# ------------------------
+#helm:lint:
+#  stage: helm
+#  image: alpine/helm:3.14.0
+#  script:
+#    - helm lint ${CHART_PATH}
+#  rules:
+#    - if: '$CI_COMMIT_BRANCH'
+
+# ------------------------
+# Deploy: staging
+# ------------------------
+#deploy:staging:
+#  stage: deploy
+#  image: alpine/helm:4.0.1
+#  environment:
+#    name: staging
+#  script:
+#    - helm upgrade --install ${APP_NAME} ${CHART_PATH} \
+#      --namespace staging \
+#      --create-namespace \
+#      --set image.repository=${IMAGE_REGISTRY} \
+#      --set image.tag=${IMAGE_TAG} \
+#      --values ${CHART_PATH}/values-staging.yaml
+#  rules:
+#    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# ------------------------
+# Deploy: production
+# ------------------------
+#deploy:production:
+#  stage: deploy
+#  image: alpine/helm:3.23
+#  environment:
+#    name: production
+#  script:
+#    - helm upgrade --install ${APP_NAME} ${CHART_PATH} \
+#      --namespace production \
+#      --create-namespace \
+#      --set image.repository=${IMAGE_REGISTRY} \
+#      --set image.tag=${IMAGE_TAG} \
+#      --values ${CHART_PATH}/values-production.yaml
+#  rules:
+#    - if: '$CI_COMMIT_BRANCH =~ /^release\/.*$/'
+#      when: manual
+#      allow_failure: false
