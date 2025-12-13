@@ -1,7 +1,7 @@
 package main
 
-import "fmt"
+import "gitlab.com/mehdi.fakhraei-group/bnpl/cmd/bnpl/command"
 
 func main() {
-	fmt.Println("Hello world from BNPL")
+	command.Execute()
 }
