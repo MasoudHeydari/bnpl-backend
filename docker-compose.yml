@@ -3,10 +3,10 @@ services:
     image: docker.arvancloud.ir/postgres:18
     environment:
       POSTGRES_DB: bnpl_db
-      POSTGRES_USER: bnpl_user
+      POSTGRES_USER: bnpl
       POSTGRES_PASSWORD: password
     volumes:
-      - postgres_data_bnpl:/var/lib/postgresql/data
+      - postgres_data_bnpl:/var/lib/postgresql
     ports:
       - "5432:5432"
 
