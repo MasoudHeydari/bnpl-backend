@@ -1,0 +1,1 @@
+/home/dev.masoud/Documents/projects/golang/bnpl/pkg/adapter/db/postgres/migrationsrp/000_schema.sql
