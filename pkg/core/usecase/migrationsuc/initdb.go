@@ -74,7 +74,6 @@ func (iduc *InitDBUseCase) dropAndCreateAgain(
 	}
 	defer connPool.Close()
 
-	var finalizer func() error
 	err = connPool.Conn(ctx, func(ctx context.Context, c repo.Conn) error {
 		return c.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
 			q := iduc.ss.NewSchemaRepo().Tx(tx)
@@ -114,10 +113,6 @@ func (iduc *InitDBUseCase) dropAndCreateAgain(
 
 	if err != nil {
 		return fmt.Errorf("admin connection: %w", err)
-	}
-
-	if err = finalizer(); err != nil {
-		return fmt.Errorf("finalizing passwords renewal: %w", err)
 	}
 
 	return nil
