@@ -86,8 +86,14 @@ func (iduc *InitDBUseCase) dropAndCreateAgain(
 				return fmt.Errorf("creating %q: %w", schemaName, err)
 			}
 
+			var normalRolePassword string
+			normalRolePassword, err = iduc.ss.GetRolePassword(repo.NormalRole)
+			if err != nil {
+				return fmt.Errorf("getting normal role password %q: %w", schemaName, err)
+			}
+
 			if err := q.CreateRoleIfNotExists(
-				ctx, repo.NormalRole,
+				ctx, repo.NormalRole, normalRolePassword,
 			); err != nil {
 				return fmt.Errorf("creating normal role: %w", err)
 			}

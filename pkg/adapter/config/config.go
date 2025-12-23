@@ -56,6 +56,10 @@ func (c *Config) NewSchemaRepo() repo.Schema {
 	return c.Database.NewSchemaRepo()
 }
 
+func (c *Config) GetRolePassword(r repo.Role) (string, error) {
+	return c.Database.GetRolePassword(r)
+}
+
 func (c *Config) SchemaInitializer(tx repo.Tx) repo.SchemaInitializer {
 	return migrationsrp.NewInitializer(tx)
 }

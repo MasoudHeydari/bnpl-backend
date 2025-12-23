@@ -11,9 +11,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/adapter/db/postgres/schemarp"
-
 	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/adapter/db/postgres"
+	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/adapter/db/postgres/schemarp"
 	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/repo"
 )
 
@@ -31,37 +30,23 @@ type Database struct {
 }
 
 func (d Database) ConnectionPool(ctx context.Context, r repo.Role) (repo.Pool, error) {
-	path := filepath.Join(d.PassDir, ".pgpass")
-	u, err := d.ConnectionURL(r, path)
+	u, err := d.ConnectionURL(r)
 	if err != nil {
-		return nil, fmt.Errorf("using %q pass-file: %w", path, err)
+		return nil, fmt.Errorf("ConnectionPool: %w", err)
 	}
 	p, err := postgres.NewPool(ctx, d.getConfig(u))
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect with %q: %v", path, err)
+		return nil, fmt.Errorf("ConnectionPool: failed to create new connection pool %v", err)
 	}
 	return p, nil
 }
 
-func (d Database) ConnectionURL(r repo.Role, path string) (string, error) {
-	passLines, err := os.ReadFile(path)
+func (d Database) ConnectionURL(r repo.Role) (string, error) {
+	pass, err := d.GetRolePassword(r)
 	if err != nil {
-		return "", fmt.Errorf("reading pass-dir: %w", err)
+		return "", fmt.Errorf("ConnectionURL: %w", err)
 	}
-	prfx := fmt.Sprintf("%s:%d:%s:%s:", d.Host, d.Port, d.Name, r)
-	var pass string
-	for _, line := range strings.Split(string(passLines), "\n") {
-		if line == "" || line[0] == '#' {
-			continue
-		}
-		if strings.HasPrefix(line, prfx) {
-			pass = line[len(prfx):]
-			break
-		}
-	}
-	if pass == "" {
-		return "", fmt.Errorf("no matching password line")
-	}
+
 	u := url.URL{
 		Scheme: "postgresql",
 		User:   url.UserPassword(string(r), pass),
@@ -93,4 +78,29 @@ func (d Database) getConfig(connUrl string) *pgxpool.Config {
 
 func (d Database) NewSchemaRepo() repo.Schema {
 	return schemarp.New()
+}
+
+func (d Database) GetRolePassword(r repo.Role) (string, error) {
+	path := filepath.Join(d.PassDir, ".pgpass")
+	passLines, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("GetRolePassword: reading pass-dir: %w", err)
+	}
+
+	prfx := fmt.Sprintf("%s:%d:%s:%s:", d.Host, d.Port, d.Name, r)
+	var pass string
+	for _, line := range strings.Split(string(passLines), "\n") {
+		if line == "" || line[0] == '#' {
+			continue
+		}
+		if strings.HasPrefix(line, prfx) {
+			pass = line[len(prfx):]
+			break
+		}
+	}
+	if pass == "" {
+		return "", fmt.Errorf("no matching password line")
+	}
+
+	return pass, nil
 }

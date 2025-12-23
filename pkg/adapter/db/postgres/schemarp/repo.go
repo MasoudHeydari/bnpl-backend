@@ -30,9 +30,9 @@ func (cq connQueryer) CreateSchema(
 }
 
 func (cq connQueryer) CreateRoleIfNotExists(
-	ctx context.Context, role repo.Role,
+	ctx context.Context, role repo.Role, password string,
 ) error {
-	return CreateRoleIfNotExists(ctx, cq.Conn, role)
+	return CreateRoleIfNotExists(ctx, cq.Conn, role, password)
 }
 
 func (cq connQueryer) GrantPrivileges(
@@ -69,9 +69,9 @@ func (tq txQueryer) CreateSchema(
 }
 
 func (tq txQueryer) CreateRoleIfNotExists(
-	ctx context.Context, role repo.Role,
+	ctx context.Context, role repo.Role, password string,
 ) error {
-	return CreateRoleIfNotExists(ctx, tq.Tx, role)
+	return CreateRoleIfNotExists(ctx, tq.Tx, role, password)
 }
 
 func (tq txQueryer) GrantPrivileges(

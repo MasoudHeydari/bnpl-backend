@@ -22,7 +22,7 @@ type SchemaTxQueryer interface {
 
 type SchemaQueryer interface {
 	CreateSchema(ctx context.Context, schema string) error
-	CreateRoleIfNotExists(ctx context.Context, role Role) error
+	CreateRoleIfNotExists(ctx context.Context, role Role, password string) error
 	GrantPrivileges(ctx context.Context, schema string, role Role) error
 	SetSearchPath(ctx context.Context, schema string, role Role) error
 	DropIfExists(ctx context.Context, schema string) error

@@ -18,7 +18,7 @@ func CreateSchema[Q postgres.Queryer](
 }
 
 func CreateRoleIfNotExists[Q postgres.Queryer](
-	ctx context.Context, q Q, role repo.Role,
+	ctx context.Context, q Q, role repo.Role, password string,
 ) error {
 	// Although CREATE ROLE DDL statement does not support to take
 	// role name as a parameterized query, it is a trusted string.
@@ -31,13 +31,13 @@ BEGIN
             WHERE rolname = '%s'
     ) THEN
         BEGIN
-            CREATE ROLE %[1]s WITH LOGIN;
+            CREATE ROLE %[1]s WITH LOGIN PASSWORD '%s';
         EXCEPTION WHEN duplicate_object THEN
             RAISE NOTICE '%%, skipping', SQLERRM USING ERRCODE=SQLSTATE;
         END;
     END IF;
 END
-$body$`, role))
+$body$`, role, password))
 	return err
 }
 
