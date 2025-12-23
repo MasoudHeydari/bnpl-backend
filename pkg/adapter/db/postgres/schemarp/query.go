@@ -77,7 +77,7 @@ func DropIfExists[Q postgres.Queryer](
 	// as a parameterized query, it is a trusted string.
 	_, err := q.Exec(
 		ctx,
-		fmt.Sprintf(`DROP SCHEMA %s CASCADE`, schema),
+		fmt.Sprintf(`DROP SCHEMA IF EXISTS %s CASCADE`, schema),
 	)
 	return err
 }
