@@ -32,6 +32,14 @@ lint:
 	@staticcheck ./...
 	@revive ./...
 
+.PHONY: install-tidy-imports
+install-tidy-imports:
+	@go install golang.org/x/tools/cmd/goimports@latest
+
+.PHONY: tidy-imports
+tidy-imports:
+	@goimports -w .
+
 .PHONY: up
 up:
 	@docker compose -f docker-compose.yml up -d
