@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/spf13/cobra"
 	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/adapter/config"
@@ -31,7 +32,11 @@ func migrate(_ *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("creating DB pool: %w", err)
 	}
-	defer p.Close()
+	defer func() {
+		if err = p.Close(); err != nil {
+			log.Printf("failed to close pool connection: %v", err)
+		}
+	}()
 
 	migrationsRepo := migrationsrp.New()
 	migrationsUC := c.NewMigrationsUseCase(p, migrationsRepo)

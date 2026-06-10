@@ -3,9 +3,9 @@ package command
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 
-	"github.com/gin-gonic/gin"
 	"github.com/spf13/cobra"
 	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/adapter/config"
 	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/adapter/restful/gin/routes"
@@ -33,8 +33,13 @@ func startWebServer(_ *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("creating DB pool: %w", err)
 	}
-	defer p.Close()
-	var e *gin.Engine = c.Gin.NewEngine()
+	defer func() {
+		if err = p.Close(); err != nil {
+			log.Printf("failed to close pool connection: %v", err)
+		}
+	}()
+
+	var e = c.Gin.NewEngine()
 	if err = routes.Register(ctx, e, p, c); err != nil {
 		return fmt.Errorf("registering routes: %w", err)
 	}

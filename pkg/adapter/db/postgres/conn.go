@@ -19,7 +19,7 @@ type TxHandler = repo.TxHandler
 
 func (c *Conn) Tx(ctx context.Context, f TxHandler) (err error) {
 	var tx pgx.Tx
-	tx, err = c.Conn.BeginTx(ctx, emptyTxOptions)
+	tx, err = c.BeginTx(ctx, emptyTxOptions)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}

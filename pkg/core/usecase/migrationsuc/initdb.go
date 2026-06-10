@@ -3,6 +3,7 @@ package migrationsuc
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/repo"
 )
@@ -45,7 +46,11 @@ func (iduc *InitDBUseCase) initDB(
 	if err != nil {
 		return fmt.Errorf("creating DB pool for normal role: %w", err)
 	}
-	defer connPool.Close()
+	defer func() {
+		if err = connPool.Close(); err != nil {
+			log.Printf("failed to close pool connection: %v", err)
+		}
+	}()
 
 	err = connPool.Conn(ctx, func(ctx context.Context, c repo.Conn) error {
 		return c.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
@@ -72,7 +77,11 @@ func (iduc *InitDBUseCase) dropAndCreateAgain(
 	if err != nil {
 		return fmt.Errorf("creating DB pool for admin: %w", err)
 	}
-	defer connPool.Close()
+	defer func() {
+		if err = connPool.Close(); err != nil {
+			log.Printf("failed to close pool connection: %v", err)
+		}
+	}()
 
 	err = connPool.Conn(ctx, func(ctx context.Context, c repo.Conn) error {
 		return c.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {

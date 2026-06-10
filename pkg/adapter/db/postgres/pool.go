@@ -33,7 +33,7 @@ func NoOpConnHandler(context.Context, repo.Conn) error {
 }
 
 func (p *Pool) Conn(ctx context.Context, f repo.ConnHandler) error {
-	return p.Pool.AcquireFunc(ctx, func(c *pgxpool.Conn) error {
+	return p.AcquireFunc(ctx, func(c *pgxpool.Conn) error {
 		cc := &Conn{Conn: c}
 		return f(ctx, cc)
 	})
