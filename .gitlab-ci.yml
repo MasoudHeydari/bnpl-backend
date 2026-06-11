@@ -6,7 +6,7 @@ stages:
   - deploy
 
 variables:
-  GO_VERSION: "1.25.4"
+  GO_VERSION: "1.26.2"
   CGO_ENABLED: "0"
   APP_NAME: "bnpl"
   IMAGE_REGISTRY: "$CI_REGISTRY_IMAGE"

@@ -1,6 +1,6 @@
 module gitlab.com/mehdi.fakhraei-group/bnpl
 
-go 1.25.4
+go 1.26.2
 
 require (
 	github.com/FabienMht/ginslog v0.0.1

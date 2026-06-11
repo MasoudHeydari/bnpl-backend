@@ -1,6 +1,6 @@
 ARG APP_NAME=bnpl
 
-FROM golang:1.25-alpine3.23 AS builder
+FROM golang:1.26.2-alpine3.23 AS builder
 
 COPY . /app
 WORKDIR /app
