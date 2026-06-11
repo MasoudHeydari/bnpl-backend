@@ -1,66 +1,193 @@
-APP_NAME := "bnpl"
-IMAGE_NAME ?= "bnpl_image"
-IMAGE_VERSION ?= "0.0.1"
+# Auto-load .env so every Make target sees the variables.
+-include .env
+export
+
+.DEFAULT_GOAL := build
+
+APP_NAME := bnpl
+IMAGE_NAME ?= bnpl-backend
+IMAGE_VERSION ?= v0.1.0
 ENTRYPOINT ?= scripts/docker-entrypoint.sh
 
-.PHINY: all
+DB_CONTAINER_NAME ?= bnpl-db
+DB_DOCKER_VOLUME_NAME ?= bnpl_postgres_data_bnpl
+
+PROTO_DIR := proto
+PROTO_GEN_DIR := gen/proto
+PROTO_FILES := $(shell find $(PROTO_DIR) -name '*.proto')
+
+GOLANGCI_LINT_VERSION ?= v2.12.2
+MOCKERY_VERSION ?= v2.53.3
+STATICCHECK_VERSION ?= 2025.1.1
+
+COMPOSE_FILE ?= docker-compose.local.yml
+DOCKER_HOST_PODMAN ?= unix://$(XDG_RUNTIME_DIR)/podman/podman.sock
+
+.PHONY: all
 all: build
 
-.PHONY: mkdir build
-build:
-	CGO_ENABLED=0 go build -tags="go_json nomsgpack" -trimpath -ldflags '-s -w -extldflags "-static"' \
-	-o build/bin/${APP_NAME} ./cmd/bnpl
+# -----------------------------------------------------------------------------
+# Build / Run
+# -----------------------------------------------------------------------------
+
+.PHONY: build
+build: mkdir-bin
+	CGO_ENABLED=0 GOPROXY=https://goproxy.io,direct go build \
+		-tags="go_json nomsgpack" \
+		-trimpath \
+		-ldflags='-s -w -extldflags "-static"' \
+		-o build/bin/$(APP_NAME) ./cmd/bnpl
 
 .PHONY: run
-run: build
+run: build up
 	@chmod +x $(ENTRYPOINT) && ./$(ENTRYPOINT)
+
+.PHONY: init-prod
+init-prod: build
+	@./build/bin/$(APP_NAME) db init-prod
+
+.PHONY: init-dev
+init-dev: build
+	@./build/bin/$(APP_NAME) db init-dev
+
+# -----------------------------------------------------------------------------
+# Test / Quality
+# -----------------------------------------------------------------------------
 
 .PHONY: test
 test:
 	@go test ./...
 
-.PHONY: install-staticcheck install-revive revive lint
-install-staticcheck:
-	go install honnef.co/go/tools/cmd/staticcheck@2025.1.1
+.PHONY: test-integration
+test-integration:
+	@DOCKER_HOST=$(DOCKER_HOST_PODMAN) go test -tags integration -count=1 -timeout=15m -p 1 ./...
 
-install-revive:
-	go get -u github.com/mgechev/revive
+.PHONY: test-coverage
+test-coverage:
+	@go test ./... -coverprofile=coverage.out -covermode=atomic
+	@go tool cover -func=coverage.out
 
-revive:
-	revive -formatter friendly ./...
-
+.PHONY: lint
 lint:
-	@staticcheck ./...
-	@revive ./...
+	@golangci-lint run ./...
 
-.PHONY: install-tidy-imports
-install-tidy-imports:
-	@go install golang.org/x/tools/cmd/goimports@latest
+.PHONY: staticcheck
+staticcheck:
+	@staticcheck ./...
+
+.PHONY: revive
+revive:
+	@revive -formatter friendly ./...
 
 .PHONY: tidy-imports
 tidy-imports:
 	@goimports -w .
 
+# -----------------------------------------------------------------------------
+# Code Generation
+# -----------------------------------------------------------------------------
+
+.PHONY: proto
+proto: mkdir-gen
+	@protoc \
+		--proto_path=$(PROTO_DIR) \
+		--go_out=$(PROTO_GEN_DIR) \
+		--go_opt=paths=source_relative \
+		--go-grpc_out=$(PROTO_GEN_DIR) \
+		--go-grpc_opt=paths=source_relative \
+		$(PROTO_FILES)
+
+.PHONY: mock
+mock:
+	@mockery
+
+# -----------------------------------------------------------------------------
+# Docker / Local Infrastructure
+# -----------------------------------------------------------------------------
+
 .PHONY: up
 up:
-	@docker compose -f docker-compose.yml up -d
+	@docker compose -f $(COMPOSE_FILE) up -d
+
+.PHONY: down
+down:
+	@docker compose -f $(COMPOSE_FILE) down
 
 .PHONY: build-image
 build-image:
 	@docker build -t $(IMAGE_NAME):$(IMAGE_VERSION) .
 
-.PHONY: list-images
-list-images:
-	@docker images | grep $(IMAGE_NAME)
-
 .PHONY: run-image
 run-image:
 	@docker run --rm $(IMAGE_NAME):$(IMAGE_VERSION)
 
-.PHONY: clean
-clean:
-	@rm -f ./build/bin/$(APP_NAME)
+.PHONY: list-images
+list-images:
+	@docker images | grep $(IMAGE_NAME) || true
+
+.PHONY: clean-db
+clean-db:
+	@docker stop $(DB_CONTAINER_NAME) 2>/dev/null || true
+	@docker rm $(DB_CONTAINER_NAME) 2>/dev/null || true
+	@docker volume rm -f $(DB_DOCKER_VOLUME_NAME)
+	@echo "BNPL database cleaned successfully"
+
+# -----------------------------------------------------------------------------
+# Setup / Tooling
+# -----------------------------------------------------------------------------
+
+.PHONY: install-tools
+install-tools: install-golangci-lint install-staticcheck install-revive install-goimports install-mockery install-proto-tools
+
+.PHONY: install-golangci-lint
+install-golangci-lint:
+	@curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $$(go env GOPATH)/bin $(GOLANGCI_LINT_VERSION)
+
+.PHONY: install-staticcheck
+install-staticcheck:
+	@go install honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION)
+
+.PHONY: install-revive
+install-revive:
+	@go install github.com/mgechev/revive@latest
+
+.PHONY: install-goimports
+install-goimports:
+	@go install golang.org/x/tools/cmd/goimports@latest
+
+.PHONY: install-mockery
+install-mockery:
+	@go install github.com/vektra/mockery/v2@$(MOCKERY_VERSION)
+
+.PHONY: install-proto-tools
+install-proto-tools:
+	@go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	@go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+.PHONY: upgrade-dependencies
+upgrade-dependencies:
+	@go get -v -u ./...
+	@go mod tidy
+
+# -----------------------------------------------------------------------------
+# Environment / Directories / Cleanup
+# -----------------------------------------------------------------------------
+
+.PHONY: env
+env:
+	@grep -v '^\s*#' .env | grep -v '^\s*$$' | sed 's/^/export /'
 
 .PHONY: mkdir
-mkdir:
+mkdir: mkdir-bin mkdir-gen
+
+.PHONY: mkdir-bin
+mkdir-bin:
 	@mkdir -p build/bin
+
+.PHONY: mkdir-gen
+mkdir-gen:
+	@mkdir -p $(PROTO_GEN_DIR)
+
+.PHONY: clean
+clean:
+	@rm -f ./build/bin/$(APP_NAME) coverage.out
