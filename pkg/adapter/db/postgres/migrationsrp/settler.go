@@ -8,10 +8,14 @@ import (
 	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/repo"
 )
 
+// Settler initializes a freshly created schema by executing embedded SQL
+// assets inside a caller-managed transaction.
 type Settler struct {
 	tx repo.Tx // destination database transaction
 }
 
+// NewSettler constructs a schema initializer bound to tx.
+// The transaction must remain open for the lifetime of the initializer call.
 func NewSettler(tx repo.Tx) *Settler {
 	return &Settler{tx: tx}
 }
@@ -25,6 +29,8 @@ var devDataStatements string
 //go:embed 000_prod.sql
 var prodDataStatements string
 
+// InitDevSchema creates the base schema and inserts development seed data
+// inside the caller-managed transaction.
 func (sm1 *Settler) InitDevSchema(ctx context.Context) error {
 	if _, err := sm1.tx.Exec(ctx, schemaDDLStatements); err != nil {
 		return fmt.Errorf(
@@ -41,6 +47,8 @@ func (sm1 *Settler) InitDevSchema(ctx context.Context) error {
 	return nil
 }
 
+// InitProdSchema creates the base schema and inserts production seed data
+// inside the caller-managed transaction.
 func (sm1 *Settler) InitProdSchema(ctx context.Context) error {
 	if _, err := sm1.tx.Exec(ctx, schemaDDLStatements); err != nil {
 		return fmt.Errorf(

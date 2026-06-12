@@ -1,3 +1,7 @@
+// Package gin wraps the upstream Gin HTTP framework so the rest of the codebase
+// depends on a small local adapter surface.
+// It belongs to the adapter layer and provides engine construction plus common
+// middleware entrypoints used by the HTTP server bootstrap.
 package gin
 
 import (
@@ -9,10 +13,16 @@ import (
 )
 
 type (
-	Engine      = gin.Engine
+	// Engine aliases gin.Engine so the adapter package can expose a stable local
+	// type name without reimplementing the server.
+	Engine = gin.Engine
+	// HandlerFunc aliases gin.HandlerFunc for local adapter cohesion.
 	HandlerFunc = gin.HandlerFunc
 )
 
+// New constructs a Gin engine, sets mode, applies middleware, and configures
+// trusted proxies. Trusted proxies are currently hardcoded to 127.0.0.1;
+// config.Gin does not yet expose trusted_proxies from YAML.
 func New(mode string, middlewares ...HandlerFunc) *Engine {
 	e := gin.New()
 	gin.SetMode(mode)

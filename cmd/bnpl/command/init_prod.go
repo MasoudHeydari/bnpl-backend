@@ -11,11 +11,13 @@ import (
 
 var initProdCmd = &cobra.Command{
 	Use:   "init-prod",
-	Short: "Initialize database contents with production suitable data",
-	Long: `Initialize database contents with production suitable data
-for the database schema version which is specified in the configuration
-file. The database connection information are also read from the config
-file.`,
+	Short: "Reset the database and load production bootstrap data",
+	Long: `Reset the managed PostgreSQL schema and initialize it for production
+bootstrap.
+
+The command loads the application configuration, drops and recreates the managed
+schema, ensures the application role and privileges exist, and then applies the
+embedded schema and production seed SQL inside a transaction.`,
 	RunE: initProd,
 	Args: cobra.NoArgs,
 }
@@ -27,13 +29,15 @@ func initProd(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("config.Load(%q): %w", cfgPath, err)
 	}
 	fmt.Printf("configs: %v\n", c)
+	fmt.Println("Prod DB initializing...")
 
 	muc := migrationsuc.NewInitDB(c)
 	err = muc.InitProd(ctx)
 	if err != nil {
-		return fmt.Errorf("initializing DB with dev data: %w", err)
+		return fmt.Errorf("initializing DB with prod bootstrap data: %w", err)
 	}
 
+	fmt.Println("Prod DB initialized.")
 	return nil
 }
 

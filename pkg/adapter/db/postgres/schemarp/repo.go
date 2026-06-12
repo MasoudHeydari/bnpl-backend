@@ -1,3 +1,6 @@
+// Package schemarp implements PostgreSQL schema administration queries.
+// It belongs to the infrastructure layer and backs the initialization use case
+// with concrete SQL for schema, role, and privilege management.
 package schemarp
 
 import (
@@ -7,9 +10,11 @@ import (
 	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/repo"
 )
 
-type Repo struct {
-}
+// Repo is the PostgreSQL implementation of the core schema repository.
+// It is stateless and safe for concurrent reuse.
+type Repo struct{}
 
+// New returns a stateless PostgreSQL schema repository.
 func New() *Repo {
 	return &Repo{}
 }
@@ -18,6 +23,7 @@ type connQueryer struct {
 	*postgres.Conn
 }
 
+// Conn binds the schema repository to a non-transactional connection scope.
 func (schema *Repo) Conn(c repo.Conn) repo.SchemaConnQueryer {
 	cc := c.(*postgres.Conn)
 	return connQueryer{Conn: cc}
@@ -57,6 +63,7 @@ type txQueryer struct {
 	*postgres.Tx
 }
 
+// Tx binds the schema repository to a transaction scope.
 func (schema *Repo) Tx(tx repo.Tx) repo.SchemaTxQueryer {
 	tt := tx.(*postgres.Tx)
 	return txQueryer{Tx: tt}

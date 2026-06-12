@@ -15,6 +15,9 @@ import (
 	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/repo"
 )
 
+// Database defines PostgreSQL connection and pool settings.
+// The pgpass entry fields must contain full `host:port:database:user:password`
+// lines so role passwords can be resolved deterministically at runtime.
 type Database struct {
 	Host                  string        `yaml:"host"`
 	Port                  int           `yaml:"port"`
@@ -32,6 +35,10 @@ type Database struct {
 	} `yaml:"pgpass_entries"`
 }
 
+// ConnectionPool builds a PostgreSQL connection pool for role using the
+// adapter-layer postgres implementation. The returned pool validates
+// connectivity before being returned and must be closed by the caller.
+// Pool instances are safe for concurrent use after construction.
 func (d Database) ConnectionPool(ctx context.Context, r repo.Role) (repo.Pool, error) {
 	u, err := d.ConnectionURL(r)
 	if err != nil {
@@ -44,10 +51,16 @@ func (d Database) ConnectionPool(ctx context.Context, r repo.Role) (repo.Pool, e
 	return p, nil
 }
 
+// ConnectionURL builds a PostgreSQL connection URL for the given database role.
+// Credentials are resolved from the configured pgpass entries rather than
+// being stored directly in the generated URL configuration. An error is
+// returned if no pgpass entry matches the requested role.
+// The resulting URL includes the configured sslmode parameter and is suitable
+// for creating pgx connection pools and direct PostgreSQL connections.
 func (d Database) ConnectionURL(r repo.Role) (string, error) {
 	pass, err := d.GetRolePassword(r)
 	if err != nil {
-		return "", fmt.Errorf("ConnectionURL: %w", err)
+		return "", fmt.Errorf("ConnectionURL: resolve role password: %w", err)
 	}
 
 	u := url.URL{
@@ -64,10 +77,16 @@ func (d Database) ConnectionURL(r repo.Role) (string, error) {
 	return u.String(), nil
 }
 
+// ConnectionInfo returns the configured database name, host, and port.
 func (d Database) ConnectionInfo() (dbName, host string, port int) {
 	return d.Name, d.Host, d.Port
 }
 
+// getConfig parses connURL into a pgx pool configuration and applies the
+// repository's pool and timeout settings.
+// The function terminates the process through log.Fatal when connURL cannot be
+// parsed, so callers are expected to pass a URL that was already constructed by
+// ConnectionURL.
 func (d Database) getConfig(connUrl string) *pgxpool.Config {
 	pgConfig, err := pgxpool.ParseConfig(connUrl)
 	if err != nil {
@@ -84,10 +103,15 @@ func (d Database) getConfig(connUrl string) *pgxpool.Config {
 	return pgConfig
 }
 
+// NewSchemaRepo returns the PostgreSQL-backed schema repository adapter.
+// The repository is stateless and safe to reuse across requests.
 func (d Database) NewSchemaRepo() repo.Schema {
 	return schemarp.New()
 }
 
+// GetRolePassword extracts the password for role from the configured pgpass
+// entry lines. The function expects exact host, port, database, and role
+// matches and returns an error when no entry matches.
 func (d Database) GetRolePassword(r repo.Role) (string, error) {
 	prfx := fmt.Sprintf("%s:%d:%s:%s:", d.Host, d.Port, d.Name, r)
 	passLines := []string{
