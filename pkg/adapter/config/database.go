@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -26,7 +24,11 @@ type Database struct {
 	MaxConnectionIdleTime time.Duration `yaml:"max_connection_idle_time"`
 	HealthCheckPeriod     time.Duration `yaml:"health_check_period"`
 	ConnectionTimeout     time.Duration `yaml:"connection_timeout"`
-	PassDir               string        `yaml:"pass-dir"`
+	SSLMode               string        `yaml:"ssl_mode"`
+	PGPassEntries         struct {
+		Admin  string `yaml:"admin"`
+		Normal string `yaml:"normal"`
+	} `yaml:"pgpass_entries"`
 }
 
 func (d Database) ConnectionPool(ctx context.Context, r repo.Role) (repo.Pool, error) {
@@ -53,6 +55,11 @@ func (d Database) ConnectionURL(r repo.Role) (string, error) {
 		Host:   fmt.Sprintf("%s:%d", d.Host, d.Port),
 		Path:   d.Name,
 	}
+
+	q := u.Query()
+	q.Set("sslmode", d.SSLMode)
+	u.RawQuery = q.Encode()
+
 	return u.String(), nil
 }
 
@@ -81,15 +88,11 @@ func (d Database) NewSchemaRepo() repo.Schema {
 }
 
 func (d Database) GetRolePassword(r repo.Role) (string, error) {
-	path := filepath.Join(d.PassDir, ".pgpass")
-	passLines, err := os.ReadFile(path)
-	if err != nil {
-		return "", fmt.Errorf("GetRolePassword: reading pass-dir: %w", err)
-	}
-
 	prfx := fmt.Sprintf("%s:%d:%s:%s:", d.Host, d.Port, d.Name, r)
+	passLines := []string{d.PGPassEntries.Admin, d.PGPassEntries.Normal}
+
 	var pass string
-	for _, line := range strings.Split(string(passLines), "\n") {
+	for _, line := range passLines {
 		if line == "" || line[0] == '#' {
 			continue
 		}

@@ -24,7 +24,8 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("reading config file: %w", err)
 	}
 	n := &yaml.Node{}
-	if err = yaml.Unmarshal(data, n); err != nil {
+	expandedEnv := os.ExpandEnv(string(data))
+	if err = yaml.Unmarshal([]byte(expandedEnv), n); err != nil {
 		return nil, fmt.Errorf("unmarshalling yaml: %w", err)
 	}
 	if l := len(n.Content); l != 1 {
