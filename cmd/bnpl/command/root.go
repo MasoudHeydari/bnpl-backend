@@ -65,6 +65,6 @@ func fixConfigPath() {
 	var found bool
 	if cfgPath, found = os.LookupEnv("CONFIG_FILE"); !found {
 		// the default path should usually be in the /etc directory
-		cfgPath = "configs/sample-config.yaml"
+		cfgPath = "configs/config.yaml"
 	}
 }

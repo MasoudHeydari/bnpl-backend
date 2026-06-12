@@ -9,15 +9,8 @@
 # The application runs on the host, not inside Compose.
 # PostgreSQL and Kafka ports are bound to 127.0.0.1 for host access.
 #
-<<<<<<< HEAD
-# The config.local.yaml must have:
-#   database.host: 127.0.0.1
-#   database.pass-dir: dist/.db
-#   infrastructure.kafka.brokers: ["localhost:9092"]
-=======
 # Application database settings use pgpass-format env vars (see .env.example),
 # not a pass-dir or .pgpass file read by the Go binary.
->>>>>>> 0de804e (fixup! Add docker compose file for local development)
 
 services:
   # ── PostgreSQL ─────────────────────────────────────────────────────────────
