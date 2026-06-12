@@ -221,11 +221,13 @@ jobs:
             -out=gosec-results.sarif
             ./...
 
-      - name: Upload SARIF report
-        uses: github/codeql-action/upload-sarif@v4
+      - name: Upload gosec SARIF artifact
+        uses: actions/upload-artifact@v4
         if: always()
         with:
-          sarif_file: gosec-results.sarif
+          name: gosec-results
+          path: gosec-results.sarif
+          if-no-files-found: warn
 
   # ── 6. DOCKER BUILD VALIDATION ───────────────────────────────────────────
   docker-build:
@@ -274,8 +276,10 @@ jobs:
           output: trivy-results.sarif
           severity: CRITICAL,HIGH
 
-      - name: Upload Trivy SARIF report
-        uses: github/codeql-action/upload-sarif@v4
+      - name: Upload Trivy SARIF artifact
+        uses: actions/upload-artifact@v4
         if: always()
         with:
-          sarif_file: trivy-results.sarif
+          name: trivy-results
+          path: trivy-results.sarif
+          if-no-files-found: warn
