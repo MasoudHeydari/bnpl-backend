@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -68,4 +69,13 @@ func (c *Config) NewMigrationsUseCase(
 	p repo.Pool, r repo.Migrations,
 ) *migrationsuc.UseCase {
 	return c.Usecases.Migrations.NewUseCase(p, r)
+}
+
+func (c *Config) String() string {
+	marshaledConfig, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return ""
+	}
+
+	return string(marshaledConfig)
 }
