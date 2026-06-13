@@ -1,6 +1,7 @@
 APP_NAME := "bnpl"
 IMAGE_NAME ?= "bnpl_image"
 IMAGE_VERSION ?= "0.0.1"
+ENTRYPOINT ?= scripts/docker-entrypoint.sh
 
 .PHINY: all
 all: build
@@ -12,7 +13,7 @@ build:
 
 .PHONY: run
 run: build
-	@./build/bin/$(APP_NAME)
+	@chmod +x $(ENTRYPOINT) && ./$(ENTRYPOINT)
 
 .PHONY: test
 test:
