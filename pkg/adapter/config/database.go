@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/adapter/db/postgres"
 	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/adapter/db/postgres/schemarp"
+	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/model"
 	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/repo"
 )
 
@@ -26,8 +27,8 @@ type Database struct {
 	ConnectionTimeout     time.Duration `yaml:"connection_timeout"`
 	SSLMode               string        `yaml:"ssl_mode"`
 	PGPassEntries         struct {
-		Admin  string `yaml:"admin"`
-		Normal string `yaml:"normal"`
+		Admin  model.Secret `yaml:"admin"`
+		Normal model.Secret `yaml:"normal"`
 	} `yaml:"pgpass_entries"`
 }
 
@@ -89,7 +90,10 @@ func (d Database) NewSchemaRepo() repo.Schema {
 
 func (d Database) GetRolePassword(r repo.Role) (string, error) {
 	prfx := fmt.Sprintf("%s:%d:%s:%s:", d.Host, d.Port, d.Name, r)
-	passLines := []string{d.PGPassEntries.Admin, d.PGPassEntries.Normal}
+	passLines := []string{
+		d.PGPassEntries.Admin.Reveal(),
+		d.PGPassEntries.Normal.Reveal(),
+	}
 
 	var pass string
 	for _, line := range passLines {
