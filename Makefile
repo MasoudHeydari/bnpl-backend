@@ -9,6 +9,12 @@ IMAGE_NAME ?= bnpl-backend
 IMAGE_VERSION ?= v0.1.0
 ENTRYPOINT ?= scripts/docker-entrypoint.sh
 
+HAMRAVESH_CONTAINER_REGISTRY ?= registry.hamdocker.ir
+HAMRAVESH_REGISTRY_NAMESPACE ?= parstis-technology
+
+HAMRAVESH_IMAGE_LOCAL_TAG := $(IMAGE_NAME):$(IMAGE_VERSION)
+HAMRAVESH_IMAGE_REMOTE := $(HAMRAVESH_CONTAINER_REGISTRY)/$(HAMRAVESH_REGISTRY_NAMESPACE)/$(IMAGE_NAME):$(IMAGE_VERSION)
+
 DB_CONTAINER_NAME ?= bnpl-db
 DB_DOCKER_VOLUME_NAME ?= bnpl_postgres_data_bnpl
 
@@ -116,6 +122,12 @@ down:
 .PHONY: build-image
 build-image:
 	@docker build -t $(IMAGE_NAME):$(IMAGE_VERSION) .
+
+.PHONY: publish-image
+publish-image-to-hamravesh: build-image
+	@docker image tag $(HAMRAVESH_IMAGE_LOCAL_TAG) $(HAMRAVESH_IMAGE_REMOTE)
+	@docker push $(HAMRAVESH_IMAGE_REMOTE)
+	@echo "Published: $(HAMRAVESH_IMAGE_REMOTE)"
 
 .PHONY: run-image
 run-image:
