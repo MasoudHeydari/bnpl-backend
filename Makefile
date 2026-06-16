@@ -23,7 +23,7 @@ PROTO_GEN_DIR := gen/proto
 PROTO_FILES := $(shell find $(PROTO_DIR) -name '*.proto')
 
 GOLANGCI_LINT_VERSION ?= v2.12.2
-MOCKERY_VERSION ?= v2.53.3
+MOCKERY_VERSION ?= v3.7.1
 STATICCHECK_VERSION ?= 2025.1.1
 
 COMPOSE_FILE ?= docker-compose.local.yml
@@ -169,7 +169,7 @@ install-goimports:
 
 .PHONY: install-mockery
 install-mockery:
-	@go install github.com/vektra/mockery/v2@$(MOCKERY_VERSION)
+	@go install github.com/vektra/mockery/v3@$(MOCKERY_VERSION)
 
 .PHONY: install-proto-tools
 install-proto-tools:
