@@ -49,11 +49,11 @@ func startWebServer(_ *cobra.Command, _ []string) error {
 		}
 	}()
 
-	var e = c.Gin.NewEngine()
+	var e = c.NewGinEngine()
 	if err = routes.Register(ctx, e, p, c); err != nil {
 		return fmt.Errorf("registering routes: %w", err)
 	}
-	if err = e.Run(c.Gin.GetListeningAddress()); err != nil {
+	if err = e.Run(c.GetGinListeningAddress()); err != nil {
 		return fmt.Errorf("running Gin engine: %w", err)
 	}
 	return nil

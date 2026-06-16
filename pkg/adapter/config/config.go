@@ -12,6 +12,7 @@ import (
 	"os"
 
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/migrationsrp"
+	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/migrationsuc"
 	"gopkg.in/yaml.v3"
@@ -71,20 +72,20 @@ func (c *Config) ConnectionPool(
 // ConnectionInfo returns the configured database name, host, and port.
 // It is a pure accessor and has no side effects.
 func (c *Config) ConnectionInfo() (dbName, host string, port int) {
-	return c.Database.ConnectionInfo()
+	return c.Database.connectionInfo()
 }
 
 // NewSchemaRepo constructs the schema repository adapter configured for this
 // process. The returned repository is stateless and safe to reuse.
 func (c *Config) NewSchemaRepo() repo.Schema {
-	return c.Database.NewSchemaRepo()
+	return c.Database.newSchemaRepo()
 }
 
 // GetRolePassword resolves the configured password for role from the pgpass
 // entries embedded in the configuration. It returns an error when no matching
 // entry exists.
 func (c *Config) GetRolePassword(r repo.Role) (string, error) {
-	return c.Database.GetRolePassword(r)
+	return c.Database.getRolePassword(r)
 }
 
 // SchemaInitializer creates a schema initializer bound to tx.
@@ -100,7 +101,15 @@ func (c *Config) SchemaInitializer(tx repo.Tx) repo.SchemaInitializer {
 func (c *Config) NewMigrationsUseCase(
 	p repo.Pool, r repo.Migrations,
 ) *migrationsuc.UseCase {
-	return c.Usecases.Migrations.NewUseCase(p, r)
+	return c.Usecases.Migrations.newUseCase(p, r)
+}
+
+func (c *Config) NewGinEngine() *gin.Engine {
+	return c.Gin.newEngine()
+}
+
+func (c *Config) GetGinListeningAddress() string {
+	return c.Gin.getListeningAddress()
 }
 
 // String returns a JSON representation of c Config struct with secrets redacted.

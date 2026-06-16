@@ -18,9 +18,9 @@ type Migrations struct {
 	migDirPath string ``
 }
 
-// NewUseCase constructs the migration use case with the configured migration
+// newUseCase constructs the migration use case with the configured migration
 // directory path, connection pool, and migration repository implementation.
-func (m Migrations) NewUseCase(
+func (m Migrations) newUseCase(
 	p repo.Pool, r repo.Migrations,
 ) *migrationsuc.UseCase {
 	return migrationsuc.New(p, r, m.migDirPath)
