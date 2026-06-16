@@ -1,0 +1,25 @@
+template: testify
+
+dir: "pkg/core/mock"
+filename: "mock_{{.SrcPackageName}}_{{.InterfaceName}}.go"
+pkgname: "mock"
+structname: "{{.InterfaceName}}"
+
+packages:
+  github.com/parstis/bnpl-backend/pkg/core/repo:
+    interfaces:
+      Conn:
+      Migrations:
+      MigrationsConnQueryer:
+      MigrationsQueryer:
+      MigrationsTxQueryer:
+      Pool:
+      Queryer:
+      Rows:
+      Schema:
+      SchemaConnQueryer:
+      SchemaInitializer:
+      SchemaQueryer:
+      SchemaSettings:
+      SchemaTxQueryer:
+      Tx:
