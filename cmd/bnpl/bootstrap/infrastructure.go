@@ -3,12 +3,14 @@ package bootstrap
 import (
 	"fmt"
 
+	"github.com/parstis/bnpl-backend/pkg/core/clock"
 	"github.com/parstis/bnpl-backend/pkg/core/trace"
 )
 
 // Infrastructure holds the runtime adapters assembled for the application.
 type Infrastructure struct {
 	Trace trace.Provider
+	Clock clock.Clock
 }
 
 // NewInfrastructures constructs the infrastructure adapters required by App.
@@ -18,7 +20,14 @@ func (a *App) NewInfrastructures() (Infrastructure, error) {
 		return Infrastructure{}, fmt.Errorf("initialize trace: %w", err)
 	}
 
+	// Single system clock instance shared by all use cases that need time.
+	systemClock, err := a.Config.NewSystemClockInfrastructure()
+	if err != nil {
+		return Infrastructure{}, fmt.Errorf("initialize system clock: %w", err)
+	}
+
 	return Infrastructure{
 		Trace: traceProvider,
+		Clock: systemClock,
 	}, nil
 }

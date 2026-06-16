@@ -29,6 +29,10 @@ usecases:
 infrastructure:
   trace:
 
+  clock:
+    location: ${SYSTEM_CLOCK_LOCATION}
+    business_location: ${BUSINESS_CLOCK_LOCATION}
+
 
 versions:
   # semantic version of the database schema

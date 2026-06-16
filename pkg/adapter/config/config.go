@@ -13,6 +13,7 @@ import (
 
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/migrationsrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin"
+	"github.com/parstis/bnpl-backend/pkg/core/clock"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 	"github.com/parstis/bnpl-backend/pkg/core/trace"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/migrationsuc"
@@ -116,6 +117,10 @@ func (c *Config) GetGinListeningAddress() string {
 
 func (c *Config) NewTraceInfrastructure() (trace.Provider, error) {
 	return c.Infrastructure.Trace.newTraceInfrastructure()
+}
+
+func (c *Config) NewSystemClockInfrastructure() (clock.Clock, error) {
+	return c.Infrastructure.Clock.newSystemClockInfrastructure()
 }
 
 // String returns a JSON representation of c Config struct with secrets redacted.
