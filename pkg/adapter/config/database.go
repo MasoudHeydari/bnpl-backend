@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/adapter/db/postgres"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/adapter/db/postgres/schemarp"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/model"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/repo"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/schemarp"
+	"github.com/parstis/bnpl-backend/pkg/core/model"
+	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
 // Database defines PostgreSQL connection and pool settings.

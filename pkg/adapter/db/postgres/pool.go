@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/repo"
+	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
 // ConnHandler aliases the core pooled-connection callback type for local

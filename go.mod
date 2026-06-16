@@ -1,4 +1,4 @@
-module gitlab.com/mehdi.fakhraei-group/bnpl
+module github.com/parstis/bnpl-backend
 
 go 1.26.2
 

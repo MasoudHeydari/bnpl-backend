@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/parstis/bnpl-backend/pkg/adapter/config"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/migrationsrp"
+	"github.com/parstis/bnpl-backend/pkg/core/repo"
 	"github.com/spf13/cobra"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/adapter/config"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/adapter/db/postgres/migrationsrp"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/repo"
 )
 
 var migrateCmd = &cobra.Command{

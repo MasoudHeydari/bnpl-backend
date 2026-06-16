@@ -3,7 +3,7 @@ package config
 import (
 	"fmt"
 
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/adapter/restful/gin"
+	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin"
 )
 
 // Gin defines HTTP server settings used to construct the local Gin adapter.

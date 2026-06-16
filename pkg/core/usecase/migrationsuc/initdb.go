@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"log"
 
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/repo"
+	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
 // InitDBUseCase recreates the managed PostgreSQL schema and seeds it with the

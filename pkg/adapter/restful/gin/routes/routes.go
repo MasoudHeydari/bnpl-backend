@@ -7,8 +7,8 @@ import (
 	"context"
 
 	"github.com/gin-gonic/gin"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/adapter/config"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/repo"
+	"github.com/parstis/bnpl-backend/pkg/adapter/config"
+	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
 // Register attaches HTTP routes to e.

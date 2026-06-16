@@ -11,9 +11,9 @@ import (
 	"fmt"
 	"os"
 
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/adapter/db/postgres/migrationsrp"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/repo"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/usecase/migrationsuc"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/migrationsrp"
+	"github.com/parstis/bnpl-backend/pkg/core/repo"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/migrationsuc"
 	"gopkg.in/yaml.v3"
 )
 

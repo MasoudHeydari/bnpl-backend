@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/parstis/bnpl-backend/pkg/adapter/config"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/migrationsuc"
 	"github.com/spf13/cobra"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/adapter/config"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/usecase/migrationsuc"
 )
 
 var initDevCmd = &cobra.Command{

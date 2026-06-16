@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/cerr"
+	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 )
 
 // Bind binds and validates the incoming request with binding strategy b.

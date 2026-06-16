@@ -1,8 +1,8 @@
 package config
 
 import (
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/repo"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/usecase/migrationsuc"
+	"github.com/parstis/bnpl-backend/pkg/core/repo"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/migrationsuc"
 )
 
 // Usecases groups configuration sections that feed application-layer use case

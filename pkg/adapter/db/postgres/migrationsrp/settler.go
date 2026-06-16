@@ -5,7 +5,7 @@ import (
 	_ "embed"
 	"fmt"
 
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/repo"
+	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
 // Settler initializes a freshly created schema by executing embedded SQL

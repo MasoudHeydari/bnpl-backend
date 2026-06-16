@@ -1,7 +1,7 @@
 package postgres
 
 import (
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/repo"
+	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
 // Queryer is the type set shared by generic PostgreSQL helpers in this package.
