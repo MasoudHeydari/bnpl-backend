@@ -1,11 +1,7 @@
 package command
 
 import (
-	"context"
-	"fmt"
-
-	"github.com/parstis/bnpl-backend/pkg/adapter/config"
-	"github.com/parstis/bnpl-backend/pkg/core/usecase/migrationsuc"
+	"github.com/parstis/bnpl-backend/cmd/bnpl/bootstrap"
 	"github.com/spf13/cobra"
 )
 
@@ -23,22 +19,7 @@ embedded schema and development seed SQL inside a transaction.`,
 }
 
 func initDev(_ *cobra.Command, _ []string) error {
-	ctx := context.Background()
-	c, err := config.Load(cfgPath)
-	if err != nil {
-		return fmt.Errorf("config.Load(%q): %w", cfgPath, err)
-	}
-	fmt.Printf("configs: %v\n", c)
-	fmt.Println("Dev DB initializing...")
-
-	muc := migrationsuc.NewInitDB(c)
-	err = muc.InitDev(ctx)
-	if err != nil {
-		return fmt.Errorf("initializing DB with dev data: %w", err)
-	}
-
-	fmt.Println("Dev DB initialized.")
-	return nil
+	return bootstrap.InitDev()
 }
 
 func init() {

@@ -6,14 +6,10 @@
 package command
 
 import (
-	"context"
 	"fmt"
-	"log"
 	"os"
 
-	"github.com/parstis/bnpl-backend/pkg/adapter/config"
-	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/routes"
-	"github.com/parstis/bnpl-backend/pkg/core/repo"
+	"github.com/parstis/bnpl-backend/cmd/bnpl/bootstrap"
 	"github.com/spf13/cobra"
 )
 
@@ -33,30 +29,7 @@ listening on the configured Gin address.`,
 )
 
 func startWebServer(_ *cobra.Command, _ []string) error {
-	ctx := context.Background()
-	c, err := config.Load(cfgPath)
-	if err != nil {
-		return fmt.Errorf("config.Load(%q): %w", cfgPath, err)
-	}
-	fmt.Printf("configs: %v\n", c)
-	p, err := c.ConnectionPool(ctx, repo.NormalRole)
-	if err != nil {
-		return fmt.Errorf("creating DB pool: %w", err)
-	}
-	defer func() {
-		if err = p.Close(); err != nil {
-			log.Printf("failed to close pool connection: %v", err)
-		}
-	}()
-
-	var e = c.NewGinEngine()
-	if err = routes.Register(ctx, e, p, c); err != nil {
-		return fmt.Errorf("registering routes: %w", err)
-	}
-	if err = e.Run(c.GetGinListeningAddress()); err != nil {
-		return fmt.Errorf("running Gin engine: %w", err)
-	}
-	return nil
+	return bootstrap.Boot()
 }
 
 // Execute runs the root command tree.
@@ -70,21 +43,8 @@ func Execute() {
 }
 
 func init() {
-	cobra.OnInitialize(fixConfigPath)
+	cobra.OnInitialize(bootstrap.FixConfigPath)
 	rootCmd.PersistentFlags().StringVarP(
 		&cfgPath, "config", "c", "", "config file path",
 	)
-}
-
-// fixConfigPath resolves the configuration path once during BNPL startup.
-// The function prefers an explicit CLI flag, then the CONFIG_FILE environment
-// variable, and finally the repository-local default path.
-func fixConfigPath() {
-	if cfgPath != "" {
-		return
-	}
-	var found bool
-	if cfgPath, found = os.LookupEnv("CONFIG_FILE"); !found {
-		cfgPath = "configs/config.yaml"
-	}
 }
