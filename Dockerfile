@@ -1,37 +1,54 @@
+FROM golang:1.26.2-alpine3.23 AS builder
+
 ARG APP_NAME=bnpl
 
-FROM golang:1.25-alpine3.23 AS builder
-
-COPY . /app
 WORKDIR /app
 
-# Toggle CGO based on your app requirement. CGO_ENABLED=1 for enabling CGO and CGO_ENABLED=0 for disabling.
-RUN CGO_ENABLED=0 go build -tags="go_json nomsgpack" -trimpath -ldflags '-s -w -extldflags "-static"' \
--o /app/$APP_NAME ./cmd/bnpl
+RUN apk add --no-cache git
 
-# Use below if using vendor
-# RUN CGO_ENABLED=0 go build -mod=vendor -ldflags '-s -w -extldflags "-static"' -o /app/appbin *.go
+ENV GOPROXY=https://goproxy.io,https://proxy.golang.org,direct
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN CGO_ENABLED=0 go build \
+    -tags="go_json nomsgpack" \
+    -trimpath \
+    -ldflags='-s -w -extldflags "-static"' \
+    -o /out/${APP_NAME} ./cmd/bnpl
+
 
 FROM alpine:3.23
+
 LABEL MAINTAINER="Author dev.masoud1997@gmail.com>"
 
 ARG APP_NAME=bnpl
-ENV APP_NAME_ENV=${APP_NAME}
 ARG APP_USER=bnpluser
+ARG HTTP_PORT=8000
+ARG HTTPS_PORT=8443
 
-# Since running as a non-root user, port bindings < 1024 is not possible
-ARG PROT_FOR_HTTP=8000
-ARG PORT_FOR_HTTPS=8443
+ENV APP_NAME=${APP_NAME}
+ENV CONFIG_FILE=configs/config.yaml
 
-# Add new user
-RUN adduser -D $APP_USER
-USER $APP_USER
+RUN apk add --no-cache tzdata ca-certificates && \
+    ln -snf /usr/share/zoneinfo/Asia/Tehran /etc/localtime && \
+    echo "Asia/Tehran" > /etc/timezone && \
+    adduser -D ${APP_USER}
 
-COPY --from=builder /app /home/$APP_USER/app
+WORKDIR /home/${APP_USER}/app
 
-WORKDIR /home/$APP_USER/app
+COPY --from=builder /out/${APP_NAME} ./
+COPY --from=builder /app/configs ./configs
+COPY --from=builder /app/scripts/docker-entrypoint.sh ./docker-entrypoint.sh
 
-EXPOSE $PROT_FOR_HTTP
-EXPOSE $PROT_FOR_HTTPS
+RUN chmod +x ./docker-entrypoint.sh && \
+    chown -R ${APP_USER}:${APP_USER} /home/${APP_USER}/app
 
-CMD ./${APP_NAME_ENV}
+USER ${APP_USER}
+
+EXPOSE ${HTTP_PORT}
+EXPOSE ${HTTPS_PORT}
+
+CMD ["./docker-entrypoint.sh"]

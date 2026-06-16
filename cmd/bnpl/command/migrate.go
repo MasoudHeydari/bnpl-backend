@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/spf13/cobra"
 	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/adapter/config"
@@ -12,10 +13,12 @@ import (
 
 var migrateCmd = &cobra.Command{
 	Use:   "migrate",
-	Short: "Migrate a source database contents to a new empty database",
-	Long: `Migrate a database contents to a change the format of schema
-contents in order to match with the expected schema.
-For this purpose, a configuration file path ia required.`,
+	Short: "Apply all configured SQL migration files",
+	Long: `Apply all SQL migration files from the configured migration directory.
+
+The command loads the application configuration, opens a normal-role PostgreSQL
+connection pool, reads each migration file from disk, executes its SQL inside a
+transaction, and registers the migration in the migrations table on success.`,
 	RunE: migrate,
 	Args: cobra.NoArgs,
 }
@@ -31,7 +34,11 @@ func migrate(_ *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("creating DB pool: %w", err)
 	}
-	defer p.Close()
+	defer func() {
+		if err = p.Close(); err != nil {
+			log.Printf("failed to close pool connection: %v", err)
+		}
+	}()
 
 	migrationsRepo := migrationsrp.New()
 	migrationsUC := c.NewMigrationsUseCase(p, migrationsRepo)

@@ -1,93 +1,235 @@
-# BNPL
+# BNPL Platform
 
+Go backend for a Buy Now Pay Later (BNPL) financial platform. The repository is being built incrementally: today it provides platform foundations (configuration, PostgreSQL bootstrap, migrations scaffolding, CLI, HTTP server shell, Docker assets, and CI/CD). The long-term goal is a regulated BNPL engine for credit decisions, installment plans, repayments, collections, and more.
 
+## Current Status
 
-## Getting started
+**This repository does not yet implement BNPL business workflows.**
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+What exists today:
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+- Single-binary CLI (`bnpl`) with Cobra subcommands
+- YAML configuration with `${ENV}` expansion
+- PostgreSQL connection pooling and transaction adapters (`pgx`)
+- Destructive schema bootstrap (`db init-dev`, `db init-prod`)
+- Filesystem migration runner (`db migrate`) — partially wired; see [Known limitations](#known-limitations)
+- Gin HTTP server bootstrap with an empty `/api/v1` route group
+- Docker image build and local Compose infrastructure (PostgreSQL, Kafka)
+- GitHub Actions CI/CD and GitLab CI pipelines
 
-## Add your files
+What is **not** implemented:
 
-* [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+- Borrower credit evaluation, installment plans, credit limits, checkout decisions
+- Contract, repayment, payment, collections, or legal-case domains
+- Concrete HTTP API handlers or business aggregates
+- Production-safe, non-destructive schema evolution
+- Kafka, Redis, or structured application logging integration in Go code
+
+See [doc/architecture.md](doc/architecture.md) for layer details and [doc/api.md](doc/api.md) for HTTP status.
+
+## BNPL Platform Vision
+
+The intended platform will support:
+
+| Domain | Purpose |
+| --- | --- |
+| Contract | BNPL agreement lifecycle |
+| Decision | Credit and checkout financing decisions |
+| RepaymentPlan / Installment | Schedule generation and tracking |
+| PaymentAttempt | Payment initiation and reconciliation |
+| CreditLimit | Borrower exposure management |
+| CollectionsCase / LegalCase | Delinquency and escalation workflows |
+| MerchantProfile / MerchantBranchProfile | Merchant onboarding and branches |
+| Restriction / Block | Risk controls |
+| Audit | Regulatory and operational traceability |
+
+These domains are **planned**, not present in the current codebase.
+
+## Architecture Summary
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/mehdi.fakhraei-group/bnpl.git
-git branch -M main
-git push -uf origin main
+cmd/bnpl          CLI entrypoint (default: HTTP server; subcommands: db *)
+pkg/core          Domain models, repository ports, use cases, shared errors
+pkg/adapter       Config, Gin HTTP, PostgreSQL implementations
+assets/db/init    Symlinks to embedded bootstrap SQL (reference only)
+configs/          Environment-expanded YAML configuration
 ```
 
-## Integrate with your tools
+Dependency flow is inward: adapters and CLI depend on use cases; use cases depend on `pkg/core/repo` interfaces; PostgreSQL adapters implement those interfaces.
 
-* [Set up project integrations](https://gitlab.com/mehdi.fakhraei-group/bnpl/-/settings/integrations)
+Details: [doc/architecture.md](doc/architecture.md) · ADRs: [doc/adr/](doc/adr/)
 
-## Collaborate with your team
+## Repository Structure
 
-* [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+| Path | Role |
+| --- | --- |
+| `cmd/bnpl/` | Process entrypoint and Cobra commands |
+| `pkg/core/model/` | Shared data structures (`Secret`, `Migration`) |
+| `pkg/core/repo/` | Database and repository port interfaces |
+| `pkg/core/usecase/migrationsuc/` | Schema bootstrap and migration orchestration |
+| `pkg/core/cerr/` | HTTP-oriented error wrappers |
+| `pkg/adapter/config/` | YAML loading and dependency wiring |
+| `pkg/adapter/db/postgres/` | `pgx` pool, connection, transaction adapters |
+| `pkg/adapter/restful/gin/` | Gin wrapper, routes, serialization helpers |
+| `pkg/adapter/db/postgres/migrationsrp/` | Embedded bootstrap SQL and migration repository |
+| `pkg/adapter/db/postgres/schemarp/` | Schema and role administration SQL |
+| `configs/config.yaml` | Canonical configuration shape |
+| `scripts/docker-entrypoint.sh` | Container startup: DB init then HTTP server |
+| `doc/` | Architecture, operations, security, and ADR documentation |
 
-## Test and Deploy
+## Configuration Overview
 
-Use the built-in continuous integration in GitLab.
+Configuration is loaded from YAML with `${VAR}` placeholders expanded from the process environment.
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+Resolution order for the config file path:
 
-***
+1. `--config` / `-c` CLI flag
+2. `CONFIG_FILE` environment variable
+3. Default: `configs/config.yaml`
 
-# Editing this README
+Key environment variables are documented in [.env.example](.env.example) and [doc/configuration.md](doc/configuration.md).
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+Database credentials use pgpass-format lines in configuration (`POSTGRES_ADMIN_PGPASS`, `POSTGRES_NORMAL_PGPASS`), not a `.pgpass` file read by the application. See [doc/security.md](doc/security.md).
 
-## Suggestions for a good README
+## Local Development
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+**Requirements:** Go 1.26.2, Docker with Compose (for local PostgreSQL/Kafka).
 
-## Name
-Choose a self-explaining name for your project.
+```bash
+cp .env.example .env          # adjust values for your workstation
+make up                       # start PostgreSQL and Kafka
+make build                    # build build/bin/bnpl
+make init-dev                 # destructive schema bootstrap (development)
+make run                      # start HTTP server via docker-entrypoint.sh
+```
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+Direct CLI usage:
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+```bash
+./build/bin/bnpl              # start HTTP server (default command)
+./build/bin/bnpl db init-dev  # reset schema and apply embedded bootstrap SQL
+./build/bin/bnpl db migrate   # apply filesystem migrations (see limitations)
+```
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+Full operational guide: [doc/operations.md](doc/operations.md)
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+## Database Bootstrap
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+Schema initialization is **destructive**: both `init-dev` and `init-prod` drop and recreate the managed `bnpl` schema.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+Flow (see [doc/database.md](doc/database.md)):
+
+1. Admin role: drop schema → create schema → ensure `bnpl` role → grant privileges
+2. Application role: execute embedded `000_schema.sql` and environment seed SQL in one transaction
+
+Embedded SQL lives in `pkg/adapter/db/postgres/migrationsrp/` and is compiled into the binary via `go:embed`. The `assets/db/init/` directory contains symlinks to those files for reference only.
+
+**Warning:** `init-prod` is not safe for live production databases. It performs the same destructive reset as `init-dev`.
+
+## Migrations
+
+Two separate mechanisms exist:
+
+| Mechanism | Command | Source | Status |
+| --- | --- | --- | --- |
+| Embedded bootstrap | `db init-dev` / `db init-prod` | `go:embed` SQL in binary | Implemented |
+| Filesystem migrations | `db migrate` | `MIGRATIONS_FILES_DIR` (default `assets/db/migrations`) | Partially wired — directory missing; YAML path not decoded |
+
+Bootstrap and migrations are independent concerns. Bootstrap recreates the schema; migrations apply incremental SQL files and record them in the `migrations` table.
+
+## Docker Usage
+
+Build and run:
+
+```bash
+make build-image              # docker build -t bnpl-backend:v0.1.0 .
+make run-image                # runs container with default entrypoint
+```
+
+Container startup (`scripts/docker-entrypoint.sh`):
+
+1. Runs `bnpl db ${DB_INIT_COMMAND:-init-dev}` (destructive by default)
+2. `exec bnpl` to start the HTTP server as PID 1
+
+Environment variables:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `CONFIG_FILE` | `configs/config.yaml` | Application configuration path |
+| `APP_EXECUTABLE` | `./bnpl` | Binary path inside the container |
+| `DB_INIT_COMMAND` | `init-dev` | Bootstrap subcommand (`init-dev` or `init-prod`) |
+
+See [doc/operations.md](doc/operations.md) and ADR [0006](doc/adr/0006-docker-entrypoint-startup-flow.md).
+
+## Makefile Usage
+
+| Target | Description |
+| --- | --- |
+| `make build` | Compile static binary to `build/bin/bnpl` |
+| `make run` | Build and start via `scripts/docker-entrypoint.sh` |
+| `make up` / `make down` | Start/stop local Compose services |
+| `make init-dev` / `make init-prod` | Destructive database bootstrap |
+| `make test` | Run unit tests |
+| `make lint` | Run golangci-lint |
+| `make build-image` | Build Docker image |
+| `make publish-image-to-hamravesh` | Tag and push to Hamravesh registry |
+
+The Makefile auto-loads `.env` via `-include .env`.
+
+## Deployment Notes
+
+- CI (`.github/workflows/ci.yml`): gofmt, vet, lint, tests, security scans, Docker build validation
+- CD (`.github/workflows/cd.yml`): builds and pushes images to GHCR and Hamravesh; deploy job references `scripts/deploy.sh`, which is **not present** in this repository
+- GitLab CI (`.gitlab-ci.yml`): test, build, Docker push on `main`; Helm/deploy stages are commented out
+- Deploy production images by immutable SHA tag, not `latest`
+
+## Known Limitations
+
+- No business API endpoints or domain aggregates
+- `init-dev` and `init-prod` are destructive; unsuitable for evolving production schemas
+- Development and production seed SQL files (`000_dev.sql`, `000_prod.sql`) are empty
+- `MIGRATIONS_FILES_DIR` is not decoded from YAML into the config struct
+- `assets/db/migrations` directory does not exist
+- `GIN_TRUSTED_PROXY` in YAML is ignored; Gin adapter hardcodes `127.0.0.1`
+- Kafka env vars in `.env.example` are unused by Go code
+- `make run` prints loaded config including redacted secret hashes via `fmt.Printf`
+- `scripts/deploy.sh` referenced by CD workflow is missing
+- No unit or integration test files in the repository yet
 
 ## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+
+Near-term platform work (not yet implemented):
+
+1. Wire `usecases.migration.files-dir` and add initial migration files
+2. Implement HTTP health and readiness endpoints
+3. Introduce first BNPL domain aggregates (Contract, Decision, CreditLimit)
+4. Non-destructive production migration workflow
+5. Structured logging, metrics, and tracing
+6. Kafka event publishing for audit and downstream consumers
+7. Reduce admin credential exposure during routine operations
+
+Business roadmap context (Persian product docs): [doc/pintoday.md](doc/pintoday.md), [doc/base_doc.md](doc/base_doc.md).
+
+## Documentation Index
+
+| Document | Contents |
+| --- | --- |
+| [doc/architecture.md](doc/architecture.md) | Layers, flows, current vs planned |
+| [doc/api.md](doc/api.md) | HTTP server status |
+| [doc/database.md](doc/database.md) | Bootstrap, migrations, roles, risks |
+| [doc/configuration.md](doc/configuration.md) | YAML, env vars, wiring gaps |
+| [doc/operations.md](doc/operations.md) | Makefile, Docker, CI/CD |
+| [doc/security.md](doc/security.md) | Secrets, pgpass, operational risks |
+| [doc/adr/](doc/adr/) | Architecture decision records |
+| [CHANGELOG.md](CHANGELOG.md) | Release history |
 
 ## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+1. Fork or branch from `main`
+2. Copy `.env.example` to `.env` for local development
+3. Run `make build`, `make test`, `make lint` before opening a merge request
+4. Keep documentation aligned with code — do not describe unimplemented features as complete
+5. Follow existing package layout: core interfaces inward, adapters outward
+6. ADRs are required for significant architectural changes under `doc/adr/`
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Go version, lint, and CI expectations are pinned in `go.mod`, `Makefile`, and `.github/workflows/ci.yml`.

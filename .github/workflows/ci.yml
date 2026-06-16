@@ -1,0 +1,285 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+# Least-privilege default; individual jobs add nothing extra.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── 1. LINT ──────────────────────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify Dockerfile Go version matches go.mod
+        run: |
+          GOMOD_VERSION=$(grep -E '^go [0-9]+\.[0-9]+\.[0-9]+' go.mod | awk '{print $2}')
+          DOCKERFILE_VERSION=$(grep -oP 'golang:\K[0-9]+\.[0-9]+\.[0-9]+' Dockerfile)
+          
+          if [ -z "$GOMOD_VERSION" ]; then
+            echo "Could not find a full go version (X.Y.Z) in go.mod"
+            exit 1
+          fi
+          if [ -z "$DOCKERFILE_VERSION" ]; then
+            echo "Could not find a full golang image version (X.Y.Z) in Dockerfile"
+            exit 1
+          fi
+          
+          if [ "$GOMOD_VERSION" != "$DOCKERFILE_VERSION" ]; then
+            echo "Mismatch: go.mod wants go $GOMOD_VERSION, Dockerfile uses golang:$DOCKERFILE_VERSION"
+            exit 1
+          fi
+
+      - uses: actions/setup-go@v5
+        with:
+          # Reads the `go` directive from go.mod (currently go 1.26.2).
+          go-version-file: go.mod
+          cache: true
+
+      # Fail fast if someone pushed without running `go mod tidy`.
+      - name: Verify go.mod / go.sum are tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      # Check only hand-written code; skip gen/ and vendor/ if present.
+      - name: gofmt
+        run: |
+          UNFORMATTED=$(gofmt -l ./cmd/... ./pkg/... 2>/dev/null || gofmt -l .)
+          if [ -n "$UNFORMATTED" ]; then
+            echo "Files not formatted with gofmt:"
+            echo "$UNFORMATTED"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./cmd/... ./pkg/...
+
+      # Pin the golangci-lint version deliberately; bump it in a dedicated PR.
+      # Latest releases: https://github.com/golangci/golangci-lint/releases
+      - uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.12.2
+
+  # ── 2. GO VULNERABILITY CHECK ────────────────────────────────────────────────
+  govulncheck:
+    name: Go vulnerability check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      # Non-blocking for now — gives time to triage existing findings
+      # before this gates merges.
+      - name: Run govulncheck
+        continue-on-error: true
+        run: govulncheck ./...
+
+  # ── 3. UNIT TESTS ────────────────────────────────────────────────────────
+  unit-test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # Run only packages under cmd/ and pkg/; this naturally excludes gen/proto.
+      # The `integration` build tag is NOT set, so testcontainer tests are skipped.
+      - name: Unit tests (race detector + coverage)
+        run: |
+          go test -race \
+            -covermode=atomic \
+            -coverprofile=coverage.out \
+            ./cmd/... ./pkg/...
+
+      # Start conservative. Non-blocking for now — gives time to measure the
+      # real baseline before this gates merges. Once you have a stable
+      # number, remove `continue-on-error` and set THRESHOLD accordingly.
+      - name: Enforce coverage threshold
+        continue-on-error: true
+        run: |
+          THRESHOLD=60
+          COVERAGE=$(go tool cover -func=coverage.out \
+            | awk '/^total:/ { gsub(/%$/, "", $3); print $3 }')
+          echo "Total coverage: ${COVERAGE}%"
+          awk -v cov="$COVERAGE" -v th="$THRESHOLD" 'BEGIN {
+            if (cov + 0 < th) {
+              printf "Coverage %.1f%% is below the %d%% threshold\n", cov, th
+              exit 1
+            }
+          }'
+
+      # Validate the binary compiles; output goes to /dev/null to keep the runner clean.
+      - name: Build validation
+        run: |
+          go build -tags="go_json nomsgpack" -trimpath \
+            -ldflags '-s -w -extldflags "-static"' \
+            -o /dev/null ./cmd/bnpl
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.out
+          if-no-files-found: error
+
+  # ── 4. INTEGRATION TESTS ─────────────────────────────────────────────────
+  integration-test:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [ lint, unit-test ]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # IMPORTANT: There is NO `services.postgres` block here.
+      # The integration tests use testcontainers-go (v0.42.0) to spin up their
+      # own postgres:18 container per test package. ubuntu-latest ships Docker
+      # pre-installed with the daemon running, so testcontainers works out of
+      # the box — no extra setup is required.
+      #
+      # If you ever add app-level integration tests that need a pre-configured
+      # external DB, add a services.postgres block there and pass credentials
+      # via ${{ secrets.CI_POSTGRES_USER }} / ${{ secrets.CI_POSTGRES_PASSWORD }}.
+      #
+      # TESTCONTAINERS_RYUK_DISABLED prevents the Ryuk cleanup sidecar from
+      # being started; avoids permission issues on constrained CI environments.
+      - name: Integration tests (testcontainers, race detector)
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: "true"
+        run: |
+          go test -tags integration \
+            -race \
+            -count=1 \
+            -timeout=20m \
+            -p 1 \
+            ./...
+
+  # ── 5. SECURITY SCAN ─────────────────────────────────────────────────────
+  security:
+    name: Security scan (gosec)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: lint
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # Pin to an exact release. Latest: https://github.com/securego/gosec/releases
+      # -exclude-dir=gen     skips auto-generated protobuf code.
+      # -exclude-dir=pkg/core/mock skips mockery-generated mocks.
+      # Add a .gosec.yaml to accept specific known findings as acceptable risks.
+      #
+      # continue-on-error: non-blocking for now — gives time to triage existing
+      # findings (or add exclusions) before this gates merges. Remove once the
+      # baseline is clean, or once findings are intentionally suppressed.
+      - name: Run gosec
+        uses: securego/gosec@v2.27.1
+        continue-on-error: true
+        with:
+          args: >-
+            -exclude-dir=gen
+            -exclude-dir=pkg/core/mock
+            -fmt=sarif
+            -out=gosec-results.sarif
+            ./...
+
+      - name: Upload gosec SARIF artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gosec-results
+          path: gosec-results.sarif
+          if-no-files-found: warn
+
+  # ── 6. DOCKER BUILD VALIDATION ───────────────────────────────────────────
+  docker-build:
+    name: Docker build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: unit-test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Docker build
+        run: |
+          docker build \
+            --tag bnpl-backend:${{ github.sha }} \
+            --label "git.sha=${{ github.sha }}" \
+            .
+
+  # ── 7. DOCKER IMAGE VULNERABILITY SCAN ──────────────────────────────────────
+  trivy-scan:
+    name: Trivy image scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: docker-build
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image for scan
+        run: |
+          docker build \
+            --tag bnpl-backend:${{ github.sha }} \
+            .
+
+      # Non-blocking for now — gives time to triage existing findings
+      # before this gates merges.
+      - name: Run Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        continue-on-error: true
+        with:
+          image-ref: bnpl-backend:${{ github.sha }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+
+      - name: Upload Trivy SARIF artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-results
+          path: trivy-results.sarif
+          if-no-files-found: warn

@@ -8,20 +8,22 @@ import (
 	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/repo"
 )
 
+// CreateSchema creates schema using trusted identifier interpolation for PostgreSQL DDL.
 func CreateSchema[Q postgres.Queryer](
 	ctx context.Context, q Q, schema string,
 ) error {
-	// This DDL statement does not support to take schema name
-	// as a parameterized query, it is a trusted string.
+	// PostgreSQL DDL does not accept schema names as bind parameters.
 	_, err := q.Exec(ctx, fmt.Sprintf(`CREATE SCHEMA %s`, schema))
 	return err
 }
 
+// CreateRoleIfNotExists creates role with password when the role is not already present.
+// Role and password are interpolated into trusted SQL because this DDL form cannot bind identifiers.
+// Password may appear in PostgreSQL logs when statement logging is enabled.
 func CreateRoleIfNotExists[Q postgres.Queryer](
 	ctx context.Context, q Q, role repo.Role, password string,
 ) error {
-	// Although CREATE ROLE DDL statement does not support to take
-	// role name as a parameterized query, it is a trusted string.
+	// Role name is a trusted application constant; password is from configuration.
 	_, err := q.Exec(ctx, fmt.Sprintf(`DO
 $body$
 BEGIN
@@ -41,28 +43,28 @@ $body$`, role, password))
 	return err
 }
 
+// GrantPrivileges grants all privileges on schema to role using trusted identifier interpolation.
 func GrantPrivileges[Q postgres.Queryer](
 	ctx context.Context,
 	q Q,
 	schema string,
 	role repo.Role,
 ) error {
-	// Although this DDL statement does not support to take schema and
-	// role names as a parameterized query, they are trusted strings.
+	// Schema and role are trusted application-controlled identifiers.
 	_, err := q.Exec(ctx, fmt.Sprintf(
 		`GRANT ALL PRIVILEGES ON SCHEMA %s TO %s`, schema, role,
 	))
 	return err
 }
 
+// SetSearchPath sets role's default search_path to schema.
 func SetSearchPath[Q postgres.Queryer](
 	ctx context.Context,
 	q Q,
 	schema string,
 	role repo.Role,
 ) error {
-	// Although this DDL statement does not support to take schema and
-	// role names as a parameterized query, they are trusted strings.
+	// Schema and role are trusted application-controlled identifiers.
 	_, err := q.Exec(
 		ctx,
 		fmt.Sprintf(`ALTER ROLE %s SET search_path = %s`, role, schema),
@@ -70,11 +72,12 @@ func SetSearchPath[Q postgres.Queryer](
 	return err
 }
 
+// DropIfExists drops schema and all contained objects when it exists.
+// This operation is destructive and is used by init-dev and init-prod.
 func DropIfExists[Q postgres.Queryer](
 	ctx context.Context, q Q, schema string,
 ) error {
-	// Although this DDL statement does not support to take schema name
-	// as a parameterized query, it is a trusted string.
+	// Schema name is a trusted application constant (bnpl).
 	_, err := q.Exec(
 		ctx,
 		fmt.Sprintf(`DROP SCHEMA IF EXISTS %s CASCADE`, schema),

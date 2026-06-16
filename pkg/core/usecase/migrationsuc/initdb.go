@@ -1,20 +1,37 @@
+// Package migrationsuc implements database initialization and migration use
+// cases. It belongs to the application layer and coordinates repository
+// abstractions from the core layer with PostgreSQL-backed implementations from
+// the infrastructure layer. The package owns orchestration and transaction
+// boundaries, but not SQL statement definitions.
 package migrationsuc
 
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/repo"
 )
 
+// InitDBUseCase recreates the managed PostgreSQL schema and seeds it with the
+// base dataset required for either development or production environments.
+// The use case is stateful only in its dependencies and should be reused only
+// with immutable configuration.
 type InitDBUseCase struct {
 	ss repo.SchemaSettings
 }
 
+// NewInitDB constructs a database initialization use case.
+// The provided schema settings abstraction must be able to open both admin and
+// application-role connections for the target database.
 func NewInitDB(ss repo.SchemaSettings) *InitDBUseCase {
 	return &InitDBUseCase{ss: ss}
 }
 
+// InitProd recreates the application schema and loads production-style seed
+// data from embedded SQL. Like InitDev, it drops the managed schema first and
+// is destructive. Do not run against live production databases. It is not safe
+// to run concurrently against the same database.
 func (iduc *InitDBUseCase) InitProd(ctx context.Context) error {
 	return iduc.initDB(
 		ctx,
@@ -24,6 +41,9 @@ func (iduc *InitDBUseCase) InitProd(ctx context.Context) error {
 	)
 }
 
+// InitDev recreates the application schema and loads development seed data from
+// embedded SQL. It drops the managed schema first and is destructive. It is
+// not safe to run concurrently against the same database.
 func (iduc *InitDBUseCase) InitDev(ctx context.Context) error {
 	return iduc.initDB(
 		ctx,
@@ -45,9 +65,15 @@ func (iduc *InitDBUseCase) initDB(
 	if err != nil {
 		return fmt.Errorf("creating DB pool for normal role: %w", err)
 	}
-	defer connPool.Close()
+	defer func() {
+		if err = connPool.Close(); err != nil {
+			log.Printf("failed to close pool connection: %v", err)
+		}
+	}()
 
 	err = connPool.Conn(ctx, func(ctx context.Context, c repo.Conn) error {
+		// Schema data initialization is executed inside a single transaction so
+		// DDL and seed data changes are committed or rolled back together.
 		return c.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
 			si := iduc.ss.SchemaInitializer(tx)
 			if err := dbi(ctx, si); err != nil {
@@ -72,9 +98,15 @@ func (iduc *InitDBUseCase) dropAndCreateAgain(
 	if err != nil {
 		return fmt.Errorf("creating DB pool for admin: %w", err)
 	}
-	defer connPool.Close()
+	defer func() {
+		if err = connPool.Close(); err != nil {
+			log.Printf("failed to close pool connection: %v", err)
+		}
+	}()
 
 	err = connPool.Conn(ctx, func(ctx context.Context, c repo.Conn) error {
+		// Administrative bootstrap is also transactional to keep role, schema,
+		// and privilege changes consistent when a later statement fails.
 		return c.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
 			q := iduc.ss.NewSchemaRepo().Tx(tx)
 			schemaName := SchemaName()
@@ -124,6 +156,8 @@ func (iduc *InitDBUseCase) dropAndCreateAgain(
 	return nil
 }
 
+// SchemaName returns the PostgreSQL schema name managed by the migration use
+// cases. The value is currently fixed for the entire application.
 func SchemaName() string {
 	return "bnpl"
 }

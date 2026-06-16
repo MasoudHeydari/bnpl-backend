@@ -1,0 +1,33 @@
+database:
+  host: ${POSTGRES_HOST}
+  port: ${POSTGRES_PORT}
+  name: ${POSTGRES_DB}
+  max_connections: ${POSTGRES_MAX_CONNECTIONS}
+  min_connections: ${POSTGRES_MIN_CONNECTIONS}
+  max_connection_life_time: ${POSTGRES_MAX_CONNECTION_LIFE_TIME}
+  max_connection_idle_time: ${POSTGRES_MAX_CONNECTION_IDLE_TIME}
+  health_check_period: ${POSTGRES_HEALTH_CHECK_PERIOD}
+  connection_timeout: ${POSTGRES_CONNECTION_TIMEOUT}
+  ssl_mode: ${POSTGRES_SSL_MODE}
+  pgpass_entries:
+    admin: ${POSTGRES_ADMIN_PGPASS}
+    normal: ${POSTGRES_NORMAL_PGPASS}
+
+gin:
+  host: ${GIN_HOST}
+  port: ${GIN_PORT}
+  trusted_proxies:
+    - ${GIN_TRUSTED_PROXY}
+  mode: ${GIN_MODE}
+  logger: ${GIN_LOGGER}
+  recovery: ${GIN_RECOVERY}
+
+usecases:
+  migration:
+    files-dir: ${MIGRATIONS_FILES_DIR}
+
+versions:
+  # semantic version of the database schema
+  database: 0.1.0
+  # semantic version of the configuration file itself
+  config: 0.1.0

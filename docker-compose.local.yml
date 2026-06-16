@@ -1,0 +1,78 @@
+# Local development Docker Compose
+#
+# Usage:
+#   cp .env.example .env
+#   docker compose -f docker-compose.local.yml up -d
+#   make build && make init-dev && ./build/bin/bnpl
+#
+# Credentials come from .env (gitignored).
+# The application runs on the host, not inside Compose.
+# PostgreSQL and Kafka ports are bound to 127.0.0.1 for host access.
+#
+# Application database settings use pgpass-format env vars (see .env.example),
+# not a pass-dir or .pgpass file read by the Go binary.
+
+services:
+  # ── PostgreSQL ─────────────────────────────────────────────────────────────
+  db:
+    image: docker.arvancloud.ir/postgres:18
+    container_name: bnpl-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data_bnpl:/var/lib/postgresql
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: [
+        "CMD-SHELL",
+        "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
+      ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - bnpl-net
+
+  # ── Kafka ──────────────────────────────────────────────────────────────────
+  kafka:
+    image: docker.arvancloud.ir/bitnami/kafka:4.0
+    container_name: bnpl-kafka
+    restart: unless-stopped
+    environment:
+      KAFKA_CFG_NODE_ID: 1
+      KAFKA_CFG_PROCESS_ROLES: controller,broker
+      KAFKA_CFG_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      # Advertise localhost so the host-side app (make run) can reach Kafka.
+      # In production this is "kafka:9092" (container-to-container).
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+    volumes:
+      - kafka_data_bnpl:/bitnami/kafka
+    ports:
+      - "127.0.0.1:9092:9092"
+    healthcheck:
+      test: [
+        "CMD-SHELL",
+        "kafka-topics.sh --bootstrap-server localhost:9092 --list 2>/dev/null || exit 1"
+      ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - bnpl-net
+
+networks:
+  bnpl-net:
+    driver: bridge
+
+volumes:
+  postgres_data_bnpl:
+  kafka_data_bnpl:

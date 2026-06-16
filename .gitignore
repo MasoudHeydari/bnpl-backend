@@ -52,4 +52,4 @@ fabric.properties
 
 # .pgpass file directory
 dist
-.env
+*.env

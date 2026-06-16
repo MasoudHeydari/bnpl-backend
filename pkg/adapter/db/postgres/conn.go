@@ -11,15 +11,22 @@ import (
 
 var emptyTxOptions pgx.TxOptions
 
+// Conn adapts a pooled pgx connection to the core repository Conn interface.
+// A Conn is leased from Pool.Conn and should not be shared outside the
+// callback that received it.
 type Conn struct {
 	*pgxpool.Conn
 }
 
+// TxHandler aliases the core transaction callback type for local adapter use.
 type TxHandler = repo.TxHandler
 
+// Tx executes f within a database transaction.
+// It commits when f returns nil, rolls back when f returns an error or panics,
+// and wraps rollback or commit failures into the returned error.
 func (c *Conn) Tx(ctx context.Context, f TxHandler) (err error) {
 	var tx pgx.Tx
-	tx, err = c.Conn.BeginTx(ctx, emptyTxOptions)
+	tx, err = c.BeginTx(ctx, emptyTxOptions)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
@@ -50,6 +57,7 @@ func (c *Conn) Tx(ctx context.Context, f TxHandler) (err error) {
 	return f(ctx, tt)
 }
 
+// Exec executes sql on the underlying connection and returns affected rows.
 func (c *Conn) Exec(ctx context.Context, sql string, args ...any) (int64, error) {
 	result, err := c.Conn.Exec(ctx, sql, args...)
 	if err != nil {
@@ -58,6 +66,8 @@ func (c *Conn) Exec(ctx context.Context, sql string, args ...any) (int64, error)
 	return result.RowsAffected(), nil
 }
 
+// Query executes sql on the underlying connection and returns adapted rows.
+// Callers must close the returned iterator.
 func (c *Conn) Query(ctx context.Context, sql string, args ...any) (repo.Rows, error) {
 	rows, err := c.Conn.Query(ctx, sql, args)
 	if err != nil {
@@ -66,4 +76,5 @@ func (c *Conn) Query(ctx context.Context, sql string, args ...any) (repo.Rows, e
 	return rowsAdapter{Rows: rows}, nil
 }
 
+// IsConn marks the adapter as a repository connection implementation.
 func (c *Conn) IsConn() {}
