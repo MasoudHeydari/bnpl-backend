@@ -33,6 +33,14 @@ infrastructure:
     location: ${SYSTEM_CLOCK_LOCATION}
     business_location: ${BUSINESS_CLOCK_LOCATION}
 
+  logger:
+    provider: ${LOG_PROVIDER}
+
+    noop:
+
+    slog:
+      level: ${LOG_LEVEL}
+      format: ${LOG_FORMAT}
 
 versions:
   # semantic version of the database schema

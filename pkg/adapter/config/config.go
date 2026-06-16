@@ -14,11 +14,19 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/migrationsrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin"
 	"github.com/parstis/bnpl-backend/pkg/core/clock"
+	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 	"github.com/parstis/bnpl-backend/pkg/core/trace"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/migrationsuc"
 	"gopkg.in/yaml.v3"
 )
+
+// Noop holds configuration for the noop cache provider.
+//
+// The noop provider currently has no configurable options. The struct exists
+// to keep the configuration schema consistent across cache providers and to
+// allow future extensions without breaking compatibility.
+type Noop struct{}
 
 // Config is the root runtime configuration document.
 // It aggregates adapter and application settings loaded from YAML and
@@ -121,6 +129,10 @@ func (c *Config) NewTraceInfrastructure() (trace.Provider, error) {
 
 func (c *Config) NewSystemClockInfrastructure() (clock.Clock, error) {
 	return c.Infrastructure.Clock.newSystemClockInfrastructure()
+}
+
+func (c *Config) NewLoggerInfrastructure() (corelog.Logger, error) {
+	return c.Infrastructure.Logger.newLoggerInfrastructure()
 }
 
 // String returns a JSON representation of c Config struct with secrets redacted.
