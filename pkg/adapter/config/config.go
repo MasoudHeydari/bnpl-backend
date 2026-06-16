@@ -14,6 +14,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/migrationsrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
+	"github.com/parstis/bnpl-backend/pkg/core/trace"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/migrationsuc"
 	"gopkg.in/yaml.v3"
 )
@@ -23,9 +24,10 @@ import (
 // environment variable expansion. Callers typically load it once at startup
 // and treat it as immutable afterwards.
 type Config struct {
-	Database Database
-	Gin      Gin
-	Usecases Usecases
+	Database       Database
+	Gin            Gin
+	Usecases       Usecases
+	Infrastructure Infrastructure
 }
 
 // Load reads a YAML configuration file from path, expands ${VAR} placeholders
@@ -104,12 +106,16 @@ func (c *Config) NewMigrationsUseCase(
 	return c.Usecases.Migrations.newUseCase(p, r)
 }
 
-func (c *Config) NewGinEngine() *gin.Engine {
-	return c.Gin.newEngine()
+func (c *Config) NewGinEngine(provider trace.Provider) *gin.Engine {
+	return c.Gin.newEngine(provider)
 }
 
 func (c *Config) GetGinListeningAddress() string {
 	return c.Gin.getListeningAddress()
+}
+
+func (c *Config) NewTraceInfrastructure() (trace.Provider, error) {
+	return c.Infrastructure.Trace.newTraceInfrastructure()
 }
 
 // String returns a JSON representation of c Config struct with secrets redacted.

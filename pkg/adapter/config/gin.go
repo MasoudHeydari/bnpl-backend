@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin"
+	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/middleware"
+	"github.com/parstis/bnpl-backend/pkg/core/trace"
 )
 
 // Gin defines HTTP server settings used to construct the local Gin adapter.
@@ -21,13 +23,16 @@ type Gin struct {
 // NewEngine constructs a Gin HTTP engine configured with the selected mode
 // and optional logging and recovery middleware. The returned engine is intended
 // for setup during process startup before it begins serving requests.
-func (g Gin) newEngine() *gin.Engine {
-	middlewares := make([]gin.HandlerFunc, 0, 2)
-	if g.Logger {
-		middlewares = append(middlewares, gin.Logger())
-	}
+func (g Gin) newEngine(provider trace.Provider) *gin.Engine {
+	// TraceID is always the first middleware — it must run before recovery and
+	// logging so that every log line and panic response can include the trace ID.
+	middlewares := []gin.HandlerFunc{middleware.TraceID(provider)}
+
 	if g.Recovery {
 		middlewares = append(middlewares, gin.Recovery())
+	}
+	if g.Logger {
+		middlewares = append(middlewares, gin.Logger())
 	}
 
 	return gin.New(g.Mode, g.TrustedProxies, middlewares...)

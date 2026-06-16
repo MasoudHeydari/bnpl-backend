@@ -26,6 +26,10 @@ usecases:
   migration:
     files-dir: ${MIGRATIONS_FILES_DIR}
 
+infrastructure:
+  trace:
+
+
 versions:
   # semantic version of the database schema
   database: 0.1.0

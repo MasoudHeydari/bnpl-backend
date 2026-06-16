@@ -18,10 +18,11 @@ var cfgPath string
 
 // App holds the assembled application dependencies used by the entrypoint.
 type App struct {
-	Config   *config.Config
-	Pool     repo.Pool
-	Repos    Repos
-	UseCases UseCases
+	Config         *config.Config
+	Pool           repo.Pool
+	Repos          Repos
+	UseCases       UseCases
+	Infrastructure Infrastructure
 }
 
 func newApp(c *config.Config, p repo.Pool) (*App, error) {
@@ -30,6 +31,12 @@ func newApp(c *config.Config, p repo.Pool) (*App, error) {
 		Pool:   p,
 		Repos:  NewRepos(),
 	}
+
+	infrastructure, err := app.NewInfrastructures()
+	if err != nil {
+		return nil, fmt.Errorf("bootstrap.newApp: initialize infrastructure: %w", err)
+	}
+	app.Infrastructure = infrastructure
 
 	usecases, err := app.NewUseCases()
 	if err != nil {
@@ -64,7 +71,7 @@ func Boot() error {
 		return fmt.Errorf("bootstrap.Boot: initialize App: %w", err)
 	}
 
-	e := c.NewGinEngine()
+	e := c.NewGinEngine(app.Infrastructure.Trace)
 
 	if err = app.RegisterRoutes(ctx, e); err != nil {
 		return fmt.Errorf("bootstrap.Boot: registering http: %w", err)
