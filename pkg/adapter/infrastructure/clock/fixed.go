@@ -1,4 +1,3 @@
-// Package clock provides clock implementations for tests and runtime adapters.
 package clock
 
 import (
