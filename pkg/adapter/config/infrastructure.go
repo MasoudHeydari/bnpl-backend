@@ -14,6 +14,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log"
 	lognoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/noop"
 	adapterslog "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/slog"
+	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/messaging"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/trace"
 	"github.com/parstis/bnpl-backend/pkg/core/cache"
 	coreclock "github.com/parstis/bnpl-backend/pkg/core/clock"
@@ -22,10 +23,11 @@ import (
 )
 
 type Infrastructure struct {
-	Trace  Trace
-	Clock  Clock
-	Logger Logger
-	Cache  Cache
+	Trace     Trace
+	Clock     Clock
+	Logger    Logger
+	Cache     Cache
+	Messaging Messaging
 }
 
 type Trace struct{}
@@ -263,4 +265,69 @@ func (c Cache) newRedisInfrastructure() (cache.Cache, error) {
 	}
 
 	return redis2.New(client), nil
+}
+
+// Messaging defines messaging provider configuration and adapter-specific
+// settings.
+//
+// Provider selects the messaging implementation constructed during bootstrap.
+// Only the selected provider is initialized at runtime.
+type Messaging struct {
+	// Provider identifies the messaging implementation to use.
+	//
+	// Supported values:
+	//   - noop
+	//   - kafka
+	Provider messaging.Provider `yaml:"provider"`
+
+	// Noop contains configuration for the noop messaging provider.
+	Noop Noop `yaml:"noop"`
+
+	// Kafka contains configuration for the Kafka messaging provider.
+	Kafka Kafka `yaml:"kafka"`
+}
+
+// Kafka contains Kafka broker configuration.
+type Kafka struct {
+	// Brokers contains Kafka bootstrap broker addresses in host:port format.
+	Brokers []string `yaml:"brokers"`
+
+	// ClientID identifies this application to Kafka brokers.
+	ClientID string `yaml:"client_id"`
+
+	// GroupID identifies the Kafka consumer group.
+	GroupID string `yaml:"group_id"`
+
+	// Topics contains logical topic names used by the application.
+	Topics Topics `yaml:"topics"`
+
+	// Producer contains Kafka producer settings.
+	Producer Producer `yaml:"producer"`
+}
+
+// Topics contains application topic mappings.
+//
+// Topic names are centralized here so use cases and adapters do not depend on
+// hard-coded Kafka topic strings.
+type Topics struct {
+	// PaymentResults receives payment gateway or financial-core payment result
+	// events.
+	PaymentResults string `yaml:"payment_results"`
+}
+
+// Producer contains Kafka producer settings.
+type Producer struct {
+	// RequiredAcks controls broker acknowledgement behavior.
+	//
+	// Common values:
+	//   0  = no acknowledgement
+	//   1  = leader acknowledgement
+	//  -1  = all in-sync replicas acknowledgement
+	RequiredAcks int16 `yaml:"required_acks"`
+
+	// MaxRetries is the maximum number of retries before publish fails.
+	MaxRetries int `yaml:"max_retries"`
+
+	// ReturnSuccesses enables success notifications from the producer.
+	ReturnSuccesses bool `yaml:"return_successes"`
 }

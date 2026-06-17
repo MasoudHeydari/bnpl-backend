@@ -58,6 +58,28 @@ infrastructure:
       pool_size: ${CACHE_REDIS_POOL_SIZE}
       min_idle_conns: ${CACHE_REDIS_MIN_IDLE_CONNS}
 
+  messaging:
+    provider: ${MESSAGING_PROVIDER}
+
+    noop:
+
+    kafka:
+      brokers:
+        - ${KAFKA_BROKER_1}
+      client_id: ${KAFKA_CLIENT_ID}
+      group_id: ${KAFKA_GROUP_ID}
+      topics:
+        payment_results: ${KAFKA_TOPIC_PAYMENT_RESULTS}
+
+      producer:
+        required_acks: ${KAFKA_PRODUCER_REQUIRED_ACKS}
+        max_retries: ${KAFKA_PRODUCER_MAX_RETRIES}
+        return_successes: ${KAFKA_PRODUCER_RETURN_SUCCESSES}
+
+      consumer:
+        topics:
+          - ${KAFKA_CONSUMER_TOPIC_PAYMENT_RESULTS}
+
 versions:
   # semantic version of the database schema
   database: 0.1.0
