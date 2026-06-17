@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"fmt"
 
+	"github.com/parstis/bnpl-backend/pkg/core/cache"
 	"github.com/parstis/bnpl-backend/pkg/core/clock"
 	"github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/trace"
@@ -13,6 +14,7 @@ type Infrastructure struct {
 	Trace  trace.Provider
 	Clock  clock.Clock
 	Logger log.Logger
+	Cache  cache.Cache
 }
 
 // NewInfrastructures constructs the infrastructure adapters required by App.
@@ -33,9 +35,15 @@ func (a *App) NewInfrastructures() (Infrastructure, error) {
 		return Infrastructure{}, fmt.Errorf("initialize logger: %w", err)
 	}
 
+	cacheInfra, err := a.Config.NewCacheInfrastructure()
+	if err != nil {
+		return Infrastructure{}, fmt.Errorf("initialize cache: %w", err)
+	}
+
 	return Infrastructure{
 		Trace:  traceProvider,
 		Clock:  systemClock,
 		Logger: logger,
+		Cache:  cacheInfra,
 	}, nil
 }

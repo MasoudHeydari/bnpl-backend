@@ -42,6 +42,22 @@ infrastructure:
       level: ${LOG_LEVEL}
       format: ${LOG_FORMAT}
 
+  cache:
+    provider: ${CACHE_PROVIDER}
+
+    noop:
+
+    redis:
+      addr: ${CACHE_REDIS_ADDR}
+      username: ${CACHE_REDIS_USERNAME}
+      password: ${CACHE_REDIS_PASSWORD}
+      db: ${CACHE_REDIS_DB}
+      dial_timeout: ${CACHE_REDIS_DIAL_TIMEOUT}
+      read_timeout: ${CACHE_REDIS_READ_TIMEOUT}
+      write_timeout: ${CACHE_REDIS_WRITE_TIMEOUT}
+      pool_size: ${CACHE_REDIS_POOL_SIZE}
+      min_idle_conns: ${CACHE_REDIS_MIN_IDLE_CONNS}
+
 versions:
   # semantic version of the database schema
   database: 0.1.0

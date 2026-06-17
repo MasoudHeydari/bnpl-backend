@@ -13,6 +13,7 @@ import (
 
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/migrationsrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin"
+	"github.com/parstis/bnpl-backend/pkg/core/cache"
 	"github.com/parstis/bnpl-backend/pkg/core/clock"
 	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
@@ -133,6 +134,10 @@ func (c *Config) NewSystemClockInfrastructure() (clock.Clock, error) {
 
 func (c *Config) NewLoggerInfrastructure() (corelog.Logger, error) {
 	return c.Infrastructure.Logger.newLoggerInfrastructure()
+}
+
+func (c *Config) NewCacheInfrastructure() (cache.Cache, error) {
+	return c.Infrastructure.Cache.newCacheInfrastructure()
 }
 
 // String returns a JSON representation of c Config struct with secrets redacted.
