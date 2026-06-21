@@ -47,3 +47,9 @@ packages:
       Health:
       Publisher:
       Subscriber:
+
+  github.com/parstis/bnpl-backend/pkg/core/task:
+    interfaces:
+      Dispatcher:
+      Runtime:
+      Scheduler:
