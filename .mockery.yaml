@@ -36,3 +36,7 @@ packages:
   github.com/parstis/bnpl-backend/pkg/core/log:
     interfaces:
       Logger:
+
+  github.com/parstis/bnpl-backend/pkg/core/cache:
+    interfaces:
+      Cache:
