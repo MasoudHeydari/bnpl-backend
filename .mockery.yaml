@@ -29,3 +29,6 @@ packages:
       IDGenerator:
       Provider:
 
+  github.com/parstis/bnpl-backend/pkg/core/clock:
+    interfaces:
+      Clock:
