@@ -200,6 +200,35 @@ mkdir-bin:
 mkdir-gen:
 	@mkdir -p $(PROTO_GEN_DIR)
 
+.PHONY: list-interfaces
+list-interfaces:
+	@path=$(if $(ARGS),$(ARGS),pkg/core); \
+	if [ ! -d "$$path" ]; then \
+	   echo "❌ Error: Directory '$$path' does not exist"; \
+	   exit 1; \
+	fi; \
+	echo "🔍 Scanning interfaces in $$path..."; \
+	echo; \
+	found=0; \
+	for dir in "$$path" "$$path"/*/; do \
+	   if [ -d "$$dir" ]; then \
+	      name=$$(basename "$$dir"); \
+	      interfaces=$$(grep -rn "type.*interface {" "$$dir" --include="*.go" 2>/dev/null | awk '{print $$2}' | sort -u); \
+	      if [ ! -z "$$interfaces" ]; then \
+	         found=1; \
+	         count=$$(echo "$$interfaces" | wc -l); \
+	         echo "📂 $$name/ ($$count interfaces)"; \
+	         echo "$$interfaces" | while read iface; do \
+	            echo "   ├── $$iface"; \
+	         done; \
+	         echo; \
+	      fi; \
+	   fi; \
+	done; \
+	if [ $$found -eq 0 ]; then \
+	   echo "ℹ️  No interfaces found in $$path"; \
+	fi
+
 .PHONY: clean
 clean:
 	@rm -f ./build/bin/$(APP_NAME) coverage.out
