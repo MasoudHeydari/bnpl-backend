@@ -23,3 +23,9 @@ packages:
       SchemaSettings:
       SchemaTxQueryer:
       Tx:
+
+  github.com/parstis/bnpl-backend/pkg/core/trace:
+    interfaces:
+      IDGenerator:
+      Provider:
+
