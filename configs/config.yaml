@@ -80,6 +80,16 @@ infrastructure:
         topics:
           - ${KAFKA_CONSUMER_TOPIC_PAYMENT_RESULTS}
 
+  task:
+    provider: ${TASK_PROVIDER}
+
+    noop:
+
+    inprocess:
+      default_timezone: ${TASK_INPROCESS_DEFAULT_TIMEZONE}
+
+tasks:
+
 versions:
   # semantic version of the database schema
   database: 0.1.0

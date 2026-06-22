@@ -10,7 +10,9 @@ import (
 
 	"github.com/parstis/bnpl-backend/pkg/adapter/config"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/migrationsrp"
+	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task/jobs"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
+	coretask "github.com/parstis/bnpl-backend/pkg/core/task"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/migrationsuc"
 )
 
@@ -23,6 +25,11 @@ type App struct {
 	Repos          Repos
 	UseCases       UseCases
 	Infrastructure Infrastructure
+}
+
+// TaskJobResolver resolves task handler names to executable jobs.
+type TaskJobResolver interface {
+	ResolveTaskJob(handler string) (coretask.Job, error)
 }
 
 func newApp(c *config.Config, p repo.Pool) (*App, error) {
@@ -70,6 +77,12 @@ func Boot() error {
 	if err != nil {
 		return fmt.Errorf("bootstrap.Boot: initialize App: %w", err)
 	}
+
+	if err = app.RegisterTasks(); err != nil {
+		return fmt.Errorf("bootstrap.Boot: registering tasks: %w", err)
+	}
+
+	app.StartTasks(ctx)
 
 	e := c.NewGinEngine(app.Infrastructure.Trace)
 
@@ -146,6 +159,68 @@ func Migrate() error {
 	}
 
 	return nil
+}
+
+// RegisterTasks registers startup-known scheduled tasks.
+//
+// Only tasks that are known at application bootstrap and are defined in config
+// should be registered here.
+//
+// Runtime-created or user-triggered work should not be registered here.
+// Those jobs should be executed through task dispatch:
+//
+//	a.Infrastructure.Task.Dispatch(ctx, coretask.Command{...})
+func (a *App) RegisterTasks() error {
+	taskDefinitions, err := a.Config.GetTaskDefinitions()
+	if err != nil {
+		return fmt.Errorf("bootstrap.RegisterTasks: get task definitions: %w", err)
+	}
+
+	registry := jobs.NewRegistry(a.Infrastructure.Logger)
+
+	for _, entry := range taskDefinitions {
+		if !entry.Enabled {
+			continue
+		}
+
+		trigger, err := entry.Trigger.ToCore()
+		if err != nil {
+			return fmt.Errorf("bootstrap.RegisterTasks: build trigger for task %q: %w", entry.Name, err)
+		}
+
+		job, err := registry.Resolve(entry.Handler)
+		if err != nil {
+			return fmt.Errorf("bootstrap.RegisterTasks: resolve job for task %q: %w", entry.Name, err)
+		}
+
+		if err = a.Infrastructure.Task.Register(
+			coretask.Task{
+				Name:    entry.Name,
+				Enabled: entry.Enabled,
+				Handler: entry.Handler,
+				Trigger: trigger,
+				Job:     job,
+			},
+		); err != nil {
+			return fmt.Errorf("bootstrap.RegisterTasks: register task %q: %w", entry.Name, err)
+		}
+	}
+
+	return nil
+}
+
+// StartTasks starts the configured task runtime in the background.
+//
+// StartTasks only starts execution for tasks registered by RegisterTasks.
+// On-demand work is executed separately through Dispatch.
+func (a *App) StartTasks(ctx context.Context) {
+	go func() {
+		if err := a.Infrastructure.Task.Start(ctx); err != nil {
+			a.Infrastructure.Logger.
+				With("error", err.Error()).
+				Error("task runtime stopped with error")
+		}
+	}()
 }
 
 // FixConfigPath initializes cfgPath from the environment or the default path.

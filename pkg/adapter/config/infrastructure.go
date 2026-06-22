@@ -15,10 +15,14 @@ import (
 	lognoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/noop"
 	adapterslog "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/slog"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/messaging"
+	taskadapter "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task"
+	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task/inprocess"
+	tasknoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task/noop"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/trace"
 	"github.com/parstis/bnpl-backend/pkg/core/cache"
 	coreclock "github.com/parstis/bnpl-backend/pkg/core/clock"
 	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
+	"github.com/parstis/bnpl-backend/pkg/core/task"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -28,6 +32,7 @@ type Infrastructure struct {
 	Logger    Logger
 	Cache     Cache
 	Messaging Messaging
+	Task      Task
 }
 
 type Trace struct{}
@@ -330,4 +335,115 @@ type Producer struct {
 
 	// ReturnSuccesses enables success notifications from the producer.
 	ReturnSuccesses bool `yaml:"return_successes"`
+}
+
+// Task configures task runtime infrastructure and startup-known scheduled tasks.
+type Task struct {
+	Provider  taskadapter.Provider `yaml:"provider"`
+	Noop      Noop                 `yaml:"noop"`
+	InProcess InProcess            `yaml:"inprocess"`
+
+	// Scheduled contains tasks known at application startup.
+	Scheduled ScheduledTasks `yaml:"scheduled"`
+}
+
+// InProcess configures the in-process task runtime.
+type InProcess struct {
+	// DefaultTimezone is used for cron triggers without task-specific timezone.
+	DefaultTimezone string `yaml:"default_timezone"`
+}
+
+// ScheduledTasks contains tasks known at application startup.
+//
+// These tasks are loaded from configuration and registered during bootstrap.
+// Runtime-created or user-triggered work should be executed through Dispatch,
+// not registered here.
+type ScheduledTasks struct {
+	RuntimeGoroutineMetrics TaskDefinition `yaml:"runtime_goroutine_metrics"`
+}
+
+// TaskDefinitionEntry represents a configured scheduled task together with
+// its configuration key.
+type TaskDefinitionEntry struct {
+	Name string
+	TaskDefinition
+}
+
+// TaskDefinition describes a configured scheduled background task.
+type TaskDefinition struct {
+	// Enabled determines whether this task should be registered.
+	Enabled bool `yaml:"enabled"`
+
+	// Handler is a stable provider-agnostic task identifier.
+	Handler string `yaml:"handler"`
+
+	// Trigger describes when this task should be executed.
+	Trigger TaskTrigger `yaml:"trigger"`
+}
+
+// TaskTrigger is the config representation of task.Trigger.
+//
+// Duration fields are strings because YAML commonly represents durations as
+// values such as "15m", "1h", or "30s".
+type TaskTrigger struct {
+	Type       task.TriggerType `yaml:"type"`
+	Cron       string           `yaml:"cron"`
+	Timezone   string           `yaml:"timezone"`
+	Interval   string           `yaml:"interval"`
+	RunOnStart bool             `yaml:"run_on_start"`
+}
+
+// ToCore converts config trigger values into the core task trigger model.
+func (t TaskTrigger) ToCore() (task.Trigger, error) {
+	trigger := task.Trigger{
+		Type:       t.Type,
+		Cron:       t.Cron,
+		Timezone:   t.Timezone,
+		RunOnStart: t.RunOnStart,
+	}
+
+	if t.Interval != "" {
+		interval, err := time.ParseDuration(t.Interval)
+		if err != nil {
+			return task.Trigger{}, fmt.Errorf("parse task interval %q: %w", t.Interval, err)
+		}
+
+		trigger.Interval = interval
+	}
+
+	return trigger, nil
+}
+
+// newTaskInfrastructure creates the configured task runtime.
+func (t Task) newTaskInfrastructure(logger corelog.Logger) (task.Runtime, error) {
+	switch t.Provider {
+	case taskadapter.NoopProvider:
+		return t.newNoopTaskInfrastructure(logger)
+
+	case taskadapter.InProcessProvider:
+		return t.newInProcessTaskInfrastructure(logger)
+
+	default:
+		return nil, fmt.Errorf("unsupported task provider: %q", t.Provider)
+	}
+}
+
+// newNoopTaskInfrastructure creates a no-op task runtime.
+func (t Task) newNoopTaskInfrastructure(logger corelog.Logger) (task.Runtime, error) {
+	return tasknoop.New(logger), nil
+}
+
+// newInProcessTaskInfrastructure creates an in-process task runtime.
+func (t Task) newInProcessTaskInfrastructure(logger corelog.Logger) (task.Runtime, error) {
+	return inprocess.New(
+		inprocess.Config{
+			DefaultTimezone: t.InProcess.DefaultTimezone,
+		},
+		logger,
+	), nil
+}
+
+// getTaskDefinitions returns all configured startup-known tasks.
+func (t Task) getTaskDefinitions() ([]TaskDefinitionEntry, error) {
+	return []TaskDefinitionEntry{}, nil
 }

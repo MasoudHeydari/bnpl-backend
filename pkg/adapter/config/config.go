@@ -17,6 +17,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/clock"
 	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
+	"github.com/parstis/bnpl-backend/pkg/core/task"
 	"github.com/parstis/bnpl-backend/pkg/core/trace"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/migrationsuc"
 	"gopkg.in/yaml.v3"
@@ -138,6 +139,14 @@ func (c *Config) NewLoggerInfrastructure() (corelog.Logger, error) {
 
 func (c *Config) NewCacheInfrastructure() (cache.Cache, error) {
 	return c.Infrastructure.Cache.newCacheInfrastructure()
+}
+
+func (c *Config) NewTaskInfrastructure(logger corelog.Logger) (task.Runtime, error) {
+	return c.Infrastructure.Task.newTaskInfrastructure(logger)
+}
+
+func (c *Config) GetTaskDefinitions() ([]TaskDefinitionEntry, error) {
+	return c.Infrastructure.Task.getTaskDefinitions()
 }
 
 // String returns a JSON representation of c Config struct with secrets redacted.
