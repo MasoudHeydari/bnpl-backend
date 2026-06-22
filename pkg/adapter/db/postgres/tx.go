@@ -25,7 +25,7 @@ func (tx *Tx) Exec(ctx context.Context, sql string, args ...any) (int64, error) 
 // Query executes sql inside the transaction and returns adapted rows.
 // Callers must close the returned iterator.
 func (tx *Tx) Query(ctx context.Context, sql string, args ...any) (repo.Rows, error) {
-	rows, err := tx.Tx.Query(ctx, sql, args)
+	rows, err := tx.Tx.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}

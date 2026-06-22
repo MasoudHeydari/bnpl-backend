@@ -69,7 +69,7 @@ func (c *Conn) Exec(ctx context.Context, sql string, args ...any) (int64, error)
 // Query executes sql on the underlying connection and returns adapted rows.
 // Callers must close the returned iterator.
 func (c *Conn) Query(ctx context.Context, sql string, args ...any) (repo.Rows, error) {
-	rows, err := c.Conn.Query(ctx, sql, args)
+	rows, err := c.Conn.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}
