@@ -88,7 +88,16 @@ infrastructure:
     inprocess:
       default_timezone: ${TASK_INPROCESS_DEFAULT_TIMEZONE}
 
-tasks:
+    scheduled:
+      runtime_goroutine_metrics:
+        enabled: ${TASK_RUNTIME_GOROUTINE_METRICS_ENABLED}
+        handler: ${TASK_RUNTIME_GOROUTINE_METRICS_HANDLER}
+        trigger:
+          type: ${TASK_RUNTIME_GOROUTINE_METRICS_TRIGGER_TYPE}
+          cron: ${TASK_RUNTIME_GOROUTINE_METRICS_CRON}
+          timezone: ${TASK_RUNTIME_GOROUTINE_METRICS_TIMEZONE}
+          interval: ${TASK_RUNTIME_GOROUTINE_METRICS_INTERVAL}
+          run_on_start: ${TASK_RUNTIME_GOROUTINE_METRICS_RUN_ON_START}
 
 versions:
   # semantic version of the database schema

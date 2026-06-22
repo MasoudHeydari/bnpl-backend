@@ -445,5 +445,10 @@ func (t Task) newInProcessTaskInfrastructure(logger corelog.Logger) (task.Runtim
 
 // getTaskDefinitions returns all configured startup-known tasks.
 func (t Task) getTaskDefinitions() ([]TaskDefinitionEntry, error) {
-	return []TaskDefinitionEntry{}, nil
+	return []TaskDefinitionEntry{
+		{
+			TaskDefinition: t.Scheduled.RuntimeGoroutineMetrics,
+			Name:           "runtime_goroutine_metrics",
+		},
+	}, nil
 }
