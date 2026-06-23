@@ -26,6 +26,12 @@ usecases:
   migration:
     files-dir: ${MIGRATIONS_FILES_DIR}
 
+  outbox_publisher:
+    worker_id: ${OUTBOX_PUBLISHER_WORKER_ID}
+    batch_size: ${OUTBOX_PUBLISHER_BATCH_SIZE}
+    retry_base_delay: ${OUTBOX_PUBLISHER_RETRY_BASE_DELAY}
+    retry_max_delay: ${OUTBOX_PUBLISHER_RETRY_MAX_DELAY}
+
 infrastructure:
   trace:
 

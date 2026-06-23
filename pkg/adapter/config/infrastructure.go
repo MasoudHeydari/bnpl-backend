@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/IBM/sarama"
 	adaptercache "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/cache"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/cache/noop"
 	redis2 "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/cache/redis"
@@ -15,6 +16,8 @@ import (
 	lognoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/noop"
 	adapterslog "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/slog"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/messaging"
+	noopmessaging "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/messaging/noop"
+	saramamessaging "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/messaging/sarama"
 	taskadapter "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task/inprocess"
 	tasknoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task/noop"
@@ -22,6 +25,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/cache"
 	coreclock "github.com/parstis/bnpl-backend/pkg/core/clock"
 	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
+	coremessaging "github.com/parstis/bnpl-backend/pkg/core/messaging"
 	"github.com/parstis/bnpl-backend/pkg/core/task"
 	"github.com/redis/go-redis/v9"
 )
@@ -308,6 +312,9 @@ type Kafka struct {
 
 	// Producer contains Kafka producer settings.
 	Producer Producer `yaml:"producer"`
+
+	// Consumer contains Kafka consumer settings.
+	Consumer Consumer `yaml:"consumer"`
 }
 
 // Topics contains application topic mappings.
@@ -335,6 +342,57 @@ type Producer struct {
 
 	// ReturnSuccesses enables success notifications from the producer.
 	ReturnSuccesses bool `yaml:"return_successes"`
+}
+
+// Consumer contains Kafka consumer settings.
+type Consumer struct {
+	// Topics contains physical Kafka topics consumed by this service.
+	//
+	// Topic names must match the actual topics configured in the Kafka cluster.
+	// Multiple topics may be consumed by the same consumer group.
+	Topics []string `yaml:"topics"`
+}
+
+// newPublisherInfrastructure creates the configured messaging publisher
+// implementation.
+func (m Messaging) newPublisherInfrastructure() (coremessaging.Publisher, error) {
+	switch m.Provider {
+	case messaging.NoopProvider:
+		return noopmessaging.NewPublisher(), nil
+
+	case messaging.KafkaProvider:
+		return saramamessaging.NewProducer(
+			m.Kafka.Brokers,
+			m.Kafka.Producer.ReturnSuccesses,
+			sarama.RequiredAcks(m.Kafka.Producer.RequiredAcks),
+			m.Kafka.Producer.MaxRetries,
+		)
+
+	default:
+		return nil, fmt.Errorf("unsupported messaging provider: %q", m.Provider)
+	}
+}
+
+// newSubscriberInfrastructure creates the configured messaging subscriber
+// implementation.
+func (m Messaging) newSubscriberInfrastructure(
+	logger corelog.Logger,
+) (coremessaging.Subscriber, error) {
+	switch m.Provider {
+	case messaging.NoopProvider:
+		return noopmessaging.NewSubscriber(), nil
+
+	case messaging.KafkaProvider:
+		return saramamessaging.NewConsumer(
+			m.Kafka.Brokers,
+			m.Kafka.GroupID,
+			m.Kafka.Consumer.Topics,
+			logger,
+		)
+
+	default:
+		return nil, fmt.Errorf("unsupported messaging provider: %q", m.Provider)
+	}
 }
 
 // Task configures task runtime infrastructure and startup-known scheduled tasks.

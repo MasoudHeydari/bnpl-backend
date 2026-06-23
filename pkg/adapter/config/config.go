@@ -16,10 +16,12 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/cache"
 	"github.com/parstis/bnpl-backend/pkg/core/clock"
 	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
+	"github.com/parstis/bnpl-backend/pkg/core/messaging"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 	"github.com/parstis/bnpl-backend/pkg/core/task"
 	"github.com/parstis/bnpl-backend/pkg/core/trace"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/migrationsuc"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/outboxpublisheruc"
 	"gopkg.in/yaml.v3"
 )
 
@@ -117,6 +119,24 @@ func (c *Config) NewMigrationsUseCase(
 	return c.Usecases.Migrations.newUseCase(p, r)
 }
 
+// NewOutboxPublisherUseCase creates the use case responsible for publishing
+// integration outbox messages to the configured messaging infrastructure.
+func (c *Config) NewOutboxPublisherUseCase(
+	pool repo.Pool,
+	outbox repo.Outbox,
+	publisher messaging.Publisher,
+	clock clock.Clock,
+	logger corelog.Logger,
+) *outboxpublisheruc.UseCase {
+	return c.Usecases.OutboxPublisher.newUseCase(
+		pool,
+		outbox,
+		publisher,
+		clock,
+		logger,
+	)
+}
+
 func (c *Config) NewGinEngine(provider trace.Provider) *gin.Engine {
 	return c.Gin.newEngine(provider)
 }
@@ -139,6 +159,16 @@ func (c *Config) NewLoggerInfrastructure() (corelog.Logger, error) {
 
 func (c *Config) NewCacheInfrastructure() (cache.Cache, error) {
 	return c.Infrastructure.Cache.newCacheInfrastructure()
+}
+
+func (c *Config) NewMessagingPublisherInfrastructure() (messaging.Publisher, error) {
+	return c.Infrastructure.Messaging.newPublisherInfrastructure()
+}
+
+func (c *Config) NewMessagingSubscriberInfrastructure(
+	logger corelog.Logger,
+) (messaging.Subscriber, error) {
+	return c.Infrastructure.Messaging.newSubscriberInfrastructure(logger)
 }
 
 func (c *Config) NewTaskInfrastructure(logger corelog.Logger) (task.Runtime, error) {
