@@ -418,6 +418,7 @@ type InProcess struct {
 // not registered here.
 type ScheduledTasks struct {
 	RuntimeGoroutineMetrics TaskDefinition `yaml:"runtime_goroutine_metrics"`
+	OutboxPublisher         TaskDefinition `yaml:"outbox_publisher"`
 }
 
 // TaskDefinitionEntry represents a configured scheduled task together with
@@ -507,6 +508,10 @@ func (t Task) getTaskDefinitions() ([]TaskDefinitionEntry, error) {
 		{
 			TaskDefinition: t.Scheduled.RuntimeGoroutineMetrics,
 			Name:           "runtime_goroutine_metrics",
+		},
+		{
+			TaskDefinition: t.Scheduled.OutboxPublisher,
+			Name:           "outbox_publisher",
 		},
 	}, nil
 }

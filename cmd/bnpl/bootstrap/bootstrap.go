@@ -176,7 +176,10 @@ func (a *App) RegisterTasks() error {
 		return fmt.Errorf("bootstrap.RegisterTasks: get task definitions: %w", err)
 	}
 
-	registry := jobs.NewRegistry(a.Infrastructure.Logger)
+	registry := jobs.NewRegistry(
+		a.Infrastructure.Logger,
+		a.UseCases.OutboxPublisher,
+	)
 
 	for _, entry := range taskDefinitions {
 		if !entry.Enabled {

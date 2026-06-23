@@ -105,6 +105,16 @@ infrastructure:
           interval: ${TASK_RUNTIME_GOROUTINE_METRICS_INTERVAL}
           run_on_start: ${TASK_RUNTIME_GOROUTINE_METRICS_RUN_ON_START}
 
+      outbox_publisher:
+        enabled: ${TASK_OUTBOX_PUBLISHER_ENABLED}
+        handler: ${TASK_OUTBOX_PUBLISHER_HANDLER}
+        trigger:
+          type: ${TASK_OUTBOX_PUBLISHER_TRIGGER_TYPE}
+          cron: ${TASK_OUTBOX_PUBLISHER_CRON}
+          timezone: ${TASK_OUTBOX_PUBLISHER_TIMEZONE}
+          interval: ${TASK_OUTBOX_PUBLISHER_INTERVAL}
+          run_on_start: ${TASK_OUTBOX_PUBLISHER_RUN_ON_START}
+
 versions:
   # semantic version of the database schema
   database: 0.1.0
