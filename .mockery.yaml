@@ -13,6 +13,10 @@ packages:
       MigrationsConnQueryer:
       MigrationsQueryer:
       MigrationsTxQueryer:
+      Outbox:
+      OutboxConnQueryer:
+      OutboxQueryer:
+      OutboxTxQueryer:
       Pool:
       Queryer:
       Rows:
