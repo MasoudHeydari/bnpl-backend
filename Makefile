@@ -189,6 +189,15 @@ upgrade-dependencies:
 env:
 	@grep -v '^\s*#' .env | grep -v '^\s*$$' | sed 's/^/export /'
 
+.env: .env.example
+	@if [ -f .env ]; then \
+		echo ".env already exists, skipping creation."; \
+	else \
+		# Drop both comments and blank lines when materializing .env.example. \
+		grep -v '^#' .env.example | grep -v '^[[:space:]]*$$' > .env; \
+		echo ".env created from .env.example"; \
+	fi
+
 .PHONY: mkdir
 mkdir: mkdir-bin mkdir-gen
 
