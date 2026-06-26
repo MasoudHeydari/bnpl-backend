@@ -181,6 +181,14 @@ upgrade-dependencies:
 	@go get -v -u ./...
 	@go mod tidy
 
+.PHONY: link-migrations
+link-migrations:
+	@mkdir -p assets/db/init
+	@ln -sf $(PWD)/pkg/adapter/db/postgres/migrationsrp/000_dev.sql assets/db/init/000_dev.sql
+	@ln -sf $(PWD)/pkg/adapter/db/postgres/migrationsrp/000_prod.sql assets/db/init/000_prod.sql
+	@ln -sf $(PWD)/pkg/adapter/db/postgres/migrationsrp/000_schema.sql assets/db/init/000_schema.sql
+	@echo "Symbolic links created successfully"
+
 # -----------------------------------------------------------------------------
 # Environment / Directories / Cleanup
 # -----------------------------------------------------------------------------
