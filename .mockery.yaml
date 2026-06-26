@@ -57,3 +57,7 @@ packages:
       Dispatcher:
       Runtime:
       Scheduler:
+
+  github.com/parstis/bnpl-backend/pkg/core/circuitbreaker:
+    interfaces:
+      CircuitBreaker:
