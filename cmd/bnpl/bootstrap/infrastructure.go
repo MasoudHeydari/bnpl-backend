@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/parstis/bnpl-backend/pkg/core/cache"
+	"github.com/parstis/bnpl-backend/pkg/core/circuitbreaker"
 	"github.com/parstis/bnpl-backend/pkg/core/clock"
 	"github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/messaging"
@@ -19,7 +20,14 @@ type Infrastructure struct {
 	Cache      cache.Cache
 	Publisher  messaging.Publisher
 	Subscriber messaging.Subscriber
-	Task       task.Runtime
+
+	// CircuitBreaker protects calls to external or failure-prone dependencies.
+	//
+	// It should be used by adapters or infrastructure wrappers, not by domain
+	// logic. Use cases should depend on business ports and remain unaware of the
+	// concrete resilience mechanism.
+	CircuitBreaker circuitbreaker.CircuitBreaker
+	Task           task.Runtime
 }
 
 // NewInfrastructures constructs the infrastructure adapters required by App.
@@ -55,18 +63,24 @@ func (a *App) NewInfrastructures() (Infrastructure, error) {
 		return Infrastructure{}, fmt.Errorf("initialize messaging subscriber: %w", err)
 	}
 
+	cbInfra, err := a.Config.NewCircuitBreakerInfrastructure()
+	if err != nil {
+		return Infrastructure{}, fmt.Errorf("initialize circuit breaker: %w", err)
+	}
+
 	taskInfra, err := a.Config.NewTaskInfrastructure(logger)
 	if err != nil {
 		return Infrastructure{}, fmt.Errorf("initialize task: %w", err)
 	}
 
 	return Infrastructure{
-		Trace:      traceProvider,
-		Clock:      systemClock,
-		Logger:     logger,
-		Cache:      cacheInfra,
-		Publisher:  publisher,
-		Subscriber: subscriber,
-		Task:       taskInfra,
+		Trace:          traceProvider,
+		Clock:          systemClock,
+		Logger:         logger,
+		Cache:          cacheInfra,
+		Publisher:      publisher,
+		Subscriber:     subscriber,
+		CircuitBreaker: cbInfra,
+		Task:           taskInfra,
 	}, nil
 }

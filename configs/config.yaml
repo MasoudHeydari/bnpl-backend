@@ -86,6 +86,17 @@ infrastructure:
         topics:
           - ${KAFKA_CONSUMER_TOPIC_PAYMENT_RESULTS}
 
+  circuit_breaker:
+    provider: ${CIRCUIT_BREAKER_PROVIDER}
+
+    noop:
+
+    gobreaker:
+      max_requests: ${CIRCUIT_BREAKER_GOBREAKER_MAX_REQUESTS}
+      interval: ${CIRCUIT_BREAKER_GOBREAKER_INTERVAL}
+      timeout: ${CIRCUIT_BREAKER_GOBREAKER_TIMEOUT}
+      failure_threshold: ${CIRCUIT_BREAKER_GOBREAKER_FAILURE_THRESHOLD}
+
   task:
     provider: ${TASK_PROVIDER}
 

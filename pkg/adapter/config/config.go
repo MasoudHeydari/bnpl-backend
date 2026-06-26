@@ -14,6 +14,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/migrationsrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin"
 	"github.com/parstis/bnpl-backend/pkg/core/cache"
+	"github.com/parstis/bnpl-backend/pkg/core/circuitbreaker"
 	"github.com/parstis/bnpl-backend/pkg/core/clock"
 	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/messaging"
@@ -177,6 +178,11 @@ func (c *Config) NewTaskInfrastructure(logger corelog.Logger) (task.Runtime, err
 
 func (c *Config) GetTaskDefinitions() ([]TaskDefinitionEntry, error) {
 	return c.Infrastructure.Task.getTaskDefinitions()
+}
+
+// NewCircuitBreakerInfrastructure constructs the configured circuit breaker adapter.
+func (c *Config) NewCircuitBreakerInfrastructure() (circuitbreaker.CircuitBreaker, error) {
+	return c.Infrastructure.CircuitBreaker.newCircuitBreakerInfrastructure()
 }
 
 // String returns a JSON representation of c Config struct with secrets redacted.

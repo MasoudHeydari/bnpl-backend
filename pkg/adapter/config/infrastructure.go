@@ -11,6 +11,9 @@ import (
 	adaptercache "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/cache"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/cache/noop"
 	redis2 "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/cache/redis"
+	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/circuitbreaker"
+	circuitbreakergobreaker "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/circuitbreaker/gobreaker"
+	noopcircuitbreacker "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/circuitbreaker/noop"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/clock"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log"
 	lognoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/noop"
@@ -23,6 +26,7 @@ import (
 	tasknoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task/noop"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/trace"
 	"github.com/parstis/bnpl-backend/pkg/core/cache"
+	corecb "github.com/parstis/bnpl-backend/pkg/core/circuitbreaker"
 	coreclock "github.com/parstis/bnpl-backend/pkg/core/clock"
 	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
 	coremessaging "github.com/parstis/bnpl-backend/pkg/core/messaging"
@@ -31,12 +35,13 @@ import (
 )
 
 type Infrastructure struct {
-	Trace     Trace
-	Clock     Clock
-	Logger    Logger
-	Cache     Cache
-	Messaging Messaging
-	Task      Task
+	Trace          Trace
+	Clock          Clock
+	Logger         Logger
+	Cache          Cache
+	Messaging      Messaging
+	Task           Task
+	CircuitBreaker CircuitBreaker `yaml:"circuit_breaker"`
 }
 
 type Trace struct{}
@@ -514,4 +519,69 @@ func (t Task) getTaskDefinitions() ([]TaskDefinitionEntry, error) {
 			Name:           "outbox_publisher",
 		},
 	}, nil
+}
+
+// CircuitBreaker contains configuration for the runtime circuit breaker
+// infrastructure.
+type CircuitBreaker struct {
+	// Provider selects the circuit breaker implementation.
+	//
+	// Supported values are "noop" and "gobreaker".
+	Provider circuitbreaker.Provider `yaml:"provider"`
+
+	// Noop contains configuration for the no-op provider.
+	Noop Noop `yaml:"noop"`
+
+	// GoBreaker contains configuration for the sony/gobreaker provider.
+	GoBreaker GoBreakerCircuitBreaker `yaml:"gobreaker"`
+}
+
+// GoBreakerCircuitBreaker configures the sony/gobreaker adapter.
+type GoBreakerCircuitBreaker struct {
+	// MaxRequests is the maximum number of calls allowed while the circuit is
+	// half-open.
+	MaxRequests uint32 `yaml:"max_requests"`
+
+	// Interval is the period after which gobreaker clears internal counters
+	// while the circuit is closed.
+	Interval time.Duration `yaml:"interval"`
+
+	// Timeout is the duration the circuit remains open before probing the
+	// dependency again.
+	Timeout time.Duration `yaml:"timeout"`
+
+	// FailureThreshold is the minimum number of consecutive failed executions
+	// required before the circuit transitions from closed to open.
+	FailureThreshold uint32 `yaml:"failure_threshold"`
+}
+
+// newCircuitBreakerInfrastructure creates the configured circuit breaker.
+func (cb CircuitBreaker) newCircuitBreakerInfrastructure() (corecb.CircuitBreaker, error) {
+	switch cb.Provider {
+	case circuitbreaker.NoopProvider:
+		return cb.newNoopCircuitBreakerInfrastructure()
+
+	case circuitbreaker.GoBreakerProvider:
+		return cb.newGoBreakerCircuitBreakerInfrastructure()
+
+	default:
+		return nil, fmt.Errorf("unsupported circuit breaker provider: %q", cb.Provider)
+	}
+}
+
+// newNoopCircuitBreakerInfrastructure creates a no-op circuit breaker.
+func (cb CircuitBreaker) newNoopCircuitBreakerInfrastructure() (corecb.CircuitBreaker, error) {
+	return noopcircuitbreacker.New(), nil
+}
+
+// newGoBreakerCircuitBreakerInfrastructure creates a gobreaker-backed circuit breaker.
+func (cb CircuitBreaker) newGoBreakerCircuitBreakerInfrastructure() (corecb.CircuitBreaker, error) {
+	return circuitbreakergobreaker.New(
+		circuitbreakergobreaker.Config{
+			MaxRequests:      cb.GoBreaker.MaxRequests,
+			Interval:         cb.GoBreaker.Interval,
+			Timeout:          cb.GoBreaker.Timeout,
+			FailureThreshold: cb.GoBreaker.FailureThreshold,
+		},
+	), nil
 }
