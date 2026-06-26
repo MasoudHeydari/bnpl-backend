@@ -1,6 +1,6 @@
 package repo
 
-// Role identifies a PostgreSQL login role used by the application.
+// Role identifies a persistence-layer role used by the application.
 type Role string
 
 const (

@@ -9,7 +9,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
-// UseCase orchestrates filesystem-backed SQL migrations against the target database.
+// UseCase orchestrates filesystem-backed migrations against the target store.
 // It assumes the migration repository and pool coordinate a single database and
 // should not be used concurrently to apply the same migration set.
 type UseCase struct {
@@ -51,7 +51,7 @@ func (uc *UseCase) MigrateAll(ctx context.Context) error {
 
 // MigrateOne applies a single migration file and registers it in the
 // `migrations` table within the same transaction.
-// The method reads the migration file from disk, executes its SQL statements,
+// The method reads the migration file from disk, executes its statements,
 // and records completion only if all statements commit successfully.
 func (uc *UseCase) MigrateOne(ctx context.Context, migName string) error {
 	migAbsPath := filepath.Join(uc.migDirPath, migName)

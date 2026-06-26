@@ -138,44 +138,54 @@ func (c *Config) NewOutboxPublisherUseCase(
 	)
 }
 
+// NewGinEngine constructs the HTTP engine configured for this process.
 func (c *Config) NewGinEngine(provider trace.Provider) *gin.Engine {
 	return c.Gin.newEngine(provider)
 }
 
+// GetGinListeningAddress returns the configured HTTP listen address.
 func (c *Config) GetGinListeningAddress() string {
 	return c.Gin.getListeningAddress()
 }
 
+// NewTraceInfrastructure constructs the configured tracing provider.
 func (c *Config) NewTraceInfrastructure() (trace.Provider, error) {
 	return c.Infrastructure.Trace.newTraceInfrastructure()
 }
 
+// NewSystemClockInfrastructure constructs the configured clock adapter.
 func (c *Config) NewSystemClockInfrastructure() (clock.Clock, error) {
 	return c.Infrastructure.Clock.newSystemClockInfrastructure()
 }
 
+// NewLoggerInfrastructure constructs the configured logger adapter.
 func (c *Config) NewLoggerInfrastructure() (corelog.Logger, error) {
 	return c.Infrastructure.Logger.newLoggerInfrastructure()
 }
 
+// NewCacheInfrastructure constructs the configured cache adapter.
 func (c *Config) NewCacheInfrastructure() (cache.Cache, error) {
 	return c.Infrastructure.Cache.newCacheInfrastructure()
 }
 
+// NewMessagingPublisherInfrastructure constructs the configured publisher adapter.
 func (c *Config) NewMessagingPublisherInfrastructure() (messaging.Publisher, error) {
 	return c.Infrastructure.Messaging.newPublisherInfrastructure()
 }
 
+// NewMessagingSubscriberInfrastructure constructs the configured subscriber adapter.
 func (c *Config) NewMessagingSubscriberInfrastructure(
 	logger corelog.Logger,
 ) (messaging.Subscriber, error) {
 	return c.Infrastructure.Messaging.newSubscriberInfrastructure(logger)
 }
 
+// NewTaskInfrastructure constructs the configured task runtime adapter.
 func (c *Config) NewTaskInfrastructure(logger corelog.Logger) (task.Runtime, error) {
 	return c.Infrastructure.Task.newTaskInfrastructure(logger)
 }
 
+// GetTaskDefinitions returns the startup-known task definitions from config.
 func (c *Config) GetTaskDefinitions() ([]TaskDefinitionEntry, error) {
 	return c.Infrastructure.Task.getTaskDefinitions()
 }

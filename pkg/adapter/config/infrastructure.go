@@ -34,24 +34,47 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// Infrastructure groups runtime infrastructure configuration.
+//
+// Each field configures a concrete infrastructure component that is
+// constructed during application bootstrap.
 type Infrastructure struct {
-	Trace          Trace
-	Clock          Clock
-	Logger         Logger
-	Cache          Cache
-	Messaging      Messaging
-	Task           Task
+	// Trace configures distributed tracing infrastructure.
+	Trace Trace `yaml:"trace"`
+
+	// Clock configures the system clock implementation.
+	Clock Clock `yaml:"clock"`
+
+	// Logger configures the application logger.
+	Logger Logger `yaml:"logger"`
+
+	// Cache configures the cache infrastructure.
+	Cache Cache `yaml:"cache"`
+
+	// Messaging configures the messaging infrastructure.
+	Messaging Messaging `yaml:"messaging"`
+
+	// Task configures the task runtime infrastructure.
+	Task Task `yaml:"task"`
+
+	// CircuitBreaker configures the circuit breaker infrastructure.
 	CircuitBreaker CircuitBreaker `yaml:"circuit_breaker"`
 }
 
+// Trace contains tracing infrastructure configuration.
 type Trace struct{}
 
 func (t Trace) newTraceInfrastructure() (*trace.Provider, error) {
 	return trace.NewULIDProvider(), nil
 }
 
+// Clock defines runtime clock configuration.
 type Clock struct {
-	Location         string `yaml:"location"`
+	// Location is the application's default timezone.
+	Location string `yaml:"location"`
+
+	// BusinessLocation is the timezone used for business rules and
+	// business-date calculations.
 	BusinessLocation string `yaml:"business_location"`
 }
 
@@ -79,9 +102,18 @@ func (c Clock) newSystemClockInfrastructure() (coreclock.Clock, error) {
 
 // Logger configures the logging infrastructure.
 type Logger struct {
+	// Provider selects the logger implementation.
+	//
+	// Supported values:
+	//   - noop
+	//   - slog
 	Provider log.Provider `yaml:"provider"`
-	Noop     Noop         `yaml:"noop"`
-	Slog     Slog         `yaml:"slog"`
+
+	// Noop contains configuration for the noop logger provider.
+	Noop Noop `yaml:"noop"`
+
+	// Slog contains configuration for the slog logger provider.
+	Slog Slog `yaml:"slog"`
 }
 
 // Slog configures the slog logger.
@@ -301,24 +333,24 @@ type Messaging struct {
 	Kafka Kafka `yaml:"kafka"`
 }
 
-// Kafka contains Kafka broker configuration.
+// Kafka contains Kafka messaging provider settings.
 type Kafka struct {
-	// Brokers contains Kafka bootstrap broker addresses in host:port format.
+	// Brokers contains Kafka bootstrap broker addresses.
 	Brokers []string `yaml:"brokers"`
 
 	// ClientID identifies this application to Kafka brokers.
 	ClientID string `yaml:"client_id"`
 
-	// GroupID identifies the Kafka consumer group.
+	// GroupID identifies the consumer group used by Kafka subscribers.
 	GroupID string `yaml:"group_id"`
 
-	// Topics contains logical topic names used by the application.
+	// Topics contains logical topic mappings used by the application.
 	Topics Topics `yaml:"topics"`
 
-	// Producer contains Kafka producer settings.
+	// Producer contains Kafka producer configuration.
 	Producer Producer `yaml:"producer"`
 
-	// Consumer contains Kafka consumer settings.
+	// Consumer contains Kafka consumer configuration.
 	Consumer Consumer `yaml:"consumer"`
 }
 
@@ -400,11 +432,20 @@ func (m Messaging) newSubscriberInfrastructure(
 	}
 }
 
-// Task configures task runtime infrastructure and startup-known scheduled tasks.
+// Task configures the task runtime and startup-known scheduled tasks.
 type Task struct {
-	Provider  taskadapter.Provider `yaml:"provider"`
-	Noop      Noop                 `yaml:"noop"`
-	InProcess InProcess            `yaml:"inprocess"`
+	// Provider selects the task runtime implementation.
+	//
+	// Supported values:
+	//   - noop
+	//   - inprocess
+	Provider taskadapter.Provider `yaml:"provider"`
+
+	// Noop contains configuration for the noop task runtime.
+	Noop Noop `yaml:"noop"`
+
+	// InProcess contains configuration for the in-process task runtime.
+	InProcess InProcess `yaml:"inprocess"`
 
 	// Scheduled contains tasks known at application startup.
 	Scheduled ScheduledTasks `yaml:"scheduled"`
@@ -422,14 +463,20 @@ type InProcess struct {
 // Runtime-created or user-triggered work should be executed through Dispatch,
 // not registered here.
 type ScheduledTasks struct {
+	// RuntimeGoroutineMetrics periodically records runtime goroutine metrics.
 	RuntimeGoroutineMetrics TaskDefinition `yaml:"runtime_goroutine_metrics"`
-	OutboxPublisher         TaskDefinition `yaml:"outbox_publisher"`
+
+	// OutboxPublisher publishes pending outbox messages.
+	OutboxPublisher TaskDefinition `yaml:"outbox_publisher"`
 }
 
-// TaskDefinitionEntry represents a configured scheduled task together with
-// its configuration key.
+// TaskDefinitionEntry associates a configured task definition with its
+// configuration key.
 type TaskDefinitionEntry struct {
+	// Name is the configuration key of the task.
 	Name string
+
+	// TaskDefinition contains the task configuration.
 	TaskDefinition
 }
 
@@ -445,16 +492,24 @@ type TaskDefinition struct {
 	Trigger TaskTrigger `yaml:"trigger"`
 }
 
-// TaskTrigger is the config representation of task.Trigger.
-//
-// Duration fields are strings because YAML commonly represents durations as
-// values such as "15m", "1h", or "30s".
 type TaskTrigger struct {
-	Type       task.TriggerType `yaml:"type"`
-	Cron       string           `yaml:"cron"`
-	Timezone   string           `yaml:"timezone"`
-	Interval   string           `yaml:"interval"`
-	RunOnStart bool             `yaml:"run_on_start"`
+	// Type selects the scheduling strategy.
+	Type task.TriggerType `yaml:"type"`
+
+	// Cron contains the cron expression used when Type is cron.
+	Cron string `yaml:"cron"`
+
+	// Timezone overrides the runtime default timezone for cron schedules.
+	Timezone string `yaml:"timezone"`
+
+	// Interval contains the execution interval when Type is interval.
+	//
+	// The value must be a valid Go duration such as "30s", "5m", or "1h".
+	Interval string `yaml:"interval"`
+
+	// RunOnStart determines whether the task executes immediately after
+	// registration.
+	RunOnStart bool `yaml:"run_on_start"`
 }
 
 // ToCore converts config trigger values into the core task trigger model.

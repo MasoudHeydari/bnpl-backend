@@ -1,8 +1,7 @@
 // Package migrationsuc implements database initialization and migration use
 // cases. It belongs to the application layer and coordinates repository
-// abstractions from the core layer with PostgreSQL-backed implementations from
-// the infrastructure layer. The package owns orchestration and transaction
-// boundaries, but not SQL statement definitions.
+// abstractions from the core layer. The package owns orchestration and
+// transaction boundaries, but not migration statement definitions.
 package migrationsuc
 
 import (
@@ -13,7 +12,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
-// InitDBUseCase recreates the managed PostgreSQL schema and seeds it with the
+// InitDBUseCase recreates the managed schema and seeds it with the
 // base dataset required for either development or production environments.
 // The use case is stateful only in its dependencies and should be reused only
 // with immutable configuration.
@@ -29,7 +28,7 @@ func NewInitDB(ss repo.SchemaSettings) *InitDBUseCase {
 }
 
 // InitProd recreates the application schema and loads production-style seed
-// data from embedded SQL. Like InitDev, it drops the managed schema first and
+// data from embedded migration assets. Like InitDev, it drops the managed schema first and
 // is destructive. Do not run against live production databases. It is not safe
 // to run concurrently against the same database.
 func (iduc *InitDBUseCase) InitProd(ctx context.Context) error {
@@ -42,7 +41,7 @@ func (iduc *InitDBUseCase) InitProd(ctx context.Context) error {
 }
 
 // InitDev recreates the application schema and loads development seed data from
-// embedded SQL. It drops the managed schema first and is destructive. It is
+// embedded migration assets. It drops the managed schema first and is destructive. It is
 // not safe to run concurrently against the same database.
 func (iduc *InitDBUseCase) InitDev(ctx context.Context) error {
 	return iduc.initDB(
@@ -156,8 +155,8 @@ func (iduc *InitDBUseCase) dropAndCreateAgain(
 	return nil
 }
 
-// SchemaName returns the PostgreSQL schema name managed by the migration use
-// cases. The value is currently fixed for the entire application.
+// SchemaName returns the schema name managed by the migration use cases. The
+// value is currently fixed for the entire application.
 func SchemaName() string {
 	return "bnpl"
 }

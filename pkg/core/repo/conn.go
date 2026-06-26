@@ -12,7 +12,7 @@ type TxHandler func(context.Context, Tx) error
 
 // Conn abstracts a database connection that can execute queries directly or
 // open transactions. Implementations are expected to be request-scoped rather
-// than shared freely across goroutines unless documented otherwise.
+// than shared freely across concurrent callers unless documented otherwise.
 type Conn interface {
 	Queryer
 
