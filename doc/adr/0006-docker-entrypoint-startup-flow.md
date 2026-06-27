@@ -14,7 +14,7 @@ Without a documented entrypoint contract, operators might assume the container o
 
 Use `scripts/docker-entrypoint.sh` as `CMD` with a two-step flow:
 
-1. **Database initialization** — `"${APP_EXECUTABLE:-./bnpl}" db "${DB_INIT_COMMAND:-init-dev}"`
+1. **Database initialization (optional)** — when `DB_INIT_COMMAND` is non-empty, run `"${APP_EXECUTABLE:-./bnpl}" db "${DB_INIT_COMMAND}"` with retries
 2. **Application start** — `exec "${APP_EXECUTABLE:-./bnpl}"` (replaces shell as PID 1)
 
 Environment variables:
@@ -22,7 +22,9 @@ Environment variables:
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `APP_EXECUTABLE` | `./bnpl` | Path to the compiled binary |
-| `DB_INIT_COMMAND` | `init-dev` | Subcommand passed to `bnpl db` (`init-dev` or `init-prod`) |
+| `DB_INIT_COMMAND` | unset in entrypoint; `.env.example` uses `init-dev` | Subcommand passed to `bnpl db`; **empty skips init** |
+| `DB_INIT_MAX_ATTEMPTS` | `10` | Max bootstrap attempts before failure |
+| `DB_INIT_RETRY_INTERVAL_SECONDS` | `3` | Sleep between bootstrap retries |
 | `CONFIG_FILE` | `configs/config.yaml` | Set in Dockerfile `ENV` |
 
 The script uses `set -e` so bootstrap failure prevents the HTTP server from starting.
@@ -39,9 +41,9 @@ The script uses `set -e` so bootstrap failure prevents the HTTP server from star
 
 **Negative**
 
-- **Default `init-dev` is destructive** — every container start drops and recreates the `bnpl` schema unless `DB_INIT_COMMAND` is overridden or entrypoint is replaced.
-- Bootstrap requires admin PostgreSQL credentials in config; the entrypoint does not wait for PostgreSQL readiness (depends on orchestrator restart policy).
-- Host `make run` also runs destructive bootstrap before the server, which may surprise developers who already initialized the database.
+- **Default `.env.example` sets `DB_INIT_COMMAND=init-dev`** — destructive when entrypoint runs with that value unless overridden or cleared.
+- Bootstrap retries protect against PostgreSQL readiness races; orchestrator restart policy still applies after max attempts.
+- Host `make run` also runs destructive bootstrap when `DB_INIT_COMMAND` is set in `.env`.
 
 **Operational impact**
 
@@ -78,3 +80,8 @@ The entrypoint should evolve to:
 - Batch jobs (collections, reconciliation) as separate CronJob invocations
 
 Current entrypoint is a **development and greenfield** convenience, not a production schema evolution strategy.
+
+### Amendment (2026-06-27)
+
+- Empty `DB_INIT_COMMAND` skips database initialization (steady-state deployments).
+- Retries added via `DB_INIT_MAX_ATTEMPTS` and `DB_INIT_RETRY_INTERVAL_SECONDS`.

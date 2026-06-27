@@ -7,7 +7,9 @@ The repository contains **HTTP server scaffolding only**. No BNPL business endpo
 | Category | Status |
 | --- | --- |
 | Gin engine and middleware | Implemented |
+| Trace / request / correlation headers | Implemented |
 | `/api/v1` route group | Implemented (empty) |
+| Response envelopes (`serdser`) | Implemented (unused by routes) |
 | Business REST handlers | **Not implemented** |
 | Authentication / authorization | **Not implemented** |
 | OpenAPI / protobuf API definitions | **Not present** |
@@ -18,11 +20,12 @@ The repository contains **HTTP server scaffolding only**. No BNPL business endpo
 
 1. Load config (`config.Load`)
 2. Open normal-role PostgreSQL pool
-3. Create Gin engine with optional logger and recovery middleware
-4. Register routes via `routes.Register`
-5. Listen on `{GIN_HOST}:{GIN_PORT}`
+3. Wire infrastructure, use cases, and scheduled tasks
+4. Create Gin engine with trace-ID middleware (always), optional recovery and logger
+5. Register routes via `routes.Register`
+6. Listen on `{GIN_HOST}:{GIN_PORT}`
 
-Entry: `cmd/bnpl/command/root.go` → `startWebServer`.
+Entry: `cmd/bnpl/command/root.go` → `bootstrap.Boot`.
 
 ### Registered routes
 
@@ -34,24 +37,37 @@ Unmatched paths receive Gin's default 404 behavior.
 
 ### Middleware
 
-From `config.Gin`:
+From `config.Gin` (order matters):
 
-| Setting | Env var | Effect |
+| Order | Middleware | Env / config | Effect |
+| --- | --- | --- | --- |
+| 1 | Trace ID | Always on | Propagates `X-Trace-Id`, `X-Request-Id`, `X-Correlation-Id` |
+| 2 | Recovery | `GIN_RECOVERY` | Panic → HTTP 500 |
+| 3 | Logger | `GIN_LOGGER` | Request/response logging via slog |
+
+`GIN_TRUSTED_PROXY` is decoded from `gin.trusted_proxies` in YAML and passed to Gin.
+
+### Trace and correlation headers
+
+Middleware: `pkg/adapter/restful/gin/middleware/traceid.go`
+
+| Header | Constant | Behavior |
 | --- | --- | --- |
-| Logger | `GIN_LOGGER` | Request/response logging via slog |
-| Recovery | `GIN_RECOVERY` | Panic → HTTP 500 |
-| Mode | `GIN_MODE` | `debug`, `release`, or `test` |
+| `X-Trace-Id` | `header.TraceID` | Reused from request or generated (ULID); echoed in response |
+| `X-Request-Id` | `header.RequestID` | Reused from request or generated; echoed in response |
+| `X-Correlation-Id` | `header.CorrelationID` | Reused from request or generated; echoed in response |
 
-Trusted proxies are hardcoded to `127.0.0.1` in `pkg/adapter/restful/gin/gin.go`. The `GIN_TRUSTED_PROXY` YAML value is **not applied**.
+Values are stored in `context.Context` via `pkg/core/trace` and included in `serdser` error/success envelopes when handlers use those helpers.
 
 ### Shared response helpers (unused by routes today)
 
 `pkg/adapter/restful/gin/serdser`:
 
-- `Bind` — request binding; validation errors → HTTP 400 JSON
-- `SerErr` — `cerr.Error` → mapped status; other errors → HTTP 500
+- `Bind` — request binding; validation errors → standardized JSON error envelope
+- `SerErr` — `cerr.Error` → mapped HTTP status and machine-readable code
+- `Ser`, `SerOK`, `SerCreated`, … — success envelopes with trace metadata and optional pagination
 
-These are ready for future handlers but have no callers in `routes` yet.
+Pagination query parsing: `pkg/adapter/restful/gin/pagination` (ready for list endpoints).
 
 ### Status codes today
 
@@ -60,7 +76,7 @@ These are ready for future handlers but have no callers in `routes` yet.
 | 404 | Unknown paths (Gin default) |
 | 500 | Panic in middleware chain if recovery enabled |
 
-No application-defined 2xx, 4xx, or domain-specific error responses exist.
+No application-defined 2xx, 4xx, or domain-specific error responses are emitted by registered routes.
 
 ## Planned
 
@@ -105,25 +121,25 @@ When handlers are added, the intended pattern is:
 
 ```
 HTTP request
+  → TraceID middleware (context + response headers)
   → Gin middleware (logger, recovery)
   → route handler
   → serdser.Bind (validation)
   → use case method
   → repository port
   → PostgreSQL adapter
-  → serdser.SerErr or JSON success response
+  → serdser.Ser* or serdser.SerErr
 ```
 
 Handlers should depend on use cases, not `pgx` or raw SQL.
 
 ## TODO
 
-- [ ] Add health/readiness routes (no DB dependency or optional pool ping)
+- [ ] Add health/readiness routes (optional pool ping)
 - [ ] Define API versioning strategy under `/api/v1`
 - [ ] Document request/response schemas when first endpoints land
 - [ ] Add authentication middleware before any sensitive routes
 - [ ] Wire `routes.Register` to use the database pool passed in today
-- [ ] Apply `GIN_TRUSTED_PROXY` from configuration
 
 ## Related documentation
 

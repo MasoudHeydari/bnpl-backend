@@ -12,7 +12,7 @@ The current loader in `pkg/adapter/config/config.go`:
 
 1. Reads a YAML file (default `configs/config.yaml`).
 2. Expands `${VAR}` placeholders via `os.ExpandEnv`.
-3. Decodes into typed structs (`Database`, `Gin`, `Usecases`).
+3. Decodes into typed structs (`Database`, `Gin`, `Usecases`, `Infrastructure`).
 
 `.env.example` documents the expected environment variables; the Makefile includes `.env` for all targets.
 
@@ -20,7 +20,7 @@ The current loader in `pkg/adapter/config/config.go`:
 
 Keep YAML as the canonical configuration **shape** and inject environment-specific **values** through `${VAR}` expansion before decoding.
 
-Config path resolution (`cmd/bnpl/command/root.go`):
+Config path resolution (`cmd/bnpl/bootstrap.FixConfigPath`, called from Cobra `OnInitialize`):
 
 1. `--config` flag
 2. `CONFIG_FILE` environment variable
@@ -32,18 +32,25 @@ Docker sets `CONFIG_FILE=configs/config.yaml` in the `Dockerfile`.
 
 **Positive**
 
-- `configs/config.yaml` documents structure in one place (database, gin, usecases sections).
+- `configs/config.yaml` documents structure in one place (database, gin, usecases, infrastructure sections).
 - The same binary and config file work locally and in containers; only environment variables change.
 - Secrets can be injected at runtime without rebuilding (via `POSTGRES_*_PGPASS` env vars).
 
 **Negative**
 
 - Missing environment variables expand to empty strings silently; there is no post-decode validation layer.
-- Some YAML keys are not wired to Go structs today:
-  - `gin.trusted_proxies` — ignored; Gin adapter hardcodes `127.0.0.1` (`pkg/adapter/restful/gin/gin.go`).
-  - `usecases.migration.files-dir` — `config.Migrations.migDirPath` is unexported without a `yaml` tag (`usecase.go`), so `db migrate` receives an empty directory path.
-  - `versions` section — present in YAML but not decoded.
-- `config.Load` prints the full config in CLI commands via `fmt.Printf("configs: %v\n", c)`, which exposes struct layout (secrets are redacted via `model.Secret.String()` but operational detail still leaks).
+- `versions` section — present in YAML but not decoded.
+- `config.Load` is not responsible for printing config; `bootstrap.InitDev` / `InitProd` still print via `fmt.Printf("configs: %v\n", c)`.
+
+### Amendment (2026-06-27)
+
+The following gaps from the original ADR are **resolved**:
+
+- `gin.trusted_proxies` — decoded and passed to the Gin adapter.
+- `usecases.migration.files-dir` — decoded into `config.Migrations.filesDir` via `yaml:"files-dir"`.
+- Kafka, Redis, logging, task, and clock settings — wired under `infrastructure:` (see ADR [0009](0009-provider-based-infrastructure-configuration.md)).
+
+Remaining gaps: no post-decode validation; `versions` ignored; circuit breaker not implemented.
 
 **Operational impact**
 

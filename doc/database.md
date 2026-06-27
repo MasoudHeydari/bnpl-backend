@@ -9,7 +9,8 @@ PostgreSQL is accessed through `pgx` / `pgxpool`. Responsibilities are split acr
 | Pool, connection, transaction adapters | `pkg/adapter/db/postgres` |
 | Schema administration | `pkg/adapter/db/postgres/schemarp` |
 | Bootstrap embed + migration SQL | `pkg/adapter/db/postgres/migrationsrp` |
-| Orchestration | `pkg/core/usecase/migrationsuc` |
+| Integration outbox repository | `pkg/adapter/db/postgres/outboxrp` |
+| Orchestration | `pkg/core/usecase/migrationsuc`, `outboxpublisheruc` |
 
 ## Managed Schema
 
@@ -22,7 +23,7 @@ All application objects are expected to live in this schema. Bootstrap sets `sea
 | Role | Constant | Purpose |
 | --- | --- | --- |
 | `admin` | `repo.AdminRole` | Drop/create schema, role DDL, grants |
-| `bnpl` | `repo.NormalRole` | Runtime queries, bootstrap SQL, migrations |
+| `bnpl` | `repo.NormalRole` | Runtime queries, bootstrap SQL, migrations, outbox |
 
 ### Admin role usage
 
@@ -38,9 +39,10 @@ Used exclusively during **destructive initialization**:
 
 ### Application role usage
 
-- HTTP server connection pool (when handlers use DB)
+- HTTP server connection pool
 - Embedded bootstrap SQL execution
 - Filesystem migration execution (`db migrate`)
+- Outbox claim/publish/update operations
 
 ## pgpass Usage
 
@@ -65,7 +67,7 @@ These are **separate concerns**:
 | SQL source | `go:embed` in binary | Files on disk |
 | Destructive | **Yes** — drops schema | **No** — applies incremental SQL |
 | Tracks versions | No (recreates from scratch) | Yes — `migrations` table |
-| Production safe | **No** | Intended future path (not fully wired) |
+| Production safe | **No** | Intended future path |
 
 ## Schema Initialization Process
 
@@ -95,13 +97,52 @@ Embedded in `pkg/adapter/db/postgres/migrationsrp/settler.go` via `go:embed`.
 
 | File | Current contents |
 | --- | --- |
-| `000_schema.sql` | `SET search_path TO bnpl`; `CREATE TABLE migrations` |
+| `000_schema.sql` | `migrations` table, `integration_outbox` table + indexes |
 | `000_dev.sql` | Empty |
 | `000_prod.sql` | Empty |
 
 `assets/db/init/` contains symlinks to these files for reference; runtime uses embedded copies only.
 
 **Implication:** `init-dev` and `init-prod` produce identical schema contents today.
+
+## Integration Outbox
+
+Table: `bnpl.integration_outbox` (created by `000_schema.sql`).
+
+| Column | Purpose |
+| --- | --- |
+| `id` | UUID primary key |
+| `destination` | Publish topic / logical destination (e.g. Kafka topic) |
+| `event_type` | Machine-readable event name |
+| `aggregate_type` | Optional entity type for traceability |
+| `payload` | JSONB event body |
+| `status` | `pending`, `processing`, `published`, `failed` |
+| `attempt_count`, `max_attempts` | Retry tracking |
+| `next_attempt_at` | Scheduled retry time |
+| `locked_at`, `locked_by` | Worker claim metadata |
+| `last_error` | Last delivery failure |
+| `created_at`, `published_at` | Timestamps |
+
+### Repository (`outboxrp`)
+
+Port: `pkg/core/repo/outbox.go`
+
+Operations:
+
+- `ClaimPending` — `FOR UPDATE SKIP LOCKED` batch claim for a worker
+- `MarkPublished`, `MarkFailed`, `ScheduleRetry` — post-publish state updates
+
+### Use case (`outboxpublisheruc`)
+
+`PublishDue`:
+
+1. Claims due pending rows up to configured batch size
+2. Publishes each via `messaging.Publisher` (topic = `destination`)
+3. Marks published or schedules exponential backoff retry
+
+Configured via `usecases.outbox_publisher` and triggered by the `outbox_publisher` scheduled task.
+
+**Gap:** No domain use case inserts outbox rows yet — table exists for future transactional producers.
 
 ## init-dev Behavior
 
@@ -131,7 +172,7 @@ Separate from bootstrap. Implemented in `migrationsuc.UseCase`.
 
 Per migration file:
 
-1. Read file from disk (`migDirPath`)
+1. Read file from `MIGRATIONS_FILES_DIR` (wired from YAML `usecases.migration.files-dir`)
 2. Normal-role connection → transaction
 3. Execute SQL
 4. `INSERT INTO migrations(name, created_at)`
@@ -141,11 +182,9 @@ Execution and registration share one transaction — avoids applied-but-untracke
 
 ### Current migration directory state
 
-- Default path in `.env.example`: `assets/db/migrations`
-- Directory **does not exist** in repository
-- YAML key `usecases.migration.files-dir` is **not decoded** into `config.Migrations.migDirPath` (unexported field, no yaml tag)
-
-`db migrate` therefore receives an empty directory path and fails or no-ops incorrectly.
+- Default path: `assets/db/migrations` (from `.env.example`)
+- Directory may not exist until first migration is added
+- `db migrate` fails when the directory is missing or empty
 
 ## Schema Versioning
 
@@ -162,6 +201,7 @@ Pool settings from config map to `pgxpool.Config`:
 - `MaxConns`, `MinConns`
 - `MaxConnLifetime`, `MaxConnIdleTime`
 - `HealthCheckPeriod`, `ConnectTimeout`
+- `ssl_mode` from `POSTGRES_SSL_MODE`
 
 `postgres.NewPool` acquires a connection immediately after creation (fail-fast).
 
@@ -175,30 +215,30 @@ Callback pattern: `Conn.Tx(ctx, handler)`
 - non-`nil` error → rollback
 - panic → rollback, error returned
 
-Used for both bootstrap phases and per-migration execution.
+Used for bootstrap phases, per-migration execution, and outbox publish transactions.
 
 ## Operational Risks
 
 | Risk | Mitigation (current) | Target state |
 | --- | --- | --- |
 | Data loss on `init-*` | Documentation, ADR 0008 | Non-destructive `db migrate` only in prod |
-| Docker entrypoint runs `init-dev` by default | Override `DB_INIT_COMMAND` or entrypoint | Migrate-on-deploy job |
+| Docker entrypoint runs `init-dev` when env set | Empty `DB_INIT_COMMAND` skips init | Migrate-on-deploy job |
 | Admin creds in app config | Role separation at runtime | Admin only in migration job |
 | Password in DDL logs | Restrict PostgreSQL `log_statement` | Parameterized role management alternative |
-| Empty migration wiring | Manual bootstrap only | Fix YAML decode + add migration files |
+| Outbox without producers | Table only; publisher idle | Domain inserts in same TX as business writes |
 | No backup/restore docs in repo | Operator responsibility | Document RPO/RTO with BNPL domains |
 
 ## TODO
 
-- [ ] Wire `files-dir` YAML into `config.Migrations`
 - [ ] Add `assets/db/migrations` with first forward migration
 - [ ] Add `db migrate` dry-run or status command
 - [ ] Document PostgreSQL backup requirements for production
-- [ ] Replace destructive entrypoint default for production deployments
+- [ ] Domain use case to insert outbox rows transactionally
 - [ ] Add dev/prod seed content or document intentional absence
 
 ## Related documentation
 
-- [architecture.md](architecture.md) — database flow
+- [architecture.md](architecture.md) — database and outbox flow
 - [operations.md](operations.md) — Makefile and Docker commands
 - [security.md](security.md) — credential handling
+- ADR [0012](adr/0012-transactional-outbox-publisher.md)
