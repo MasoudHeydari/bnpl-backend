@@ -7,6 +7,9 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
+// Verify Tx implements the core repository transaction contract.
+var _ repo.Tx = (*Tx)(nil)
+
 // Tx adapts pgx.Tx to the core repository Tx interface.
 // A Tx value is valid only within the Conn.Tx callback that created it.
 type Tx struct {

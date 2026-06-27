@@ -8,6 +8,9 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
+// Verify Settler implements the core schema initializer contract.
+var _ repo.SchemaInitializer = (*Settler)(nil)
+
 // Settler initializes a freshly created schema by executing embedded SQL
 // assets inside a caller-managed transaction.
 type Settler struct {

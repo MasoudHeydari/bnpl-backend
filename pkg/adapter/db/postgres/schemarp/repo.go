@@ -10,6 +10,9 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
+// Verify Repo implements the core schema repository contract.
+var _ repo.Schema = (*Repo)(nil)
+
 // Repo is the PostgreSQL implementation of the core schema repository.
 // It is stateless and safe for concurrent reuse.
 type Repo struct{}
@@ -22,6 +25,9 @@ func New() *Repo {
 type connQueryer struct {
 	*postgres.Conn
 }
+
+// Verify connQueryer implements the core schema connection queryer contract.
+var _ repo.SchemaConnQueryer = (*connQueryer)(nil)
 
 // Conn binds the schema repository to a non-transactional connection scope.
 func (schema *Repo) Conn(c repo.Conn) repo.SchemaConnQueryer {
@@ -62,6 +68,9 @@ func (cq connQueryer) DropIfExists(
 type txQueryer struct {
 	*postgres.Tx
 }
+
+// Verify txQueryer implements the core schema transaction queryer contract.
+var _ repo.SchemaTxQueryer = (*txQueryer)(nil)
 
 // Tx binds the schema repository to a transaction scope.
 func (schema *Repo) Tx(tx repo.Tx) repo.SchemaTxQueryer {

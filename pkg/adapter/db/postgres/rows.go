@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
 // ErrNoRows is re-exported for callers that need direct access to the
@@ -25,6 +26,9 @@ type Rows interface {
 type rowsAdapter struct {
 	pgx.Rows
 }
+
+// Verify rowsAdapter implements the core repository rows contract.
+var _ repo.Rows = (*rowsAdapter)(nil)
 
 // Values returns the values of the current row as a slice of any.
 //

@@ -11,6 +11,9 @@ import (
 
 var emptyTxOptions pgx.TxOptions
 
+// Verify Conn implements the core repository connection contract.
+var _ repo.Conn = (*Conn)(nil)
+
 // Conn adapts a pooled pgx connection to the core repository Conn interface.
 // A Conn is leased from Pool.Conn and should not be shared outside the
 // callback that received it.
