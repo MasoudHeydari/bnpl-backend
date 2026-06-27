@@ -128,6 +128,6 @@ infrastructure:
 
 versions:
   # semantic version of the database schema
-  database: 0.1.0
+  database: 0.2.0
   # semantic version of the configuration file itself
-  config: 0.1.0
+  config: 0.2.0
