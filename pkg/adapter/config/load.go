@@ -37,6 +37,10 @@ type Config struct {
 	Gin            Gin
 	Usecases       Usecases
 	Infrastructure Infrastructure
+
+	// Versions contains the configuration file and database schema version
+	// strings corresponding to this Config instance and its Database target.
+	Versions Versions
 }
 
 // Load reads a YAML configuration file from path, expands ${VAR} placeholders
@@ -61,7 +65,16 @@ func Load(path string) (*Config, error) {
 	if err = n.Decode(c); err != nil {
 		return nil, fmt.Errorf("decoding yaml node: %w", err)
 	}
+	if err = c.ValidateVersions(); err != nil {
+		return nil, fmt.Errorf("validating versions: %w", err)
+	}
 	return c, nil
+}
+
+// ValidateVersions checks that the versions declared in the configuration
+// file are supported by this binary.
+func (c *Config) ValidateVersions() error {
+	return c.Versions.Validate()
 }
 
 // ConnectionPool builds a database connection pool for role.
