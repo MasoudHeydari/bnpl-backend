@@ -74,6 +74,9 @@ type Runtime struct {
 	// mu protects access to registered tasks and handlers.
 	mu sync.Mutex
 
+	// runCtx is the lifecycle context passed to Start.
+	runCtx context.Context
+
 	// tasks contains registered scheduled tasks.
 	//
 	// Disabled tasks are not stored.
@@ -89,6 +92,9 @@ type Runtime struct {
 	// This mirrors future Temporal-style execution where Handler can map to a
 	// workflow or activity name instead of an in-process function.
 	handlers map[string]task.Job
+
+	// dispatchWG tracks asynchronous dispatch executions.
+	dispatchWG sync.WaitGroup
 }
 
 // New creates an in-process task runtime.
@@ -156,8 +162,12 @@ func (r *Runtime) Dispatch(ctx context.Context, cmd task.Command) error {
 		"task_handler", cmd.Handler,
 	).Info("task dispatch accepted")
 
+	r.dispatchWG.Add(1)
 	go func() {
-		r.execute(ctx, task.Task{
+		defer r.dispatchWG.Done()
+
+		execCtx := r.executionContext(ctx)
+		r.execute(execCtx, task.Task{
 			Name:    cmd.Handler,
 			Enabled: true,
 			Handler: cmd.Handler,
@@ -176,6 +186,7 @@ func (r *Runtime) Dispatch(ctx context.Context, cmd task.Command) error {
 // Start blocks until ctx is canceled.
 func (r *Runtime) Start(ctx context.Context) error {
 	r.mu.Lock()
+	r.runCtx = ctx
 	tasks := append([]task.Task(nil), r.tasks...)
 	r.mu.Unlock()
 
@@ -200,7 +211,7 @@ func (r *Runtime) Start(ctx context.Context) error {
 			continue
 
 		case task.TriggerCron:
-			if err := r.registerCron(cronRunner, t); err != nil {
+			if err := r.registerCron(ctx, cronRunner, t); err != nil {
 				return err
 			}
 
@@ -226,21 +237,39 @@ func (r *Runtime) Start(ctx context.Context) error {
 	<-stopCtx.Done()
 
 	wg.Wait()
+	r.dispatchWG.Wait()
 
 	r.logger.Info("in-process task runtime stopped")
 
 	return nil
 }
 
+func (r *Runtime) executionContext(ctx context.Context) context.Context {
+	r.mu.Lock()
+	runCtx := r.runCtx
+	r.mu.Unlock()
+
+	if runCtx == nil {
+		return ctx
+	}
+
+	if ctx == nil {
+		return runCtx
+	}
+
+	merged, _ := mergeContexts(runCtx, ctx)
+	return merged
+}
+
 // registerCron registers a cron-triggered task.
-func (r *Runtime) registerCron(cronRunner *cron.Cron, t task.Task) error {
+func (r *Runtime) registerCron(ctx context.Context, cronRunner *cron.Cron, t task.Task) error {
 	spec, err := r.cronSpec(t.Trigger)
 	if err != nil {
 		return err
 	}
 
 	if _, err = cronRunner.AddFunc(spec, func() {
-		r.execute(context.Background(), t)
+		r.execute(r.executionContext(ctx), t)
 	}); err != nil {
 		return fmt.Errorf("%w: invalid cron expression for task %s: %w", ErrInvalidTrigger, t.Name, err)
 	}
@@ -250,8 +279,10 @@ func (r *Runtime) registerCron(cronRunner *cron.Cron, t task.Task) error {
 
 // runInterval executes an interval-triggered task until ctx is canceled.
 func (r *Runtime) runInterval(ctx context.Context, t task.Task) {
+	execCtx := r.executionContext(ctx)
+
 	if t.Trigger.RunOnStart {
-		r.execute(ctx, t)
+		r.execute(execCtx, t)
 	}
 
 	ticker := time.NewTicker(t.Trigger.Interval)
@@ -259,17 +290,21 @@ func (r *Runtime) runInterval(ctx context.Context, t task.Task) {
 
 	for {
 		select {
-		case <-ctx.Done():
+		case <-execCtx.Done():
 			return
 
 		case <-ticker.C:
-			r.execute(ctx, t)
+			r.execute(execCtx, t)
 		}
 	}
 }
 
 // execute runs a task and logs its lifecycle.
 func (r *Runtime) execute(ctx context.Context, t task.Task) {
+	if err := ctx.Err(); err != nil {
+		return
+	}
+
 	logger := r.logger.With(
 		"task_name", t.Name,
 		"task_handler", t.Handler,
