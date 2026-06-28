@@ -33,6 +33,10 @@ usecases:
     retry_max_delay: ${OUTBOX_PUBLISHER_RETRY_MAX_DELAY}
 
 infrastructure:
+  shutdown:
+    timeout: ${SHUTDOWN_TIMEOUT}
+    drain_delay: ${SHUTDOWN_DRAIN_DELAY}
+
   trace:
 
   clock:

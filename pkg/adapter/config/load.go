@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/migrationsrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin"
@@ -75,6 +76,16 @@ func Load(path string) (*Config, error) {
 // file are supported by this binary.
 func (c *Config) ValidateVersions() error {
 	return c.Versions.Validate()
+}
+
+// GetShutdownTimeout returns the configured graceful shutdown timeout.
+func (c *Config) GetShutdownTimeout() time.Duration {
+	return c.Infrastructure.Shutdown.getShutdownTimeout()
+}
+
+// GetShutdownDrainDelay returns the configured graceful shutdown drain delay.
+func (c *Config) GetShutdownDrainDelay() time.Duration {
+	return c.Infrastructure.Shutdown.getShutdownDrainDelay()
 }
 
 // ConnectionPool builds a database connection pool for role.

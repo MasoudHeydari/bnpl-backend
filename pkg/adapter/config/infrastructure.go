@@ -39,6 +39,9 @@ import (
 // Each field configures a concrete infrastructure component that is
 // constructed during application bootstrap.
 type Infrastructure struct {
+	// Shutdown configures the shutdown infrastructure.
+	Shutdown Shutdown `yaml:"shutdown"`
+
 	// Trace configures distributed tracing infrastructure.
 	Trace Trace `yaml:"trace"`
 
@@ -639,4 +642,39 @@ func (cb CircuitBreaker) newGoBreakerCircuitBreakerInfrastructure() (corecb.Circ
 			FailureThreshold: cb.GoBreaker.FailureThreshold,
 		},
 	), nil
+}
+
+const (
+	defaultShutdownTimeout    = 30 * time.Second
+	defaultShutdownDrainDelay = 5 * time.Second
+)
+
+// Shutdown configures graceful process shutdown behavior.
+type Shutdown struct {
+	// Timeout limits how long the entire graceful shutdown sequence may take
+	// before the process is considered unhealthy.
+	Timeout time.Duration `yaml:"timeout"`
+
+	// DrainDelay waits after the application starts rejecting new work and
+	// before shutting down the HTTP server, giving external load balancers time
+	// to stop routing new requests.
+	DrainDelay time.Duration `yaml:"drain_delay"`
+}
+
+// getShutdownTimeout returns the configured shutdown timeout or the default.
+func (s Shutdown) getShutdownTimeout() time.Duration {
+	if s.Timeout <= 0 {
+		return defaultShutdownTimeout
+	}
+
+	return s.Timeout
+}
+
+// getShutdownDrainDelay returns the configured drain delay or the default.
+func (s Shutdown) getShutdownDrainDelay() time.Duration {
+	if s.DrainDelay <= 0 {
+		return defaultShutdownDrainDelay
+	}
+
+	return s.DrainDelay
 }
