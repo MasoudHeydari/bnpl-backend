@@ -15,12 +15,14 @@ import (
 // ErrShutdownTimedOut indicates graceful shutdown exceeded its deadline.
 var ErrShutdownTimedOut = errors.New("graceful shutdown timed out")
 
-// httpServer abstracts the HTTP listener for tests and production wiring.
+// httpServer abstracts the HTTP listener so production code and tests can share
+// the same shutdown orchestration without binding tests to net/http.Server.
 type httpServer interface {
 	listenAndServe() error
 	shutdown(ctx context.Context) error
 }
 
+// stdHTTPServer adapts net/http.Server to the httpServer interface used by Run.
 type stdHTTPServer struct {
 	srv *http.Server
 }
@@ -33,11 +35,20 @@ func (s *stdHTTPServer) shutdown(ctx context.Context) error {
 	return s.srv.Shutdown(ctx)
 }
 
+// backgroundWorkers tracks long-lived goroutines started during Run.
+//
+// Each done channel is closed after its worker exits. Shutdown waits on these
+// channels before closing publishers, subscribers, and the database pool.
 type backgroundWorkers struct {
 	taskDone     chan struct{}
 	consumerDone chan struct{}
 }
 
+// startBackgroundWorkers launches infrastructure workers that share the root
+// runtime context from Run.
+//
+// Workers observe the same ctx passed to Boot/Run, so SIGINT and SIGTERM
+// propagate to the task scheduler and message consumer without extra wiring.
 func (a *App) startBackgroundWorkers(ctx context.Context) *backgroundWorkers {
 	workers := &backgroundWorkers{
 		taskDone:     make(chan struct{}),
@@ -66,6 +77,11 @@ func (a *App) startBackgroundWorkers(ctx context.Context) *backgroundWorkers {
 	return workers
 }
 
+// messageHandler is the bootstrap-level consumer callback until feature routes
+// register domain-specific handlers.
+//
+// It acknowledges messages without business handling so Kafka consumers can
+// start safely during shutdown testing and early integrations.
 func (a *App) messageHandler() messaging.Handler {
 	return func(ctx context.Context, msg messaging.Message) error {
 		if err := ctx.Err(); err != nil {
@@ -82,6 +98,17 @@ func (a *App) messageHandler() messaging.Handler {
 	}
 }
 
+// shutdown stops application components in a fixed order and records progress
+// through the application logger.
+//
+// The sequence is intentional:
+//  1. stop accepting HTTP traffic
+//  2. stop task schedulers and message consumers
+//  3. allow a short in-flight drain window
+//  4. close publishers, subscribers, cache, and the database pool
+//
+// shutdownCtx bounds the entire sequence. When it expires, remaining steps may
+// fail with context.DeadlineExceeded and ErrShutdownTimedOut is returned.
 func (a *App) shutdown(
 	shutdownCtx context.Context,
 	server httpServer,
@@ -118,6 +145,10 @@ func (a *App) shutdown(
 	return shutdownErr
 }
 
+// waitBackground blocks until background workers exit or shutdownCtx expires.
+//
+// Workers are stopped indirectly: Run cancels the root context before calling
+// shutdown, which causes Task.Start and Subscriber.Subscribe to return.
 func (a *App) waitBackground(
 	ctx context.Context,
 	workers *backgroundWorkers,
@@ -148,6 +179,9 @@ func (a *App) waitBackground(
 	}
 }
 
+// drainInFlight provides a short grace period for work already started by HTTP
+// handlers, dispatched tasks, or outbox jobs to finish before publishers and
+// database connections are closed.
 func (a *App) drainInFlight(ctx context.Context) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -164,6 +198,8 @@ func (a *App) drainInFlight(ctx context.Context) error {
 	}
 }
 
+// waitForListen blocks until the process receives a shutdown signal or the HTTP
+// server fails before it begins serving traffic.
 func waitForListen(ctx context.Context, listenErr <-chan error) error {
 	select {
 	case err := <-listenErr:
@@ -176,6 +212,11 @@ func waitForListen(ctx context.Context, listenErr <-chan error) error {
 	return nil
 }
 
+// shutdownContext derives a bounded shutdown deadline from the configured
+// timeout.
+//
+// A fresh context is used so shutdown work is not tied to the already-canceled
+// signal context while still respecting any earlier parent deadline.
 func shutdownContext(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 	if deadline, ok := parent.Deadline(); ok {
 		remaining := time.Until(deadline)
@@ -187,6 +228,7 @@ func shutdownContext(parent context.Context, timeout time.Duration) (context.Con
 	return context.WithTimeout(context.Background(), timeout)
 }
 
+// logListenError records unexpected HTTP server termination after shutdown.
 func logListenError(logger log.Logger, err error) {
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		logger.With("error", err.Error()).Error("http server stopped with error")
