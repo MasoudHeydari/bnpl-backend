@@ -64,3 +64,8 @@ packages:
   github.com/parstis/bnpl-backend/pkg/core/circuitbreaker:
     interfaces:
       CircuitBreaker:
+
+  github.com/parstis/bnpl-backend/pkg/core/health:
+    interfaces:
+      DependencyChecker:
+      LifecycleState:
