@@ -3,9 +3,11 @@ package bootstrap
 import (
 	"fmt"
 
+	adapterhealth "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/health"
 	"github.com/parstis/bnpl-backend/pkg/core/cache"
 	"github.com/parstis/bnpl-backend/pkg/core/circuitbreaker"
 	"github.com/parstis/bnpl-backend/pkg/core/clock"
+	corehealth "github.com/parstis/bnpl-backend/pkg/core/health"
 	"github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/messaging"
 	"github.com/parstis/bnpl-backend/pkg/core/task"
@@ -14,12 +16,14 @@ import (
 
 // Infrastructure holds the runtime adapters assembled for the application.
 type Infrastructure struct {
-	Trace      trace.Provider
-	Clock      clock.Clock
-	Logger     log.Logger
-	Cache      cache.Cache
-	Publisher  messaging.Publisher
-	Subscriber messaging.Subscriber
+	DependencyChecker corehealth.DependencyChecker
+	Trace             trace.Provider
+	Clock             clock.Clock
+	Logger            log.Logger
+	Cache             cache.Cache
+	Publisher         messaging.Publisher
+	Subscriber        messaging.Subscriber
+	LifecycleState    corehealth.LifecycleState
 
 	// CircuitBreaker protects calls to external or failure-prone dependencies.
 	//
@@ -32,6 +36,8 @@ type Infrastructure struct {
 
 // NewInfrastructures constructs the infrastructure adapters required by App.
 func (a *App) NewInfrastructures() (Infrastructure, error) {
+	lifecycleState := adapterhealth.NewLifecycleState()
+
 	traceProvider, err := a.Config.NewTraceInfrastructure()
 	if err != nil {
 		return Infrastructure{}, fmt.Errorf("initialize trace: %w", err)
@@ -63,6 +69,21 @@ func (a *App) NewInfrastructures() (Infrastructure, error) {
 		return Infrastructure{}, fmt.Errorf("initialize messaging subscriber: %w", err)
 	}
 
+	messagingHealth, err := a.Config.NewMessagingHealthInfrastructure()
+	if err != nil {
+		return Infrastructure{}, fmt.Errorf("initialize messaging health: %w", err)
+	}
+
+	dependencyChecker, err := a.Config.NewDependencyCheckerInfrastructure(
+		a.Pool,
+		a.Repos.Health,
+		cacheInfra,
+		messagingHealth,
+	)
+	if err != nil {
+		return Infrastructure{}, fmt.Errorf("initialize dependency checker: %w", err)
+	}
+
 	cbInfra, err := a.Config.NewCircuitBreakerInfrastructure()
 	if err != nil {
 		return Infrastructure{}, fmt.Errorf("initialize circuit breaker: %w", err)
@@ -74,13 +95,15 @@ func (a *App) NewInfrastructures() (Infrastructure, error) {
 	}
 
 	return Infrastructure{
-		Trace:          traceProvider,
-		Clock:          systemClock,
-		Logger:         logger,
-		Cache:          cacheInfra,
-		Publisher:      publisher,
-		Subscriber:     subscriber,
-		CircuitBreaker: cbInfra,
-		Task:           taskInfra,
+		DependencyChecker: dependencyChecker,
+		Trace:             traceProvider,
+		Clock:             systemClock,
+		Logger:            logger,
+		Cache:             cacheInfra,
+		Publisher:         publisher,
+		Subscriber:        subscriber,
+		LifecycleState:    lifecycleState,
+		CircuitBreaker:    cbInfra,
+		Task:              taskInfra,
 	}, nil
 }

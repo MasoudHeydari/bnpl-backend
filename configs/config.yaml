@@ -37,6 +37,12 @@ infrastructure:
     timeout: ${SHUTDOWN_TIMEOUT}
     drain_delay: ${SHUTDOWN_DRAIN_DELAY}
 
+  health:
+    checks:
+      - database
+      - cache
+      - messaging
+
   trace:
 
   clock:

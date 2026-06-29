@@ -15,6 +15,7 @@ import (
 	circuitbreakergobreaker "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/circuitbreaker/gobreaker"
 	noopcircuitbreacker "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/circuitbreaker/noop"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/clock"
+	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/health"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log"
 	lognoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/noop"
 	adapterslog "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/slog"
@@ -28,8 +29,10 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/cache"
 	corecb "github.com/parstis/bnpl-backend/pkg/core/circuitbreaker"
 	coreclock "github.com/parstis/bnpl-backend/pkg/core/clock"
+	corehealth "github.com/parstis/bnpl-backend/pkg/core/health"
 	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
 	coremessaging "github.com/parstis/bnpl-backend/pkg/core/messaging"
+	"github.com/parstis/bnpl-backend/pkg/core/repo"
 	"github.com/parstis/bnpl-backend/pkg/core/task"
 	"github.com/redis/go-redis/v9"
 )
@@ -41,6 +44,9 @@ import (
 type Infrastructure struct {
 	// Shutdown configures the shutdown infrastructure.
 	Shutdown Shutdown `yaml:"shutdown"`
+
+	// HealthCheck configures the health check infrastructure.
+	HealthCheck HealthCheck `yaml:"health"`
 
 	// Trace configures distributed tracing infrastructure.
 	Trace Trace `yaml:"trace"`
@@ -677,4 +683,68 @@ func (s Shutdown) getShutdownDrainDelay() time.Duration {
 	}
 
 	return s.DrainDelay
+}
+
+// HealthCheck configures application health checks.
+type HealthCheck struct {
+	// Checks defines which runtime dependencies are included in readiness.
+	//
+	// Supported values:
+	//   - database
+	//   - cache
+	//   - messaging
+	Checks []health.Check `yaml:"checks"`
+}
+
+// newDependencyCheckerInfrastructure constructs a composite dependency checker from the
+// configured health checks.
+//
+// Only the dependency checks listed in the configuration are included in the
+// resulting checker. The returned checker reports the application as ready only
+// when all configured dependencies are healthy.
+func (hc HealthCheck) newDependencyCheckerInfrastructure(
+	pool repo.Pool,
+	healthRepo repo.Health,
+	cache cache.Cache,
+	messagingHealth coremessaging.Health,
+) (corehealth.DependencyChecker, error) {
+	checkers := make([]corehealth.DependencyChecker, 0, len(hc.Checks))
+
+	for _, check := range hc.Checks {
+		switch check {
+		case health.DatabaseCheck:
+			checkers = append(checkers, health.NewDatabaseDependencyChecker(pool, healthRepo))
+
+		case health.CacheCheck:
+			checkers = append(checkers, health.NewRedisDependencyChecker(cache))
+
+		case health.MessagingCheck:
+			checkers = append(checkers, health.NewMessagingDependencyChecker(messagingHealth))
+
+		default:
+			return nil, fmt.Errorf("unknown health check %q", check)
+		}
+	}
+
+	return health.NewCompositeDependencyChecker(checkers...), nil
+}
+
+// newHealthInfrastructure constructs the messaging health checker for the
+// configured messaging provider.
+func (m Messaging) newHealthInfrastructure() (coremessaging.Health, error) {
+	switch m.Provider {
+	case messaging.NoopProvider:
+		return noopmessaging.NewHealthChecker(), nil
+
+	case messaging.KafkaProvider:
+		client, err := sarama.NewClient(m.Kafka.Brokers, sarama.NewConfig())
+		if err != nil {
+			return nil, fmt.Errorf("create kafka health client: %w", err)
+		}
+
+		return saramamessaging.NewHealthChecker(client), nil
+
+	default:
+		return nil, fmt.Errorf("unknown messaging provider %q", m.Provider)
+	}
 }

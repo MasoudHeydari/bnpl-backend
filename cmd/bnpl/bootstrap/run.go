@@ -80,14 +80,14 @@ func Run(ctx context.Context) error {
 		return err
 	}
 
-	app.ShutdownGate.StartDraining()
+	app.Infrastructure.LifecycleState.StartDraining()
 
 	shutdownCtx, cancel := shutdownContext(ctx, cfg.GetShutdownTimeout())
 	defer cancel()
 
 	shutdownErr := app.shutdown(shutdownCtx, server, workers)
 	if errors.Is(shutdownErr, ErrShutdownTimedOut) {
-		app.ShutdownGate.MarkShutdownTimedOut()
+		app.Infrastructure.LifecycleState.MarkShutdownTimedOut()
 	}
 	logListenError(app.Infrastructure.Logger, <-listenErr)
 

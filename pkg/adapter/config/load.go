@@ -12,6 +12,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/cache"
 	"github.com/parstis/bnpl-backend/pkg/core/circuitbreaker"
 	"github.com/parstis/bnpl-backend/pkg/core/clock"
+	corehealth "github.com/parstis/bnpl-backend/pkg/core/health"
 	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/messaging"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
@@ -165,6 +166,28 @@ func (c *Config) NewGinEngine(provider trace.Provider) *gin.Engine {
 // GetGinListeningAddress returns the configured HTTP listen address.
 func (c *Config) GetGinListeningAddress() string {
 	return c.Gin.getListeningAddress()
+}
+
+// NewDependencyCheckerInfrastructure constructs the application's composite dependency
+// checker from the configured health checks.
+func (c *Config) NewDependencyCheckerInfrastructure(
+	pool repo.Pool,
+	healthRepo repo.Health,
+	cacheInfra cache.Cache,
+	messagingHealth messaging.Health,
+) (corehealth.DependencyChecker, error) {
+	return c.Infrastructure.HealthCheck.newDependencyCheckerInfrastructure(
+		pool,
+		healthRepo,
+		cacheInfra,
+		messagingHealth,
+	)
+}
+
+// NewMessagingHealthInfrastructure constructs the configured messaging health
+// checker.
+func (c *Config) NewMessagingHealthInfrastructure() (messaging.Health, error) {
+	return c.Infrastructure.Messaging.newHealthInfrastructure()
 }
 
 // NewTraceInfrastructure constructs the configured tracing provider.
