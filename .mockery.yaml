@@ -9,6 +9,9 @@ packages:
   github.com/parstis/bnpl-backend/pkg/core/repo:
     interfaces:
       Conn:
+      Health:
+      HealthConnQueryer:
+      HealthQueryer:
       Migrations:
       MigrationsConnQueryer:
       MigrationsQueryer:
