@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/healthcheckuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/migrationsuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/outboxpublisheruc"
 )
@@ -9,6 +10,7 @@ import (
 type UseCases struct {
 	Migrations      *migrationsuc.UseCase
 	OutboxPublisher *outboxpublisheruc.UseCase
+	Health          *healthcheckuc.UseCase
 }
 
 // NewUseCases constructs the use cases required by App.
@@ -26,8 +28,14 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Infrastructure.Logger,
 	)
 
+	healthUseCase := a.Config.NewHealthUseCase(
+		a.Infrastructure.LifecycleState,
+		a.Infrastructure.DependencyChecker,
+	)
+
 	return UseCases{
 		Migrations:      migrationsUseCase,
 		OutboxPublisher: outboxPublisherUseCase,
+		Health:          healthUseCase,
 	}, nil
 }

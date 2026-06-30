@@ -23,6 +23,9 @@ gin:
   recovery: ${GIN_RECOVERY}
 
 usecases:
+  health:
+    enabled: ${HEALTH_ENABLED}
+
   migration:
     files-dir: ${MIGRATIONS_FILES_DIR}
 

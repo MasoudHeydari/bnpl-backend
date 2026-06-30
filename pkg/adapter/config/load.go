@@ -18,6 +18,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 	"github.com/parstis/bnpl-backend/pkg/core/task"
 	"github.com/parstis/bnpl-backend/pkg/core/trace"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/healthcheckuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/migrationsuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/outboxpublisheruc"
 	"gopkg.in/yaml.v3"
@@ -156,6 +157,15 @@ func (c *Config) NewOutboxPublisherUseCase(
 		clock,
 		logger,
 	)
+}
+
+// NewHealthUseCase constructs the health check use case configured by this
+// process.
+func (c *Config) NewHealthUseCase(
+	lifecycleState corehealth.LifecycleState,
+	dependencyChecker corehealth.DependencyChecker,
+) *healthcheckuc.UseCase {
+	return c.Usecases.Health.newUseCase(lifecycleState, dependencyChecker)
 }
 
 // NewGinEngine constructs the HTTP engine configured for this process.

@@ -4,9 +4,11 @@ import (
 	"time"
 
 	"github.com/parstis/bnpl-backend/pkg/core/clock"
+	corehealth "github.com/parstis/bnpl-backend/pkg/core/health"
 	"github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/messaging"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/healthcheckuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/migrationsuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/outboxpublisheruc"
 )
@@ -20,6 +22,7 @@ import (
 type Usecases struct {
 	Migrations      Migrations      `yaml:"migration"`
 	OutboxPublisher OutboxPublisher `yaml:"outbox_publisher"`
+	Health          Health          `yaml:"health"`
 }
 
 // Migrations contains filesystem-backed migration settings.
@@ -85,5 +88,22 @@ func (obp OutboxPublisher) newUseCase(
 		obp.BatchSize,
 		obp.RetryBaseDelay,
 		obp.RetryMaxDelay,
+	)
+}
+
+// Health configures Kubernetes-compatible health probe endpoints.
+type Health struct {
+	// Enabled controls whether /healthz/live and /healthz/ready are registered.
+	Enabled bool `yaml:"enabled"`
+}
+
+// newUseCase constructs the health check use case.
+func (h Health) newUseCase(
+	lifecycleState corehealth.LifecycleState,
+	dependencyChecker corehealth.DependencyChecker,
+) *healthcheckuc.UseCase {
+	return healthcheckuc.New(
+		lifecycleState,
+		dependencyChecker,
 	)
 }
