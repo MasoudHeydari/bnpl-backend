@@ -4,8 +4,11 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/repo"
+	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
+
+// Verify Tx implements the core repository transaction contract.
+var _ repo.Tx = (*Tx)(nil)
 
 // Tx adapts pgx.Tx to the core repository Tx interface.
 // A Tx value is valid only within the Conn.Tx callback that created it.
@@ -25,7 +28,7 @@ func (tx *Tx) Exec(ctx context.Context, sql string, args ...any) (int64, error) 
 // Query executes sql inside the transaction and returns adapted rows.
 // Callers must close the returned iterator.
 func (tx *Tx) Query(ctx context.Context, sql string, args ...any) (repo.Rows, error) {
-	rows, err := tx.Tx.Query(ctx, sql, args)
+	rows, err := tx.Tx.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}

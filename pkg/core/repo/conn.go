@@ -1,7 +1,3 @@
-// Package repo defines repository and database-port abstractions used by the
-// core and application layers. It belongs to the core domain boundary layer:
-// interfaces point inward to business workflows while infrastructure adapters
-// implement them outward. The package intentionally contains contracts only.
 package repo
 
 import "context"
@@ -12,7 +8,7 @@ type TxHandler func(context.Context, Tx) error
 
 // Conn abstracts a database connection that can execute queries directly or
 // open transactions. Implementations are expected to be request-scoped rather
-// than shared freely across goroutines unless documented otherwise.
+// than shared freely across concurrent callers unless documented otherwise.
 type Conn interface {
 	Queryer
 

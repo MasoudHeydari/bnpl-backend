@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/adapter/db/postgres"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/repo"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
+	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
 // CreateSchema creates schema using trusted identifier interpolation for PostgreSQL DDL.

@@ -2,9 +2,9 @@ package repo
 
 import "context"
 
-// MigrationsQueryer applies raw migration SQL.
+// MigrationsQueryer applies migration statements.
 type MigrationsQueryer interface {
-	// Migrate executes the SQL statements for migration migName.
+	// Migrate executes the migration statements for migName.
 	// Implementations are expected to use migName for tracing or error context
 	// and to execute migStatements exactly as supplied by the migration use case.
 	Migrate(ctx context.Context, migName, migStatements string) error

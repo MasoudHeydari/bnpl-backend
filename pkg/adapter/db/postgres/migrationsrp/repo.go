@@ -1,14 +1,14 @@
-// Package migrationsrp implements the migration repository with PostgreSQL SQL
-// execution primitives. It belongs to the infrastructure layer and provides
-// the concrete repository used by the migration application use case.
 package migrationsrp
 
 import (
 	"context"
 
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/adapter/db/postgres"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/repo"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
+	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
+
+// Verify Repo implements the core migrations repository contract.
+var _ repo.Migrations = (*Repo)(nil)
 
 // Repo is the PostgreSQL implementation of the core migration repository.
 // It is stateless and safe for concurrent reuse.
@@ -29,6 +29,9 @@ type connQueryer struct {
 	*postgres.Conn
 }
 
+// Verify connQueryer implements the core migrations connection queryer contract.
+var _ repo.MigrationsConnQueryer = (*connQueryer)(nil)
+
 // Conn binds the repository to a non-transactional connection scope.
 func (cars *Repo) Conn(c repo.Conn) repo.MigrationsConnQueryer {
 	cc := c.(*postgres.Conn)
@@ -42,6 +45,9 @@ func (cq connQueryer) Migrate(ctx context.Context, migName, migStatements string
 type txQueryer struct {
 	*postgres.Tx
 }
+
+// Verify txQueryer implements the core migrations transaction queryer contract.
+var _ repo.MigrationsTxQueryer = (*txQueryer)(nil)
 
 // Tx binds the repository to a transaction scope so execution and migration
 // registration can commit atomically.

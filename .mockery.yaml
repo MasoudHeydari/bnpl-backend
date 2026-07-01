@@ -1,0 +1,82 @@
+template: testify
+
+dir: "pkg/core/mock"
+filename: "mock_{{.SrcPackageName}}_{{.InterfaceName}}.go"
+pkgname: "mock"
+structname: "{{.InterfaceName}}"
+
+packages:
+  github.com/parstis/bnpl-backend/pkg/core/repo:
+    interfaces:
+      Conn:
+      Health:
+        config:
+          structname: RepoHealth
+      HealthConnQueryer:
+      HealthQueryer:
+      Migrations:
+      MigrationsConnQueryer:
+      MigrationsQueryer:
+      MigrationsTxQueryer:
+      Outbox:
+      OutboxConnQueryer:
+      OutboxQueryer:
+      OutboxTxQueryer:
+      Pool:
+      Queryer:
+      Rows:
+      Schema:
+      SchemaConnQueryer:
+      SchemaInitializer:
+      SchemaQueryer:
+      SchemaSettings:
+      SchemaTxQueryer:
+      Tx:
+
+  github.com/parstis/bnpl-backend/pkg/adapter/db/postgres:
+    interfaces:
+      #      Queryer:
+      Rows:
+        config:
+          structname: PostgresRows
+
+  github.com/parstis/bnpl-backend/pkg/core/trace:
+    interfaces:
+      IDGenerator:
+      Provider:
+
+  github.com/parstis/bnpl-backend/pkg/core/clock:
+    interfaces:
+      Clock:
+
+  github.com/parstis/bnpl-backend/pkg/core/log:
+    interfaces:
+      Logger:
+
+  github.com/parstis/bnpl-backend/pkg/core/cache:
+    interfaces:
+      Cache:
+
+  github.com/parstis/bnpl-backend/pkg/core/messaging:
+    interfaces:
+      Decoder:
+      Health:
+        config:
+          structname: MessagingHealth
+      Publisher:
+      Subscriber:
+
+  github.com/parstis/bnpl-backend/pkg/core/task:
+    interfaces:
+      Dispatcher:
+      Runtime:
+      Scheduler:
+
+  github.com/parstis/bnpl-backend/pkg/core/circuitbreaker:
+    interfaces:
+      CircuitBreaker:
+
+  github.com/parstis/bnpl-backend/pkg/core/health:
+    interfaces:
+      DependencyChecker:
+      LifecycleState:

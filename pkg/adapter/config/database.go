@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/adapter/db/postgres"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/adapter/db/postgres/schemarp"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/model"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/repo"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/schemarp"
+	"github.com/parstis/bnpl-backend/pkg/core/model"
+	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
 // Database defines PostgreSQL connection and pool settings.
@@ -58,7 +58,7 @@ func (d Database) ConnectionPool(ctx context.Context, r repo.Role) (repo.Pool, e
 // The resulting URL includes the configured sslmode parameter and is suitable
 // for creating pgx connection pools and direct PostgreSQL connections.
 func (d Database) ConnectionURL(r repo.Role) (string, error) {
-	pass, err := d.GetRolePassword(r)
+	pass, err := d.getRolePassword(r)
 	if err != nil {
 		return "", fmt.Errorf("ConnectionURL: resolve role password: %w", err)
 	}
@@ -77,8 +77,8 @@ func (d Database) ConnectionURL(r repo.Role) (string, error) {
 	return u.String(), nil
 }
 
-// ConnectionInfo returns the configured database name, host, and port.
-func (d Database) ConnectionInfo() (dbName, host string, port int) {
+// connectionInfo returns the configured database name, host, and port.
+func (d Database) connectionInfo() (dbName, host string, port int) {
 	return d.Name, d.Host, d.Port
 }
 
@@ -103,16 +103,16 @@ func (d Database) getConfig(connUrl string) *pgxpool.Config {
 	return pgConfig
 }
 
-// NewSchemaRepo returns the PostgreSQL-backed schema repository adapter.
+// newSchemaRepo returns the PostgreSQL-backed schema repository adapter.
 // The repository is stateless and safe to reuse across requests.
-func (d Database) NewSchemaRepo() repo.Schema {
+func (d Database) newSchemaRepo() repo.Schema {
 	return schemarp.New()
 }
 
-// GetRolePassword extracts the password for role from the configured pgpass
+// getRolePassword extracts the password for role from the configured pgpass
 // entry lines. The function expects exact host, port, database, and role
 // matches and returns an error when no entry matches.
-func (d Database) GetRolePassword(r repo.Role) (string, error) {
+func (d Database) getRolePassword(r repo.Role) (string, error) {
 	prfx := fmt.Sprintf("%s:%d:%s:%s:", d.Host, d.Port, d.Name, r)
 	passLines := []string{
 		d.PGPassEntries.Admin.Reveal(),

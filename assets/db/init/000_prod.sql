@@ -1,1 +1,1 @@
-/home/dev.masoud/Documents/projects/golang/bnpl/pkg/adapter/db/postgres/migrationsrp/000_prod.sql
+/home/masoud-dev/Documents/projects/golang/bnpl-backend/pkg/adapter/db/postgres/migrationsrp/000_prod.sql

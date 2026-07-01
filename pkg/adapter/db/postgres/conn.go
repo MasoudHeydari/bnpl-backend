@@ -6,10 +6,13 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/repo"
+	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
 var emptyTxOptions pgx.TxOptions
+
+// Verify Conn implements the core repository connection contract.
+var _ repo.Conn = (*Conn)(nil)
 
 // Conn adapts a pooled pgx connection to the core repository Conn interface.
 // A Conn is leased from Pool.Conn and should not be shared outside the
@@ -69,7 +72,7 @@ func (c *Conn) Exec(ctx context.Context, sql string, args ...any) (int64, error)
 // Query executes sql on the underlying connection and returns adapted rows.
 // Callers must close the returned iterator.
 func (c *Conn) Query(ctx context.Context, sql string, args ...any) (repo.Rows, error) {
-	rows, err := c.Conn.Query(ctx, sql, args)
+	rows, err := c.Conn.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}

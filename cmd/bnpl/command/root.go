@@ -1,20 +1,11 @@
-// Package command implements the BNPL CLI adapter.
-// It belongs to the adapter layer and translates command-line execution
-// into configuration loading, HTTP server startup, and database operations.
-// The package depends on application use cases and infrastructure adapters,
-// but it does not define domain rules itself.
 package command
 
 import (
-	"context"
 	"fmt"
-	"log"
 	"os"
 
+	"github.com/parstis/bnpl-backend/cmd/bnpl/bootstrap"
 	"github.com/spf13/cobra"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/adapter/config"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/adapter/restful/gin/routes"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/repo"
 )
 
 var (
@@ -33,30 +24,7 @@ listening on the configured Gin address.`,
 )
 
 func startWebServer(_ *cobra.Command, _ []string) error {
-	ctx := context.Background()
-	c, err := config.Load(cfgPath)
-	if err != nil {
-		return fmt.Errorf("config.Load(%q): %w", cfgPath, err)
-	}
-	fmt.Printf("configs: %v\n", c)
-	p, err := c.ConnectionPool(ctx, repo.NormalRole)
-	if err != nil {
-		return fmt.Errorf("creating DB pool: %w", err)
-	}
-	defer func() {
-		if err = p.Close(); err != nil {
-			log.Printf("failed to close pool connection: %v", err)
-		}
-	}()
-
-	var e = c.Gin.NewEngine()
-	if err = routes.Register(ctx, e, p, c); err != nil {
-		return fmt.Errorf("registering routes: %w", err)
-	}
-	if err = e.Run(c.Gin.GetListeningAddress()); err != nil {
-		return fmt.Errorf("running Gin engine: %w", err)
-	}
-	return nil
+	return bootstrap.Boot()
 }
 
 // Execute runs the root command tree.
@@ -70,21 +38,10 @@ func Execute() {
 }
 
 func init() {
-	cobra.OnInitialize(fixConfigPath)
+	cobra.OnInitialize(func() {
+		bootstrap.FixConfigPath(cfgPath)
+	})
 	rootCmd.PersistentFlags().StringVarP(
 		&cfgPath, "config", "c", "", "config file path",
 	)
-}
-
-// fixConfigPath resolves the configuration path once during BNPL startup.
-// The function prefers an explicit CLI flag, then the CONFIG_FILE environment
-// variable, and finally the repository-local default path.
-func fixConfigPath() {
-	if cfgPath != "" {
-		return
-	}
-	var found bool
-	if cfgPath, found = os.LookupEnv("CONFIG_FILE"); !found {
-		cfgPath = "configs/config.yaml"
-	}
 }

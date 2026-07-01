@@ -1,0 +1,104 @@
+package config
+
+import (
+	"testing"
+
+	"github.com/parstis/bnpl-backend/pkg/core/model"
+	"github.com/parstis/bnpl-backend/pkg/core/repo"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func testDatabase(t *testing.T) Database {
+	t.Helper()
+
+	return Database{
+		Host:    "db.example.com",
+		Port:    5432,
+		Name:    "bnpl",
+		SSLMode: "disable",
+		PGPassEntries: struct {
+			Admin  model.Secret `yaml:"admin"`
+			Normal model.Secret `yaml:"normal"`
+		}{
+			Admin:  model.NewSecret("db.example.com:5432:bnpl:admin:admin-secret"),
+			Normal: model.NewSecret("db.example.com:5432:bnpl:bnpl:normal-secret"),
+		},
+	}
+}
+
+func TestDatabase_getRolePassword_AdminRole(t *testing.T) {
+	t.Parallel()
+
+	pass, err := testDatabase(t).getRolePassword(repo.AdminRole)
+	require.NoError(t, err)
+	assert.Equal(t, "admin-secret", pass)
+}
+
+func TestDatabase_getRolePassword_NormalRole(t *testing.T) {
+	t.Parallel()
+
+	pass, err := testDatabase(t).getRolePassword(repo.NormalRole)
+	require.NoError(t, err)
+	assert.Equal(t, "normal-secret", pass)
+}
+
+func TestDatabase_getRolePassword_SkipsCommentEntry(t *testing.T) {
+	t.Parallel()
+
+	db := testDatabase(t)
+	db.PGPassEntries.Admin = model.NewSecret("# localhost:5432:bnpl:admin:ignored")
+	db.PGPassEntries.Normal = model.NewSecret("db.example.com:5432:bnpl:bnpl:normal-secret")
+
+	pass, err := db.getRolePassword(repo.NormalRole)
+	require.NoError(t, err)
+	assert.Equal(t, "normal-secret", pass)
+}
+
+func TestDatabase_getRolePassword_NoMatchingEntry(t *testing.T) {
+	t.Parallel()
+
+	db := testDatabase(t)
+	db.PGPassEntries.Admin = model.NewSecret("")
+	db.PGPassEntries.Normal = model.NewSecret("other-host:5432:other:bnpl:secret")
+
+	_, err := db.getRolePassword(repo.NormalRole)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no matching password line")
+}
+
+func TestDatabase_ConnectionURL_NormalRole(t *testing.T) {
+	t.Parallel()
+
+	connURL, err := testDatabase(t).ConnectionURL(repo.NormalRole)
+	require.NoError(t, err)
+	assert.Equal(
+		t,
+		"postgresql://bnpl:normal-secret@db.example.com:5432/bnpl?sslmode=disable",
+		connURL,
+	)
+}
+
+func TestDatabase_ConnectionURL_AdminRole(t *testing.T) {
+	t.Parallel()
+
+	connURL, err := testDatabase(t).ConnectionURL(repo.AdminRole)
+	require.NoError(t, err)
+	assert.Equal(
+		t,
+		"postgresql://admin:admin-secret@db.example.com:5432/bnpl?sslmode=disable",
+		connURL,
+	)
+}
+
+func TestDatabase_ConnectionURL_MissingPassword(t *testing.T) {
+	t.Parallel()
+
+	db := testDatabase(t)
+	db.PGPassEntries.Admin = model.NewSecret("")
+	db.PGPassEntries.Normal = model.NewSecret("")
+
+	_, err := db.ConnectionURL(repo.NormalRole)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "ConnectionURL: resolve role password")
+}

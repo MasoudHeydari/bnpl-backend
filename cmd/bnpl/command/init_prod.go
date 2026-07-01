@@ -1,12 +1,8 @@
 package command
 
 import (
-	"context"
-	"fmt"
-
+	"github.com/parstis/bnpl-backend/cmd/bnpl/bootstrap"
 	"github.com/spf13/cobra"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/adapter/config"
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/core/usecase/migrationsuc"
 )
 
 var initProdCmd = &cobra.Command{
@@ -23,22 +19,7 @@ embedded schema and production seed SQL inside a transaction.`,
 }
 
 func initProd(_ *cobra.Command, _ []string) error {
-	ctx := context.Background()
-	c, err := config.Load(cfgPath)
-	if err != nil {
-		return fmt.Errorf("config.Load(%q): %w", cfgPath, err)
-	}
-	fmt.Printf("configs: %v\n", c)
-	fmt.Println("Prod DB initializing...")
-
-	muc := migrationsuc.NewInitDB(c)
-	err = muc.InitProd(ctx)
-	if err != nil {
-		return fmt.Errorf("initializing DB with prod bootstrap data: %w", err)
-	}
-
-	fmt.Println("Prod DB initialized.")
-	return nil
+	return bootstrap.InitProd()
 }
 
 func init() {

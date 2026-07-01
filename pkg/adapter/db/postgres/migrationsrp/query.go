@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"gitlab.com/mehdi.fakhraei-group/bnpl/pkg/adapter/db/postgres"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
 )
 
 // Migrate executes the SQL statements for a single migration.

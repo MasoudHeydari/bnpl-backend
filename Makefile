@@ -16,14 +16,14 @@ HAMRAVESH_IMAGE_LOCAL_TAG := $(IMAGE_NAME):$(IMAGE_VERSION)
 HAMRAVESH_IMAGE_REMOTE := $(HAMRAVESH_CONTAINER_REGISTRY)/$(HAMRAVESH_REGISTRY_NAMESPACE)/$(IMAGE_NAME):$(IMAGE_VERSION)
 
 DB_CONTAINER_NAME ?= bnpl-db
-DB_DOCKER_VOLUME_NAME ?= bnpl_postgres_data_bnpl
+DB_DOCKER_VOLUME_NAME ?= bnpl-backend_postgres_data_bnpl
 
 PROTO_DIR := proto
 PROTO_GEN_DIR := gen/proto
 PROTO_FILES := $(shell find $(PROTO_DIR) -name '*.proto')
 
 GOLANGCI_LINT_VERSION ?= v2.12.2
-MOCKERY_VERSION ?= v2.53.3
+MOCKERY_VERSION ?= v3.7.1
 STATICCHECK_VERSION ?= 2025.1.1
 
 COMPOSE_FILE ?= docker-compose.local.yml
@@ -169,7 +169,7 @@ install-goimports:
 
 .PHONY: install-mockery
 install-mockery:
-	@go install github.com/vektra/mockery/v2@$(MOCKERY_VERSION)
+	@go install github.com/vektra/mockery/v3@$(MOCKERY_VERSION)
 
 .PHONY: install-proto-tools
 install-proto-tools:
@@ -181,6 +181,14 @@ upgrade-dependencies:
 	@go get -v -u ./...
 	@go mod tidy
 
+.PHONY: link-migrations
+link-migrations:
+	@mkdir -p assets/db/init
+	@ln -sf $(PWD)/pkg/adapter/db/postgres/migrationsrp/000_dev.sql assets/db/init/000_dev.sql
+	@ln -sf $(PWD)/pkg/adapter/db/postgres/migrationsrp/000_prod.sql assets/db/init/000_prod.sql
+	@ln -sf $(PWD)/pkg/adapter/db/postgres/migrationsrp/000_schema.sql assets/db/init/000_schema.sql
+	@echo "Symbolic links created successfully"
+
 # -----------------------------------------------------------------------------
 # Environment / Directories / Cleanup
 # -----------------------------------------------------------------------------
@@ -188,6 +196,15 @@ upgrade-dependencies:
 .PHONY: env
 env:
 	@grep -v '^\s*#' .env | grep -v '^\s*$$' | sed 's/^/export /'
+
+.env: .env.example
+	@if [ -f .env ]; then \
+		echo ".env already exists, skipping creation."; \
+	else \
+		# Drop both comments and blank lines when materializing .env.example. \
+		grep -v '^#' .env.example | grep -v '^[[:space:]]*$$' > .env; \
+		echo ".env created from .env.example"; \
+	fi
 
 .PHONY: mkdir
 mkdir: mkdir-bin mkdir-gen
@@ -199,6 +216,35 @@ mkdir-bin:
 .PHONY: mkdir-gen
 mkdir-gen:
 	@mkdir -p $(PROTO_GEN_DIR)
+
+.PHONY: list-interfaces
+list-interfaces:
+	@path=$(if $(ARGS),$(ARGS),pkg/core); \
+	if [ ! -d "$$path" ]; then \
+	   echo "❌ Error: Directory '$$path' does not exist"; \
+	   exit 1; \
+	fi; \
+	echo "🔍 Scanning interfaces in $$path..."; \
+	echo; \
+	found=0; \
+	for dir in "$$path" "$$path"/*/; do \
+	   if [ -d "$$dir" ]; then \
+	      name=$$(basename "$$dir"); \
+	      interfaces=$$(grep -rn "type.*interface {" "$$dir" --include="*.go" 2>/dev/null | awk '{print $$2}' | sort -u); \
+	      if [ ! -z "$$interfaces" ]; then \
+	         found=1; \
+	         count=$$(echo "$$interfaces" | wc -l); \
+	         echo "📂 $$name/ ($$count interfaces)"; \
+	         echo "$$interfaces" | while read iface; do \
+	            echo "   ├── $$iface"; \
+	         done; \
+	         echo; \
+	      fi; \
+	   fi; \
+	done; \
+	if [ $$found -eq 0 ]; then \
+	   echo "ℹ️  No interfaces found in $$path"; \
+	fi
 
 .PHONY: clean
 clean:

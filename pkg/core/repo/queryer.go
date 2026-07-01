@@ -2,12 +2,12 @@ package repo
 
 import "context"
 
-// Queryer abstracts direct SQL execution and row queries.
+// Queryer abstracts statement execution and row queries.
 // The interface is intentionally small so both connections and transactions can
 // satisfy it.
 type Queryer interface {
 	// Exec executes a statement and returns the number of affected rows when the
-	// underlying driver can report it.
+	// underlying store can report it.
 	Exec(ctx context.Context, sql string, args ...any) (count int64, err error)
 
 	// Query executes a query and returns a row iterator.
