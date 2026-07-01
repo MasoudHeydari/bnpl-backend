@@ -159,3 +159,49 @@ CREATE INDEX IF NOT EXISTS idx_borrower_identity_verifications_borrower_id
 -- Deduplication and lookup by hashed national identifier.
 CREATE INDEX IF NOT EXISTS idx_borrower_identity_verifications_national_id_hash
     ON borrower_identity_verifications (national_id_hash);
+
+-- -----------------------------------------------------------------------------
+-- Borrower Profiles
+-- -----------------------------------------------------------------------------
+-- BNPL-specific borrower profiles.
+--
+-- A borrower profile references identity and decision artifacts but never owns
+-- raw identity data such as national ID, phone number, or birthdate. Those live
+-- in borrower_identity_verifications behind the identity/KYC boundary.
+CREATE TABLE IF NOT EXISTS borrower_profiles (
+    -- Unique profile identifier assigned by the database.
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    -- Borrower identity this BNPL profile belongs to.
+    borrower_id uuid NOT NULL UNIQUE,
+
+    -- Identity verification artifact used for this BNPL profile.
+    identity_verification_id uuid NULL REFERENCES borrower_identity_verifications (id),
+
+    -- Latest profile-level eligibility decision affecting this profile.
+    last_profile_eligibility_decision_id uuid NULL REFERENCES decisions (id),
+
+    -- Latest credit limit assignment for this borrower profile.
+    --
+    -- Not declared as a foreign key to avoid a circular dependency with
+    -- borrower_credit_limits, which references borrower_profiles.
+    last_credit_limit_id uuid NULL,
+
+    -- Regulatory jurisdiction that governs this borrower's BNPL profile.
+    jurisdiction text NOT NULL,
+
+    -- Current lifecycle state of the BNPL profile.
+    status text NOT NULL,
+
+    -- Creation and update timestamps.
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT chk_borrower_profiles_status
+    CHECK (status IN ('pending_review', 'active', 'deactivated', 'terminated'))
+    );
+
+-- Lookup of profiles by the identity verification artifact they reference.
+CREATE INDEX IF NOT EXISTS idx_borrower_profiles_identity_verification_id
+    ON borrower_profiles (identity_verification_id)
+    WHERE identity_verification_id IS NOT NULL;
