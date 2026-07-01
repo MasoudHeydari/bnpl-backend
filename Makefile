@@ -206,6 +206,17 @@ env:
 		echo ".env created from .env.example"; \
 	fi
 
+doc/collections/http-client.env.json: doc/collections/http-client.env.json.example
+	@if [ -f doc/collections/http-client.env.json ]; then \
+		echo "doc/collections/http-client.env.json already exists, skipping creation."; \
+	else \
+		cp doc/collections/http-client.env.json.example doc/collections/http-client.env.json; \
+		echo "doc/collections/http-client.env.json created from example."; \
+	fi
+
+.PHONY: http-client-env
+http-client-env: doc/collections/http-client.env.json
+
 .PHONY: mkdir
 mkdir: mkdir-bin mkdir-gen
 
