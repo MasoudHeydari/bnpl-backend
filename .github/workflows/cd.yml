@@ -2,9 +2,9 @@ name: CD
 
 on:
   workflow_run:
-    workflows: ["CI"]
-    types: [completed]
-    branches: [main]
+    workflows: [ "CI" ]
+    types: [ completed ]
+    branches: [ main ]
   push:
     tags:
       - 'v*.*.*'
@@ -100,24 +100,13 @@ jobs:
         id: hamravesh_meta
         uses: docker/metadata-action@v5
         with:
-          images: registry.hamdocker.ir/bnpl-backend
+          images: registry.hamdocker.ir/parstis-technology/bnpl-backend
           tags: |
             type=raw,value=${{ steps.meta.outputs.sha }}
             type=raw,value=latest
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-
-      - name: Build and push to Hamravesh
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: ${{ steps.hamravesh_meta.outputs.tags }}
-          labels: ${{ steps.hamravesh_meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
   # ── 2. DEPLOY TO PRODUCTION ───────────────────────────────────────────────
   deploy:
@@ -142,14 +131,14 @@ jobs:
       - name: Deploy via SSH
         env:
           # Secrets — referenced via env: so GitHub masks them in logs.
-          SSH_PRIVATE_KEY:  ${{ secrets.PROD_SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOST:   ${{ secrets.PROD_SSH_KNOWN_HOST }}
-          SSH_HOST:         ${{ secrets.PROD_SSH_HOST }}
-          SSH_USER:         ${{ secrets.PROD_SSH_USER }}
-          SSH_PORT:         ${{ secrets.PROD_SSH_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOST: ${{ secrets.PROD_SSH_KNOWN_HOST }}
+          SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
+          SSH_USER: ${{ secrets.PROD_SSH_USER }}
+          SSH_PORT: ${{ secrets.PROD_SSH_PORT }}
           # Non-secret deploy coordinates.
-          IMAGE_TAG:        ${{ needs.build-and-push.outputs.sha }}
-          IMAGE_BASE:       ${{ needs.build-and-push.outputs.image }}
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.sha }}
+          IMAGE_BASE: ${{ needs.build-and-push.outputs.image }}
         run: |
           # ── SSH setup ──────────────────────────────────────────────────────
           mkdir -p ~/.ssh
