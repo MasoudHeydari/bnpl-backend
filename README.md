@@ -1,6 +1,6 @@
 # BNPL Platform
 
-Go backend for a Buy Now Pay Later (BNPL) financial platform. The repository is being built incrementally: today it provides platform foundations (configuration, PostgreSQL bootstrap, infrastructure adapters, migrations scaffolding, CLI, HTTP server shell, Docker assets, and CI/CD). The long-term goal is a regulated BNPL engine for credit decisions, installment plans, repayments, collections, and more.
+Go backend for a Buy Now Pay Later (BNPL) financial platform. The repository is being built incrementally: today it provides platform foundations (configuration, PostgreSQL bootstrap, infrastructure adapters, health probes, graceful shutdown, migrations scaffolding, CLI, HTTP server shell, Docker assets, and CI/CD). The long-term goal is a regulated BNPL engine for credit decisions, installment plans, repayments, collections, and more.
 
 ## Current Status
 
@@ -9,25 +9,27 @@ Go backend for a Buy Now Pay Later (BNPL) financial platform. The repository is 
 What exists today:
 
 - Single-binary CLI (`bnpl`) with Cobra subcommands
-- YAML configuration with `${ENV}` expansion and provider-based `infrastructure:` section
-- PostgreSQL connection pooling, outbox repository, and transaction adapters (`pgx`)
+- YAML configuration with `${ENV}` expansion, semver version validation (0.2.0), and provider-based `infrastructure:` section
+- PostgreSQL connection pooling, outbox and health repositories, and transaction adapters (`pgx`)
 - Destructive schema bootstrap (`db init-dev`, `db init-prod`) including `integration_outbox` table
 - Filesystem migration runner (`db migrate`) — wired; migration directory may be empty
-- Gin HTTP server with trace-ID middleware and an empty `/api/v1` route group
-- Infrastructure adapters: slog/noop logging, noop/redis cache, noop/kafka messaging, in-process task runtime
+- Gin HTTP server with trace-ID middleware, Kubernetes-style `/healthz/live` and `/healthz/ready` probes, and an empty `/api/v1` route group
+- Graceful shutdown on `SIGINT` / `SIGTERM` with lifecycle-aware health probes
+- Infrastructure adapters: slog/noop logging, noop/redis cache, noop/kafka messaging, noop/gobreaker circuit breaker, in-process task runtime
 - Transactional outbox publisher use case and scheduled publishing task
 - Docker image build and local Compose infrastructure (PostgreSQL, Kafka)
 - GitHub Actions CI/CD and GitLab CI pipelines
-- Unit tests for pagination, infrastructure adapters, and config factories
+- Unit and integration tests across bootstrap, config, infrastructure, HTTP, and core packages
 
 What is **not** implemented:
 
 - Borrower credit evaluation, installment plans, credit limits, checkout decisions
 - Contract, repayment, payment, collections, or legal-case domains
-- Concrete HTTP API handlers or business aggregates
+- Concrete HTTP business API handlers or business aggregates
 - Production-safe, non-destructive schema evolution as default deploy path
-- Circuit breaker, distributed tracing export, or HTTP metrics
-- Kafka consumer startup, domain outbox producers, or production readiness
+- Circuit breaker usage at call sites, distributed tracing export, or HTTP metrics
+- Domain Kafka consumer handlers or outbox row producers
+- Production readiness
 
 See [doc/architecture.md](doc/architecture.md) for layer details and [doc/api.md](doc/api.md) for HTTP status.
 
@@ -53,10 +55,10 @@ These domains are **planned**, not present in the current codebase.
 
 ```
 cmd/bnpl          CLI entrypoint (default: HTTP server; subcommands: db *)
-cmd/bnpl/bootstrap Application wiring (repos, infrastructure, tasks, routes)
+cmd/bnpl/bootstrap Application wiring (repos, infrastructure, tasks, routes, shutdown)
 pkg/core          Domain models, repository ports, use cases, infrastructure ports
 pkg/adapter       Config, Gin HTTP, PostgreSQL, infrastructure implementations
-configs/          Environment-expanded YAML configuration
+configs/          Environment-expanded YAML configuration (versions 0.2.0)
 ```
 
 Dependency flow is inward: adapters and CLI depend on use cases; use cases depend on `pkg/core` ports; PostgreSQL and infrastructure adapters implement those ports.
@@ -68,22 +70,24 @@ Details: [doc/architecture.md](doc/architecture.md) · ADRs: [doc/adr/](doc/adr/
 | Path | Role |
 | --- | --- |
 | `cmd/bnpl/` | Process entrypoint and Cobra commands |
-| `cmd/bnpl/bootstrap/` | Startup wiring for HTTP server and tasks |
-| `pkg/core/model/` | Shared data structures (`Secret`, `Migration`, `OutboxMessage`) |
+| `cmd/bnpl/bootstrap/` | Startup wiring, graceful shutdown, HTTP and tasks |
+| `pkg/core/model/` | Shared data structures (`Secret`, `Migration`, `OutboxMessage`, `SemVer`) |
 | `pkg/core/repo/` | Database and repository port interfaces |
-| `pkg/core/usecase/` | `migrationsuc`, `outboxpublisheruc` |
-| `pkg/core/cache`, `clock`, `log`, `messaging`, `task`, `trace` | Infrastructure port interfaces |
-| `pkg/adapter/config/` | YAML loading and provider factories |
-| `pkg/adapter/infrastructure/` | Cache, clock, log, messaging, task, trace adapters |
-| `pkg/adapter/db/postgres/` | `pgx` pool, outbox, migration adapters |
-| `pkg/adapter/restful/gin/` | Gin wrapper, middleware, serdser, pagination |
+| `pkg/core/health/` | Lifecycle and dependency-check ports for probes |
+| `pkg/core/usecase/` | `migrationsuc`, `outboxpublisheruc`, `healthcheckuc` |
+| `pkg/core/cache`, `clock`, `log`, `messaging`, `task`, `trace`, `circuitbreaker` | Infrastructure port interfaces |
+| `pkg/adapter/config/` | YAML loading, version validation, provider factories |
+| `pkg/adapter/infrastructure/` | Cache, clock, log, messaging, task, trace, health, circuit breaker adapters |
+| `pkg/adapter/db/postgres/` | `pgx` pool, outbox, health, migration adapters |
+| `pkg/adapter/restful/gin/` | Gin wrapper, middleware, healthrs, serdser, pagination |
+| `pkg/core/mock/` | Mockery-generated test doubles |
 | `configs/config.yaml` | Canonical configuration shape |
 | `scripts/docker-entrypoint.sh` | Container startup: optional DB init then HTTP server |
 | `doc/` | Architecture, operations, security, and ADR documentation |
 
 ## Configuration Overview
 
-Configuration is loaded from YAML with `${VAR}` placeholders expanded from the process environment.
+Configuration is loaded from YAML with `${VAR}` placeholders expanded from the process environment. `versions.config` and `versions.database` must match binary-supported semver **0.2.0**.
 
 Resolution order for the config file path:
 
@@ -148,7 +152,7 @@ Embedded SQL lives in `pkg/adapter/db/postgres/migrationsrp/` and is compiled in
 ## Docker Usage
 
 ```bash
-make build-image              # docker build -t bnpl-backend:v0.1.0 .
+make build-image              # docker build -t bnpl-backend:v0.2.0 .
 make run-image                # runs container with default entrypoint
 ```
 
@@ -175,6 +179,7 @@ Container startup (`scripts/docker-entrypoint.sh`):
 | `make up` / `make down` | Start/stop local Compose services |
 | `make init-dev` / `make init-prod` | Destructive database bootstrap |
 | `make test` | Run unit tests |
+| `make test-coverage` | Generate coverage report |
 | `make lint` | Run golangci-lint |
 | `make build-image` | Build Docker image |
 
@@ -185,8 +190,9 @@ Container startup (`scripts/docker-entrypoint.sh`):
 - Development and production seed SQL files are empty
 - `assets/db/migrations` may not exist until first migration is added
 - No domain use case inserts outbox rows yet
-- Kafka subscriber constructed but not started
-- Circuit breaker not implemented
+- Kafka subscriber runs with placeholder handler only
+- Circuit breaker constructed but not used by call sites
+- `SHUTDOWN_DRAIN_DELAY` configured but not applied in bootstrap shutdown
 - `scripts/deploy.sh` referenced by CD workflow is missing
 - **Not production-ready** — platform foundations only
 
@@ -195,22 +201,23 @@ Container startup (`scripts/docker-entrypoint.sh`):
 Near-term platform work:
 
 1. Add initial filesystem migration files
-2. Implement HTTP health and readiness endpoints
-3. Wire Kafka consumer handlers for payment results
-4. Introduce first BNPL domain aggregates (Contract, Decision, CreditLimit)
-5. Non-destructive production migration workflow
-6. Metrics, tracing export, and circuit breaker
-7. Reduce admin credential exposure during routine operations
+2. Wire `SHUTDOWN_DRAIN_DELAY` into bootstrap shutdown sequence
+3. Implement domain Kafka consumer handlers for payment results
+4. Use circuit breaker at external dependency call sites
+5. Introduce first BNPL domain aggregates (Contract, Decision, CreditLimit)
+6. Non-destructive production migration workflow
+7. Metrics, tracing export, and audit persistence
+8. Reduce admin credential exposure during routine operations
 
 ## Documentation Index
 
 | Document | Contents |
 | --- | --- |
 | [doc/architecture.md](doc/architecture.md) | Layers, infrastructure, flows, gaps |
-| [doc/api.md](doc/api.md) | HTTP server and trace headers |
+| [doc/api.md](doc/api.md) | HTTP server, health probes, trace headers |
 | [doc/database.md](doc/database.md) | Bootstrap, migrations, outbox |
 | [doc/configuration.md](doc/configuration.md) | YAML, env vars, providers |
-| [doc/operations.md](doc/operations.md) | Makefile, Docker, CI/CD |
+| [doc/operations.md](doc/operations.md) | Makefile, Docker, shutdown, probes |
 | [doc/security.md](doc/security.md) | Secrets, pgpass, operational risks |
 | [doc/adr/](doc/adr/) | Architecture decision records |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
