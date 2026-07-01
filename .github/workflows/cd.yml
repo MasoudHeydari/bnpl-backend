@@ -108,6 +108,17 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
 
+      - name: Build and push to Hamravesh
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.hamravesh_meta.outputs.tags }}
+          labels: ${{ steps.hamravesh_meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=ma
+
   # ── 2. DEPLOY TO PRODUCTION ───────────────────────────────────────────────
   deploy:
     name: Deploy to production
