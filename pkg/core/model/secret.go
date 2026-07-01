@@ -13,8 +13,14 @@ import (
 // Plaintext is available only through Reveal, which should be used solely for
 // connection setup and never logged.
 type Secret struct {
+	// value holds the plaintext secret. It is unexported so callers must go
+	// through Reveal, and is never included in String, Format, JSON, or YAML
+	// output.
 	value string
-	hash  string
+
+	// hash is the SHA-256 hex digest of value, used for redacted display and
+	// equality comparisons without exposing the plaintext.
+	hash string
 }
 
 // NewSecret constructs a Secret from a raw string value.
