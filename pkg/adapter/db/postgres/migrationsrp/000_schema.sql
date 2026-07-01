@@ -261,3 +261,61 @@ CREATE TABLE IF NOT EXISTS merchant_profiles (
     CONSTRAINT chk_merchant_profiles_max_tenure_months
     CHECK (max_tenure_months >= 0)
     );
+
+-- -----------------------------------------------------------------------------
+-- Merchant Branch Profiles
+-- -----------------------------------------------------------------------------
+-- Per-branch overrides of a merchant's BNPL configuration.
+--
+-- Applies when the parent merchant profile requires branch mode. Override
+-- columns are nullable and fall back to the parent merchant configuration when
+-- unset.
+CREATE TABLE IF NOT EXISTS merchant_branch_profiles (
+    -- Unique branch profile identifier assigned by the database.
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    -- Parent merchant identity.
+    merchant_id uuid NOT NULL,
+
+    -- Branch identity this profile configures.
+    branch_id uuid NOT NULL UNIQUE,
+
+    -- Current lifecycle state of the branch's BNPL participation.
+    status text NOT NULL,
+
+    -- Funding arrangements available to this branch.
+    funding_models jsonb NOT NULL DEFAULT '[]'::jsonb,
+
+    -- Settlement arrangements available to this branch.
+    settlement_models jsonb NOT NULL DEFAULT '[]'::jsonb,
+
+    -- Currencies this branch may transact in.
+    currencies jsonb NOT NULL DEFAULT '[]'::jsonb,
+
+    -- Overrides the parent merchant risk tier when set.
+    risk_tier_override text NULL,
+
+    -- Overrides the parent merchant max amount when set, stored as
+    -- {amount_minor, currency}.
+    max_amount_override jsonb NULL,
+
+    -- Overrides the parent merchant max tenure, in months, when set.
+    max_tenure_months_override integer NULL,
+
+    -- Regulatory jurisdiction governing this branch's BNPL activity.
+    jurisdiction text NOT NULL,
+
+    -- Creation and update timestamps.
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT chk_merchant_branch_profiles_status
+    CHECK (status IN ('pending_review', 'active', 'deactivated', 'suspended', 'terminated')),
+
+    CONSTRAINT chk_merchant_branch_profiles_risk_tier_override
+    CHECK (risk_tier_override IS NULL OR risk_tier_override IN ('low', 'medium', 'high'))
+    );
+
+-- Lookup of branch profiles by parent merchant.
+CREATE INDEX IF NOT EXISTS idx_merchant_branch_profiles_merchant_id
+    ON merchant_branch_profiles (merchant_id);
