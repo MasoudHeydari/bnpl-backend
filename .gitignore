@@ -53,3 +53,4 @@ fabric.properties
 # .pgpass file directory
 dist
 *.env
+doc/collections/http-client.env.json
