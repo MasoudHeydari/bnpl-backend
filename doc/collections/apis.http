@@ -1,0 +1,67 @@
+# BNPL Backend — HTTP API collection
+#
+# Requires JetBrains HTTP Client / VS Code REST Client and
+# doc/collections/http-client.env.json (create with: make doc/collections/http-client.env.json).
+#
+# Select environment: local | dev (bottom-right in JetBrains IDE).
+#
+# Health routes are registered only when HEALTH_ENABLED=true.
+# /api/v1 has no business handlers yet.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Health
+# ─────────────────────────────────────────────────────────────────────────────
+
+### Liveness — process alive (no dependency checks)
+#
+# Kubernetes liveness probe. Succeeds while the process is running unless
+# graceful shutdown exceeded SHUTDOWN_TIMEOUT.
+#
+# Success: 200 {"status":"UP"}
+# Failure: 503 via serdser envelope when shutdown timed out
+#
+# curl -sS -X GET "{{baseUrl}}/healthz/live" \
+#   -H "Accept: application/json"
+GET {{baseUrl}}/healthz/live
+Accept: application/json
+
+### Liveness — with correlation headers (optional)
+#
+# Middleware echoes or generates X-Trace-Id, X-Request-Id, X-Correlation-Id.
+#
+# curl -sS -X GET "{{baseUrl}}/healthz/live" \
+#   -H "Accept: application/json" \
+#   -H "X-Trace-Id: {{traceId}}" \
+#   -H "X-Request-Id: {{requestId}}" \
+#   -H "X-Correlation-Id: {{correlationId}}"
+GET {{baseUrl}}/healthz/live
+Accept: application/json
+X-Trace-Id: {{healthz.traceId}}
+X-Request-Id: {{healthz.requestId}}
+X-Correlation-Id: {{healthz.correlationId}}
+
+### Readiness — safe to receive traffic
+#
+# Kubernetes readiness probe. Fails while draining (SIGINT/SIGTERM) or when any
+# configured dependency check fails (default: database, cache, messaging).
+#
+# Success: 200 {"status":"UP"}
+# Failure: 503 when draining or a dependency is unavailable
+#
+# curl -sS -X GET "{{baseUrl}}/healthz/ready" \
+#   -H "Accept: application/json"
+GET {{baseUrl}}/healthz/ready
+Accept: application/json
+
+### Readiness — with correlation headers (optional)
+#
+# curl -sS -X GET "{{baseUrl}}/healthz/ready" \
+#   -H "Accept: application/json" \
+#   -H "X-Trace-Id: {{traceId}}" \
+#   -H "X-Request-Id: {{requestId}}" \
+#   -H "X-Correlation-Id: {{correlationId}}"
+GET {{baseUrl}}/healthz/ready
+Accept: application/json
+X-Trace-Id: {{healthz.traceId}}
+X-Request-Id: {{healthz.requestId}}
+X-Correlation-Id: {{healthz.correlationId}}
