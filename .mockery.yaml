@@ -10,6 +10,8 @@ packages:
     interfaces:
       Conn:
       Health:
+        config:
+          structname: RepoHealth
       HealthConnQueryer:
       HealthQueryer:
       Migrations:
@@ -30,6 +32,13 @@ packages:
       SchemaSettings:
       SchemaTxQueryer:
       Tx:
+
+  github.com/parstis/bnpl-backend/pkg/adapter/db/postgres:
+    interfaces:
+      #      Queryer:
+      Rows:
+        config:
+          structname: PostgresRows
 
   github.com/parstis/bnpl-backend/pkg/core/trace:
     interfaces:
@@ -52,6 +61,8 @@ packages:
     interfaces:
       Decoder:
       Health:
+        config:
+          structname: MessagingHealth
       Publisher:
       Subscriber:
 
