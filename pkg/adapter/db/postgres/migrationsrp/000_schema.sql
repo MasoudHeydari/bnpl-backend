@@ -205,3 +205,59 @@ CREATE TABLE IF NOT EXISTS borrower_profiles (
 CREATE INDEX IF NOT EXISTS idx_borrower_profiles_identity_verification_id
     ON borrower_profiles (identity_verification_id)
     WHERE identity_verification_id IS NOT NULL;
+
+-- -----------------------------------------------------------------------------
+-- Merchant Profiles
+-- -----------------------------------------------------------------------------
+-- Merchant BNPL participation configuration.
+--
+-- Defines whether and how a merchant offers BNPL, including funding and
+-- settlement arrangements, exposure limits, and supported currencies. Composite
+-- and list-valued fields are stored as jsonb to match the domain model exactly.
+CREATE TABLE IF NOT EXISTS merchant_profiles (
+    -- Unique profile identifier assigned by the database.
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    -- Merchant identity this BNPL profile belongs to.
+    merchant_id uuid NOT NULL UNIQUE,
+
+    -- Current lifecycle state of the merchant's BNPL participation.
+    status text NOT NULL,
+
+    -- Funding arrangements available to this merchant.
+    funding_models jsonb NOT NULL DEFAULT '[]'::jsonb,
+
+    -- Settlement arrangements available to this merchant.
+    settlement_models jsonb NOT NULL DEFAULT '[]'::jsonb,
+
+    -- Currencies this merchant may transact in.
+    currencies jsonb NOT NULL DEFAULT '[]'::jsonb,
+
+    -- Credit risk classification used to bound BNPL exposure.
+    risk_tier text NOT NULL,
+
+    -- Maximum BNPL transaction amount, stored as {amount_minor, currency}.
+    max_amount jsonb NOT NULL,
+
+    -- Maximum installment tenure, in months.
+    max_tenure_months integer NOT NULL,
+
+    -- Whether this merchant must configure per-branch profiles.
+    requires_branch_mode boolean NOT NULL DEFAULT false,
+
+    -- Regulatory jurisdiction governing this merchant's BNPL activity.
+    jurisdiction text NOT NULL,
+
+    -- Creation and update timestamps.
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT chk_merchant_profiles_status
+    CHECK (status IN ('pending_review', 'active', 'deactivated', 'suspended', 'terminated')),
+
+    CONSTRAINT chk_merchant_profiles_risk_tier
+    CHECK (risk_tier IN ('low', 'medium', 'high')),
+
+    CONSTRAINT chk_merchant_profiles_max_tenure_months
+    CHECK (max_tenure_months >= 0)
+    );
