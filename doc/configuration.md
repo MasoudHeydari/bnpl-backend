@@ -11,7 +11,7 @@ Configuration is file-based with environment variable expansion:
 
 YAML defines structure; environment variables supply values.
 
-Implementation: `config.Load` in `pkg/adapter/config/config.go`.
+Implementation: `config.Load` in `pkg/adapter/config/load.go`.
 
 ## Config File Resolution
 
@@ -62,25 +62,31 @@ Active sections in `configs/config.yaml`:
 database:       # PostgreSQL pool and pgpass entries
 gin:            # HTTP server
 usecases:
+  health:       # Enable /healthz/live and /healthz/ready
   migration:    # Filesystem migration directory
   outbox_publisher:  # Outbox worker settings
 infrastructure:
+  shutdown:     # Graceful shutdown timeout and drain delay
+  health:       # Readiness dependency checks (database, cache, messaging)
   trace:        # Placeholder (ULID provider, no options)
   clock:        # System + business timezones
   logger:       # noop | slog
   cache:        # noop | redis
   messaging:    # noop | kafka
+  circuit_breaker:  # noop | gobreaker
   task:         # noop | inprocess + scheduled tasks
-versions:         # Present in YAML; not read by Go
+versions:         # Config and database schema semver (validated at load)
 ```
 
-### Unused YAML sections
+### Version validation
 
-| Section | In YAML | Read by Go |
-| --- | --- | --- |
-| `versions.database` | Yes | **No** |
-| `versions.config` | Yes | **No** |
-| `infrastructure.trace` | Yes (empty) | Yes (always ULID; no sub-options) |
+| Section | In YAML | Read by Go | Validated |
+| --- | --- | --- | --- |
+| `versions.config` | Yes | **Yes** | Must match binary-supported major; minor ≤ supported |
+| `versions.database` | Yes | **Yes** | Same rules as config version |
+| `infrastructure.trace` | Yes (empty) | Yes (always ULID; no sub-options) | — |
+
+Current supported versions in binary: **0.2.0** for both config and database schema.
 
 ## Infrastructure Provider Defaults
 
@@ -94,7 +100,9 @@ Defaults below match `.env.example`. Override per environment as needed.
 | Task | `TASK_PROVIDER`, `TASK_*` | `noop`, `inprocess` | `inprocess` | **Yes** |
 | Clock | `SYSTEM_CLOCK_LOCATION`, `BUSINESS_CLOCK_LOCATION` | N/A (system clock) | `UTC`, `Asia/Tehran` | **Yes** |
 | Trace | — | ULID only | — | **Yes** |
-| Circuit breaker | — | — | — | **No** (not implemented) |
+| Circuit breaker | `CIRCUIT_BREAKER_PROVIDER`, `CIRCUIT_BREAKER_GOBREAKER_*` | `noop`, `gobreaker` | `gobreaker` | **Yes** (constructed; not used by domain code yet) |
+| Health probes | `HEALTH_ENABLED` | on/off | `true` | **Yes** |
+| Shutdown | `SHUTDOWN_TIMEOUT`, `SHUTDOWN_DRAIN_DELAY` | durations | `30s`, `5s` | **Yes** (drain delay decoded; not applied in bootstrap yet) |
 
 When `CACHE_PROVIDER=redis`, startup performs a Redis `PING` and fails if unreachable.
 
@@ -141,6 +149,21 @@ When `MESSAGING_PROVIDER=kafka`, Sarama producer/consumer clients are created; b
 | `GIN_LOGGER` | env | Yes | `true` | Yes | |
 | `GIN_RECOVERY` | env | Yes | `true` | Yes | |
 | `GIN_TRUSTED_PROXY` | env | No | `127.0.0.1` | **Yes** | Decoded from `gin.trusted_proxies` |
+
+### Graceful shutdown
+
+| Key | Source | Required | Default | Wired | Notes |
+| --- | --- | --- | --- | --- | --- |
+| `SHUTDOWN_TIMEOUT` | env | Yes | `30s` | Yes | `infrastructure.shutdown.timeout` |
+| `SHUTDOWN_DRAIN_DELAY` | env | Yes | `5s` | Partial | Decoded; bootstrap does not sleep this delay yet |
+
+### Health use case
+
+| Key | Source | Required | Default | Wired | Notes |
+| --- | --- | --- | --- | --- | --- |
+| `HEALTH_ENABLED` | env | Yes | `true` | Yes | `usecases.health.enabled` |
+
+Readiness dependency checks are configured as a YAML list at `infrastructure.health.checks` (not env-expanded). Default in `configs/config.yaml`: `database`, `cache`, `messaging`.
 
 ### Migrations use case
 
@@ -201,7 +224,17 @@ When `MESSAGING_PROVIDER=kafka`, Sarama producer/consumer clients are created; b
 | `KAFKA_PRODUCER_RETURN_SUCCESSES` | env | When kafka | `true` | Yes | |
 | `KAFKA_CONSUMER_TOPIC_PAYMENT_RESULTS` | env | When kafka | same as producer topic | Yes | Consumer subscription list |
 
-Kafka topic env vars are wired into config but **no consumer is started** in bootstrap yet. Outbox publisher uses the `destination` column as the publish topic.
+Kafka topic env vars are wired into config. Outbox publisher uses the per-row `destination` column as the publish topic. The message **subscriber starts** with bootstrap using a placeholder handler until domain handlers exist.
+
+### Circuit breaker
+
+| Key | Source | Required | Default | Wired | Notes |
+| --- | --- | --- | --- | --- | --- |
+| `CIRCUIT_BREAKER_PROVIDER` | env | Yes | `gobreaker` | Yes | `noop` disables protection |
+| `CIRCUIT_BREAKER_GOBREAKER_MAX_REQUESTS` | env | When gobreaker | `3` | Yes | Half-open request cap |
+| `CIRCUIT_BREAKER_GOBREAKER_INTERVAL` | env | When gobreaker | `60s` | Yes | Closed-state counter reset |
+| `CIRCUIT_BREAKER_GOBREAKER_TIMEOUT` | env | When gobreaker | `30s` | Yes | Open-state duration |
+| `CIRCUIT_BREAKER_GOBREAKER_FAILURE_THRESHOLD` | env | When gobreaker | `5` | Yes | Consecutive failures to open |
 
 ### Task runtime
 
@@ -258,7 +291,8 @@ See [security.md](security.md).
 2. `config.Load(cfgPath)` reads and expands YAML
 3. Validates single root YAML mapping node
 4. Decodes into `Config`
-5. Bootstrap invokes `ConnectionPool`, `NewLoggerInfrastructure`, `NewGinEngine`, etc.
+5. Validates `versions.config` and `versions.database`
+6. Bootstrap invokes `ConnectionPool`, `NewLoggerInfrastructure`, `NewGinEngine`, etc.
 
 `db init-dev` / `init-prod` still print loaded config: `fmt.Printf("configs: %v\n", c)`.
 
@@ -270,8 +304,8 @@ Go code defaults only the config **file path**. Provider defaults and operationa
 
 - [ ] Post-load validation with clear errors for missing required fields
 - [ ] Remove debug config printing from CLI init commands
-- [ ] Circuit breaker configuration section
-- [ ] Wire Kafka subscriber startup when consumer handlers exist
+- [ ] Wire `SHUTDOWN_DRAIN_DELAY` into bootstrap shutdown sequence
+- [ ] Use circuit breaker at external dependency call sites
 - [ ] Multi-broker Kafka YAML (`KAFKA_BROKER_2`, …)
 
 ## Related documentation

@@ -48,7 +48,17 @@ Bootstrap (`cmd/bnpl/bootstrap`) calls these factories during `NewInfrastructure
 **Operational impact**
 
 - Production must explicitly set providers and verify connectivity (Redis ping on cache startup)
-- Circuit breaker and additional providers are not part of this ADR
+- Circuit breaker (`noop`, `gobreaker`) is wired via `NewCircuitBreakerInfrastructure` but not yet used by domain call sites
+
+### Amendment (2026-06-30)
+
+| Concern | Providers | Factory |
+| --- | --- | --- |
+| Circuit breaker | `noop`, `gobreaker` | `NewCircuitBreakerInfrastructure` |
+| Shutdown | timeout, drain_delay settings | `GetShutdownTimeout`, `GetShutdownDrainDelay` |
+| Health dependency checks | YAML list: `database`, `cache`, `messaging` | `NewDependencyCheckerInfrastructure` |
+
+See ADR [0014](0014-health-probes-and-graceful-shutdown.md).
 
 ## Alternatives Considered
 

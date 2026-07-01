@@ -38,8 +38,7 @@ Docker sets `CONFIG_FILE=configs/config.yaml` in the `Dockerfile`.
 
 **Negative**
 
-- Missing environment variables expand to empty strings silently; there is no post-decode validation layer.
-- `versions` section — present in YAML but not decoded.
+- Missing environment variables expand to empty strings silently; there is no post-decode validation layer for required operational fields.
 - `config.Load` is not responsible for printing config; `bootstrap.InitDev` / `InitProd` still print via `fmt.Printf("configs: %v\n", c)`.
 
 ### Amendment (2026-06-27)
@@ -50,7 +49,14 @@ The following gaps from the original ADR are **resolved**:
 - `usecases.migration.files-dir` — decoded into `config.Migrations.filesDir` via `yaml:"files-dir"`.
 - Kafka, Redis, logging, task, and clock settings — wired under `infrastructure:` (see ADR [0009](0009-provider-based-infrastructure-configuration.md)).
 
-Remaining gaps: no post-decode validation; `versions` ignored; circuit breaker not implemented.
+### Amendment (2026-06-30)
+
+The following gaps are **resolved**:
+
+- `versions.config` and `versions.database` — decoded and validated at `config.Load` against binary-supported semver (see `pkg/adapter/config/vers.go`).
+- Circuit breaker, shutdown, and health-check settings — wired under `infrastructure:` (see ADR [0009](0009-provider-based-infrastructure-configuration.md) and [0014](0014-health-probes-and-graceful-shutdown.md)).
+
+Remaining gaps: no post-decode validation for empty required env-expanded fields; `SHUTDOWN_DRAIN_DELAY` decoded but not yet used in bootstrap shutdown timing.
 
 **Operational impact**
 

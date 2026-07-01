@@ -8,13 +8,14 @@ This document describes the **current** Go backend structure and how it is inten
 
 | Area | Current state | Intended direction |
 | --- | --- | --- |
-| HTTP API | Gin server, trace middleware, empty `/api/v1` group | REST APIs for checkout, contracts, repayments, admin |
+| HTTP API | Gin server, trace middleware, `/healthz/live` and `/healthz/ready`, empty `/api/v1` group | REST APIs for checkout, contracts, repayments, admin |
 | Database | `migrations` + `integration_outbox` tables; destructive init | Full BNPL schema with forward migrations |
-| Use cases | `migrationsuc`, `outboxpublisheruc` | Credit, installment, payment, collections use cases |
-| Events | Kafka adapter + noop; outbox publisher job | Domain events for audit and integrations |
+| Use cases | `migrationsuc`, `outboxpublisheruc`, `healthcheckuc` | Credit, installment, payment, collections use cases |
+| Events | Kafka adapter + noop; outbox publisher job; subscriber started (placeholder handler) | Domain events for audit and integrations |
 | Cache | Redis / noop adapters wired | Idempotency, rate limits, session state |
 | Auth | None | Role-based access for admin and merchant APIs |
-| Observability | slog/noop logger, trace headers, goroutine metrics task | Metrics, distributed tracing, audit persistence |
+| Observability | slog/noop logger, trace headers, health probes, goroutine metrics task | Metrics, distributed tracing, audit persistence |
+| Shutdown | SIGINT/SIGTERM graceful shutdown with lifecycle probes | Production orchestration with wired drain delay |
 
 **Do not assume business aggregates (Contract, Installment, MerchantProfile, etc.) exist in code.** They are planned domains listed for architectural alignment only.
 
@@ -56,12 +57,14 @@ See ADR [0005](adr/0005-single-binary-cobra-commands.md).
 | Package | Role |
 | --- | --- |
 | `model` | `Secret`, `Migration`, `OutboxMessage` — no BNPL business models yet |
-| `repo` | Port interfaces: Pool, Conn, Tx, Schema, Migrations, Outbox |
-| `cache`, `clock`, `log`, `messaging`, `task`, `trace` | Infrastructure port interfaces |
+| `repo` | Port interfaces: Pool, Conn, Tx, Schema, Migrations, Outbox, Health |
+| `health` | `LifecycleState`, `DependencyChecker` contracts for probes |
+| `cache`, `clock`, `log`, `messaging`, `task`, `trace`, `circuitbreaker` | Infrastructure port interfaces |
 | `pagination` | Cursor/page pagination models and helpers |
-| `cerr` | HTTP-oriented error codes and wrappers |
+| `cerr` | Application error codes and HTTP status mapping |
 | `usecase/migrationsuc` | Schema bootstrap and migration orchestration |
 | `usecase/outboxpublisheruc` | Claim and publish integration outbox rows |
+| `usecase/healthcheckuc` | Liveness and readiness evaluation |
 
 **Boundary:** No imports of `pgx`, `gin`, `cobra`, `redis`, `sarama`, or YAML.
 
@@ -69,10 +72,11 @@ See ADR [0005](adr/0005-single-binary-cobra-commands.md).
 
 | Package | Role |
 | --- | --- |
-| `bootstrap` | Loads config, wires repos, infrastructure, use cases, tasks, routes |
-| `bootstrap/infrastructure.go` | Constructs trace, clock, logger, cache, messaging, task runtime |
-| `bootstrap/usecase.go` | Builds migration and outbox publisher use cases |
-| `bootstrap/repo.go` | PostgreSQL repository adapters |
+| `bootstrap` | Loads config, wires repos, infrastructure, use cases, tasks, routes; graceful shutdown |
+| `bootstrap/infrastructure.go` | Trace, clock, logger, cache, messaging, task, circuit breaker, lifecycle, dependency checker |
+| `bootstrap/shutdown.go` | Ordered shutdown on SIGINT/SIGTERM |
+| `bootstrap/usecase.go` | Builds migration, outbox publisher, and health check use cases |
+| `bootstrap/repo.go` | PostgreSQL repository adapters (migrations, outbox, health) |
 
 ### Adapter (`pkg/adapter`, `cmd/bnpl/command`)
 
@@ -80,11 +84,14 @@ See ADR [0005](adr/0005-single-binary-cobra-commands.md).
 | --- | --- |
 | `config` | YAML load, env expansion, provider factories |
 | `restful/gin` | Gin wrapper, trace middleware, pagination helpers |
-| `restful/gin/routes` | Route registration (placeholder) |
+| `restful/gin/routes` | Route registration (`/healthz/*`, `/api/v1` group) |
+| `restful/gin/healthrs` | Kubernetes-style liveness and readiness HTTP handlers |
 | `restful/gin/serdser` | Binding, success/error envelopes with trace metadata |
+| `db/postgres/healthrp` | Database ping repository for readiness |
 | `db/postgres` | `pgx` pool, connection, transaction, pagination adapters |
 | `db/postgres/outboxrp` | Integration outbox repository |
-| `infrastructure/*` | Cache, clock, log, messaging, task, trace adapters |
+| `infrastructure/health` | Lifecycle state and composite dependency checkers |
+| `infrastructure/*` | Cache, clock, log, messaging, task, trace, circuit breaker adapters |
 | `cmd/bnpl/command` | CLI wiring |
 
 ## Infrastructure Layer
@@ -97,8 +104,10 @@ Provider-based infrastructure is configured under `infrastructure:` in YAML. Onl
 | Clock | `clock.Clock` | System (dual timezone) | UTC + Asia/Tehran |
 | Logger | `log.Logger` | `noop`, `slog` | `slog` / `info` / `json` |
 | Cache | `cache.Cache` | `noop`, `redis` | `noop` |
-| Messaging | `messaging.Publisher`, `Subscriber` | `noop`, `kafka` (Sarama) | `noop` |
+| Messaging | `messaging.Publisher`, `Subscriber`, `Health` | `noop`, `kafka` (Sarama) | `noop` |
 | Task runtime | `task.Runtime` | `noop`, `inprocess` | `inprocess` |
+| Circuit breaker | `circuitbreaker.CircuitBreaker` | `noop`, `gobreaker` | `gobreaker` |
+| Health probes | `health.LifecycleState`, `health.DependencyChecker` | `infrastructure/health` adapters | Checks: database, cache, messaging |
 
 Additional adapter code exists but is **not** selectable via configuration:
 
@@ -106,9 +115,9 @@ Additional adapter code exists but is **not** selectable via configuration:
 | --- | --- |
 | `infrastructure/cache/memory` | In-process cache for tests; not a config provider |
 
-**Not implemented:** circuit breaker abstraction or adapter (no code or config yet).
+Circuit breaker is constructed at startup but **not yet used** by domain call sites.
 
-See ADRs [0009](adr/0009-provider-based-infrastructure-configuration.md) through [0013](adr/0013-messaging-abstraction-kafka-noop.md).
+See ADRs [0009](adr/0009-provider-based-infrastructure-configuration.md) through [0014](adr/0014-health-probes-and-graceful-shutdown.md).
 
 ## Dependency Direction
 
@@ -127,15 +136,16 @@ No reverse dependencies from core into adapters.
 
 Current flow — no business handlers:
 
-1. `bootstrap.Boot` loads config (`config.Load`)
+1. `bootstrap.Boot` loads config (`config.Load`) and validates `versions`
 2. Opens normal-role pool
-3. Wires repositories, infrastructure, use cases
-4. Registers configured scheduled tasks and starts task runtime in background
+3. Wires repositories, infrastructure (including dependency checker and lifecycle state), use cases
+4. Registers configured scheduled tasks and starts task runtime and message subscriber in background
 5. Builds Gin engine with trace-ID middleware (first), optional recovery and logger
-6. `routes.Register` creates `/api/v1` group — **no handlers attached**
+6. `routes.Register` attaches `/healthz/live` and `/healthz/ready` when enabled, plus `/api/v1` group (no business handlers)
 7. Gin listens on `gin.host:gin.port`
+8. On SIGINT/SIGTERM: readiness fails (`StartDraining`), bounded graceful shutdown, optional liveness failure on timeout
 
-The pool is opened and passed to bootstrap but unused by routes today. Outbox publisher and goroutine metrics tasks run in the background when enabled.
+The pool is used by readiness dependency checks and background jobs. `/api/v1` has no business handlers yet.
 
 ## Database Flow
 
@@ -171,14 +181,15 @@ Triggered by the `outbox_publisher` scheduled task when `TASK_OUTBOX_PUBLISHER_E
 
 1. Resolve path: `--config` → `CONFIG_FILE` → `configs/config.yaml`
 2. Read YAML, `os.ExpandEnv`, decode to `config.Config`
-3. Factories build pools, infrastructure providers, use cases, Gin engine
+3. Validate `versions.config` and `versions.database` semver compatibility
+4. Factories build pools, infrastructure providers, use cases, Gin engine
 
 Known wiring gaps:
 
-- `versions` in YAML — ignored
-- No post-load validation for empty required fields
+- No post-load validation for empty required env-expanded fields
 - `bootstrap.InitDev` / `InitProd` still print loaded config via `fmt.Printf`
-- Circuit breaker — not present
+- `SHUTDOWN_DRAIN_DELAY` decoded but not applied in bootstrap shutdown timing
+- Circuit breaker constructed but unused by call sites
 
 Details: [configuration.md](configuration.md)
 
@@ -200,10 +211,10 @@ Details: [configuration.md](configuration.md)
 
 ### HTTP
 
-- [ ] Register health/readiness endpoints
+- [x] Register health/readiness endpoints (`GET /healthz/live`, `GET /healthz/ready`)
 - [ ] Implement `/api/v1` handlers
 - [ ] Wire authentication middleware
-- [ ] Use database pool in route handlers
+- [ ] Use database pool in business route handlers
 
 ### Business domains
 
@@ -223,11 +234,12 @@ Details: [configuration.md](configuration.md)
 
 - [ ] Post-load validation for required fields
 - [ ] Remove or gate config debug printing in CLI init commands
-- [ ] Circuit breaker provider and config section
+- [ ] Wire `SHUTDOWN_DRAIN_DELAY` into bootstrap shutdown sequence
+- [ ] Use circuit breaker at external dependency call sites
 
 ### Integrations
 
-- [ ] Kafka consumer subscription wiring in bootstrap (subscriber constructed but not started)
+- [ ] Domain Kafka consumer handlers (subscriber runs with placeholder handler today)
 - [ ] Redis connectivity check skipped when provider is noop (by design)
 - [ ] `memory` cache as optional provider for single-node dev
 
@@ -263,6 +275,7 @@ See [security.md](security.md) for current secret handling limits.
 | [0011](adr/0011-in-process-task-runtime.md) | In-process task runtime |
 | [0012](adr/0012-transactional-outbox-publisher.md) | Transactional outbox |
 | [0013](adr/0013-messaging-abstraction-kafka-noop.md) | Messaging abstraction |
+| [0014](adr/0014-health-probes-and-graceful-shutdown.md) | Health probes and graceful shutdown |
 
 ## Package Map
 
@@ -288,6 +301,14 @@ See [security.md](security.md) for current secret handling limits.
 | `pkg/adapter/db/postgres/` | pgx adapters |
 | `pkg/adapter/db/postgres/outboxrp/` | Outbox repository |
 | `pkg/adapter/db/postgres/migrationsrp/` | Bootstrap embed + migration repo |
+| `pkg/adapter/infrastructure/health/` | Lifecycle state and dependency checkers |
+| `pkg/adapter/infrastructure/circuitbreaker/` | noop and gobreaker circuit breakers |
+| `pkg/adapter/restful/gin/healthrs/` | Health probe HTTP handlers |
+| `pkg/adapter/db/postgres/healthrp/` | Health repository (database ping) |
+| `pkg/core/health/` | Lifecycle and dependency-check ports |
 | `pkg/core/cache/`, `clock/`, `log/`, `messaging/`, `task/`, `trace/` | Infrastructure ports |
+| `pkg/core/circuitbreaker/` | Circuit breaker port |
 | `pkg/core/pagination/` | Pagination models |
 | `pkg/core/usecase/outboxpublisheruc/` | Outbox publish orchestration |
+| `pkg/core/usecase/healthcheckuc/` | Health check use case |
+| `pkg/core/mock/` | Mockery-generated test doubles |

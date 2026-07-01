@@ -2,14 +2,15 @@
 
 ## Status
 
-The repository contains **HTTP server scaffolding only**. No BNPL business endpoints are implemented.
+The repository contains **HTTP server scaffolding and operational health probes**. No BNPL business endpoints are implemented.
 
 | Category | Status |
 | --- | --- |
 | Gin engine and middleware | Implemented |
 | Trace / request / correlation headers | Implemented |
+| `/healthz/live` and `/healthz/ready` | Implemented (when `HEALTH_ENABLED=true`) |
 | `/api/v1` route group | Implemented (empty) |
-| Response envelopes (`serdser`) | Implemented (unused by routes) |
+| Response envelopes (`serdser`) | Implemented (health routes use success + `SerErr`) |
 | Business REST handlers | **Not implemented** |
 | Authentication / authorization | **Not implemented** |
 | OpenAPI / protobuf API definitions | **Not present** |
@@ -18,22 +19,44 @@ The repository contains **HTTP server scaffolding only**. No BNPL business endpo
 
 ### Server bootstrap
 
-1. Load config (`config.Load`)
+1. Load config (`config.Load`) and validate versions
 2. Open normal-role PostgreSQL pool
 3. Wire infrastructure, use cases, and scheduled tasks
 4. Create Gin engine with trace-ID middleware (always), optional recovery and logger
 5. Register routes via `routes.Register`
 6. Listen on `{GIN_HOST}:{GIN_PORT}`
+7. Graceful shutdown on `SIGINT` / `SIGTERM`
 
 Entry: `cmd/bnpl/command/root.go` → `bootstrap.Boot`.
 
 ### Registered routes
 
-| Path prefix | Methods | Handler | Notes |
+| Path | Methods | Handler | Notes |
 | --- | --- | --- | --- |
+| `/healthz/live` | `GET` | `healthcheckuc.Liveness` | Process alive; no dependency checks |
+| `/healthz/ready` | `GET` | `healthcheckuc.Readiness` | Draining state + configured dependency checks |
 | `/api/v1` | — | Route group only | No child routes registered |
 
+Health routes are registered only when `usecases.health.enabled` is true (`HEALTH_ENABLED`).
+
 Unmatched paths receive Gin's default 404 behavior.
+
+### Health probe semantics
+
+| Probe | Fails when | Does not check |
+| --- | --- | --- |
+| Liveness (`/healthz/live`) | Shutdown exceeded deadline (`cerr.ServiceUnavailable`) | Database, Redis, Kafka |
+| Readiness (`/healthz/ready`) | Application is draining; any configured dependency check fails | — |
+
+Dependency checks are configured in `infrastructure.health.checks` (default: `database`, `cache`, `messaging`). See [operations.md](operations.md).
+
+**Success response** (both probes):
+
+```json
+{"status":"UP"}
+```
+
+**Failure response** uses the standard `serdser` error envelope (`SerErr`). `cerr.ServiceUnavailable` maps to HTTP 503.
 
 ### Middleware
 
@@ -59,7 +82,7 @@ Middleware: `pkg/adapter/restful/gin/middleware/traceid.go`
 
 Values are stored in `context.Context` via `pkg/core/trace` and included in `serdser` error/success envelopes when handlers use those helpers.
 
-### Shared response helpers (unused by routes today)
+### Shared response helpers
 
 `pkg/adapter/restful/gin/serdser`:
 
@@ -73,19 +96,16 @@ Pagination query parsing: `pkg/adapter/restful/gin/pagination` (ready for list e
 
 | Code | When |
 | --- | --- |
+| 200 | Health probes succeed |
 | 404 | Unknown paths (Gin default) |
-| 500 | Panic in middleware chain if recovery enabled |
+| 500 | Panic in middleware chain if recovery enabled; unclassified errors from `SerErr` |
+| 503 | Health probe failure wrapping `cerr.ServiceUnavailable` |
 
-No application-defined 2xx, 4xx, or domain-specific error responses are emitted by registered routes.
+No application-defined business 2xx/4xx responses are emitted by `/api/v1` routes.
 
 ## Planned
 
 Future BNPL APIs (not implemented — do not treat as available):
-
-### Platform / operations
-
-- `GET /health` or `GET /ready` — liveness and dependency checks
-- Version or build info endpoint for deployments
 
 ### Credit and checkout (Decision, CreditLimit)
 
@@ -135,14 +155,13 @@ Handlers should depend on use cases, not `pgx` or raw SQL.
 
 ## TODO
 
-- [ ] Add health/readiness routes (optional pool ping)
 - [ ] Define API versioning strategy under `/api/v1`
-- [ ] Document request/response schemas when first endpoints land
+- [ ] Document request/response schemas when first business endpoints land
 - [ ] Add authentication middleware before any sensitive routes
-- [ ] Wire `routes.Register` to use the database pool passed in today
+- [ ] Wire business handlers to use the database pool
 
 ## Related documentation
 
 - [architecture.md](architecture.md) — HTTP request flow
+- [operations.md](operations.md) — health probes and graceful shutdown
 - [security.md](security.md) — future AuthN/AuthZ requirements
-- [operations.md](operations.md) — running the server locally

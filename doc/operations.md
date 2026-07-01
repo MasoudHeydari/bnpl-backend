@@ -132,6 +132,50 @@ DB_INIT_COMMAND= ./build/bin/bnpl
 ./build/bin/bnpl db migrate                   # filesystem migrations
 ```
 
+The default HTTP server handles `SIGINT` and `SIGTERM` with graceful shutdown (see below).
+
+## Graceful Shutdown
+
+On `SIGINT` or `SIGTERM`:
+
+1. Readiness fails immediately (`LifecycleState.StartDraining`)
+2. Bounded shutdown runs (`SHUTDOWN_TIMEOUT`, default 30s)
+3. HTTP server stops accepting new connections
+4. Task scheduler and message consumer stop (root context canceled)
+5. Short in-flight drain window (100ms hardcoded today)
+6. Publisher, subscriber, cache, and database pool close
+7. If shutdown exceeds timeout, liveness fails (`MarkShutdownTimedOut`)
+
+`SHUTDOWN_DRAIN_DELAY` is configured (default 5s) but **not yet applied** before HTTP shutdown — readiness still fails on signal via draining state.
+
+## Kubernetes Health Probes
+
+When `HEALTH_ENABLED=true` (default):
+
+| Probe | Path | Purpose |
+| --- | --- | --- |
+| Liveness | `GET /healthz/live` | Process alive; ignores external dependencies |
+| Readiness | `GET /healthz/ready` | Safe to receive traffic; checks draining + configured dependencies |
+
+Example probe configuration:
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /healthz/live
+    port: 8000
+  initialDelaySeconds: 5
+  periodSeconds: 10
+readinessProbe:
+  httpGet:
+    path: /healthz/ready
+    port: 8000
+  initialDelaySeconds: 5
+  periodSeconds: 5
+```
+
+Readiness includes checks listed in `infrastructure.health.checks` (default: database, cache, messaging). With `CACHE_PROVIDER=noop` and `MESSAGING_PROVIDER=noop`, cache and messaging checks still run but succeed against noop adapters.
+
 ## Docker Image
 
 Built from multi-stage `Dockerfile`:
@@ -189,6 +233,13 @@ See ADR [0006](adr/0006-docker-entrypoint-startup-flow.md).
 | `TASK_PROVIDER=noop` | None | Disables scheduled jobs |
 | `TASK_PROVIDER=inprocess` | None | Runs goroutine metrics and outbox publisher when enabled |
 
+## Graceful Shutdown Configuration
+
+| Key | Default | Purpose |
+| --- | --- | --- |
+| `SHUTDOWN_TIMEOUT` | `30s` | Maximum time for full shutdown sequence |
+| `SHUTDOWN_DRAIN_DELAY` | `5s` | Intended delay before HTTP shutdown (not wired in bootstrap yet) |
+
 ## Docker Compose
 
 File: `docker-compose.local.yml`
@@ -230,8 +281,8 @@ Uses `HAMRAVESH_CONTAINER_REGISTRY` and `HAMRAVESH_REGISTRY_NAMESPACE` from Make
 - Default `.env.example` still sets `DB_INIT_COMMAND=init-dev`; container entrypoint destroys schema on every start unless overridden
 - No `deploy.sh` in repo despite CD reference
 - `assets/db/migrations` directory may be missing until first migration is added
-- No health endpoint for load balancer probes
-- Kafka subscriber is constructed but not started in bootstrap
+- `SHUTDOWN_DRAIN_DELAY` configured but not applied in bootstrap shutdown timing
+- Kafka subscriber runs with placeholder handler only (no domain message processing)
 - No automated rollback documented
 - **Not production-ready** — infrastructure is foundational only
 
@@ -277,7 +328,7 @@ Uses `HAMRAVESH_CONTAINER_REGISTRY` and `HAMRAVESH_REGISTRY_NAMESPACE` from Make
 
 - [ ] Add `scripts/deploy.sh` or remove CD deploy step
 - [ ] Document production entrypoint with empty `DB_INIT_COMMAND`
-- [ ] Add health check endpoint for orchestrators
+- [ ] Wire `SHUTDOWN_DRAIN_DELAY` into bootstrap shutdown sequence
 - [ ] Document PostgreSQL and backup procedures for production
 - [ ] Add Redis to local Compose when cache integration tests are needed
 

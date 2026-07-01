@@ -10,7 +10,8 @@ PostgreSQL is accessed through `pgx` / `pgxpool`. Responsibilities are split acr
 | Schema administration | `pkg/adapter/db/postgres/schemarp` |
 | Bootstrap embed + migration SQL | `pkg/adapter/db/postgres/migrationsrp` |
 | Integration outbox repository | `pkg/adapter/db/postgres/outboxrp` |
-| Orchestration | `pkg/core/usecase/migrationsuc`, `outboxpublisheruc` |
+| Health ping repository | `pkg/adapter/db/postgres/healthrp` |
+| Orchestration | `pkg/core/usecase/migrationsuc`, `outboxpublisheruc`, `healthcheckuc` |
 
 ## Managed Schema
 
@@ -191,7 +192,7 @@ Execution and registration share one transaction — avoids applied-but-untracke
 | Mechanism | Status |
 | --- | --- |
 | `migrations` table | Created by bootstrap DDL |
-| `versions.database` in YAML | Not read by Go code |
+| `versions.database` in YAML | Validated at config load against binary 0.2.0 |
 | Semantic migration file naming | Convention only; not enforced |
 
 ## Connection Management

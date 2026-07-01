@@ -27,7 +27,12 @@ Provider selection: `infrastructure.messaging.provider` (`MESSAGING_PROVIDER`).
 
 Kafka settings under `infrastructure.messaging.kafka` map to `.env.example` `KAFKA_*` variables. Logical topic names (for example `payment_results`) are centralized in config; outbox publisher uses the per-row `destination` string as the publish topic.
 
-Bootstrap constructs both publisher and subscriber at startup. **Subscriber is not started** in the current bootstrap — no consumer handlers are registered yet.
+Bootstrap constructs both publisher and subscriber at startup. The subscriber **is started** in `bootstrap.startBackgroundWorkers` with a placeholder handler that logs and acknowledges messages until domain handlers are registered.
+
+### Amendment (2026-06-30)
+
+- Kafka messaging adapters expose `messaging.Health` for broker connectivity checks used by readiness probes (see ADR [0014](0014-health-probes-and-graceful-shutdown.md)).
+- Subscriber goroutine starts with bootstrap; consumer still has no domain business handlers.
 
 ## Consequences
 
