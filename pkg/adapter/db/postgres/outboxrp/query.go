@@ -2,7 +2,6 @@ package outboxrp
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -32,31 +31,32 @@ func Enqueue[Q postgres.Queryer](
 	msg model.OutboxMessage,
 ) error {
 	msg = normalizeForInsert(msg)
+	const query = `
+INSERT INTO integration_outbox (
+	id,
+	destination,
+	event_type,
+	aggregate_type,
+	payload,
+	status,
+	attempt_count,
+	max_attempts,
+	next_attempt_at,
+	locked_at,
+	locked_by,
+	last_error,
+	created_at,
+	published_at
+)
+VALUES (
+	$1, $2, $3, $4, $5, $6, $7,
+	$8, $9, $10, $11, $12, $13, $14
+)
+`
 
 	_, err := q.Exec(
 		ctx,
-		`
-		INSERT INTO integration_outbox (
-			id,
-			destination,
-			event_type,
-			aggregate_type,
-			payload,
-			status,
-			attempt_count,
-			max_attempts,
-			next_attempt_at,
-			locked_at,
-			locked_by,
-			last_error,
-			created_at,
-			published_at
-		)
-		VALUES (
-			$1, $2, $3, $4, $5, $6, $7,
-			$8, $9, $10, $11, $12, $13, $14
-		)
-		`,
+		query,
 		msg.ID,
 		msg.Destination,
 		msg.EventType,
@@ -84,6 +84,61 @@ func Enqueue[Q postgres.Queryer](
 	return nil
 }
 
+// Create inserts a new outbox message.
+//
+// It is an alias for Enqueue used by repositories that name transaction-only
+// inserts as create operations.
+func Create[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	msg model.OutboxMessage,
+) error {
+	return Enqueue(ctx, q, msg)
+}
+
+// GetByID returns an outbox message by id.
+func GetByID[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	outboxID uuid.UUID,
+) (model.OutboxMessage, error) {
+	const query = `
+SELECT
+	id,
+	destination,
+	event_type,
+	aggregate_type,
+	payload,
+	status,
+	attempt_count,
+	max_attempts,
+	next_attempt_at,
+	locked_at,
+	locked_by,
+	last_error,
+	created_at,
+	published_at
+FROM integration_outbox
+WHERE id = $1
+`
+	rows, err := q.Query(
+		ctx,
+		query,
+		outboxID,
+	)
+	if err != nil {
+		return model.OutboxMessage{}, fmt.Errorf("get outbox message %s: %w", outboxID, postgres.MapError(err))
+	}
+	defer rows.Close()
+
+	msg, err := postgres.ValueInto[model.OutboxMessage](rows.(postgres.Rows))
+	if err != nil {
+		return model.OutboxMessage{}, fmt.Errorf("get outbox message %s: %w", outboxID, err)
+	}
+
+	return msg, nil
+}
+
 // ClaimPending claims pending messages that are due for publishing.
 //
 // The query uses FOR UPDATE SKIP LOCKED so multiple publisher workers can poll
@@ -104,43 +159,45 @@ func ClaimPending[Q postgres.Queryer](
 		)
 	}
 
+	const query = `
+WITH picked AS (
+	SELECT id
+	FROM integration_outbox
+	WHERE status = $1
+	  AND next_attempt_at <= $2
+	ORDER BY next_attempt_at ASC, created_at ASC
+	LIMIT $3
+	FOR UPDATE SKIP LOCKED
+)
+UPDATE integration_outbox AS o
+SET
+	status = $4,
+	locked_at = $2,
+	locked_by = $5,
+	attempt_count = attempt_count + 1,
+	last_error = NULL
+FROM picked
+WHERE o.id = picked.id
+RETURNING
+	o.id,
+	o.destination,
+	o.event_type,
+	o.aggregate_type,
+	o.payload,
+	o.status,
+	o.attempt_count,
+	o.max_attempts,
+	o.next_attempt_at,
+	o.locked_at,
+	o.locked_by,
+	o.last_error,
+	o.created_at,
+	o.published_at
+`
+
 	rows, err := q.Query(
 		ctx,
-		`
-		WITH picked AS (
-			SELECT id
-			FROM integration_outbox
-			WHERE status = $1
-			  AND next_attempt_at <= $2
-			ORDER BY next_attempt_at ASC, created_at ASC
-			LIMIT $3
-			FOR UPDATE SKIP LOCKED
-		)
-		UPDATE integration_outbox AS o
-		SET
-			status = $4,
-			locked_at = $2,
-			locked_by = $5,
-			attempt_count = attempt_count + 1,
-			last_error = NULL
-		FROM picked
-		WHERE o.id = picked.id
-		RETURNING
-			o.id,
-			o.destination,
-			o.event_type,
-			o.aggregate_type,
-			o.payload,
-			o.status,
-			o.attempt_count,
-			o.max_attempts,
-			o.next_attempt_at,
-			o.locked_at,
-			o.locked_by,
-			o.last_error,
-			o.created_at,
-			o.published_at
-		`,
+		query,
 		model.OutboxStatusPending,
 		now,
 		limit,
@@ -158,23 +215,9 @@ func ClaimPending[Q postgres.Queryer](
 	}
 	defer rows.Close()
 
-	messages := make([]model.OutboxMessage, 0, limit)
-
-	for rows.Next() {
-		msg, err := scanOutboxMessage(rows)
-		if err != nil {
-			return nil, cerr.InternalError(
-				fmt.Errorf("scan claimed outbox message: %w", err),
-			)
-		}
-
-		messages = append(messages, msg)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, cerr.InternalError(
-			fmt.Errorf("iterate claimed outbox messages: %w", err),
-		)
+	messages, err := postgres.ValuesInto[model.OutboxMessage](rows.(postgres.Rows))
+	if err != nil {
+		return nil, fmt.Errorf("claim pending outbox messages: %w", err)
 	}
 
 	return messages, nil
@@ -187,19 +230,20 @@ func MarkPublished[Q postgres.Queryer](
 	outboxID uuid.UUID,
 	publishedAt time.Time,
 ) error {
+	const query = `
+UPDATE integration_outbox
+SET
+	status = $1,
+	published_at = $2,
+	locked_at = NULL,
+	locked_by = NULL,
+	last_error = NULL
+WHERE id = $3
+  AND status = $4
+`
 	affected, err := q.Exec(
 		ctx,
-		`
-		UPDATE integration_outbox
-		SET
-			status = $1,
-			published_at = $2,
-			locked_at = NULL,
-			locked_by = NULL,
-			last_error = NULL
-		WHERE id = $3
-		  AND status = $4
-		`,
+		query,
 		model.OutboxStatusPublished,
 		publishedAt,
 		outboxID,
@@ -235,19 +279,20 @@ func MarkRetry[Q postgres.Queryer](
 	nextAttemptAt time.Time,
 	lastError string,
 ) error {
+	const query = `
+UPDATE integration_outbox
+SET
+	status = $1,
+	next_attempt_at = $2,
+	locked_at = NULL,
+	locked_by = NULL,
+	last_error = $3
+WHERE id = $4
+  AND status = $5
+`
 	affected, err := q.Exec(
 		ctx,
-		`
-		UPDATE integration_outbox
-		SET
-			status = $1,
-			next_attempt_at = $2,
-			locked_at = NULL,
-			locked_by = NULL,
-			last_error = $3
-		WHERE id = $4
-		  AND status = $5
-		`,
+		query,
 		model.OutboxStatusPending,
 		nextAttemptAt,
 		lastError,
@@ -276,6 +321,17 @@ func MarkRetry[Q postgres.Queryer](
 	return nil
 }
 
+// ReleaseProcessing moves a processing message back to pending for a future retry.
+func ReleaseProcessing[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	outboxID uuid.UUID,
+	lastError string,
+	nextAttemptAt time.Time,
+) error {
+	return MarkRetry(ctx, q, outboxID, nextAttemptAt, lastError)
+}
+
 // MarkFailed marks a processing message as permanently failed.
 func MarkFailed[Q postgres.Queryer](
 	ctx context.Context,
@@ -283,18 +339,20 @@ func MarkFailed[Q postgres.Queryer](
 	outboxID uuid.UUID,
 	lastError string,
 ) error {
+	const query = `
+UPDATE integration_outbox
+SET
+	status = $1,
+	locked_at = NULL,
+	locked_by = NULL,
+	last_error = $2
+WHERE id = $3
+  AND status = $4
+`
+
 	affected, err := q.Exec(
 		ctx,
-		`
-		UPDATE integration_outbox
-		SET
-			status = $1,
-			locked_at = NULL,
-			locked_by = NULL,
-			last_error = $2
-		WHERE id = $3
-		  AND status = $4
-		`,
+		query,
 		model.OutboxStatusFailed,
 		lastError,
 		outboxID,
@@ -320,38 +378,6 @@ func MarkFailed[Q postgres.Queryer](
 	}
 
 	return nil
-}
-
-// scanOutboxMessage scans the common integration_outbox projection.
-func scanOutboxMessage(rows interface {
-	Scan(dest ...any) error
-}) (model.OutboxMessage, error) {
-	var msg model.OutboxMessage
-	var payload json.RawMessage
-
-	err := rows.Scan(
-		&msg.ID,
-		&msg.Destination,
-		&msg.EventType,
-		&msg.AggregateType,
-		&payload,
-		&msg.Status,
-		&msg.AttemptCount,
-		&msg.MaxAttempts,
-		&msg.NextAttemptAt,
-		&msg.LockedAt,
-		&msg.LockedBy,
-		&msg.LastError,
-		&msg.CreatedAt,
-		&msg.PublishedAt,
-	)
-	if err != nil {
-		return model.OutboxMessage{}, err
-	}
-
-	msg.Payload = payload
-
-	return msg, nil
 }
 
 // normalizeForInsert applies application defaults before inserting.
