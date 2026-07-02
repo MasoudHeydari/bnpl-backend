@@ -161,6 +161,61 @@ CREATE INDEX IF NOT EXISTS idx_borrower_identity_verifications_national_id_hash
     ON borrower_identity_verifications (national_id_hash);
 
 -- -----------------------------------------------------------------------------
+-- Decisions
+-- -----------------------------------------------------------------------------
+-- Immutable audit envelope for governed BNPL decisions.
+CREATE TABLE IF NOT EXISTS decisions (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    type text NOT NULL,
+    target_type text NOT NULL,
+    target_id uuid NOT NULL,
+    outcome text NOT NULL,
+    reason_codes text[] NOT NULL DEFAULT '{}',
+    policy_id text NOT NULL,
+    policy_version text NOT NULL,
+    jurisdiction text NOT NULL,
+    actor_type text NOT NULL,
+    actor_id uuid NULL,
+    prior_decision_id uuid NULL REFERENCES decisions (id),
+    reviewable_until timestamptz NULL,
+    expires_at timestamptz NULL,
+    decided_at timestamptz NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    idempotency_key text NOT NULL DEFAULT '',
+    idempotency_fingerprint text NOT NULL DEFAULT '',
+
+    CONSTRAINT chk_decisions_idempotency
+    CHECK (
+        (idempotency_key = '' AND idempotency_fingerprint = '')
+        OR
+        (idempotency_key <> '' AND idempotency_fingerprint <> '')
+    ),
+
+    CONSTRAINT chk_decisions_type
+    CHECK (type IN ('eligibility', 'credit_limit', 'restriction', 'contract_approval', 'manual_override')),
+
+    CONSTRAINT chk_decisions_target_type
+    CHECK (target_type IN ('borrower_profile', 'merchant_profile', 'merchant_branch_profile', 'contract', 'checkout_intent')),
+
+    CONSTRAINT chk_decisions_outcome
+    CHECK (outcome IN ('approved', 'denied', 'conditional', 'limit_set', 'restricted', 'unrestricted')),
+
+    CONSTRAINT chk_decisions_actor_type
+    CHECK (actor_type IN ('system', 'admin'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_decisions_idempotency_key
+    ON decisions (idempotency_key)
+    WHERE idempotency_key <> '';
+
+CREATE INDEX IF NOT EXISTS idx_decisions_target
+    ON decisions (target_type, target_id);
+
+CREATE INDEX IF NOT EXISTS idx_decisions_prior_decision_id
+    ON decisions (prior_decision_id)
+    WHERE prior_decision_id IS NOT NULL;
+
+-- -----------------------------------------------------------------------------
 -- Borrower Profiles
 -- -----------------------------------------------------------------------------
 -- BNPL-specific borrower profiles.
