@@ -8,6 +8,10 @@ structname: "{{.InterfaceName}}"
 packages:
   github.com/parstis/bnpl-backend/pkg/core/repo:
     interfaces:
+      BorrowerIdentityVerification:
+      BorrowerIdentityVerificationConnQueryer:
+      BorrowerIdentityVerificationQueryer:
+      BorrowerIdentityVerificationTxQueryer:
       Conn:
       Decision:
       DecisionConnQueryer:
