@@ -374,3 +374,55 @@ CREATE TABLE IF NOT EXISTS merchant_branch_profiles (
 -- Lookup of branch profiles by parent merchant.
 CREATE INDEX IF NOT EXISTS idx_merchant_branch_profiles_merchant_id
     ON merchant_branch_profiles (merchant_id);
+
+-- -----------------------------------------------------------------------------
+-- Borrower Credit Limits
+-- -----------------------------------------------------------------------------
+-- Governed BNPL credit limits assigned to borrowers.
+--
+-- Each row stores the approved amount at the time of a credit limit decision and
+-- references the decision that authorized it. Limits are versioned: superseding a
+-- limit creates a new row rather than mutating an existing one.
+CREATE TABLE IF NOT EXISTS borrower_credit_limits (
+    -- Unique credit limit identifier assigned by the database.
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    -- BNPL borrower profile this limit applies to.
+    borrower_profile_id uuid NOT NULL REFERENCES borrower_profiles (id),
+
+    -- Governed credit-limit decision that authorized this assignment.
+    decision_id uuid NOT NULL REFERENCES decisions (id),
+
+    -- Approved credit limit amount in the smallest currency unit.
+    amount_minor bigint NOT NULL,
+
+    -- Currency of the approved amount.
+    currency text NOT NULL,
+
+    -- Current lifecycle state of this credit limit assignment.
+    status text NOT NULL,
+
+    -- Validity window for this credit limit.
+    effective_from timestamptz NOT NULL,
+    expires_at timestamptz NULL,
+
+    -- Set when this credit limit was explicitly revoked.
+    revoked_at timestamptz NULL,
+
+    -- Newer credit limit assignment that replaced this one, when applicable.
+    replaced_by_credit_limit_id uuid NULL REFERENCES borrower_credit_limits (id),
+
+    -- Creation and update timestamps.
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT chk_borrower_credit_limits_status
+    CHECK (status IN ('active', 'expired', 'revoked', 'replaced')),
+
+    CONSTRAINT chk_borrower_credit_limits_amount_minor
+    CHECK (amount_minor >= 0)
+    );
+
+-- Lookup of credit limits by borrower profile.
+CREATE INDEX IF NOT EXISTS idx_borrower_credit_limits_borrower_profile_id
+    ON borrower_credit_limits (borrower_profile_id);
