@@ -12,6 +12,10 @@ packages:
       BorrowerIdentityVerificationConnQueryer:
       BorrowerIdentityVerificationQueryer:
       BorrowerIdentityVerificationTxQueryer:
+      BorrowerProfile:
+      BorrowerProfileConnQueryer:
+      BorrowerProfileQueryer:
+      BorrowerProfileTxQueryer:
       Conn:
       Decision:
       DecisionConnQueryer:
