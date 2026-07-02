@@ -101,3 +101,61 @@ CREATE INDEX IF NOT EXISTS idx_integration_outbox_destination_status
 CREATE INDEX IF NOT EXISTS idx_integration_outbox_aggregate
     ON integration_outbox (aggregate_type, created_at DESC)
     WHERE aggregate_type IS NOT NULL;
+
+-- -----------------------------------------------------------------------------
+-- Borrower Identity Verifications
+-- -----------------------------------------------------------------------------
+-- Identity verification artifacts used during BNPL onboarding.
+--
+-- This table stores hashed identity evidence and result metadata separately
+-- from borrower_profiles so the BNPL profile never owns raw personal identity
+-- data. Raw national IDs and phone numbers must not be stored here.
+CREATE TABLE IF NOT EXISTS borrower_identity_verifications (
+    -- Unique verification identifier assigned by the database.
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    -- Borrower identity this verification belongs to.
+    borrower_id uuid NOT NULL,
+
+    -- Non-reversible hash of the national identifier.
+    national_id_hash text NOT NULL,
+
+    -- Non-reversible hash of the phone number.
+    phone_number_hash text NOT NULL,
+
+    -- Borrower date of birth.
+    birthdate date NOT NULL,
+
+    -- Current result state of this verification attempt.
+    status text NOT NULL,
+
+    -- Verification provider.
+    provider text NOT NULL,
+
+    -- Provider's own tracking identifier.
+    provider_reference_id text NULL,
+
+    -- Set when the verification reaches a verified state.
+    verified_at timestamptz NULL,
+
+    -- Set when the verification reaches a rejected state.
+    rejected_at timestamptz NULL,
+
+    -- Time this verification result becomes too old for future decisions.
+    expires_at timestamptz NULL,
+
+    -- Creation and update timestamps.
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT chk_borrower_identity_verifications_status
+    CHECK (status IN ('pending', 'verified', 'rejected', 'expired'))
+);
+
+-- Lookup of verification artifacts by borrower identity.
+CREATE INDEX IF NOT EXISTS idx_borrower_identity_verifications_borrower_id
+    ON borrower_identity_verifications (borrower_id);
+
+-- Deduplication and lookup by hashed national identifier.
+CREATE INDEX IF NOT EXISTS idx_borrower_identity_verifications_national_id_hash
+    ON borrower_identity_verifications (national_id_hash);
