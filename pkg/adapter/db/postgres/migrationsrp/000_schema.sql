@@ -426,3 +426,66 @@ CREATE TABLE IF NOT EXISTS borrower_credit_limits (
 -- Lookup of credit limits by borrower profile.
 CREATE INDEX IF NOT EXISTS idx_borrower_credit_limits_borrower_profile_id
     ON borrower_credit_limits (borrower_profile_id);
+
+-- -----------------------------------------------------------------------------
+-- Checkout Financing Terms
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS checkout_financing_terms (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    checkout_intent_id uuid NOT NULL,
+    decision_id uuid NOT NULL UNIQUE REFERENCES decisions (id),
+    borrower_profile_id uuid NOT NULL REFERENCES borrower_profiles (id),
+    merchant_profile_id uuid NOT NULL REFERENCES merchant_profiles (id),
+    merchant_branch_profile_id uuid NULL REFERENCES merchant_branch_profiles (id),
+    requested_amount_minor bigint NOT NULL,
+    financed_amount_minor bigint NOT NULL,
+    upfront_amount_minor bigint NOT NULL,
+    regular_installment_amount_minor bigint NOT NULL,
+    first_installment_amount_minor bigint NOT NULL,
+    regular_installment_principal_amount_minor bigint NOT NULL,
+    first_installment_principal_amount_minor bigint NOT NULL,
+    first_installment_upfront_amount_minor bigint NOT NULL,
+    first_installment_total_amount_minor bigint NOT NULL,
+    total_fee_amount_minor bigint NOT NULL,
+    total_payable_amount_minor bigint NOT NULL,
+    currency text NOT NULL,
+    installment_count integer NOT NULL,
+    status text NOT NULL,
+    expires_at timestamptz NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT chk_checkout_financing_terms_status
+    CHECK (status IN ('offered', 'expired', 'cancelled', 'converted_to_contract')),
+
+    CONSTRAINT chk_checkout_financing_terms_amounts
+    CHECK (
+        requested_amount_minor >= 0
+        AND financed_amount_minor >= 0
+        AND upfront_amount_minor >= 0
+        AND regular_installment_amount_minor >= 0
+        AND first_installment_amount_minor >= 0
+        AND regular_installment_principal_amount_minor >= 0
+        AND first_installment_principal_amount_minor >= 0
+        AND first_installment_upfront_amount_minor >= 0
+        AND first_installment_total_amount_minor >= 0
+        AND total_fee_amount_minor >= 0
+        AND total_payable_amount_minor >= 0
+    ),
+
+    CONSTRAINT chk_checkout_financing_terms_installment_count
+    CHECK (installment_count > 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_checkout_financing_terms_checkout_intent_id
+    ON checkout_financing_terms (checkout_intent_id);
+
+CREATE INDEX IF NOT EXISTS idx_checkout_financing_terms_borrower_profile_id
+    ON checkout_financing_terms (borrower_profile_id);
+
+CREATE INDEX IF NOT EXISTS idx_checkout_financing_terms_merchant_profile_id
+    ON checkout_financing_terms (merchant_profile_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_checkout_financing_terms_one_offered_per_checkout
+    ON checkout_financing_terms (checkout_intent_id)
+    WHERE status = 'offered';
