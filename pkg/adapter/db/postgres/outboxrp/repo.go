@@ -2,6 +2,7 @@ package outboxrp
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -35,7 +36,7 @@ func (r *Repo) Conn(c repo.Conn) repo.OutboxConnQueryer {
 
 // Tx binds the repository to a transaction scope.
 //
-// Producers use this binding to enqueue outbox messages in the same transaction
+// Producers use this binding to create outbox messages in the same transaction
 // as the business change that produced them.
 func (r *Repo) Tx(tx repo.Tx) repo.OutboxTxQueryer {
 	return txQueryer{
@@ -98,10 +99,38 @@ type txQueryer struct {
 // Verify txQueryer implements the core outbox transaction queryer contract.
 var _ repo.OutboxTxQueryer = (*txQueryer)(nil)
 
-// Enqueue stores a new outbox message inside the current transaction.
-func (q txQueryer) Enqueue(
+// Create stores a new outbox message inside the current transaction.
+func (q txQueryer) Create(
 	ctx context.Context,
-	msg model.OutboxMessage,
-) error {
-	return Enqueue(ctx, q.Tx, msg)
+	destination string,
+	eventType string,
+	aggregateType *string,
+	payload json.RawMessage,
+	status model.OutboxStatus,
+	attemptCount int,
+	maxAttempts int,
+	nextAttemptAt time.Time,
+	lockedAt *time.Time,
+	lockedBy *string,
+	lastError *string,
+	createdAt time.Time,
+	publishedAt *time.Time,
+) (model.OutboxMessage, error) {
+	return Create(
+		ctx,
+		q.Tx,
+		destination,
+		eventType,
+		aggregateType,
+		payload,
+		status,
+		attemptCount,
+		maxAttempts,
+		nextAttemptAt,
+		lockedAt,
+		lockedBy,
+		lastError,
+		createdAt,
+		publishedAt,
+	)
 }

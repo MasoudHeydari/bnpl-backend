@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,7 +26,11 @@ type OutboxQueryer interface {
 	) ([]model.OutboxMessage, error)
 
 	// MarkPublished marks a claimed message as successfully delivered.
-	MarkPublished(ctx context.Context, outboxID uuid.UUID, publishedAt time.Time) error
+	MarkPublished(
+		ctx context.Context,
+		outboxID uuid.UUID,
+		publishedAt time.Time,
+	) error
 
 	// MarkRetry schedules a failed delivery for a future retry.
 	MarkRetry(
@@ -36,7 +41,11 @@ type OutboxQueryer interface {
 	) error
 
 	// MarkFailed marks a message as permanently failed.
-	MarkFailed(ctx context.Context, outboxID uuid.UUID, lastError string) error
+	MarkFailed(
+		ctx context.Context,
+		outboxID uuid.UUID,
+		lastError string,
+	) error
 }
 
 // OutboxConnQueryer exposes publisher-side outbox operations on a connection.
@@ -46,11 +55,26 @@ type OutboxConnQueryer interface {
 
 // OutboxTxQueryer exposes transaction-scoped outbox operations.
 //
-// Enqueue is transaction-only by design. Outbox messages should be inserted in
+// Create is transaction-only by design. Outbox messages should be inserted in
 // the same transaction as the business change that produced them.
 type OutboxTxQueryer interface {
-	// Enqueue stores a new outbox message.
-	Enqueue(ctx context.Context, msg model.OutboxMessage) error
+	// Create stores a new outbox message and returns the persisted row.
+	Create(
+		ctx context.Context,
+		destination string,
+		eventType string,
+		aggregateType *string,
+		payload json.RawMessage,
+		status model.OutboxStatus,
+		attemptCount int,
+		maxAttempts int,
+		nextAttemptAt time.Time,
+		lockedAt *time.Time,
+		lockedBy *string,
+		lastError *string,
+		createdAt time.Time,
+		publishedAt *time.Time,
+	) (model.OutboxMessage, error)
 }
 
 // Outbox defines repository bindings for reliable integration messages.

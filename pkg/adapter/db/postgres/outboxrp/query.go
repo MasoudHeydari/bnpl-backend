@@ -2,6 +2,7 @@ package outboxrp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -21,19 +22,52 @@ var (
 	ErrOutboxMessageNotFound = errors.New("outbox message not found")
 )
 
-// Enqueue inserts a new outbox message.
+const outboxReturningColumns = `
+	id,
+	destination,
+	event_type,
+	aggregate_type,
+	payload,
+	status,
+	attempt_count,
+	max_attempts,
+	next_attempt_at,
+	locked_at,
+	locked_by,
+	last_error,
+	created_at,
+	published_at
+`
+
+// Create inserts a new outbox message and returns the persisted row.
 //
 // This function should be called through the transaction-bound repository
 // helper so the outbox message commits atomically with the business change.
-func Enqueue[Q postgres.Queryer](
+func Create[Q postgres.Queryer](
 	ctx context.Context,
 	q Q,
-	msg model.OutboxMessage,
-) error {
-	msg = normalizeForInsert(msg)
+	destination string,
+	eventType string,
+	aggregateType *string,
+	payload json.RawMessage,
+	status model.OutboxStatus,
+	attemptCount int,
+	maxAttempts int,
+	nextAttemptAt time.Time,
+	lockedAt *time.Time,
+	lockedBy *string,
+	lastError *string,
+	createdAt time.Time,
+	publishedAt *time.Time,
+) (model.OutboxMessage, error) {
+	if err := postgres.RequiredTime("created_at", createdAt); err != nil {
+		return model.OutboxMessage{}, err
+	}
+
+	status, maxAttempts, nextAttemptAt = normalizeOutboxInsert(status, maxAttempts, nextAttemptAt, createdAt)
+
 	const query = `
 INSERT INTO integration_outbox (
-	id,
 	destination,
 	event_type,
 	aggregate_type,
@@ -49,51 +83,29 @@ INSERT INTO integration_outbox (
 	published_at
 )
 VALUES (
-	$1, $2, $3, $4, $5, $6, $7,
-	$8, $9, $10, $11, $12, $13, $14
+	$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
 )
-`
+RETURNING` + outboxReturningColumns
 
-	_, err := q.Exec(
+	return postgres.QueryOne[model.OutboxMessage](
 		ctx,
+		q,
+		"create outbox message",
 		query,
-		msg.ID,
-		msg.Destination,
-		msg.EventType,
-		msg.AggregateType,
-		msg.Payload,
-		msg.Status,
-		msg.AttemptCount,
-		msg.MaxAttempts,
-		msg.NextAttemptAt,
-		msg.LockedAt,
-		msg.LockedBy,
-		msg.LastError,
-		msg.CreatedAt,
-		msg.PublishedAt,
+		destination,
+		eventType,
+		aggregateType,
+		payload,
+		status,
+		attemptCount,
+		maxAttempts,
+		nextAttemptAt,
+		lockedAt,
+		lockedBy,
+		lastError,
+		createdAt,
+		publishedAt,
 	)
-	if err != nil {
-		return cerr.InternalError(
-			fmt.Errorf("enqueue outbox message %s: %w", msg.ID, err),
-			map[string]any{
-				"outbox_id": msg.ID,
-			},
-		)
-	}
-
-	return nil
-}
-
-// Create inserts a new outbox message.
-//
-// It is an alias for Enqueue used by repositories that name transaction-only
-// inserts as create operations.
-func Create[Q postgres.Queryer](
-	ctx context.Context,
-	q Q,
-	msg model.OutboxMessage,
-) error {
-	return Enqueue(ctx, q, msg)
 }
 
 // GetByID returns an outbox message by id.
@@ -380,32 +392,27 @@ WHERE id = $3
 	return nil
 }
 
-// normalizeForInsert applies application defaults before inserting.
+// normalizeOutboxInsert applies repository defaults for optional insert fields.
 //
-// Database defaults protect direct SQL inserts. This normalization protects Go
-// callers that pass a zero-value model.
-func normalizeForInsert(msg model.OutboxMessage) model.OutboxMessage {
-	now := time.Now().UTC()
-
-	if msg.ID == uuid.Nil {
-		msg.ID = uuid.New()
+// Timestamps and identifiers must be supplied by the use case. When
+// next_attempt_at is omitted, it defaults to created_at.
+func normalizeOutboxInsert(
+	status model.OutboxStatus,
+	maxAttempts int,
+	nextAttemptAt time.Time,
+	createdAt time.Time,
+) (model.OutboxStatus, int, time.Time) {
+	if status == "" {
+		status = model.OutboxStatusPending
 	}
 
-	if msg.Status == "" {
-		msg.Status = model.OutboxStatusPending
+	if maxAttempts == 0 {
+		maxAttempts = 10
 	}
 
-	if msg.MaxAttempts == 0 {
-		msg.MaxAttempts = 10
+	if nextAttemptAt.IsZero() {
+		nextAttemptAt = createdAt
 	}
 
-	if msg.NextAttemptAt.IsZero() {
-		msg.NextAttemptAt = now
-	}
-
-	if msg.CreatedAt.IsZero() {
-		msg.CreatedAt = now
-	}
-
-	return msg
+	return status, maxAttempts, nextAttemptAt
 }
