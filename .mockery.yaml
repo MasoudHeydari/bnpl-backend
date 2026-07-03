@@ -20,6 +20,10 @@ packages:
       BorrowerProfileConnQueryer:
       BorrowerProfileQueryer:
       BorrowerProfileTxQueryer:
+      CheckoutFinancingTerm:
+      CheckoutFinancingTermConnQueryer:
+      CheckoutFinancingTermQueryer:
+      CheckoutFinancingTermTxQueryer:
       Conn:
       Decision:
       DecisionConnQueryer:
