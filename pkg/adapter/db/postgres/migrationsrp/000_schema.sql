@@ -33,8 +33,8 @@ CREATE TABLE IF NOT EXISTS migrations (
 -- This table is used for reliable delivery. It does not guarantee exactly-once
 -- consumption; downstream consumers must handle duplicate messages idempotently.
 CREATE TABLE IF NOT EXISTS integration_outbox (
-    -- Unique message identifier.
-    id       uuid PRIMARY KEY,
+    -- Unique message identifier assigned by the database.
+    id       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
 
     -- Logical destination for this message.
     -- Examples: kafka.audit_events, kafka.notifications, kafka.payments.
