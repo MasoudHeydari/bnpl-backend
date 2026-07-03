@@ -14,10 +14,10 @@ func TestNewRepos(t *testing.T) {
 	require.NotNil(t, repos.Migrations)
 	require.NotNil(t, repos.Outbox)
 	require.NotNil(t, repos.Health)
-
-	var (
-		_ = repos.Migrations
-		_ = repos.Outbox
-		_ = repos.Health
-	)
+	require.NotNil(t, repos.Decision)
+	require.NotNil(t, repos.BorrowerProfile)
+	require.NotNil(t, repos.BorrowerIdentityVerification)
+	require.NotNil(t, repos.BorrowerCreditLimit)
+	require.NotNil(t, repos.MerchantProfile)
+	require.NotNil(t, repos.MerchantBranchProfile)
 }
