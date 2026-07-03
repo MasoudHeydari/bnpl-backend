@@ -2,8 +2,10 @@ package migrationsrp
 
 import (
 	"context"
+	"time"
 
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
+	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
@@ -60,6 +62,6 @@ func (tq txQueryer) Migrate(ctx context.Context, migName, migStatements string) 
 	return Migrate(ctx, tq.Tx, migName, migStatements)
 }
 
-func (tq txQueryer) Register(ctx context.Context, migName string) error {
-	return Register(ctx, tq.Tx, migName)
+func (tq txQueryer) Register(ctx context.Context, migName string, createdAt time.Time) (model.Migration, error) {
+	return Register(ctx, tq.Tx, migName, createdAt)
 }

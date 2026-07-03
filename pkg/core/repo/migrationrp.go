@@ -1,6 +1,11 @@
 package repo
 
-import "context"
+import (
+	"context"
+	"time"
+
+	"github.com/parstis/bnpl-backend/pkg/core/model"
+)
 
 // MigrationsQueryer applies migration statements.
 type MigrationsQueryer interface {
@@ -17,7 +22,7 @@ type MigrationsTxQueryer interface {
 
 	// Register persists migName as an applied migration within the current transaction.
 	// Callers use this after Migrate so execution and registration commit atomically.
-	Register(ctx context.Context, migName string) error
+	Register(ctx context.Context, migName string, createdAt time.Time) (model.Migration, error)
 }
 
 // MigrationsConnQueryer exposes migration execution on a plain connection.
