@@ -30,6 +30,10 @@ packages:
           structname: RepoHealth
       HealthConnQueryer:
       HealthQueryer:
+      MerchantProfile:
+      MerchantProfileConnQueryer:
+      MerchantProfileQueryer:
+      MerchantProfileTxQueryer:
       Migrations:
       MigrationsConnQueryer:
       MigrationsQueryer:
@@ -48,8 +52,6 @@ packages:
       SchemaSettings:
       SchemaTxQueryer:
       Tx:
-
-
 
   github.com/parstis/bnpl-backend/pkg/adapter/db/postgres:
     interfaces:
