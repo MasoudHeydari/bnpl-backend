@@ -29,3 +29,11 @@ func RequiredTimes(fields map[string]time.Time) error {
 
 	return nil
 }
+
+func NullIfEmpty(value string) any {
+	if value == "" {
+		return nil
+	}
+
+	return value
+}
