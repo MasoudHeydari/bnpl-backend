@@ -14,10 +14,11 @@ func TestMigrations_newUseCase(t *testing.T) {
 
 	pool := mock.NewPool(t)
 	migrations := mock.NewMigrations(t)
+	clock := mock.NewClock(t)
 
 	m := Migrations{filesDir: "/var/migrations"}
 
-	uc := m.newUseCase(pool, migrations)
+	uc := m.newUseCase(pool, migrations, clock)
 	require.NotNil(t, uc)
 }
 
@@ -62,6 +63,7 @@ func TestConfig_NewMigrationsUseCase(t *testing.T) {
 
 	pool := mock.NewPool(t)
 	migrations := mock.NewMigrations(t)
+	clock := mock.NewClock(t)
 
 	cfg := &Config{
 		Usecases: Usecases{
@@ -69,7 +71,7 @@ func TestConfig_NewMigrationsUseCase(t *testing.T) {
 		},
 	}
 
-	uc := cfg.NewMigrationsUseCase(pool, migrations)
+	uc := cfg.NewMigrationsUseCase(pool, migrations, clock)
 	require.NotNil(t, uc)
 }
 
