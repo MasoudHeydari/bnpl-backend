@@ -41,15 +41,15 @@ type Migrations struct {
 }
 
 // newUseCase constructs a migration use case from the configured migration
-// directory, database pool, and migration repository.
+// directory, database pool, migration repository, and clock.
 //
-// The caller retains ownership of p and r. The returned use case uses filesDir
-// only as a filesystem path and does not validate the directory until migration
-// execution.
+// The caller retains ownership of p, r, and clk. The returned use case uses
+// filesDir only as a filesystem path and does not validate the directory until
+// migration execution.
 func (m Migrations) newUseCase(
-	p repo.Pool, r repo.Migrations,
+	p repo.Pool, r repo.Migrations, clk clock.Clock,
 ) *migrationsuc.UseCase {
-	return migrationsuc.New(p, r, m.filesDir)
+	return migrationsuc.New(p, r, clk, m.filesDir)
 }
 
 // OutboxPublisher contains outbox publishing use case settings.

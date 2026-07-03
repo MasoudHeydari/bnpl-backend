@@ -136,9 +136,9 @@ func (c *Config) SchemaInitializer(tx repo.Tx) repo.SchemaInitializer {
 // repository. The returned use case reuses the caller-provided pool and
 // repository and does not take ownership beyond its own method calls.
 func (c *Config) NewMigrationsUseCase(
-	p repo.Pool, r repo.Migrations,
+	p repo.Pool, r repo.Migrations, clk clock.Clock,
 ) *migrationsuc.UseCase {
-	return c.Usecases.Migrations.newUseCase(p, r)
+	return c.Usecases.Migrations.newUseCase(p, r, clk)
 }
 
 // NewOutboxPublisherUseCase creates the use case responsible for publishing

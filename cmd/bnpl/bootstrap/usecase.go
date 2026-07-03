@@ -18,6 +18,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 	migrationsUseCase := a.Config.NewMigrationsUseCase(
 		a.Pool,
 		a.Repos.Migrations,
+		a.Infrastructure.Clock,
 	)
 
 	outboxPublisherUseCase := a.Config.NewOutboxPublisherUseCase(

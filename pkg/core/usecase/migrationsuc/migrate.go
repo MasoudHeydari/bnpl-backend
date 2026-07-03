@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/parstis/bnpl-backend/pkg/core/clock"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
@@ -15,16 +16,23 @@ import (
 type UseCase struct {
 	pool       repo.Pool
 	migrations repo.Migrations
+	clock      clock.Clock
 	migDirPath string
 }
 
 // New constructs a migration use case.
-// The caller retains ownership of pool and migrations and must ensure they
-// remain valid for the lifetime of any use case calls.
-func New(pool repo.Pool, migrations repo.Migrations, migDirPath string) *UseCase {
+// The caller retains ownership of pool, migrations, and clock and must ensure
+// they remain valid for the lifetime of any use case calls.
+func New(
+	pool repo.Pool,
+	migrations repo.Migrations,
+	clk clock.Clock,
+	migDirPath string,
+) *UseCase {
 	return &UseCase{
 		pool:       pool,
 		migrations: migrations,
+		clock:      clk,
 		migDirPath: migDirPath,
 	}
 }
@@ -74,7 +82,7 @@ func (uc *UseCase) MigrateOne(ctx context.Context, migName string) error {
 						return fmt.Errorf("MigrateOne.q.Migrate: %w", err)
 					}
 
-					err = q.Register(ctx, migName)
+					_, err = q.Register(ctx, migName, uc.clock.Now())
 					if err != nil {
 						return fmt.Errorf("MigrateOne.q.Register: %w", err)
 					}

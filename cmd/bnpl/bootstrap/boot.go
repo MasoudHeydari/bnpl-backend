@@ -64,8 +64,13 @@ func Migrate() error {
 		}
 	}()
 
+	systemClock, err := c.NewSystemClockInfrastructure()
+	if err != nil {
+		return fmt.Errorf("initialize system clock: %w", err)
+	}
+
 	migrationsRepo := migrationsrp.New()
-	migrationsUC := c.NewMigrationsUseCase(p, migrationsRepo)
+	migrationsUC := c.NewMigrationsUseCase(p, migrationsRepo, systemClock)
 	err = migrationsUC.MigrateAll(ctx)
 	if err != nil {
 		return fmt.Errorf("migrate.MigrateAll: %w", err)
