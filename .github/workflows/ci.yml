@@ -3,7 +3,8 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [ main ]
+    # Validate both the released branch and the active database-baseline refactor.
+    branches: [ main, feat-add-decision-domain ]
 
 # Least-privilege default; individual jobs add nothing extra.
 permissions:
@@ -64,7 +65,7 @@ jobs:
           fi
 
       - name: go vet
-        run: go vet ./cmd/... ./pkg/...
+        run: go vet -tags="go_json nomsgpack development" ./cmd/... ./pkg/...
 
       # Pin the golangci-lint version deliberately; bump it in a dedicated PR.
       # Latest releases: https://github.com/golangci/golangci-lint/releases
@@ -112,7 +113,7 @@ jobs:
       # The `integration` build tag is NOT set, so testcontainer tests are skipped.
       - name: Unit tests (race detector + coverage)
         run: |
-          go test -race \
+          go test -race -tags="go_json nomsgpack development" \
             -covermode=atomic \
             -coverprofile=coverage.out \
             ./cmd/... ./pkg/...
@@ -137,9 +138,13 @@ jobs:
       # Validate the binary compiles; output goes to /dev/null to keep the runner clean.
       - name: Build validation
         run: |
-          go build -tags="go_json nomsgpack" -trimpath \
-            -ldflags '-s -w -extldflags "-static"' \
-            -o /dev/null ./cmd/bnpl
+          for environment in development production; do
+            for executable in bnpl bnpl-dbadmin; do
+              go build -tags="go_json nomsgpack ${environment}" -trimpath \
+                -ldflags '-s -w -extldflags "-static"' \
+                -o /dev/null "./cmd/${executable}"
+            done
+          done
 
       - uses: actions/upload-artifact@v4
         with:
@@ -153,6 +158,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: [ lint, unit-test ]
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: ci-only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U admin -d postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
@@ -161,23 +178,25 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      # IMPORTANT: There is NO `services.postgres` block here.
-      # The integration tests use testcontainers-go (v0.42.0) to spin up their
-      # own postgres:18 container per test package. ubuntu-latest ships Docker
-      # pre-installed with the daemon running, so testcontainers works out of
-      # the box — no extra setup is required.
-      #
-      # If you ever add app-level integration tests that need a pre-configured
-      # external DB, add a services.postgres block there and pass credentials
-      # via ${{ secrets.CI_POSTGRES_USER }} / ${{ secrets.CI_POSTGRES_PASSWORD }}.
-      #
+      # Testcontainers tests may use Docker; role-security integration tests
+      # additionally require a dedicated, disposable PostgreSQL cluster.
       # TESTCONTAINERS_RYUK_DISABLED prevents the Ryuk cleanup sidecar from
       # being started; avoids permission issues on constrained CI environments.
+      - name: Provision isolated CI Runtime test login
+        env:
+          PGPASSWORD: ci-only
+        run: |
+          psql -h localhost -U admin -d postgres -v ON_ERROR_STOP=1 \
+            -c "CREATE ROLE bnpl LOGIN NOINHERIT PASSWORD 'security-test-runtime'"
+
       - name: Integration tests (testcontainers, race detector)
         env:
           TESTCONTAINERS_RYUK_DISABLED: "true"
+          DATABASE_SECURITY_TEST_URL: postgres://admin:ci-only@localhost:5432/postgres?sslmode=disable
+          COLLECTIONS_TEST_DATABASE_URL: postgres://admin:ci-only@localhost:5432/postgres?sslmode=disable
+          COLLECTIONS_RUNTIME_TEST_URL: postgres://bnpl:security-test-runtime@localhost:5432/postgres?sslmode=disable
         run: |
-          go test -tags integration \
+          go test -tags "go_json nomsgpack development integration" \
             -race \
             -count=1 \
             -timeout=20m \
@@ -239,12 +258,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate Docker build
+      - name: Validate all four Docker build variants
         run: |
-          docker build \
-            --tag bnpl-backend:${{ github.sha }} \
-            --label "git.sha=${{ github.sha }}" \
-            .
+          for environment in development production; do
+            for target in runtime dbadmin; do
+              docker build --target "$target" --build-arg BUILD_ENV="$environment" \
+                --tag "bnpl-${target}:${{ github.sha }}-${environment}" .
+            done
+          done
 
   # ── 7. DOCKER IMAGE VULNERABILITY SCAN ──────────────────────────────────────
   trivy-scan:

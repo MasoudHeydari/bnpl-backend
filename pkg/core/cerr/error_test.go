@@ -2,7 +2,6 @@ package cerr
 
 import (
 	"errors"
-	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -16,6 +15,7 @@ func TestError_ErrorAndUnwrap(t *testing.T) {
 
 	require.Equal(t, "[VALIDATION_FAILED] underlying", err.Error())
 	require.Same(t, cause, err.Unwrap())
+	require.Equal(t, DefaultMessageKey(CodeValidationFailed), err.MessageKey)
 }
 
 func TestIsCode(t *testing.T) {
@@ -30,82 +30,90 @@ func TestIsCode(t *testing.T) {
 	require.False(t, IsCode(errors.New("plain"), CodeResourceNotFound))
 }
 
-func TestCode_HTTPStatusCode(t *testing.T) {
+func TestNewPublicSeparatesPublicContractFromCause(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		code   Code
-		status int
-	}{
-		{CodeValidationFailed, http.StatusUnprocessableEntity},
-		{CodeInvalidArgument, http.StatusBadRequest},
-		{CodeResourceNotFound, http.StatusNotFound},
-		{CodeDecisionNotFound, http.StatusNotFound},
-		{CodeContractNotFound, http.StatusNotFound},
-		{CodeInstallmentNotFound, http.StatusNotFound},
-		{CodeDecisionRejected, http.StatusUnprocessableEntity},
-		{CodeDecisionExpired, http.StatusUnprocessableEntity},
-		{CodeContractAlreadyExists, http.StatusConflict},
-		{CodeIdempotencyConflict, http.StatusConflict},
-		{CodeConflict, http.StatusConflict},
-		{CodePaymentProviderError, http.StatusBadGateway},
-		{CodeUnauthorized, http.StatusUnauthorized},
-		{CodeForbidden, http.StatusForbidden},
-		{CodeServiceUnavailable, http.StatusServiceUnavailable},
-		{CodeInternalError, http.StatusInternalServerError},
-		{Code("UNKNOWN"), http.StatusInternalServerError},
+	cause := errors.New(`ERROR: column "display_name" does not exist (SQLSTATE 42703)`)
+	details := Details{
+		Fields: []string{"merchant_id"},
+		Violations: []Violation{{
+			Code:       "NOT_FOUND",
+			MessageKey: "error.merchant_profile_not_found",
+			Fields:     []string{},
+		}},
 	}
 
-	for _, tt := range tests {
-		t.Run(string(tt.code), func(t *testing.T) {
-			t.Parallel()
-			require.Equal(t, tt.status, tt.code.HTTPStatusCode())
-		})
-	}
+	err := NewPublic(
+		CodeResourceNotFound,
+		"error.merchant_profile_not_found",
+		cause,
+		details,
+	)
+
+	require.Equal(t, CodeResourceNotFound, err.Code)
+	require.Equal(t, MessageKey("error.merchant_profile_not_found"), err.MessageKey)
+	require.Equal(t, details, err.Details)
+	require.Same(t, cause, err.Unwrap())
+	require.Contains(t, err.Error(), "SQLSTATE 42703")
 }
 
-func TestConstructorsSetCodeErrAndData(t *testing.T) {
+func TestLegacyArbitraryMetadataIsNotPublicDetails(t *testing.T) {
+	t.Parallel()
+
+	err := ValidationFailed(
+		errors.New("invalid"),
+		map[string]any{
+			"constraint": "merchant_profiles_merchant_id_key",
+		},
+	)
+
+	require.Empty(t, err.Details.Fields)
+	require.Empty(t, err.Details.Violations)
+}
+
+func TestLegacyTypedDetailsRemainSupported(t *testing.T) {
+	t.Parallel()
+
+	details := Details{
+		Fields: []string{"merchant_id"},
+	}
+	err := InvalidArgument(errors.New("invalid"), details)
+
+	require.Equal(t, details, err.Details)
+}
+
+func TestConstructorsSetCodeAndSafeDefaultMessageKey(t *testing.T) {
 	t.Parallel()
 
 	cause := errors.New("cause")
-	data := map[string]string{"field": "value"}
 
 	tests := []struct {
 		name string
 		got  *Error
 		code Code
 	}{
-		{"ValidationFailed", ValidationFailed(cause, data), CodeValidationFailed},
-		{"InvalidArgument", InvalidArgument(cause, data), CodeInvalidArgument},
-		{"ResourceNotFound", ResourceNotFound(cause, data), CodeResourceNotFound},
-		{"DecisionNotFound", DecisionNotFound(cause, data), CodeDecisionNotFound},
-		{"DecisionRejected", DecisionRejected(cause, data), CodeDecisionRejected},
-		{"DecisionExpired", DecisionExpired(cause, data), CodeDecisionExpired},
-		{"ContractNotFound", ContractNotFound(cause, data), CodeContractNotFound},
-		{"ContractAlreadyExists", ContractAlreadyExists(cause, data), CodeContractAlreadyExists},
-		{"InstallmentNotFound", InstallmentNotFound(cause, data), CodeInstallmentNotFound},
-		{"IdempotencyConflict", IdempotencyConflict(cause, data), CodeIdempotencyConflict},
-		{"PaymentProviderError", PaymentProviderError(cause, data), CodePaymentProviderError},
-		{"Conflict", Conflict(cause, data), CodeConflict},
-		{"ServiceUnavailable", ServiceUnavailable(cause, data), CodeServiceUnavailable},
-		{"InternalError", InternalError(cause, data), CodeInternalError},
+		{"ValidationFailed", ValidationFailed(cause), CodeValidationFailed},
+		{"InvalidArgument", InvalidArgument(cause), CodeInvalidArgument},
+		{"ResourceNotFound", ResourceNotFound(cause), CodeResourceNotFound},
+		{"DecisionNotFound", DecisionNotFound(cause), CodeDecisionNotFound},
+		{"DecisionRejected", DecisionRejected(cause), CodeDecisionRejected},
+		{"DecisionExpired", DecisionExpired(cause), CodeDecisionExpired},
+		{"ContractNotFound", ContractNotFound(cause), CodeContractNotFound},
+		{"ContractAlreadyExists", ContractAlreadyExists(cause), CodeContractAlreadyExists},
+		{"InstallmentNotFound", InstallmentNotFound(cause), CodeInstallmentNotFound},
+		{"IdempotencyConflict", IdempotencyConflict(cause), CodeIdempotencyConflict},
+		{"PaymentProviderError", PaymentProviderError(cause), CodePaymentProviderError},
+		{"Conflict", Conflict(cause), CodeConflict},
+		{"ServiceUnavailable", ServiceUnavailable(cause), CodeServiceUnavailable},
+		{"InternalError", InternalError(cause), CodeInternalError},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			require.Equal(t, tt.code, tt.got.Code)
-			require.Same(t, cause, tt.got.Err)
-			require.Equal(t, data, tt.got.Data)
+			require.Equal(t, DefaultMessageKey(tt.code), tt.got.MessageKey)
+			require.Same(t, cause, tt.got.Unwrap())
 		})
 	}
-}
-
-func TestConstructorWithoutData(t *testing.T) {
-	t.Parallel()
-
-	cause := errors.New("cause")
-	err := InternalError(cause)
-
-	require.Nil(t, err.Data)
 }

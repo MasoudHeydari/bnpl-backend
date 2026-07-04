@@ -1,12 +1,6 @@
 package gin
 
-import (
-	"log/slog"
-
-	ginlogger "github.com/FabienMht/ginslog/logger"
-	ginrecovery "github.com/FabienMht/ginslog/recovery"
-	"github.com/gin-gonic/gin"
-)
+import "github.com/gin-gonic/gin"
 
 type (
 	// Engine aliases gin.Engine so the adapter package can expose a stable local
@@ -17,27 +11,18 @@ type (
 )
 
 // New constructs a Gin engine, sets mode, applies middleware, and configures
-// trusted proxies. Trusted proxies are currently hardcoded to 127.0.0.1;
-// config.Gin does not yet expose trusted_proxies from YAML.
+// trusted proxies. Invalid proxy configuration is returned as a startup error.
 func New(
 	mode string,
 	trustedProxies []string,
 	middlewares ...HandlerFunc,
-) *Engine {
+) (*Engine, error) {
 	e := gin.New()
 	gin.SetMode(mode)
-	_ = e.SetTrustedProxies(trustedProxies)
+	if err := e.SetTrustedProxies(trustedProxies); err != nil {
+		return nil, err
+	}
+
 	e.Use(middlewares...)
-	return e
-}
-
-// Logger middleware logs incoming requests and their responses
-// which is useful for debugging.
-func Logger() HandlerFunc {
-	return ginlogger.New(slog.Default())
-}
-
-// Recovery middleware recovers panics and responds with 500 to clients.
-func Recovery() HandlerFunc {
-	return ginrecovery.New(slog.Default())
+	return e, nil
 }

@@ -1,0 +1,537 @@
+application: runtime
+runtime:
+  environment: ${APP_ENVIRONMENT}
+
+# Deployment-enabled domain capabilities. Must be a non-empty subset of the
+# jurisdictions this BNPL build supports in code (currently IR only).
+domain:
+  supported_jurisdictions:
+    - IR
+
+database:
+  host: ${POSTGRES_HOST}
+  port: ${POSTGRES_PORT}
+  name: ${POSTGRES_DB}
+  max_connections: ${POSTGRES_MAX_CONNECTIONS}
+  min_connections: ${POSTGRES_MIN_CONNECTIONS}
+  max_connection_life_time: ${POSTGRES_MAX_CONNECTION_LIFE_TIME}
+  max_connection_idle_time: ${POSTGRES_MAX_CONNECTION_IDLE_TIME}
+  health_check_period: ${POSTGRES_HEALTH_CHECK_PERIOD}
+  connection_timeout: ${POSTGRES_CONNECTION_TIMEOUT}
+  ssl_mode: ${POSTGRES_SSL_MODE}
+  query_logging:
+    enabled: ${POSTGRES_QUERY_LOGGING_ENABLED}
+    include_arguments: ${POSTGRES_QUERY_LOGGING_INCLUDE_ARGUMENTS}
+  pgpass_entries:
+    normal: ${POSTGRES_NORMAL_PGPASS}
+
+gin:
+  host: ${GIN_HOST}
+  port: ${GIN_PORT}
+  trusted_proxies:
+    - ${GIN_TRUSTED_PROXY}
+  mode: ${GIN_MODE}
+  logger: ${GIN_LOGGER}
+  read_header_timeout: ${GIN_READ_HEADER_TIMEOUT}
+  read_timeout: ${GIN_READ_TIMEOUT}
+  write_timeout: ${GIN_WRITE_TIMEOUT}
+  idle_timeout: ${GIN_IDLE_TIMEOUT}
+  max_header_bytes: ${GIN_MAX_HEADER_BYTES}
+  max_body_bytes: ${GIN_MAX_BODY_BYTES}
+  max_in_flight: ${GIN_MAX_IN_FLIGHT}
+  swagger:
+    enabled: ${GIN_SWAGGER_ENABLED}
+  i18n:
+    default_language: ${GIN_I18N_DEFAULT_LANGUAGE}
+  http_debug_logger:
+    enabled: ${GIN_HTTP_DEBUG_LOGGER_ENABLED}
+    max_request_body_bytes: ${GIN_HTTP_DEBUG_LOGGER_MAX_REQUEST_BODY_BYTES}
+    max_response_body_bytes: ${GIN_HTTP_DEBUG_LOGGER_MAX_RESPONSE_BODY_BYTES}
+  response_logging:
+    enabled: ${GIN_RESPONSE_LOGGING_ENABLED}
+    max_body_bytes: ${GIN_RESPONSE_LOGGING_MAX_BODY_BYTES}
+
+usecases:
+  health:
+    enabled: ${HEALTH_ENABLED}
+
+  outbox_publisher:
+    worker_id: ${OUTBOX_PUBLISHER_WORKER_ID}
+    batch_size: ${OUTBOX_PUBLISHER_BATCH_SIZE}
+    retry_base_delay: ${OUTBOX_PUBLISHER_RETRY_BASE_DELAY}
+    retry_max_delay: ${OUTBOX_PUBLISHER_RETRY_MAX_DELAY}
+    processing_lease_timeout: ${OUTBOX_PUBLISHER_PROCESSING_LEASE_TIMEOUT}
+
+  sagas:
+    executor:
+      worker_id: ${SAGA_EXECUTOR_WORKER_ID}
+      batch_size: ${SAGA_EXECUTOR_BATCH_SIZE}
+      lease_duration: ${SAGA_EXECUTOR_LEASE_DURATION}
+      persistence_timeout: ${SAGA_EXECUTOR_PERSISTENCE_TIMEOUT}
+    checkout_confirmation:
+      retry_base_delay: ${CHECKOUT_CONFIRMATION_SAGA_RETRY_BASE_DELAY}
+      retry_max_delay: ${CHECKOUT_CONFIRMATION_SAGA_RETRY_MAX_DELAY}
+      max_retry_attempts: ${CHECKOUT_CONFIRMATION_SAGA_MAX_RETRY_ATTEMPTS}
+    contract_cancellation:
+      retry_base_delay: ${CONTRACT_CANCELLATION_SAGA_RETRY_BASE_DELAY}
+      retry_max_delay: ${CONTRACT_CANCELLATION_SAGA_RETRY_MAX_DELAY}
+
+  decision:
+
+  checkout_session:
+    public_origin: ${CHECKOUT_SESSION_PUBLIC_ORIGIN}
+    # Host allowlist is independent of CHECKOUT_SESSION_PUBLIC_ORIGIN.
+    # Do not derive these values from the origin ENV — pin real hostnames here
+    # (or in a deployment overlay). Production must set the actual public host.
+    public_origin_policy:
+      allowed_hosts:
+        - ${CHECKOUT_SESSION_PUBLIC_ORIGIN_ALLOWED_HOST}
+    ttl: ${CHECKOUT_SESSION_TTL}
+    expiry_batch_size: ${CHECKOUT_SESSION_EXPIRY_BATCH_SIZE}
+    lifecycle_events_destination: ${KAFKA_TOPIC_MERCHANT_CHECKOUT_EVENTS}
+    webhook_secret_encryption_active_key_id: ${WEBHOOK_SECRET_ENCRYPTION_ACTIVE_KEY_ID}
+    webhook_secret_encryption_keys: ${WEBHOOK_SECRET_ENCRYPTION_KEYS}
+    otp_template_id: ${CHECKOUT_SESSION_OTP_TEMPLATE_ID}
+    otp_active_pepper_key_id: ${CHECKOUT_SESSION_OTP_ACTIVE_PEPPER_KEY_ID}
+    otp_pepper_keys: ${CHECKOUT_SESSION_OTP_PEPPER_KEYS}
+    customer_phone_encryption_active_key_id: ${CUSTOMER_PHONE_ENCRYPTION_ACTIVE_KEY_ID}
+    customer_phone_encryption_keys: ${CUSTOMER_PHONE_ENCRYPTION_KEYS}
+
+  installment:
+    mark_due_batch_size: ${INSTALLMENT_MARK_DUE_BATCH_SIZE}
+    mark_overdue_batch_size: ${INSTALLMENT_MARK_OVERDUE_BATCH_SIZE}
+    installment_payment_requests_destination: ${KAFKA_TOPIC_INSTALLMENT_PAYMENT_REQUESTS}
+
+  contract:
+    payment_result_processing_grace_period: ${CONTRACT_PAYMENT_RESULT_PROCESSING_GRACE_PERIOD}
+    expiry_batch_size: ${CONTRACT_EXPIRY_BATCH_SIZE}
+
+  customer_credit_limit:
+
+  payment_attempt_reconciliation:
+    batch_size: ${PAYMENT_ATTEMPT_RECONCILIATION_BATCH_SIZE}
+    created_timeout: ${PAYMENT_ATTEMPT_RECONCILIATION_CREATED_TIMEOUT}
+    submitted_expiry_grace: ${PAYMENT_ATTEMPT_RECONCILIATION_SUBMITTED_EXPIRY_GRACE}
+    retry_base_delay: ${PAYMENT_ATTEMPT_RECONCILIATION_RETRY_BASE_DELAY}
+    retry_max_delay: ${PAYMENT_ATTEMPT_RECONCILIATION_RETRY_MAX_DELAY}
+    max_attempts: ${PAYMENT_ATTEMPT_RECONCILIATION_MAX_ATTEMPTS}
+
+  financial_core_payment_reconciliation:
+    retry_base_delay: ${FINANCIAL_CORE_PAYMENT_RECONCILIATION_RETRY_BASE_DELAY}
+    retry_max_delay: ${FINANCIAL_CORE_PAYMENT_RECONCILIATION_RETRY_MAX_DELAY}
+
+  short_link:
+    allowed_destination_hosts:
+      - ${SHORT_LINK_ALLOWED_DESTINATION_HOST}
+    public_host: ${SHORT_LINK_PUBLIC_HOST}
+    repayment_destination_url: ${SHORT_LINK_REPAYMENT_DESTINATION_URL}
+
+  repayment_reminder:
+    batch_size: ${REPAYMENT_REMINDER_BATCH_SIZE}
+
+  collections:
+    batch_size: ${COLLECTIONS_ASSESSMENT_BATCH_SIZE}
+
+  merchant_terminal:
+    # Versioned pepper key ring for partner API key HMAC verifiers. New keys are
+    # hashed with the active id; verification uses the id embedded in each
+    # stored verifier. Missing referenced peppers fail closed.
+    # Legacy single api_key_pepper is still accepted and maps to key id "v1".
+    api_key_active_pepper_key_id: ${MERCHANT_TERMINAL_API_KEY_ACTIVE_PEPPER_KEY_ID}
+    api_key_pepper_keys: ${MERCHANT_TERMINAL_API_KEY_PEPPER_KEYS}
+    # Deprecated single-pepper fallback (used when api_key_pepper_keys is empty).
+    api_key_pepper: ${MERCHANT_TERMINAL_API_KEY_PEPPER}
+    rotation:
+      default_grace_period: ${MERCHANT_TERMINAL_ROTATION_DEFAULT_GRACE_PERIOD}
+      max_grace_period: ${MERCHANT_TERMINAL_ROTATION_MAX_GRACE_PERIOD}
+    issuance_delivery_ttl: ${MERCHANT_TERMINAL_ISSUANCE_DELIVERY_TTL}
+    issuance_encryption_active_key_id: ${MERCHANT_TERMINAL_ISSUANCE_ENCRYPTION_ACTIVE_KEY_ID}
+    issuance_encryption_keys: ${MERCHANT_TERMINAL_ISSUANCE_ENCRYPTION_KEYS}
+
+infrastructure:
+  shutdown:
+    timeout: ${SHUTDOWN_TIMEOUT}
+    drain_delay: ${SHUTDOWN_DRAIN_DELAY}
+
+  health:
+    checks:
+      - database
+      - cache
+      - messaging
+      - consumer
+
+  trace:
+
+  clock:
+    location: ${SYSTEM_CLOCK_LOCATION}
+    business_location: ${BUSINESS_CLOCK_LOCATION}
+
+  logger:
+    provider: ${LOG_PROVIDER}
+
+    noop:
+
+    slog:
+      level: ${LOG_LEVEL}
+      format: ${LOG_FORMAT}
+
+  error_reporting:
+    provider: ${ERROR_REPORTING_PROVIDER}
+
+    noop:
+
+    sentry:
+      dsn: ${SENTRY_DSN}
+      environment: ${SENTRY_ENVIRONMENT}
+      release: ${SENTRY_RELEASE}
+      sample_rate: ${SENTRY_SAMPLE_RATE}
+      debug: ${SENTRY_DEBUG}
+
+  metrics:
+    provider: ${METRICS_PROVIDER}
+
+    noop:
+
+    prometheus:
+      enabled: ${METRICS_ENABLED}
+      host: ${METRICS_HOST}
+      port: ${METRICS_PORT}
+      path: ${METRICS_PATH}
+
+  http_client:
+    provider: ${HTTP_CLIENT_PROVIDER}
+
+    noop:
+
+    # Single default profile for every third-party HTTP/HTTPS integration.
+    # Per-client overrides are intentionally not implemented in this phase.
+    standard:
+      max_in_flight: ${HTTP_CLIENT_MAX_IN_FLIGHT}
+      max_queue_size: ${HTTP_CLIENT_MAX_QUEUE_SIZE}
+      queue_wait_timeout: ${HTTP_CLIENT_QUEUE_WAIT_TIMEOUT}
+      timeout: ${HTTP_CLIENT_TIMEOUT}
+      transport:
+        dial_timeout: ${HTTP_CLIENT_DIAL_TIMEOUT}
+        tls_handshake_timeout: ${HTTP_CLIENT_TLS_HANDSHAKE_TIMEOUT}
+        response_header_timeout: ${HTTP_CLIENT_RESPONSE_HEADER_TIMEOUT}
+        idle_conn_timeout: ${HTTP_CLIENT_IDLE_CONN_TIMEOUT}
+        max_idle_conns: ${HTTP_CLIENT_MAX_IDLE_CONNS}
+        max_idle_conns_per_host: ${HTTP_CLIENT_MAX_IDLE_CONNS_PER_HOST}
+        max_conns_per_host: ${HTTP_CLIENT_MAX_CONNS_PER_HOST}
+
+  cache:
+    provider: ${CACHE_PROVIDER}
+
+    noop:
+
+    redis:
+      addr: ${CACHE_REDIS_ADDR}
+      username: ${CACHE_REDIS_USERNAME}
+      password: ${CACHE_REDIS_PASSWORD}
+      db: ${CACHE_REDIS_DB}
+      dial_timeout: ${CACHE_REDIS_DIAL_TIMEOUT}
+      read_timeout: ${CACHE_REDIS_READ_TIMEOUT}
+      write_timeout: ${CACHE_REDIS_WRITE_TIMEOUT}
+      pool_size: ${CACHE_REDIS_POOL_SIZE}
+      min_idle_conns: ${CACHE_REDIS_MIN_IDLE_CONNS}
+
+  object_storage:
+    provider: ${OBJECT_STORAGE_PROVIDER}
+
+    noop:
+
+    filesystem:
+      root_dir: ${OBJECT_STORAGE_FILESYSTEM_ROOT_DIR}
+
+  messaging:
+    provider: ${MESSAGING_PROVIDER}
+
+    noop:
+
+    kafka:
+      brokers:
+        - ${KAFKA_BROKER_1}
+      client_id: ${KAFKA_CLIENT_ID}
+      group_id: ${KAFKA_GROUP_ID}
+      topics:
+        payment_results: ${KAFKA_TOPIC_PAYMENT_RESULTS}
+        audit_events: ${KAFKA_TOPIC_AUDIT_EVENTS}
+        payment_application_results: ${KAFKA_TOPIC_PAYMENT_APPLICATION_RESULTS}
+        installment_payment_requests: ${KAFKA_TOPIC_INSTALLMENT_PAYMENT_REQUESTS}
+        installment_payment_sessions: ${KAFKA_TOPIC_INSTALLMENT_PAYMENT_SESSIONS}
+        installment_payment_reconciliation_requests: ${KAFKA_TOPIC_INSTALLMENT_PAYMENT_RECONCILIATION_REQUESTS}
+        installment_payment_reconciliation_results: ${KAFKA_TOPIC_INSTALLMENT_PAYMENT_RECONCILIATION_RESULTS}
+        installment_payment_reconciliation_acknowledgements: ${KAFKA_TOPIC_INSTALLMENT_PAYMENT_RECONCILIATION_ACKNOWLEDGEMENTS}
+        notification_sms_requests: ${KAFKA_TOPIC_NOTIFICATION_SMS_REQUESTS}
+
+      producer:
+        required_acks: ${KAFKA_PRODUCER_REQUIRED_ACKS}
+        max_retries: ${KAFKA_PRODUCER_MAX_RETRIES}
+        return_successes: ${KAFKA_PRODUCER_RETURN_SUCCESSES}
+
+      consumer:
+        topics:
+          - ${KAFKA_CONSUMER_TOPIC_PAYMENT_RESULTS}
+          - ${KAFKA_CONSUMER_TOPIC_INSTALLMENT_PAYMENT_SESSIONS}
+          - ${KAFKA_CONSUMER_TOPIC_INSTALLMENT_PAYMENT_RECONCILIATION_RESULTS}
+        initial_offset: ${KAFKA_CONSUMER_INITIAL_OFFSET}
+        allow_newest_initial_offset: ${KAFKA_CONSUMER_ALLOW_NEWEST_INITIAL_OFFSET}
+        retry_initial_backoff: ${KAFKA_CONSUMER_RETRY_INITIAL_BACKOFF}
+        retry_max_backoff: ${KAFKA_CONSUMER_RETRY_MAX_BACKOFF}
+        quarantine_topic: ${KAFKA_CONSUMER_QUARANTINE_TOPIC}
+
+  circuit_breaker:
+    provider: ${CIRCUIT_BREAKER_PROVIDER}
+
+    noop:
+
+    gobreaker:
+      max_requests: ${CIRCUIT_BREAKER_GOBREAKER_MAX_REQUESTS}
+      interval: ${CIRCUIT_BREAKER_GOBREAKER_INTERVAL}
+      timeout: ${CIRCUIT_BREAKER_GOBREAKER_TIMEOUT}
+      failure_threshold: ${CIRCUIT_BREAKER_GOBREAKER_FAILURE_THRESHOLD}
+
+  task:
+    provider: ${TASK_PROVIDER}
+
+    noop:
+
+    inprocess:
+      default_timezone: ${TASK_INPROCESS_DEFAULT_TIMEZONE}
+      max_concurrent_runs: ${TASK_INPROCESS_MAX_CONCURRENT_RUNS}
+
+    temporal:
+      address: ${TASK_TEMPORAL_ADDRESS}
+      namespace: ${TASK_TEMPORAL_NAMESPACE}
+      task_queue: ${TASK_TEMPORAL_TASK_QUEUE}
+      activity_start_to_close_timeout: ${TASK_TEMPORAL_ACTIVITY_START_TO_CLOSE_TIMEOUT}
+      worker:
+        max_concurrent_activities: ${TASK_TEMPORAL_MAX_CONCURRENT_ACTIVITIES}
+        max_concurrent_workflow_tasks: ${TASK_TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASKS}
+      tls:
+        enabled: ${TASK_TEMPORAL_TLS_ENABLED}
+        server_name: ${TASK_TEMPORAL_TLS_SERVER_NAME}
+
+    # The composite provider is intentionally fixed to inprocess + temporal.
+    # Per-task execution routing is configured under scheduled.*.execution.
+    composite:
+
+    scheduled:
+      runtime_goroutine_metrics:
+        enabled: ${TASK_RUNTIME_GOROUTINE_METRICS_ENABLED}
+        execution: ${TASK_RUNTIME_GOROUTINE_METRICS_EXECUTION}
+        handler: ${TASK_RUNTIME_GOROUTINE_METRICS_HANDLER}
+        trigger:
+          type: ${TASK_RUNTIME_GOROUTINE_METRICS_TRIGGER_TYPE}
+          cron: ${TASK_RUNTIME_GOROUTINE_METRICS_CRON}
+          timezone: ${TASK_RUNTIME_GOROUTINE_METRICS_TIMEZONE}
+          interval: ${TASK_RUNTIME_GOROUTINE_METRICS_INTERVAL}
+          run_on_start: ${TASK_RUNTIME_GOROUTINE_METRICS_RUN_ON_START}
+
+      outbox_publisher:
+        enabled: ${TASK_OUTBOX_PUBLISHER_ENABLED}
+        execution: ${TASK_OUTBOX_PUBLISHER_EXECUTION}
+        handler: ${TASK_OUTBOX_PUBLISHER_HANDLER}
+        trigger:
+          type: ${TASK_OUTBOX_PUBLISHER_TRIGGER_TYPE}
+          cron: ${TASK_OUTBOX_PUBLISHER_CRON}
+          timezone: ${TASK_OUTBOX_PUBLISHER_TIMEZONE}
+          interval: ${TASK_OUTBOX_PUBLISHER_INTERVAL}
+          run_on_start: ${TASK_OUTBOX_PUBLISHER_RUN_ON_START}
+
+      installment_offer_expiry:
+        enabled: ${TASK_INSTALLMENT_OFFER_EXPIRY_ENABLED}
+        execution: ${TASK_INSTALLMENT_OFFER_EXPIRY_EXECUTION}
+        handler: ${TASK_INSTALLMENT_OFFER_EXPIRY_HANDLER}
+        trigger:
+          type: ${TASK_INSTALLMENT_OFFER_EXPIRY_TRIGGER_TYPE}
+          cron: ${TASK_INSTALLMENT_OFFER_EXPIRY_CRON}
+          timezone: ${TASK_INSTALLMENT_OFFER_EXPIRY_TIMEZONE}
+          interval: ${TASK_INSTALLMENT_OFFER_EXPIRY_INTERVAL}
+          run_on_start: ${TASK_INSTALLMENT_OFFER_EXPIRY_RUN_ON_START}
+
+      contract_payment_pending_expiry:
+        enabled: ${TASK_CONTRACT_PAYMENT_PENDING_EXPIRY_ENABLED}
+        execution: ${TASK_CONTRACT_PAYMENT_PENDING_EXPIRY_EXECUTION}
+        handler: ${TASK_CONTRACT_PAYMENT_PENDING_EXPIRY_HANDLER}
+        trigger:
+          type: ${TASK_CONTRACT_PAYMENT_PENDING_EXPIRY_TRIGGER_TYPE}
+          cron: ${TASK_CONTRACT_PAYMENT_PENDING_EXPIRY_CRON}
+          timezone: ${TASK_CONTRACT_PAYMENT_PENDING_EXPIRY_TIMEZONE}
+          interval: ${TASK_CONTRACT_PAYMENT_PENDING_EXPIRY_INTERVAL}
+          run_on_start: ${TASK_CONTRACT_PAYMENT_PENDING_EXPIRY_RUN_ON_START}
+
+      checkout_session_expiry:
+        enabled: ${TASK_CHECKOUT_SESSION_EXPIRY_ENABLED}
+        execution: ${TASK_CHECKOUT_SESSION_EXPIRY_EXECUTION}
+        handler: ${TASK_CHECKOUT_SESSION_EXPIRY_HANDLER}
+        trigger:
+          type: ${TASK_CHECKOUT_SESSION_EXPIRY_TRIGGER_TYPE}
+          cron: ${TASK_CHECKOUT_SESSION_EXPIRY_CRON}
+          timezone: ${TASK_CHECKOUT_SESSION_EXPIRY_TIMEZONE}
+          interval: ${TASK_CHECKOUT_SESSION_EXPIRY_INTERVAL}
+          run_on_start: ${TASK_CHECKOUT_SESSION_EXPIRY_RUN_ON_START}
+
+      checkout_session_confirming_recovery:
+        enabled: ${TASK_CHECKOUT_SESSION_CONFIRMING_RECOVERY_ENABLED}
+        execution: ${TASK_CHECKOUT_SESSION_CONFIRMING_RECOVERY_EXECUTION}
+        handler: ${TASK_CHECKOUT_SESSION_CONFIRMING_RECOVERY_HANDLER}
+        trigger:
+          type: ${TASK_CHECKOUT_SESSION_CONFIRMING_RECOVERY_TRIGGER_TYPE}
+          cron: ${TASK_CHECKOUT_SESSION_CONFIRMING_RECOVERY_CRON}
+          timezone: ${TASK_CHECKOUT_SESSION_CONFIRMING_RECOVERY_TIMEZONE}
+          interval: ${TASK_CHECKOUT_SESSION_CONFIRMING_RECOVERY_INTERVAL}
+          run_on_start: ${TASK_CHECKOUT_SESSION_CONFIRMING_RECOVERY_RUN_ON_START}
+
+      merchant_terminal_issuance_scrub:
+        enabled: ${TASK_MERCHANT_TERMINAL_ISSUANCE_SCRUB_ENABLED}
+        execution: ${TASK_MERCHANT_TERMINAL_ISSUANCE_SCRUB_EXECUTION}
+        handler: ${TASK_MERCHANT_TERMINAL_ISSUANCE_SCRUB_HANDLER}
+        trigger:
+          type: ${TASK_MERCHANT_TERMINAL_ISSUANCE_SCRUB_TRIGGER_TYPE}
+          cron: ${TASK_MERCHANT_TERMINAL_ISSUANCE_SCRUB_CRON}
+          timezone: ${TASK_MERCHANT_TERMINAL_ISSUANCE_SCRUB_TIMEZONE}
+          interval: ${TASK_MERCHANT_TERMINAL_ISSUANCE_SCRUB_INTERVAL}
+          run_on_start: ${TASK_MERCHANT_TERMINAL_ISSUANCE_SCRUB_RUN_ON_START}
+
+      saga_executor:
+        enabled: ${TASK_SAGA_EXECUTOR_ENABLED}
+        execution: ${TASK_SAGA_EXECUTOR_EXECUTION}
+        handler: ${TASK_SAGA_EXECUTOR_HANDLER}
+        trigger:
+          type: ${TASK_SAGA_EXECUTOR_TRIGGER_TYPE}
+          cron: ${TASK_SAGA_EXECUTOR_CRON}
+          timezone: ${TASK_SAGA_EXECUTOR_TIMEZONE}
+          interval: ${TASK_SAGA_EXECUTOR_INTERVAL}
+          run_on_start: ${TASK_SAGA_EXECUTOR_RUN_ON_START}
+
+      installment_mark_due:
+        enabled: ${TASK_INSTALLMENT_MARK_DUE_ENABLED}
+        execution: ${TASK_INSTALLMENT_MARK_DUE_EXECUTION}
+        handler: ${TASK_INSTALLMENT_MARK_DUE_HANDLER}
+        trigger:
+          type: ${TASK_INSTALLMENT_MARK_DUE_TRIGGER_TYPE}
+          cron: ${TASK_INSTALLMENT_MARK_DUE_CRON}
+          timezone: ${TASK_INSTALLMENT_MARK_DUE_TIMEZONE}
+          interval: ${TASK_INSTALLMENT_MARK_DUE_INTERVAL}
+          run_on_start: ${TASK_INSTALLMENT_MARK_DUE_RUN_ON_START}
+
+      installment_mark_overdue:
+        enabled: ${TASK_INSTALLMENT_MARK_OVERDUE_ENABLED}
+        execution: ${TASK_INSTALLMENT_MARK_OVERDUE_EXECUTION}
+        handler: ${TASK_INSTALLMENT_MARK_OVERDUE_HANDLER}
+        trigger:
+          type: ${TASK_INSTALLMENT_MARK_OVERDUE_TRIGGER_TYPE}
+          cron: ${TASK_INSTALLMENT_MARK_OVERDUE_CRON}
+          timezone: ${TASK_INSTALLMENT_MARK_OVERDUE_TIMEZONE}
+          interval: ${TASK_INSTALLMENT_MARK_OVERDUE_INTERVAL}
+          run_on_start: ${TASK_INSTALLMENT_MARK_OVERDUE_RUN_ON_START}
+
+      payment_attempt_reconciliation:
+        enabled: ${TASK_PAYMENT_ATTEMPT_RECONCILIATION_ENABLED}
+        execution: ${TASK_PAYMENT_ATTEMPT_RECONCILIATION_EXECUTION}
+        handler: ${TASK_PAYMENT_ATTEMPT_RECONCILIATION_HANDLER}
+        trigger:
+          type: ${TASK_PAYMENT_ATTEMPT_RECONCILIATION_TRIGGER_TYPE}
+          cron: ${TASK_PAYMENT_ATTEMPT_RECONCILIATION_CRON}
+          timezone: ${TASK_PAYMENT_ATTEMPT_RECONCILIATION_TIMEZONE}
+          interval: ${TASK_PAYMENT_ATTEMPT_RECONCILIATION_INTERVAL}
+          run_on_start: ${TASK_PAYMENT_ATTEMPT_RECONCILIATION_RUN_ON_START}
+
+      repayment_reminder_dispatch:
+        enabled: ${TASK_REPAYMENT_REMINDER_DISPATCH_ENABLED}
+        execution: ${TASK_REPAYMENT_REMINDER_DISPATCH_EXECUTION}
+        handler: ${TASK_REPAYMENT_REMINDER_DISPATCH_HANDLER}
+        trigger:
+          type: ${TASK_REPAYMENT_REMINDER_DISPATCH_TRIGGER_TYPE}
+          cron: ${TASK_REPAYMENT_REMINDER_DISPATCH_CRON}
+          timezone: ${TASK_REPAYMENT_REMINDER_DISPATCH_TIMEZONE}
+          interval: ${TASK_REPAYMENT_REMINDER_DISPATCH_INTERVAL}
+          run_on_start: ${TASK_REPAYMENT_REMINDER_DISPATCH_RUN_ON_START}
+
+      collections_assessment:
+        enabled: ${TASK_COLLECTIONS_ASSESSMENT_ENABLED}
+        execution: ${TASK_COLLECTIONS_ASSESSMENT_EXECUTION}
+        handler: ${TASK_COLLECTIONS_ASSESSMENT_HANDLER}
+        trigger:
+          type: ${TASK_COLLECTIONS_ASSESSMENT_TRIGGER_TYPE}
+          cron: ${TASK_COLLECTIONS_ASSESSMENT_CRON}
+          timezone: ${TASK_COLLECTIONS_ASSESSMENT_TIMEZONE}
+          interval: ${TASK_COLLECTIONS_ASSESSMENT_INTERVAL}
+          run_on_start: ${TASK_COLLECTIONS_ASSESSMENT_RUN_ON_START}
+
+external:
+  credit_assessment:
+    provider: ${EXTERNAL_CREDIT_ASSESSMENT_PROVIDER}
+
+    noop:
+
+    creditbureau:
+      # future settings live here
+
+  webhook_dispatcher:
+    provider: ${EXTERNAL_WEBHOOK_DISPATCHER_PROVIDER}
+
+    noop:
+
+    http:
+      timeout: ${EXTERNAL_WEBHOOK_DISPATCHER_HTTP_TIMEOUT}
+      dial_timeout: ${EXTERNAL_WEBHOOK_DISPATCHER_HTTP_DIAL_TIMEOUT}
+      max_response_bytes: ${EXTERNAL_WEBHOOK_DISPATCHER_HTTP_MAX_RESPONSE_BYTES}
+
+  financial_core:
+    provider: ${EXTERNAL_FINANCIAL_CORE_PROVIDER}
+    payment_return_url: ${FINANCIAL_CORE_PAYMENT_RETURN_URL}
+
+    noop:
+
+    grpc:
+      address: ${EXTERNAL_FINANCIAL_CORE_GRPC_ADDRESS}
+      timeout: ${EXTERNAL_FINANCIAL_CORE_GRPC_TIMEOUT}
+      insecure: ${EXTERNAL_FINANCIAL_CORE_GRPC_INSECURE}
+
+  customer:
+    provider: ${EXTERNAL_CUSTOMER_PROVIDER}
+
+    noop:
+
+    grpc:
+      address: ${EXTERNAL_CUSTOMER_GRPC_ADDRESS}
+      timeout: ${EXTERNAL_CUSTOMER_GRPC_TIMEOUT}
+      insecure: ${EXTERNAL_CUSTOMER_GRPC_INSECURE}
+
+  notification:
+    provider: ${EXTERNAL_NOTIFICATION_PROVIDER}
+
+    noop:
+
+    grpc:
+      address: ${EXTERNAL_NOTIFICATION_GRPC_ADDRESS}
+      timeout: ${EXTERNAL_NOTIFICATION_GRPC_TIMEOUT}
+      insecure: ${EXTERNAL_NOTIFICATION_GRPC_INSECURE}
+
+  bot_messaging:
+    # Noop is mutually exclusive with Telegram/Bale. Telegram and Bale may both
+    # be enabled so one process can listen and send through both providers.
+    noop:
+      enabled: ${EXTERNAL_BOT_MESSAGING_NOOP_ENABLED}
+
+    telegram:
+      enabled: ${EXTERNAL_BOT_MESSAGING_TELEGRAM_ENABLED}
+      token: ${EXTERNAL_BOT_MESSAGING_TELEGRAM_TOKEN}
+      poll_timeout: ${EXTERNAL_BOT_MESSAGING_TELEGRAM_POLL_TIMEOUT}
+      retry_base_delay: ${EXTERNAL_BOT_MESSAGING_TELEGRAM_RETRY_BASE_DELAY}
+      retry_max_delay: ${EXTERNAL_BOT_MESSAGING_TELEGRAM_RETRY_MAX_DELAY}
+
+    bale:
+      enabled: ${EXTERNAL_BOT_MESSAGING_BALE_ENABLED}
+      token: ${EXTERNAL_BOT_MESSAGING_BALE_TOKEN}
+      poll_timeout: ${EXTERNAL_BOT_MESSAGING_BALE_POLL_TIMEOUT}
+      retry_base_delay: ${EXTERNAL_BOT_MESSAGING_BALE_RETRY_BASE_DELAY}
+      retry_max_delay: ${EXTERNAL_BOT_MESSAGING_BALE_RETRY_MAX_DELAY}
+
+versions:
+  # semantic version of the database schema
+  database: 0.2.0
+  # semantic version of the configuration file itself
+  config: 0.3.0

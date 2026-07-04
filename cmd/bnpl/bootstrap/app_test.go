@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
+	testifymock "github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+
 	"github.com/parstis/bnpl-backend/pkg/adapter/config"
 	"github.com/parstis/bnpl-backend/pkg/core/mock"
 	"github.com/parstis/bnpl-backend/pkg/core/task"
-	testifymock "github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 )
 
 func testRegisterTasksApp(t *testing.T, cfg *config.Config, runtime *mock.Runtime) *App {
@@ -25,10 +26,17 @@ func testRegisterTasksApp(t *testing.T, cfg *config.Config, runtime *mock.Runtim
 	return app
 }
 
-func TestRegisterTasks_DisabledTasksSkipped(t *testing.T) {
+func expectDisabledTaskRegistrations(runtime *mock.Runtime, count int) {
+	runtime.EXPECT().Register(testifymock.MatchedBy(func(registered task.Task) bool {
+		return !registered.Enabled && registered.Job == nil
+	})).Return(nil).Times(count)
+}
+
+func TestRegisterTasks_DisabledTasksRegisteredAsMetadata(t *testing.T) {
 	t.Parallel()
 
 	runtime := mock.NewRuntime(t)
+	expectDisabledTaskRegistrations(runtime, 13)
 	app := testRegisterTasksApp(t, noopTestConfig(), runtime)
 
 	err := app.RegisterTasks()
@@ -49,6 +57,7 @@ func TestRegisterTasks_EnabledTaskRegisters(t *testing.T) {
 	}
 
 	runtime := mock.NewRuntime(t)
+	expectDisabledTaskRegistrations(runtime, 12)
 	runtime.EXPECT().Register(testifymock.MatchedBy(func(registered task.Task) bool {
 		return registered.Name == "outbox_publisher" &&
 			registered.Handler == "outbox_publisher" &&
@@ -78,6 +87,7 @@ func TestRegisterTasks_InvalidTriggerReturnsError(t *testing.T) {
 	}
 
 	runtime := mock.NewRuntime(t)
+	expectDisabledTaskRegistrations(runtime, 1)
 	app := testRegisterTasksApp(t, cfg, runtime)
 
 	err := app.RegisterTasks()
@@ -98,6 +108,7 @@ func TestRegisterTasks_UnknownHandlerReturnsError(t *testing.T) {
 	}
 
 	runtime := mock.NewRuntime(t)
+	expectDisabledTaskRegistrations(runtime, 1)
 	app := testRegisterTasksApp(t, cfg, runtime)
 
 	err := app.RegisterTasks()
@@ -120,12 +131,15 @@ func TestRegisterTasks_RegisterFailureReturnsError(t *testing.T) {
 
 	registerErr := errors.New("register failed")
 	runtime := mock.NewRuntime(t)
-	runtime.EXPECT().Register(testifymock.Anything).Return(registerErr).Once()
+	expectDisabledTaskRegistrations(runtime, 1)
+	runtime.EXPECT().Register(testifymock.MatchedBy(func(registered task.Task) bool {
+		return registered.Enabled && registered.Name == "outbox_publisher"
+	})).Return(registerErr).Once()
 
 	app := testRegisterTasksApp(t, cfg, runtime)
 
 	err := app.RegisterTasks()
 	require.Error(t, err)
 	require.ErrorIs(t, err, registerErr)
-	require.ErrorContains(t, err, "register task")
+	require.ErrorContains(t, err, "register new task")
 }

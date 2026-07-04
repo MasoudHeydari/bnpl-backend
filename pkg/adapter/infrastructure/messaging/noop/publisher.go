@@ -24,6 +24,7 @@ func (p *Publisher) Publish(ctx context.Context, _ string, _ messaging.Message) 
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
+
 	default:
 		return nil
 	}

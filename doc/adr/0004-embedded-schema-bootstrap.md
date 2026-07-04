@@ -43,7 +43,7 @@ Bootstrap SQL is separate from filesystem migrations consumed by `db migrate` (`
 
 **Operational impact**
 
-- Docker entrypoint runs bootstrap before every container start unless `DB_INIT_COMMAND` is changed or entrypoint is overridden.
+- Docker entrypoint starts the application only; bootstrap is a separate CLI/Make command.
 - Bootstrap is destructive (drops schema); see ADR 0008.
 
 ## Alternatives Considered
@@ -66,7 +66,7 @@ Bootstrap SQL will eventually create base platform tables shared by all domains 
 
 Seed data distinctions:
 
-- `000_dev.sql` — synthetic merchants, test borrowers, fixture credit limits (future).
+- `000_dev.sql` — synthetic merchants, test customers, fixture credit limits (future).
 - `000_prod.sql` — minimal reference data only; no synthetic PII (future).
 
 Until non-destructive migration workflows exist, embedded bootstrap remains appropriate for greenfield and development resets only.

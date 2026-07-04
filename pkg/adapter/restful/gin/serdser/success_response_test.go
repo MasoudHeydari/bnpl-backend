@@ -8,18 +8,78 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	corepagination "github.com/parstis/bnpl-backend/pkg/core/pagination"
-	"github.com/parstis/bnpl-backend/pkg/core/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/parstis/bnpl-backend/pkg/adapter/restful/header"
+	resti18n "github.com/parstis/bnpl-backend/pkg/adapter/restful/i18n"
+	i18nbuiltin "github.com/parstis/bnpl-backend/pkg/adapter/restful/i18n/builtin"
+	corepagination "github.com/parstis/bnpl-backend/pkg/core/pagination"
+	"github.com/parstis/bnpl-backend/pkg/core/trace"
 )
+
+func TestSuccessMessageKeys_AreLocalizedInEnglishAndPersian(t *testing.T) {
+	t.Parallel()
+
+	localizer, err := i18nbuiltin.New(resti18n.LocaleENUS)
+	require.NoError(t, err)
+
+	keys := []SuccessMessageKey{
+		SuccessMessageDefault,
+		SuccessMessageActiveContractsListed,
+		SuccessMessageCustomerCreditNotAssigned,
+		SuccessMessageCustomerCreditExpired,
+		SuccessMessageCustomerCreditSummaryReturned,
+		SuccessMessageCheckoutDecisionAlreadyExists,
+		SuccessMessageCheckoutDecisionCreated,
+		SuccessMessageContractInstallmentsListed,
+		SuccessMessageInitialCustomerCreditLimitAssigned,
+		SuccessMessageInitialCustomerCreditLimitAssignmentDenied,
+		SuccessMessageInitialCustomerCreditLimitAlreadyActive,
+		SuccessMessageInstallmentPaymentAttemptAlreadyExists,
+		SuccessMessageInstallmentPaymentAttemptQueued,
+		SuccessMessageInstallmentPaymentHistoryListed,
+		SuccessMessageMerchantBranchesListed,
+		SuccessMessageMerchantProfileReturned,
+		SuccessMessageMerchantSalesListed,
+		SuccessMessageContractAlreadyExists,
+		SuccessMessageContractCreated,
+		SuccessMessageUnpaidInstallmentsListed,
+	}
+
+	for _, locale := range []resti18n.Locale{resti18n.LocaleENUS, resti18n.LocaleFAIR} {
+		for _, key := range keys {
+			message, localizeErr := localizer.Localize(locale, key.String(), nil)
+			require.NoError(
+				t,
+				localizeErr,
+				"locale=%s key=%s",
+				locale,
+				key.String(),
+			)
+			assert.NotEmpty(
+				t,
+				message,
+				"locale=%s key=%s",
+				locale,
+				key.String(),
+			)
+		}
+	}
+}
 
 func TestSer_IncludesTraceMetadata(t *testing.T) {
 	t.Parallel()
 
 	c, w := newSuccessContext("trace-1", "request-1", "correlation-1")
 
-	Ser(c, http.StatusOK, SuccessCodeHealthOK, "healthy", map[string]string{"status": "UP"})
+	Ser(
+		c,
+		http.StatusOK,
+		SuccessCodeHealthOK,
+		SuccessMessageDefault,
+		map[string]string{"status": "UP"},
+	)
 
 	var resp SuccessResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
@@ -30,7 +90,7 @@ func TestSer_IncludesTraceMetadata(t *testing.T) {
 	assert.Equal(t, "UP", data["status"])
 	assert.Equal(t, "success", resp.Meta.Status)
 	assert.Equal(t, string(SuccessCodeHealthOK), resp.Meta.Code)
-	assert.Equal(t, "healthy", resp.Meta.Message)
+	assert.Equal(t, "Request completed successfully.", resp.Meta.Message)
 	assert.Equal(t, http.StatusOK, resp.Meta.StatusCode)
 	assert.Equal(t, "trace-1", resp.Meta.TraceID)
 	assert.Equal(t, "request-1", resp.Meta.RequestID)
@@ -40,12 +100,86 @@ func TestSer_IncludesTraceMetadata(t *testing.T) {
 	assert.Nil(t, resp.Meta.Pagination)
 }
 
+func TestSer_LocalizesSuccessfulResponseFromLangHeader(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+
+	localizer, err := i18nbuiltin.New(resti18n.LocaleENUS)
+	require.NoError(t, err)
+
+	engine := gin.New()
+	engine.Use(testLanguageMiddleware(localizer, resti18n.LocaleENUS))
+	engine.GET("/customer-credit", func(c *gin.Context) {
+		Ser(
+			c,
+			http.StatusOK,
+			SuccessCodeCustomerCreditNotAssigned,
+			SuccessMessageCustomerCreditNotAssigned,
+			map[string]string{"status": "not_assigned"},
+		)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/customer-credit", nil)
+	req.Header.Set(header.Language, "fa-IR")
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+
+	var resp SuccessResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "fa-IR", rec.Header().Get(header.ContentLanguage))
+	assert.Equal(t, "success", resp.Meta.Status)
+	assert.Equal(t, string(SuccessCodeCustomerCreditNotAssigned), resp.Meta.Code)
+	assert.Equal(t, "اعتباری برای مشتری تخصیص داده نشده است؛ ارزیابی اعتبار لازم است.", resp.Meta.Message)
+
+	data, ok := resp.Data.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "not_assigned", data["status"])
+}
+
+func TestSer_LocalizesSuccessfulResponseFromAcceptLanguageHeader(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+
+	localizer, err := i18nbuiltin.New(resti18n.LocaleENUS)
+	require.NoError(t, err)
+
+	engine := gin.New()
+	engine.Use(testLanguageMiddleware(localizer, resti18n.LocaleENUS))
+	engine.GET("/", func(c *gin.Context) {
+		Ser(
+			c,
+			http.StatusOK,
+			SuccessCodeMerchantProfileRetrieved,
+			SuccessMessageMerchantProfileReturned,
+			nil,
+		)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set(header.AcceptLanguage, "fa-IR")
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+
+	var resp SuccessResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.Equal(t, "fa-IR", rec.Header().Get(header.ContentLanguage))
+	assert.Equal(t, "پروفایل پذیرنده دریافت شد.", resp.Meta.Message)
+}
+
 func TestSer_OmitsEmptyCorrelationID(t *testing.T) {
 	t.Parallel()
 
 	c, w := newSuccessContext("trace-1", "request-1", "")
 
-	Ser(c, http.StatusOK, SuccessCodeHealthOK, "healthy", nil)
+	Ser(
+		c,
+		http.StatusOK,
+		SuccessCodeHealthOK,
+		SuccessMessageDefault,
+		nil,
+	)
 
 	var raw map[string]any
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &raw))
@@ -73,7 +207,13 @@ func TestSerPage_IncludesPagePagination(t *testing.T) {
 		},
 	}
 
-	SerPage(c, http.StatusOK, SuccessCodeInstallmentsListed, "listed", page)
+	SerPage(
+		c,
+		http.StatusOK,
+		SuccessCodeInstallmentsListed,
+		SuccessMessageContractInstallmentsListed,
+		page,
+	)
 
 	var resp SuccessResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
@@ -109,7 +249,13 @@ func TestSerCursor_IncludesCursorPagination(t *testing.T) {
 		},
 	}
 
-	SerCursor(c, http.StatusOK, SuccessCodeInstallmentsListed, "listed", page)
+	SerCursor(
+		c,
+		http.StatusOK,
+		SuccessCodeInstallmentsListed,
+		SuccessMessageContractInstallmentsListed,
+		page,
+	)
 
 	var resp SuccessResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
@@ -142,7 +288,13 @@ func TestSerKeyset_IncludesKeysetPagination(t *testing.T) {
 		},
 	}
 
-	SerKeyset(c, http.StatusOK, SuccessCodeInstallmentsListed, "listed", page)
+	SerKeyset(
+		c,
+		http.StatusOK,
+		SuccessCodeInstallmentsListed,
+		SuccessMessageContractInstallmentsListed,
+		page,
+	)
 
 	var resp SuccessResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
@@ -166,7 +318,7 @@ func newSuccessContext(traceID, requestID, correlationID string) (*gin.Context, 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 
-	ctx := context.Background()
+	ctx := withTestLocalization(context.Background(), resti18n.LocaleENUS)
 	ctx = trace.WithTraceID(ctx, traceID)
 	ctx = trace.WithRequestID(ctx, requestID)
 	if correlationID != "" {
@@ -177,4 +329,19 @@ func newSuccessContext(traceID, requestID, correlationID string) (*gin.Context, 
 	c.Request = req
 
 	return c, w
+}
+
+func testLanguageMiddleware(localizer resti18n.Localizer, defaultLocale resti18n.Locale) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		locale := resti18n.ResolveLocale(
+			c.GetHeader(header.AcceptLanguage),
+			c.GetHeader(header.Language),
+			defaultLocale,
+		)
+
+		ctx := resti18n.WithRequestState(c.Request.Context(), locale, localizer)
+		c.Request = c.Request.WithContext(ctx)
+		c.Header(header.ContentLanguage, locale.String())
+		c.Next()
+	}
 }

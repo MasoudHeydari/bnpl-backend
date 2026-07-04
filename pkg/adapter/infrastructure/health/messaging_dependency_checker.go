@@ -35,12 +35,14 @@ func NewMessagingDependencyChecker(
 // Check verifies that Kafka is reachable and able to serve lightweight
 // requests.
 func (c *MessagingDependencyChecker) Check(ctx context.Context) error {
+	const op = "health.MessagingDependencyChecker.Check"
+
 	if c.health == nil {
 		return nil
 	}
 
 	if err := c.health.Ping(ctx); err != nil {
-		return cerr.ServiceUnavailable(fmt.Errorf("kafka: %w", err))
+		return cerr.ServiceUnavailable(fmt.Errorf("%s: kafka: %w", op, err))
 	}
 
 	return nil

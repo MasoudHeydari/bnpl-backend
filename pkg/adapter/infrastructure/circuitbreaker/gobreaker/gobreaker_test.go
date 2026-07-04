@@ -25,7 +25,6 @@ func TestCircuitBreaker_Execute_runsFunctionWhenClosed(t *testing.T) {
 		called = true
 		return nil
 	})
-
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -113,7 +112,6 @@ func TestCircuitBreaker_Execute_keepsIndependentStatePerName(t *testing.T) {
 		called = true
 		return nil
 	})
-
 	if err != nil {
 		t.Fatalf("expected dependency-b to remain closed, got %v", err)
 	}

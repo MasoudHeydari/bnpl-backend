@@ -6,23 +6,74 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	adaptercache "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/cache"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/circuitbreaker"
+	adapterclock "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/clock"
+	errorreportingnoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/errorreporting/noop"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/health"
+	adapterhttpclient "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/httpclient"
 	adapterlog "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log"
+	lognoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/noop"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/messaging"
+	metricsnoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/metrics/noop"
 	taskadapter "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task"
 	"github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/mock"
 	"github.com/parstis/bnpl-backend/pkg/core/task"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
+
+func TestHTTPClient_newHTTPClientInfrastructure_UnknownProvider(t *testing.T) {
+	t.Parallel()
+
+	_, err := (HTTPClient{Provider: "unknown"}).newHTTPClientInfrastructure(
+		adapterclock.NewSystem(time.UTC, time.UTC),
+		lognoop.New(),
+		metricsnoop.New(),
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `unsupported http client provider: "unknown"`)
+}
+
+func TestHTTPClient_newHTTPClientInfrastructure_Noop(t *testing.T) {
+	t.Parallel()
+
+	metrics := metricsnoop.New()
+	httpMetrics := metrics
+
+	client, err := (HTTPClient{Provider: adapterhttpclient.NoopProvider}).newHTTPClientInfrastructure(
+		adapterclock.NewSystem(time.UTC, time.UTC),
+		lognoop.New(),
+		httpMetrics,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, client)
+	require.NoError(t, client.Close())
+}
+
+func TestHTTPClient_newHTTPClientInfrastructure_Standard(t *testing.T) {
+	t.Parallel()
+
+	metrics := metricsnoop.New()
+	httpMetrics := metrics
+
+	cfg := validHTTPClient()
+	client, err := cfg.newHTTPClientInfrastructure(
+		adapterclock.NewSystem(time.UTC, time.UTC),
+		lognoop.New(),
+		httpMetrics,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, client)
+	require.NoError(t, client.Close())
+}
 
 func TestCache_newCacheInfrastructure_UnknownProvider(t *testing.T) {
 	t.Parallel()
 
-	_, err := (Cache{Provider: "memcached"}).newCacheInfrastructure()
+	_, err := (Cache{Provider: "memcached"}).newCacheInfrastructure(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `unsupported cache provider: "memcached"`)
 }
@@ -30,7 +81,7 @@ func TestCache_newCacheInfrastructure_UnknownProvider(t *testing.T) {
 func TestCache_newNoopCacheInfrastructure(t *testing.T) {
 	t.Parallel()
 
-	cacheInfra, err := (Cache{Provider: adaptercache.NoopProvider}).newCacheInfrastructure()
+	cacheInfra, err := (Cache{Provider: adaptercache.NoopProvider}).newCacheInfrastructure(context.Background())
 	require.NoError(t, err)
 	require.NotNil(t, cacheInfra)
 }
@@ -40,7 +91,7 @@ func TestCache_newRedisInfrastructure_EmptyAddr(t *testing.T) {
 
 	_, err := (Cache{
 		Provider: adaptercache.RedisProvider,
-	}).newRedisInfrastructure()
+	}).newRedisInfrastructure(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid cache.redis.addr: empty")
 }
@@ -59,7 +110,7 @@ func TestCache_newRedisInfrastructure_Miniredis(t *testing.T) {
 			DialTimeout: time.Second,
 			ReadTimeout: time.Second,
 		},
-	}).newCacheInfrastructure()
+	}).newCacheInfrastructure(context.Background())
 	require.NoError(t, err)
 	require.NotNil(t, cacheInfra)
 
@@ -78,7 +129,7 @@ func TestCache_newRedisInfrastructure_UnreachableAddr(t *testing.T) {
 			Addr:        "127.0.0.1:1",
 			DialTimeout: 100 * time.Millisecond,
 		},
-	}).newCacheInfrastructure()
+	}).newCacheInfrastructure(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "connect redis cache")
 }
@@ -105,9 +156,48 @@ func TestMessaging_newPublisherInfrastructure_KafkaEmptyBrokers(t *testing.T) {
 
 	_, err := (Messaging{
 		Provider: messaging.KafkaProvider,
-		Kafka:    Kafka{Brokers: []string{}},
+		Kafka: Kafka{
+			Brokers: []string{},
+			Topics: Topics{
+				PaymentResults:            "financial-core.payment-results",
+				PaymentApplicationResults: "financial_core.payment_application_results",
+			},
+		},
 	}).newPublisherInfrastructure()
 	require.Error(t, err)
+}
+
+func TestMessaging_validateKafkaTopics_MissingPaymentApplicationResults(t *testing.T) {
+	t.Parallel()
+
+	err := (Messaging{
+		Provider: messaging.KafkaProvider,
+		Kafka: Kafka{
+			Topics: Topics{
+				PaymentResults: "financial-core.payment-results",
+			},
+		},
+	}).validateKafkaTopics()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "payment_application_results")
+}
+
+func TestConfig_PaymentApplicationResultsTopic(t *testing.T) {
+	t.Parallel()
+
+	cfg := &Config{
+		Infrastructure: Infrastructure{
+			Messaging: Messaging{
+				Kafka: Kafka{
+					Topics: Topics{
+						PaymentApplicationResults: "financial_core.payment_application_results",
+					},
+				},
+			},
+		},
+	}
+
+	assert.Equal(t, "financial_core.payment_application_results", cfg.PaymentApplicationResultsTopic())
 }
 
 func TestMessaging_newSubscriberInfrastructure_UnknownProvider(t *testing.T) {
@@ -115,7 +205,7 @@ func TestMessaging_newSubscriberInfrastructure_UnknownProvider(t *testing.T) {
 
 	logger := mock.NewLogger(t)
 
-	_, err := (Messaging{Provider: "nats"}).newSubscriberInfrastructure(logger)
+	_, err := (Messaging{Provider: "nats"}).newSubscriberInfrastructure(logger, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `unsupported messaging provider: "nats"`)
 }
@@ -125,7 +215,7 @@ func TestMessaging_newSubscriberInfrastructure_Noop(t *testing.T) {
 
 	logger := mock.NewLogger(t)
 
-	subscriber, err := (Messaging{Provider: messaging.NoopProvider}).newSubscriberInfrastructure(logger)
+	subscriber, err := (Messaging{Provider: messaging.NoopProvider}).newSubscriberInfrastructure(logger, nil)
 	require.NoError(t, err)
 	require.NotNil(t, subscriber)
 	require.NoError(t, subscriber.Close())
@@ -139,7 +229,7 @@ func TestMessaging_newSubscriberInfrastructure_KafkaEmptyBrokers(t *testing.T) {
 	_, err := (Messaging{
 		Provider: messaging.KafkaProvider,
 		Kafka:    Kafka{Brokers: nil},
-	}).newSubscriberInfrastructure(logger)
+	}).newSubscriberInfrastructure(logger, nil)
 	require.Error(t, err)
 }
 
@@ -225,7 +315,7 @@ func TestTask_newTaskInfrastructure_UnknownProvider(t *testing.T) {
 
 	logger := mock.NewLogger(t)
 
-	_, err := (Task{Provider: "cron"}).newTaskInfrastructure(logger)
+	_, err := (Task{Provider: "cron"}).newTaskInfrastructure(logger, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `unsupported task provider: "cron"`)
 }
@@ -235,7 +325,7 @@ func TestTask_newNoopTaskInfrastructure(t *testing.T) {
 
 	logger := mock.NewLogger(t)
 
-	runtime, err := (Task{Provider: taskadapter.NoopProvider}).newTaskInfrastructure(logger)
+	runtime, err := (Task{Provider: taskadapter.NoopProvider}).newTaskInfrastructure(logger, nil)
 	require.NoError(t, err)
 	require.NotNil(t, runtime)
 }
@@ -250,7 +340,7 @@ func TestTask_newInProcessTaskInfrastructure(t *testing.T) {
 		InProcess: InProcess{
 			DefaultTimezone: "UTC",
 		},
-	}).newTaskInfrastructure(logger)
+	}).newTaskInfrastructure(logger, errorreportingnoop.New())
 	require.NoError(t, err)
 	require.NotNil(t, runtime)
 }
@@ -273,11 +363,31 @@ func TestTask_getTaskDefinitions(t *testing.T) {
 
 	definitions, err := taskCfg.getTaskDefinitions()
 	require.NoError(t, err)
-	require.Len(t, definitions, 2)
+	require.Len(t, definitions, 13)
 	assert.Equal(t, "runtime_goroutine_metrics", definitions[0].Name)
 	assert.True(t, definitions[0].Enabled)
 	assert.Equal(t, "outbox_publisher", definitions[1].Name)
 	assert.False(t, definitions[1].Enabled)
+	assert.Equal(t, "installment_offer_expiry", definitions[2].Name)
+	assert.False(t, definitions[2].Enabled)
+	assert.Equal(t, "contract_payment_pending_expiry", definitions[3].Name)
+	assert.False(t, definitions[3].Enabled)
+	assert.Equal(t, "checkout_session_expiry", definitions[4].Name)
+	assert.False(t, definitions[4].Enabled)
+	assert.Equal(t, "checkout_session_confirming_recovery", definitions[5].Name)
+	assert.False(t, definitions[5].Enabled)
+	assert.Equal(t, "merchant_terminal_issuance_scrub", definitions[6].Name)
+	assert.False(t, definitions[6].Enabled)
+	assert.Equal(t, "saga_executor", definitions[7].Name)
+	assert.False(t, definitions[7].Enabled)
+	assert.Equal(t, "installment_mark_due", definitions[8].Name)
+	assert.False(t, definitions[8].Enabled)
+	assert.Equal(t, "installment_mark_overdue", definitions[9].Name)
+	assert.False(t, definitions[9].Enabled)
+	assert.Equal(t, "payment_attempt_reconciliation", definitions[10].Name)
+	assert.False(t, definitions[10].Enabled)
+	assert.Equal(t, "repayment_reminder_dispatch", definitions[11].Name)
+	assert.False(t, definitions[11].Enabled)
 }
 
 func TestTaskTrigger_ToCore_InvalidInterval(t *testing.T) {
@@ -399,4 +509,19 @@ func TestHealthCheck_newDependencyCheckerInfrastructure_KnownChecks(t *testing.T
 	}).newDependencyCheckerInfrastructure(pool, healthRepo, cacheInfra, messagingHealth)
 	require.NoError(t, err)
 	require.NotNil(t, checker)
+}
+
+func TestConfig_NewTaskInfrastructure_ProductionRejectsNoop(t *testing.T) {
+	t.Parallel()
+
+	cfg := &Config{
+		Runtime: Runtime{Environment: "production"},
+		Infrastructure: Infrastructure{
+			Task: Task{Provider: taskadapter.NoopProvider},
+		},
+	}
+
+	_, err := cfg.NewTaskInfrastructure(mock.NewLogger(t), nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `task provider "noop" is not allowed in production`)
 }

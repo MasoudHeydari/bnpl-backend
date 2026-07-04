@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"github.com/gin-gonic/gin"
+
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/header"
 	"github.com/parstis/bnpl-backend/pkg/core/trace"
 )
@@ -33,6 +34,7 @@ func TraceID(provider trace.Provider) gin.HandlerFunc {
 		if traceID == "" {
 			traceID = provider.NewTraceID()
 		}
+
 		ctx = trace.WithTraceID(ctx, traceID)
 		c.Header(header.TraceID, traceID)
 
@@ -40,6 +42,7 @@ func TraceID(provider trace.Provider) gin.HandlerFunc {
 		if requestID == "" {
 			requestID = provider.NewRequestID()
 		}
+
 		ctx = trace.WithRequestID(ctx, requestID)
 		c.Header(header.RequestID, requestID)
 
@@ -47,6 +50,7 @@ func TraceID(provider trace.Provider) gin.HandlerFunc {
 		if correlationID == "" {
 			correlationID = provider.NewCorrelationID()
 		}
+
 		ctx = trace.WithCorrelationID(ctx, correlationID)
 		c.Header(header.CorrelationID, correlationID)
 

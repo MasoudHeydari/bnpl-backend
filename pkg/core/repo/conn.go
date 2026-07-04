@@ -10,11 +10,16 @@ type TxHandler func(context.Context, Tx) error
 // open transactions. Implementations are expected to be request-scoped rather
 // than shared freely across concurrent callers unless documented otherwise.
 type Conn interface {
+	// Queryer provides statement execution and row queries on the connection.
 	Queryer
 
 	// Tx executes handler inside a database transaction.
 	// The implementation is responsible for commit and rollback semantics.
 	Tx(ctx context.Context, handler TxHandler) error
+
+	// ReadSnapshot executes handler in one read-only repeatable-read transaction.
+	// Every query in the callback sees the same committed database snapshot.
+	ReadSnapshot(ctx context.Context, handler TxHandler) error
 
 	// IsConn method prevents a non-Conn object to mistakenly implement
 	// the Conn interface.

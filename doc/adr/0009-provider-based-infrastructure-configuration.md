@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-The BNPL backend needs logging, caching, messaging, background tasks, clocks, and trace identifiers across environments that differ widely:
+The BNPL backend needs logging, outbound HTTP, caching, messaging, background tasks, clocks, and trace identifiers across environments that differ widely:
 
 - Local development may run PostgreSQL only
 - Staging may enable Kafka and Redis
@@ -21,13 +21,14 @@ Add an `infrastructure:` top-level YAML section decoded into `pkg/adapter/config
 | Concern | Providers | Factory |
 | --- | --- | --- |
 | Logger | `noop`, `slog` | `NewLoggerInfrastructure` |
+| Outbound HTTP client | `noop`, `standard` | `NewHTTPClientInfrastructure` |
 | Cache | `noop`, `redis` | `NewCacheInfrastructure` |
 | Messaging | `noop`, `kafka` | `NewMessagingPublisherInfrastructure`, `NewMessagingSubscriberInfrastructure` |
 | Task | `noop`, `inprocess` | `NewTaskInfrastructure` |
 | Clock | system (dual timezone) | `NewSystemClockInfrastructure` |
 | Trace | ULID | `NewTraceInfrastructure` |
 
-Provider-specific settings live in nested YAML blocks (for example `infrastructure.cache.redis`). Unsupported provider values fail at startup with an explicit error.
+Provider-specific settings live in nested YAML blocks (for example `infrastructure.cache.redis`). Unsupported provider values fail at startup with an explicit error. The outbound HTTP standard provider starts with one shared default profile; named per-client overrides are intentionally deferred. Its concurrency limit is implemented as a bounded bulkhead around one reusable `net/http.Client`, not as multiple clients or dedicated worker goroutines. The outbound HTTP execution contract is owned by Core (`pkg/core/httpclient`), while provider selection and concrete `noop`/`standard` implementations remain in the adapter layer. Outbound HTTP metric contracts are similarly owned by `pkg/core/metrics`.
 
 Bootstrap (`cmd/bnpl/bootstrap`) calls these factories during `NewInfrastructures()` before use cases that depend on them.
 
@@ -48,6 +49,7 @@ Bootstrap (`cmd/bnpl/bootstrap`) calls these factories during `NewInfrastructure
 **Operational impact**
 
 - Production must explicitly set providers and verify connectivity (Redis ping on cache startup)
+- Production rejects the outbound HTTP `noop` provider so third-party calls cannot be silently disabled
 - Circuit breaker (`noop`, `gobreaker`) is wired via `NewCircuitBreakerInfrastructure` but not yet used by domain call sites
 
 ### Amendment (2026-06-30)

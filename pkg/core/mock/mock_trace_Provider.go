@@ -35,6 +35,50 @@ func (_m *Provider) EXPECT() *Provider_Expecter {
 	return &Provider_Expecter{mock: &_m.Mock}
 }
 
+// Generate provides a mock function for the type Provider
+func (_mock *Provider) Generate() string {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for Generate")
+	}
+
+	var r0 string
+	if returnFunc, ok := ret.Get(0).(func() string); ok {
+		r0 = returnFunc()
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+	return r0
+}
+
+// Provider_Generate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Generate'
+type Provider_Generate_Call struct {
+	*mock.Call
+}
+
+// Generate is a helper method to define mock.On call
+func (_e *Provider_Expecter) Generate() *Provider_Generate_Call {
+	return &Provider_Generate_Call{Call: _e.mock.On("Generate")}
+}
+
+func (_c *Provider_Generate_Call) Run(run func()) *Provider_Generate_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Provider_Generate_Call) Return(s string) *Provider_Generate_Call {
+	_c.Call.Return(s)
+	return _c
+}
+
+func (_c *Provider_Generate_Call) RunAndReturn(run func() string) *Provider_Generate_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewCorrelationID provides a mock function for the type Provider
 func (_mock *Provider) NewCorrelationID() string {
 	ret := _mock.Called()

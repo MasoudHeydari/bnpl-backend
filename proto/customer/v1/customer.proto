@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package parstis.customer.v1;
+
+option go_package = "github.com/parstis/bnpl-backend/gen/proto/customer/v1;customerv1";
+
+// Customer-facing reference for services that must not see Identity subject ids.
+// Caller identity comes from mTLS, not from these messages.
+service CustomerReferenceService {
+  rpc ResolveCustomerByMobile(ResolveCustomerByMobileRequest)
+      returns (ResolveCustomerByMobileResponse);
+
+  rpc GetCustomer(GetCustomerRequest)
+      returns (GetCustomerResponse);
+}
+
+enum CustomerStatus {
+  CUSTOMER_STATUS_UNSPECIFIED = 0;
+  CUSTOMER_STATUS_ACTIVE = 1;
+  CUSTOMER_STATUS_SUSPENDED = 2;
+}
+
+message ResolveCustomerByMobileRequest {
+  string mobile_number = 1;
+}
+
+message ResolveCustomerByMobileResponse {
+  string customer_id = 1;
+  CustomerStatus status = 2;
+}
+
+message GetCustomerRequest {
+  string customer_id = 1;
+}
+
+message GetCustomerResponse {
+  string customer_id = 1;
+  CustomerStatus status = 2;
+}
