@@ -5,12 +5,21 @@
 #   docker compose -f docker-compose.local.yml up -d
 #   make build && make init-dev && ./build/bin/bnpl
 #
-# Credentials come from .env (gitignored).
-# The application runs on the host, not inside Compose.
-# PostgreSQL and Kafka ports are bound to 127.0.0.1 for host access.
+# Local endpoints:
+#   BNPL:              http://127.0.0.1:8080
+#   Envoy Gateway:     http://127.0.0.1:8088
+#   Envoy Admin:       http://127.0.0.1:9901
+#   Redpanda Console:  http://127.0.0.1:8081
+#   Temporal UI:       http://127.0.0.1:8233
 #
-# Application database settings use pgpass-format env vars (see .env.example),
-# not a pass-dir or .pgpass file read by the Go binary.
+# Credentials come from .env (gitignored).
+# The BNPL application runs on the host, not inside Compose.
+# PostgreSQL, Kafka, and Redpanda Console ports are bound to 127.0.0.1
+# for local host access only.
+#
+# Envoy uses host networking because BNPL listens only on
+# 127.0.0.1:8080 on the host. With Docker bridge networking,
+# 127.0.0.1 inside the Envoy container would refer to Envoy itself.
 
 services:
   # ── PostgreSQL ─────────────────────────────────────────────────────────────
@@ -18,14 +27,18 @@ services:
     image: docker.arvancloud.ir/postgres:18
     container_name: bnpl-db
     restart: unless-stopped
+
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
     volumes:
       - postgres_data_bnpl:/var/lib/postgresql
+
     ports:
       - "127.0.0.1:5432:5432"
+
     healthcheck:
       test: [
         "CMD-SHELL",
@@ -35,39 +48,188 @@ services:
       timeout: 5s
       retries: 5
       start_period: 15s
+
     networks:
       - bnpl-net
 
   # ── Kafka ──────────────────────────────────────────────────────────────────
+  #
+  # Official apache/kafka image (KRaft). Env vars must use the KAFKA_* form.
   kafka:
-    image: docker.arvancloud.ir/bitnami/kafka:4.0
+    image: docker.arvancloud.ir/apache/kafka:4.3.1
+    hostname: kafka
     container_name: bnpl-kafka
     restart: unless-stopped
+
     environment:
-      KAFKA_CFG_NODE_ID: 1
-      KAFKA_CFG_PROCESS_ROLES: controller,broker
-      KAFKA_CFG_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-      # Advertise localhost so the host-side app (make run) can reach Kafka.
-      # In production this is "kafka:9092" (container-to-container).
-      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      # Run a single-node Kafka cluster in KRaft combined mode.
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+
+      # EXTERNAL is used by applications running on the host.
+      # INTERNAL is used by containers on bnpl-net, such as Redpanda Console.
+      # CONTROLLER is used only by Kafka's KRaft controller.
+      KAFKA_LISTENERS: EXTERNAL://:9092,INTERNAL://:29092,CONTROLLER://:9093
+
+      # Host-side clients connect through localhost:9092.
+      # Docker services connect through kafka:29092.
+      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:9092,INTERNAL://kafka:29092
+
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+
+      # Broker-to-broker communication uses the internal Docker listener.
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+
+      # Single-node KRaft controller configuration.
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+
+      # Internal Kafka topics cannot use the production default replication
+      # factor because this local environment has only one broker.
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+
     volumes:
-      - kafka_data_bnpl:/bitnami/kafka
+      - kafka_data_bnpl:/var/lib/kafka/data
+
     ports:
+      # Only the external listener needs to be accessible from the host.
       - "127.0.0.1:9092:9092"
+
     healthcheck:
       test: [
         "CMD-SHELL",
-        "kafka-topics.sh --bootstrap-server localhost:9092 --list 2>/dev/null || exit 1"
+        "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1 || exit 1"
       ]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 30s
+      start_period: 40s
+
     networks:
       - bnpl-net
+
+  # ── Redpanda Console ───────────────────────────────────────────────────────
+  #
+  # Redpanda Console is only a Kafka UI in this setup.
+  # It does not replace the Kafka broker above.
+  #
+  # Open:
+  #   http://127.0.0.1:8081
+  #
+  redpanda-console:
+    image: docker.redpanda.com/redpandadata/console:v3.9.0
+    container_name: bnpl-redpanda-console
+    restart: unless-stopped
+
+    environment:
+      # Use Kafka's internal Docker listener.
+      #
+      # Do not use localhost:9092 here. Inside this container, localhost
+      # refers to Redpanda Console itself, not the Kafka container.
+      KAFKA_BROKERS: kafka:29092
+
+    ports:
+      # Port 8080 is reserved for the host-side BNPL application.
+      - "127.0.0.1:8081:8080"
+
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+    networks:
+      - bnpl-net
+
+  # ── Temporal development server ────────────────────────────────────────────
+  #
+  # This single-process development server is for local development only.
+  # Production must use a production-grade Temporal deployment or Temporal Cloud.
+  temporal:
+    image: temporalio/temporal:1.8.3
+    container_name: bnpl-temporal
+    restart: unless-stopped
+
+    command:
+      - server
+      - start-dev
+      - --ip
+      - 0.0.0.0
+      # The standalone temporal-ui service below owns the local Web UI.
+      # Disable the UI bundled with start-dev so both services do not compete
+      # for the same host port.
+      - --headless
+
+    ports:
+      - "127.0.0.1:7233:7233"
+
+    networks:
+      - bnpl-net
+
+  # ── Temporal Web UI ───────────────────────────────────────────────────────
+  #
+  # Standalone UI for inspecting local Temporal namespaces, workflows,
+  # activities, schedules, and execution history. It connects to the Temporal
+  # frontend over the internal Docker network.
+  #
+  # Open:
+  #   http://127.0.0.1:${TEMPORAL_UI_PORT}
+  #
+  temporal-ui:
+    image: temporalio/ui:2.54.1
+    container_name: bnpl-temporal-ui
+    restart: unless-stopped
+
+    environment:
+      # Use the Temporal service name inside Docker. Do not use 127.0.0.1 here;
+      # localhost inside this container refers to the UI container itself.
+      TEMPORAL_ADDRESS: temporal:7233
+
+    ports:
+      - "127.0.0.1:${TEMPORAL_UI_PORT}:8080"
+
+    depends_on:
+      - temporal
+
+    networks:
+      - bnpl-net
+
+  # ── Envoy Gateway ──────────────────────────────────────────────────────────
+  #
+  # Envoy runs in the host network namespace because BNPL itself runs
+  # directly on the host and listens only on 127.0.0.1:8080.
+  #
+  # Expected development.yaml configuration:
+  #
+  #   Listener:
+  #     127.0.0.1:8088
+  #
+  #   BNPL upstream:
+  #     127.0.0.1:8080
+  #
+  #   Admin:
+  #     127.0.0.1:9901
+  #
+  envoy:
+    image: envoyproxy/envoy:v1.39.0
+    container_name: bnpl-envoy
+    restart: unless-stopped
+
+    network_mode: host
+
+    volumes:
+      - /home/masoud-dev/Documents/projects/golang/platform-infra/envoy/generated/development.yaml:/etc/envoy/envoy.yaml:ro
+      - /home/masoud-dev/Documents/projects/golang/platform-infra/envoy/certs:/etc/envoy/certs:ro
+
+    command:
+      - envoy
+      - -c
+      - /etc/envoy/envoy.yaml
+      - --log-level
+      - info
 
 networks:
   bnpl-net:

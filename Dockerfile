@@ -14,7 +14,7 @@ RUN go mod download
 COPY . .
 
 RUN CGO_ENABLED=0 go build \
-    -tags="go_json nomsgpack" \
+    -tags="go_json nomsgpack production" \
     -trimpath \
     -ldflags='-s -w -extldflags "-static"' \
     -o /out/${APP_NAME} ./cmd/bnpl
@@ -41,9 +41,9 @@ WORKDIR /home/${APP_USER}/app
 
 COPY --from=builder /out/${APP_NAME} ./
 COPY --from=builder /app/configs ./configs
-COPY --from=builder /app/scripts/docker-entrypoint.sh ./docker-entrypoint.sh
+COPY --from=builder /app/scripts/entrypoint.sh ./entrypoint.sh
 
-RUN chmod +x ./docker-entrypoint.sh && \
+RUN chmod +x ./entrypoint.sh && \
     chown -R ${APP_USER}:${APP_USER} /home/${APP_USER}/app
 
 USER ${APP_USER}
@@ -51,4 +51,4 @@ USER ${APP_USER}
 EXPOSE ${HTTP_PORT}
 EXPOSE ${HTTPS_PORT}
 
-CMD ["./docker-entrypoint.sh"]
+CMD ["./entrypoint.sh"]

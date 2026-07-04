@@ -1,0 +1,736 @@
+package installmentrp
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
+	"github.com/parstis/bnpl-backend/pkg/core/cerr"
+	"github.com/parstis/bnpl-backend/pkg/core/model"
+	"github.com/parstis/bnpl-backend/pkg/core/pagination"
+)
+
+const installmentColumns = `
+	id,
+	decision_id,
+	contract_id,
+	customer_id,
+	merchant_profile_id,
+	merchant_branch_profile_id,
+	installment_order,
+	currency,
+	principal_amount_minor,
+	upfront_amount_minor,
+	base_fee_amount_minor,
+	total_amount_minor,
+	due_at,
+	grace_period_days,
+	status,
+	paid_amount_minor,
+	paid_at,
+	created_at,
+	updated_at
+`
+
+// Create inserts an installment row and returns the persisted row.
+func Create[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	decisionID model.DecisionID,
+	contractID *model.ContractID,
+	customerID model.CustomerID,
+	merchantProfileID model.MerchantProfileID,
+	merchantBranchProfileID *model.MerchantBranchProfileID,
+	installmentOrder int,
+	currency model.Currency,
+	principalAmountMinor uint64,
+	upfrontAmountMinor uint64,
+	baseFeeAmountMinor uint64,
+	totalAmountMinor uint64,
+	dueAt time.Time,
+	gracePeriodDays uint,
+	status model.InstallmentStatus,
+	paidAmountMinor uint64,
+	paidAt *time.Time,
+	createdAt time.Time,
+	updatedAt time.Time,
+) (model.Installment, error) {
+	if err := postgres.RequiredTimes(map[string]time.Time{
+		"due_at":     dueAt,
+		"created_at": createdAt,
+		"updated_at": updatedAt,
+	}); err != nil {
+		return model.Installment{}, err
+	}
+
+	const query = `
+INSERT INTO installments (
+	decision_id,
+	contract_id,
+	customer_id,
+	merchant_profile_id,
+	merchant_branch_profile_id,
+	installment_order,
+	currency,
+	principal_amount_minor,
+	upfront_amount_minor,
+	base_fee_amount_minor,
+	total_amount_minor,
+	due_at,
+	grace_period_days,
+	status,
+	paid_amount_minor,
+	paid_at,
+	created_at,
+	updated_at
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+RETURNING` + installmentColumns
+
+	return postgres.QueryOne[model.Installment](
+		ctx,
+		q,
+		"create installment",
+		query,
+		decisionID,
+		contractID,
+		customerID,
+		merchantProfileID,
+		merchantBranchProfileID,
+		installmentOrder,
+		currency,
+		principalAmountMinor,
+		upfrontAmountMinor,
+		baseFeeAmountMinor,
+		totalAmountMinor,
+		dueAt,
+		gracePeriodDays,
+		status,
+		paidAmountMinor,
+		paidAt,
+		createdAt,
+		updatedAt,
+	)
+}
+
+// GetByID returns an installment by id.
+func GetByID[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	id model.InstallmentID,
+) (model.Installment, error) {
+	const query = `SELECT` + installmentColumns + `
+FROM installments
+WHERE id = $1
+`
+
+	return postgres.QueryOne[model.Installment](ctx, q, "get installment by id", query, id)
+}
+
+// ListByContractID returns installments for a contract ordered by installment_order.
+func ListByContractID[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	contractID model.ContractID,
+) ([]model.Installment, error) {
+	const query = `SELECT` + installmentColumns + `
+FROM installments
+WHERE contract_id = $1
+ORDER BY installment_order ASC
+`
+	const op = "installmentrp.ListByContractID"
+
+	rows, err := q.Query(ctx, query, contractID)
+	if err != nil {
+		return nil, fmt.Errorf("%s: list installments by contract id: %w", op, postgres.MapError(err))
+	}
+
+	defer rows.Close()
+
+	return postgres.ValuesInto[model.Installment](postgres.MustRows(rows))
+}
+
+// LockByContractID returns and locks all installments attached to a contract.
+func LockByContractID[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	contractID model.ContractID,
+) ([]model.Installment, error) {
+	const query = `SELECT` + installmentColumns + `
+FROM installments
+WHERE contract_id = $1
+ORDER BY installment_order ASC
+FOR UPDATE
+`
+	const op = "installmentrp.LockByContractID"
+
+	rows, err := q.Query(ctx, query, contractID)
+	if err != nil {
+		return nil, fmt.Errorf("%s: lock installments by contract id: %w", op, postgres.MapError(err))
+	}
+
+	defer rows.Close()
+
+	return postgres.ValuesInto[model.Installment](postgres.MustRows(rows))
+}
+
+// ListUnpaidByCustomerID returns unpaid contract installments for a
+// customer profile using keyset pagination ordered by due_at ASC, id ASC.
+//
+// Unpaid means status in scheduled, due, or overdue. Pre-contract offers
+// (contract_id IS NULL) are excluded.
+func ListUnpaidByCustomerID[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	customerID model.CustomerID,
+	page pagination.KeysetRequest,
+) ([]model.Installment, error) {
+	page.Order = pagination.OrderAsc
+	page.Normalize()
+	if err := page.Validate(); err != nil {
+		return nil, cerr.InvalidArgument(err)
+	}
+
+	args := []any{
+		customerID,
+		model.ScheduledInstallmentStatus,
+		model.DueInstallmentStatus,
+		model.OverdueInstallmentStatus,
+		model.ActiveContractStatus,
+	}
+	conditions := []string{
+		"customer_id = $1",
+		"contract_id IS NOT NULL",
+		"status IN ($2, $3, $4)",
+		"EXISTS (SELECT 1 FROM contracts c WHERE c.id = installments.contract_id AND c.status = $5)",
+	}
+
+	keysetWhere, keysetArgs, err := postgres.KeysetWhere("due_at", "id", page, len(args)+1)
+	if err != nil {
+		return nil, cerr.InvalidArgument(err)
+	}
+
+	if keysetWhere != "" {
+		conditions = append(conditions, keysetWhere)
+		args = append(args, keysetArgs...)
+	}
+
+	limitSQL, limitArgs := postgres.Limit(page.Limit, len(args)+1)
+	args = append(args, limitArgs...)
+
+	query := `SELECT` + installmentColumns + `
+FROM installments
+WHERE ` + strings.Join(conditions, `
+  AND `) + `
+ORDER BY due_at ASC, id ASC
+` + limitSQL
+
+	return postgres.QueryAll[model.Installment](
+		ctx,
+		q,
+		"list unpaid installments by customer profile id",
+		query,
+		args...,
+	)
+}
+
+// LockByID returns and locks an installment row for update.
+func LockByID[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	installmentID model.InstallmentID,
+) (model.Installment, error) {
+	const query = `SELECT` + installmentColumns + `
+FROM installments
+WHERE id = $1
+FOR UPDATE
+`
+
+	return postgres.QueryOne[model.Installment](ctx, q, "lock installment by id", query, installmentID)
+}
+
+// ListByDecisionID returns installments for a decision.
+func ListByDecisionID[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	decisionID model.DecisionID,
+) ([]model.Installment, error) {
+	const query = `SELECT` + installmentColumns + `
+FROM installments
+WHERE decision_id = $1
+ORDER BY installment_order ASC
+`
+	const op = "installmentrp.ListByDecisionID"
+
+	rows, err := q.Query(ctx, query, decisionID)
+	if err != nil {
+		return nil, fmt.Errorf("%s: list installments by decision id: %w", op, postgres.MapError(err))
+	}
+
+	defer rows.Close()
+
+	return postgres.ValuesInto[model.Installment](postgres.MustRows(rows))
+}
+
+// LockByDecisionID returns and locks installments for a decision ordered by installment_order.
+func LockByDecisionID[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	decisionID model.DecisionID,
+) ([]model.Installment, error) {
+	const query = `SELECT` + installmentColumns + `
+FROM installments
+WHERE decision_id = $1
+ORDER BY installment_order ASC
+FOR UPDATE
+`
+	const op = "installmentrp.LockByDecisionID"
+
+	rows, err := q.Query(ctx, query, decisionID)
+	if err != nil {
+		return nil, fmt.Errorf("%s: lock installments by decision id: %w", op, postgres.MapError(err))
+	}
+
+	defer rows.Close()
+
+	return postgres.ValuesInto[model.Installment](postgres.MustRows(rows))
+}
+
+// AttachContractToOfferedByDecisionID sets contract_id on offered installments for a decision.
+func AttachContractToOfferedByDecisionID[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	decisionID model.DecisionID,
+	contractID model.ContractID,
+	updatedAt time.Time,
+) (int64, error) {
+	const query = `
+UPDATE installments
+SET
+	contract_id = $3,
+	updated_at = $2
+WHERE decision_id = $1
+  AND status = $4
+`
+	const op = "installmentrp.AttachContractToOfferedByDecisionID"
+
+	affected, err := q.Exec(
+		ctx,
+		query,
+		decisionID,
+		updatedAt,
+		contractID,
+		model.OfferedInstallmentStatus,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("%s: attach contract to offered installments: %w", op, postgres.MapError(err))
+	}
+
+	return affected, nil
+}
+
+// MarkPaid marks an installment paid.
+func MarkPaid[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	installmentID model.InstallmentID,
+	contractID model.ContractID,
+	paidAmountMinor uint64,
+	paidAt time.Time,
+	updatedAt time.Time,
+) (model.Installment, error) {
+	const query = `
+UPDATE installments
+SET
+	status = $7,
+	paid_amount_minor = $8,
+	paid_at = $9,
+	updated_at = $10
+WHERE id = $1
+  AND contract_id = $2
+  AND status IN ($3, $4, $5, $6)
+RETURNING` + installmentColumns
+
+	return postgres.QueryOne[model.Installment](
+		ctx,
+		q,
+		"mark installment paid",
+		query,
+		installmentID,
+		contractID,
+		model.OfferedInstallmentStatus,
+		model.ScheduledInstallmentStatus,
+		model.DueInstallmentStatus,
+		model.OverdueInstallmentStatus,
+		model.PaidInstallmentStatus,
+		paidAmountMinor,
+		paidAt,
+		updatedAt,
+	)
+}
+
+// UpdateOfferedDueAt finalizes an offered installment due date before activation.
+func UpdateOfferedDueAt[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	installmentID model.InstallmentID,
+	dueAt time.Time,
+	updatedAt time.Time,
+) (model.Installment, error) {
+	if err := postgres.RequiredTimes(map[string]time.Time{"due_at": dueAt, "updated_at": updatedAt}); err != nil {
+		return model.Installment{}, err
+	}
+
+	const query = `
+UPDATE installments
+SET due_at = $3, updated_at = $4
+WHERE id = $1
+  AND status = $2
+RETURNING` + installmentColumns
+
+	return postgres.QueryOne[model.Installment](
+		ctx, q, "update offered installment due at", query,
+		installmentID, model.OfferedInstallmentStatus, dueAt, updatedAt,
+	)
+}
+
+// MarkScheduledOrDue transitions an offered installment to scheduled or due.
+func MarkScheduledOrDue[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	installmentID model.InstallmentID,
+	contractID model.ContractID,
+	nextStatus model.InstallmentStatus,
+	updatedAt time.Time,
+) (model.Installment, error) {
+	const query = `
+UPDATE installments
+SET
+	status = $4,
+	updated_at = $5
+WHERE id = $1
+  AND contract_id = $2
+  AND status = $3
+RETURNING` + installmentColumns
+
+	return postgres.QueryOne[model.Installment](
+		ctx,
+		q,
+		"mark installment scheduled or due",
+		query,
+		installmentID,
+		contractID,
+		model.OfferedInstallmentStatus,
+		nextStatus,
+		updatedAt,
+	)
+}
+
+// ExpireDueOfferedByAllocationExpiry expires offered installments for the same
+// bounded allocation batch claimed by the charge-cancellation step in the
+// current transaction. Allocation-level claiming keeps each offer atomic.
+func ExpireDueOfferedByAllocationExpiry[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	now time.Time,
+	updatedAt time.Time,
+	limit int,
+) ([]model.Installment, error) {
+	if limit <= 0 {
+		return nil, ErrInvalidClaimLimit
+	}
+
+	const query = `
+WITH due_allocations AS (
+	SELECT a.decision_id
+	FROM checkout_decision_allocations a
+	WHERE a.expires_at <= $1
+	  AND EXISTS (
+		SELECT 1
+		FROM installments offered
+		WHERE offered.decision_id = a.decision_id
+		  AND offered.status = $5
+		  AND offered.contract_id IS NULL
+	  )
+	ORDER BY a.decision_id
+	FOR UPDATE SKIP LOCKED
+	LIMIT $3
+)
+UPDATE installments i
+SET
+	status = $4,
+	updated_at = $2
+FROM due_allocations d
+WHERE i.decision_id = d.decision_id
+  AND i.status = $5
+  AND i.contract_id IS NULL
+RETURNING i.*`
+
+	return postgres.QueryAll[model.Installment](
+		ctx,
+		q,
+		"expire due offered installments by allocation expiry",
+		query,
+		now,
+		updatedAt,
+		limit,
+		model.ExpiredInstallmentStatus,
+		model.OfferedInstallmentStatus,
+	)
+}
+
+// ExpireOfferedByDecisionIDs expires unattached offered installments for the
+// exact decision-allocation set claimed by the caller.
+func ExpireOfferedByDecisionIDs[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	decisionIDs []model.DecisionID,
+	updatedAt time.Time,
+) (int64, error) {
+	const op = "installmentrp.ExpireOfferedByDecisionIDs"
+
+	if len(decisionIDs) == 0 {
+		return 0, nil
+	}
+
+	const query = `
+UPDATE installments
+SET
+	status = $2,
+	updated_at = $3
+WHERE decision_id = ANY($1)
+  AND status = $4
+  AND contract_id IS NULL
+`
+
+	affected, err := q.Exec(
+		ctx,
+		query,
+		decisionIDs,
+		model.ExpiredInstallmentStatus,
+		updatedAt,
+		model.OfferedInstallmentStatus,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("%s: expire offered installments by decision ids: %w", op, postgres.MapError(err))
+	}
+
+	return affected, nil
+}
+
+var (
+	// ErrInvalidClaimLimit indicates an invalid batch claim limit.
+	ErrInvalidClaimLimit = fmt.Errorf("invalid claim limit")
+)
+
+// ClaimScheduledDue locks scheduled installments whose due_at has passed.
+func ClaimScheduledDue[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	now time.Time,
+	limit int,
+) ([]model.Installment, error) {
+	const op = "installmentrp.ClaimScheduledDue"
+
+	if limit <= 0 {
+		return nil, cerr.InvalidArgument(ErrInvalidClaimLimit, map[string]any{"limit": limit})
+	}
+
+	const query = `
+SELECT` + installmentColumns + `
+FROM installments
+WHERE status = $1
+  AND due_at <= $2
+  AND EXISTS (
+	SELECT 1
+	FROM contracts c
+	WHERE c.id = installments.contract_id
+	  AND c.status = $4
+  )
+ORDER BY due_at ASC, created_at ASC
+LIMIT $3
+FOR UPDATE SKIP LOCKED
+`
+
+	rows, err := q.Query(
+		ctx, query, model.ScheduledInstallmentStatus, now, limit, model.ActiveContractStatus,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("%s: claim scheduled due installments: %w", op, postgres.MapError(err))
+	}
+
+	defer rows.Close()
+
+	return postgres.ValuesInto[model.Installment](postgres.MustRows(rows))
+}
+
+// MarkDue transitions a scheduled installment to due.
+func MarkDue[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	installmentID model.InstallmentID,
+	updatedAt time.Time,
+) (model.Installment, error) {
+	const query = `
+UPDATE installments
+SET
+	status = $2,
+	updated_at = $3
+WHERE id = $1
+  AND status = $4
+  AND EXISTS (
+	SELECT 1
+	FROM contracts c
+	WHERE c.id = installments.contract_id
+	  AND c.status = $5
+  )
+RETURNING` + installmentColumns
+	const op = "installmentrp.MarkDue"
+
+	row, err := postgres.QueryOne[model.Installment](
+		ctx,
+		q,
+		"mark installment due",
+		query,
+		installmentID,
+		model.DueInstallmentStatus,
+		updatedAt,
+		model.ScheduledInstallmentStatus,
+		model.ActiveContractStatus,
+	)
+	if err != nil {
+		if cerr.IsCode(err, cerr.CodeResourceNotFound) {
+			return model.Installment{}, cerr.Conflict(
+				fmt.Errorf("%s: installment is no longer eligible to become due", op),
+				map[string]any{"installment_id": installmentID},
+			)
+		}
+
+		return model.Installment{}, err
+	}
+
+	return row, nil
+}
+
+// ClaimDueOverdueEligible locks due installments whose grace period has elapsed.
+func ClaimDueOverdueEligible[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	now time.Time,
+	limit int,
+) ([]model.Installment, error) {
+	const op = "installmentrp.ClaimDueOverdueEligible"
+
+	if limit <= 0 {
+		return nil, cerr.InvalidArgument(ErrInvalidClaimLimit, map[string]any{"limit": limit})
+	}
+
+	const query = `
+SELECT` + installmentColumns + `
+FROM installments
+WHERE status = $1
+  AND due_at + (grace_period_days * interval '1 day') <= $2
+  AND EXISTS (
+	SELECT 1
+	FROM contracts c
+	WHERE c.id = installments.contract_id
+	  AND c.status = $4
+  )
+ORDER BY due_at ASC, created_at ASC
+LIMIT $3
+FOR UPDATE SKIP LOCKED
+`
+
+	rows, err := q.Query(
+		ctx, query, model.DueInstallmentStatus, now, limit, model.ActiveContractStatus,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("%s: claim due overdue eligible installments: %w", op, postgres.MapError(err))
+	}
+
+	defer rows.Close()
+
+	return postgres.ValuesInto[model.Installment](postgres.MustRows(rows))
+}
+
+// MarkOverdue transitions a due installment to overdue.
+func MarkOverdue[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	installmentID model.InstallmentID,
+	updatedAt time.Time,
+) (model.Installment, error) {
+	const query = `
+UPDATE installments
+SET
+	status = $2,
+	updated_at = $3
+WHERE id = $1
+  AND status = $4
+  AND EXISTS (
+	SELECT 1
+	FROM contracts c
+	WHERE c.id = installments.contract_id
+	  AND c.status = $5
+  )
+RETURNING` + installmentColumns
+	const op = "installmentrp.MarkOverdue"
+
+	row, err := postgres.QueryOne[model.Installment](
+		ctx,
+		q,
+		"mark installment overdue",
+		query,
+		installmentID,
+		model.OverdueInstallmentStatus,
+		updatedAt,
+		model.DueInstallmentStatus,
+		model.ActiveContractStatus,
+	)
+	if err != nil {
+		if cerr.IsCode(err, cerr.CodeResourceNotFound) {
+			return model.Installment{}, cerr.Conflict(
+				fmt.Errorf("%s: installment is no longer eligible to become overdue", op),
+				map[string]any{"installment_id": installmentID},
+			)
+		}
+
+		return model.Installment{}, err
+	}
+
+	return row, nil
+}
+
+// ExpireOfferedByContractID marks offered installments expired for a contract.
+func ExpireOfferedByContractID[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	contractID model.ContractID,
+	updatedAt time.Time,
+) (int64, error) {
+	const query = `
+UPDATE installments
+SET
+	status = $3,
+	updated_at = $2
+WHERE contract_id = $1
+  AND status = $4
+`
+	const op = "installmentrp.ExpireOfferedByContractID"
+
+	affected, err := q.Exec(
+		ctx,
+		query,
+		contractID,
+		updatedAt,
+		model.ExpiredInstallmentStatus,
+		model.OfferedInstallmentStatus,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("%s: expire offered installments by contract id: %w", op, postgres.MapError(err))
+	}
+
+	return affected, nil
+}

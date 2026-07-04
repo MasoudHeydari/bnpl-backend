@@ -1,67 +1,487 @@
 # BNPL Backend — HTTP API collection
 #
 # Requires JetBrains HTTP Client / VS Code REST Client and
-# doc/collections/http-client.env.json (create with: make doc/collections/http-client.env.json).
+# doc/collections/http-client.env.json (create with: make http-client-env).
 #
-# Select environment: local | dev (bottom-right in JetBrains IDE).
+# Env keys are snake_case. UUID placeholders are random — align seed IDs or
+# paste values from prior responses into runtime.* before expecting 2xx.
 #
-# Health routes are registered only when HEALTH_ENABLED=true.
-# /api/v1 has no business handlers yet.
+# Select environment: local | dev. Health routes need HEALTH_ENABLED=true.
+#
+# After a JSON body only ### may follow; plain # there is parsed as body.
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Health
-# ─────────────────────────────────────────────────────────────────────────────
-
-### Liveness — process alive (no dependency checks)
-#
-# Kubernetes liveness probe. Succeeds while the process is running unless
-# graceful shutdown exceeded SHUTDOWN_TIMEOUT.
-#
-# Success: 200 {"status":"UP"}
-# Failure: 503 via serdser envelope when shutdown timed out
-#
-# curl -sS -X GET "{{baseUrl}}/healthz/live" \
-#   -H "Accept: application/json"
-GET {{baseUrl}}/healthz/live
+### Health — Liveness
+# Checks that the process is alive (K8s liveness). No dependency probes.
+# Prerequisite: none. App must be running.
+GET {{base_url}}/healthz/live
 Accept: application/json
 
-### Liveness — with correlation headers (optional)
-#
-# Middleware echoes or generates X-Trace-Id, X-Request-Id, X-Correlation-Id.
-#
-# curl -sS -X GET "{{baseUrl}}/healthz/live" \
-#   -H "Accept: application/json" \
-#   -H "X-Trace-Id: {{traceId}}" \
-#   -H "X-Request-Id: {{requestId}}" \
-#   -H "X-Correlation-Id: {{correlationId}}"
-GET {{baseUrl}}/healthz/live
+### Health — Liveness with correlation headers
+# Same as liveness, plus optional trace headers to verify middleware echo/generate.
+# Prerequisite: none.
+GET {{base_url}}/healthz/live
 Accept: application/json
-X-Trace-Id: {{healthz.traceId}}
-X-Request-Id: {{healthz.requestId}}
-X-Correlation-Id: {{healthz.correlationId}}
+X-Trace-Id: {{healthz.trace_id}}
+X-Request-Id: {{healthz.request_id}}
+X-Correlation-Id: {{healthz.correlation_id}}
 
-### Readiness — safe to receive traffic
-#
-# Kubernetes readiness probe. Fails while draining (SIGINT/SIGTERM) or when any
-# configured dependency check fails (default: database, cache, messaging).
-#
-# Success: 200 {"status":"UP"}
-# Failure: 503 when draining or a dependency is unavailable
-#
-# curl -sS -X GET "{{baseUrl}}/healthz/ready" \
-#   -H "Accept: application/json"
-GET {{baseUrl}}/healthz/ready
+### Health — Readiness
+# Checks the process can take traffic (K8s readiness): not draining + deps OK.
+# Prerequisite: none. Fails if DB/cache/messaging checks fail.
+GET {{base_url}}/healthz/ready
 Accept: application/json
 
-### Readiness — with correlation headers (optional)
-#
-# curl -sS -X GET "{{baseUrl}}/healthz/ready" \
-#   -H "Accept: application/json" \
-#   -H "X-Trace-Id: {{traceId}}" \
-#   -H "X-Request-Id: {{requestId}}" \
-#   -H "X-Correlation-Id: {{correlationId}}"
-GET {{baseUrl}}/healthz/ready
+### Health — Readiness with correlation headers
+# Same as readiness with correlation headers for tracing checks.
+# Prerequisite: none.
+GET {{base_url}}/healthz/ready
 Accept: application/json
-X-Trace-Id: {{healthz.traceId}}
-X-Request-Id: {{healthz.requestId}}
-X-Correlation-Id: {{healthz.correlationId}}
+X-Trace-Id: {{healthz.trace_id}}
+X-Request-Id: {{healthz.request_id}}
+X-Correlation-Id: {{healthz.correlation_id}}
+
+### Merchant — Get profile
+# Returns BNPL merchant profile for the authenticated merchant subject.
+# Why: confirm merchant_id / status / limits before checkout integration.
+# Prerequisite: merchant row must exist (seed or onboarding).
+# Auth: x-auth-subject-id = merchant_profiles.merchant_id
+GET {{base_url}}/api/v1/merchant
+Accept: application/json
+x-auth-subject-id: {{merchant.subject_id}}
+x-auth-tenant-id: {{auth.tenant_id}}
+x-auth-context-id: {{auth.context_id}}
+x-auth-permissions: bnpl:merchant-profile:read:merchant
+
+### Merchant — List branches (keyset)
+# Lists merchant_branch_profiles with keyset pagination (default mode).
+# Why: discover branch / selling-point IDs after onboarding.
+# Prerequisite: merchant profile exists; preferably at least one branch seeded.
+GET {{base_url}}/api/v1/merchant/branches?pagination=keyset&limit=20
+Accept: application/json
+x-auth-subject-id: {{merchant.subject_id}}
+x-auth-tenant-id: {{auth.tenant_id}}
+x-auth-context-id: {{auth.context_id}}
+x-auth-permissions: bnpl:branches:read:merchant
+
+### Merchant — List branches (page)
+# Same branch list with offset/page pagination (page=1&limit=20).
+# Prerequisite: same as keyset list.
+GET {{base_url}}/api/v1/merchant/branches?pagination=page&page=1&limit=20
+Accept: application/json
+x-auth-subject-id: {{merchant.subject_id}}
+x-auth-tenant-id: {{auth.tenant_id}}
+x-auth-context-id: {{auth.context_id}}
+x-auth-permissions: bnpl:branches:read:merchant
+
+### Merchant — List sales (keyset)
+# Lists active BNPL contracts (sales) owned by this merchant (keyset).
+# Why: merchant panel "my sales" view.
+# Prerequisite: usually after a completed checkout/contract exists; empty OK.
+GET {{base_url}}/api/v1/merchant/sales?pagination=keyset&limit=20
+Accept: application/json
+x-auth-subject-id: {{merchant.subject_id}}
+x-auth-tenant-id: {{auth.tenant_id}}
+x-auth-context-id: {{auth.context_id}}
+x-auth-permissions: bnpl:contracts:read:merchant
+
+### Merchant — List sales (page)
+# Same sales list with page/limit pagination.
+# Prerequisite: same as keyset sales.
+GET {{base_url}}/api/v1/merchant/sales?pagination=page&page=1&limit=20
+Accept: application/json
+x-auth-subject-id: {{merchant.subject_id}}
+x-auth-tenant-id: {{auth.tenant_id}}
+x-auth-context-id: {{auth.context_id}}
+x-auth-permissions: bnpl:contracts:read:merchant
+
+### Merchant panel — Provision partner terminal
+# Issues the merchant's partner terminal + first API key (show-once).
+# Why: /api/v1/partner/** authenticates with X-Terminal-Id + X-API-Key, not x-auth-*.
+# Prerequisite: merchant profile exists; gateway auth with
+# bnpl:merchant-terminals:manage:merchant. Paste terminal_id / api_key into
+# merchant.terminal_id / merchant.api_key in the env file immediately.
+POST {{base_url}}/api/v1/merchant/terminal
+Accept: application/json
+Content-Type: application/json
+Idempotency-Key: merchant-terminal-provision-{{$timestamp}}
+x-auth-subject-id: {{merchant.subject_id}}
+x-auth-tenant-id: {{auth.tenant_id}}
+x-auth-context-id: {{auth.context_id}}
+x-auth-permissions: bnpl:merchant-terminals:manage:merchant
+
+### Merchant panel — List partner terminals
+# Metadata only — never returns plaintext api_key.
+GET {{base_url}}/api/v1/merchant/terminal
+Accept: application/json
+x-auth-subject-id: {{merchant.subject_id}}
+x-auth-tenant-id: {{auth.tenant_id}}
+x-auth-context-id: {{auth.context_id}}
+x-auth-permissions: bnpl:merchant-terminals:manage:merchant
+
+### Partner config — Upsert return destination
+# Registers/updates a symbolic return_destination → return_url mapping.
+# Why: partner create accepts only a name, never a free-form redirect URL.
+# Auth: X-Terminal-Id + X-API-Key. Requires server-side terminal permission
+# bnpl:checkout-return-destinations:manage:merchant (seeded at Provision).
+# Prerequisite: terminal provisioned; call before Partner checkout create
+# if the destination name is not already seeded.
+PUT {{base_url}}/api/v1/partner/return-destinations/{{merchant.return_destination}}
+Accept: application/json
+Content-Type: application/json
+X-Terminal-Id: {{merchant.terminal_id}}
+X-API-Key: {{merchant.api_key}}
+
+{
+  "return_url": "{{merchant.return_url}}",
+  "enabled": true
+}
+
+### Partner config — Upsert webhook destination
+# Registers/rotates the merchant lifecycle webhook URL + signing secret.
+# Why: merchant learns checkout outcomes via signed webhooks, not return URL.
+# Auth: X-Terminal-Id + X-API-Key. Requires
+# bnpl:checkout-webhooks:manage:merchant on the terminal.
+PUT {{base_url}}/api/v1/partner/webhook-destination
+Accept: application/json
+Content-Type: application/json
+X-Terminal-Id: {{merchant.terminal_id}}
+X-API-Key: {{merchant.api_key}}
+
+{
+  "webhook_url": "{{merchant.webhook_url}}",
+  "signing_secret": "{{merchant.signing_secret}}",
+  "enabled": true
+}
+
+### Partner checkout — Create session
+# Opens a merchant-owned checkout session and returns checkout_url + expires_at.
+# checkout_session_id is an opaque public token (cs_<64 hex>), never a UUID.
+# customer_phone is required (09… or +989…); customer_reference is optional.
+# Why: partner starts BNPL without naming a customer or supplying a raw return URL.
+# Auth: X-Terminal-Id + X-API-Key. Requires
+# bnpl:checkout-sessions:create:merchant on the terminal.
+# Prerequisite: return destination exists; online_store_id belongs to this merchant.
+# After success: paste checkout_session_id → runtime.checkout_session_id
+POST {{base_url}}/api/v1/partner/checkout-sessions
+Accept: application/json
+Content-Type: application/json
+X-Terminal-Id: {{merchant.terminal_id}}
+X-API-Key: {{merchant.api_key}}
+
+{
+  "online_store_id": "{{merchant.online_store_id}}",
+  "merchant_order_id": "{{merchant.merchant_order_id_prefix}}-{{$timestamp}}",
+  "idempotency_key": "partner-checkout-{{$timestamp}}",
+  "customer_reference": "{{merchant.customer_reference}}",
+  "customer_phone": "{{merchant.customer_phone}}",
+  "return_destination": "{{merchant.return_destination}}",
+  "merchant_state": "{{merchant.merchant_state}}",
+  "requested_amount_minor": {{merchant.requested_amount_minor}},
+  "currency": "{{merchant.currency}}"
+}
+
+### Partner checkout — Get session status
+# Merchant inquiry of authoritative checkout status (no credit/offer details).
+# Why: poll/confirm outcome instead of trusting browser return.
+# Auth: X-Terminal-Id + X-API-Key. Requires
+# bnpl:checkout-sessions:read:merchant on the terminal.
+GET {{base_url}}/api/v1/partner/checkout-sessions/{{runtime.checkout_session_id}}
+Accept: application/json
+X-Terminal-Id: {{merchant.terminal_id}}
+X-API-Key: {{merchant.api_key}}
+
+### Partner checkout — Cancel session (merchant)
+# Merchant cancels a non-terminal checkout session; returns return_url.
+# Why: abandon order on merchant side before customer completes.
+# Auth: X-Terminal-Id + X-API-Key. Cancel reuses create:merchant permission.
+POST {{base_url}}/api/v1/partner/checkout-sessions/{{runtime.checkout_session_id}}/cancel
+Accept: application/json
+X-Terminal-Id: {{merchant.terminal_id}}
+X-API-Key: {{merchant.api_key}}
+
+### Hosted external — Get session (pre-OTP)
+# Unauthenticated. Path checkout_session_id is the public cs_… token.
+# Returns masked phone destination for SMS OTP; never full phone or customer ids.
+GET {{base_url}}/api/v1/hosted/checkout-sessions/{{runtime.checkout_session_id}}
+Accept: application/json
+
+### Hosted external — Start (resolve + offer + send OTP)
+# Unauthenticated. Resolves Identity from the checkout phone, evaluates financing,
+# and sends a templated SMS OTP when the offer is approved.
+POST {{base_url}}/api/v1/hosted/checkout-sessions/{{runtime.checkout_session_id}}/start
+Accept: application/json
+
+### Hosted external — Confirm with OTP
+# Unauthenticated. Body carries only evaluation_generation + otp.
+POST {{base_url}}/api/v1/hosted/checkout-sessions/{{runtime.checkout_session_id}}/confirm
+Accept: application/json
+Content-Type: application/json
+
+{
+  "evaluation_generation": {{runtime.evaluation_generation}},
+  "otp": "{{runtime.checkout_otp}}"
+}
+
+### Internal checkout — Create session
+# Trusted first-party create: evaluates financing for a named customer up front.
+# Why: first-party apps can pass identity_subject_id; partners cannot.
+# Prerequisite: return destination exists; customer should already have credit
+# (Customer credit — Initiate). Needs both create:merchant and on-behalf perms.
+# After success: paste checkout_session_id → runtime.checkout_session_id
+# and evaluation_generation → runtime.evaluation_generation (offer already present).
+POST {{base_url}}/api/v1/internal/checkout-sessions
+Accept: application/json
+Content-Type: application/json
+x-auth-subject-id: {{merchant.subject_id}}
+x-auth-tenant-id: {{auth.tenant_id}}
+x-auth-context-id: {{auth.context_id}}
+x-auth-permissions: bnpl:checkout-sessions:create:merchant,bnpl:decisions:create:on-behalf
+
+{
+  "online_store_id": "{{merchant.online_store_id}}",
+  "merchant_order_id": "{{merchant.merchant_order_id_prefix}}-INT-{{$timestamp}}",
+  "idempotency_key": "internal-checkout-{{$timestamp}}",
+  "customer_reference": "{{merchant.customer_reference}}",
+  "return_destination": "{{merchant.return_destination}}",
+  "merchant_state": "{{merchant.merchant_state}}",
+  "requested_amount_minor": {{merchant.requested_amount_minor}},
+  "currency": "{{merchant.currency}}",
+  "identity_subject_id": "{{customer.subject_id}}"
+}
+
+### Customer checkout — Get session
+# Customer reads their checkout session projection (hosted-page refresh).
+# Why: reload UI state without re-starting evaluation.
+# Prerequisite: Internal create (or external session after OTP bind);
+# runtime.checkout_session_id set; subject must own the session (else 404).
+GET {{base_url}}/api/v1/checkout-sessions/{{runtime.checkout_session_id}}
+Accept: application/json
+x-auth-subject-id: {{customer.subject_id}}
+x-auth-tenant-id: {{auth.tenant_id}}
+x-auth-context-id: {{auth.context_id}}
+x-auth-permissions: bnpl:checkout-sessions:read:self
+
+### Customer checkout — Start session
+# Authenticates customer onto the session and returns offer + evaluation_generation.
+# Why: internal/gateway path evaluates financing for the already-attached customer.
+# For partner/external checkouts use Hosted external — Start (OTP) instead.
+# Prerequisite: Internal create (or session already bound to this subject);
+# Customer credit — Initiate (active limit); runtime.checkout_session_id set.
+# After success: paste evaluation_generation → runtime.evaluation_generation
+POST {{base_url}}/api/v1/checkout-sessions/{{runtime.checkout_session_id}}/start
+Accept: application/json
+x-auth-subject-id: {{customer.subject_id}}
+x-auth-tenant-id: {{auth.tenant_id}}
+x-auth-context-id: {{auth.context_id}}
+x-auth-permissions: bnpl:checkout-sessions:start:self
+
+### Customer checkout — Confirm session
+# Confirms the offer version the customer saw; creates contract / payment redirect.
+# Why: evaluation_generation prevents confirming a stale offer.
+# Prerequisite: Customer checkout — Start (or Internal create that returned generation);
+# set runtime.evaluation_generation from that response.
+POST {{base_url}}/api/v1/checkout-sessions/{{runtime.checkout_session_id}}/confirm
+Accept: application/json
+Content-Type: application/json
+x-auth-subject-id: {{customer.subject_id}}
+x-auth-tenant-id: {{auth.tenant_id}}
+x-auth-context-id: {{auth.context_id}}
+x-auth-permissions: bnpl:checkout-sessions:start:self
+
+{
+  "evaluation_generation": {{runtime.evaluation_generation}}
+}
+
+### Customer checkout — Get return
+# Builds browser-return projection (status, merchant_state, return_url).
+# Why: hosted page redirects customer back using registered destination + state.
+# Prerequisite: session exists (Create); typically after Confirm/Cancel/terminal.
+# return_url is not payment truth — merchant should still poll status/webhooks.
+GET {{base_url}}/api/v1/checkout-sessions/{{runtime.checkout_session_id}}/return
+Accept: application/json
+x-auth-subject-id: {{customer.subject_id}}
+x-auth-tenant-id: {{auth.tenant_id}}
+x-auth-context-id: {{auth.context_id}}
+x-auth-permissions: bnpl:checkout-sessions:read:self
+
+### Customer checkout — Cancel session
+# Customer abandons checkout; returns canceled status + return_url.
+# Why: user backs out on hosted page before confirm completes.
+# Prerequisite: Partner/Internal create; runtime.checkout_session_id set;
+# session still cancelable.
+POST {{base_url}}/api/v1/checkout-sessions/{{runtime.checkout_session_id}}/cancel
+Accept: application/json
+x-auth-subject-id: {{customer.subject_id}}
+x-auth-tenant-id: {{auth.tenant_id}}
+x-auth-context-id: {{auth.context_id}}
+x-auth-permissions: bnpl:checkout-sessions:start:self
+
+### Customer credit — Get
+# Returns the authenticated customer's credit limit / available summary.
+# Why: UI "my credit" and pre-check before checkout/decision.
+# Prerequisite: usually after Initiate; empty/denied states possible if none yet.
+# Auth: subject = customer_profiles.identity_subject_id
+GET {{base_url}}/api/v1/customer-credit
+Accept: application/json
+x-auth-subject-id: {{customer.subject_id}}
+x-auth-tenant-id: {{auth.tenant_id}}
+x-auth-context-id: {{auth.context_id}}
+x-auth-permissions: bnpl:credit-limits:read:self
+
+### Customer credit — Initiate
+# Ensures customer profile exists and assigns initial credit limit (or already_assigned).
+# Why: decisions/checkout need an active limit; empty body — subject is the customer.
+# Prerequisite: none beyond auth. Call before Decision create / Start / Internal create.
+# Policy assignment for this customer must exist (seed trusted customer).
+POST {{base_url}}/api/v1/customer-credit/initiate
+Accept: application/json
+x-auth-subject-id: {{customer.subject_id}}
+x-auth-tenant-id: {{auth.tenant_id}}
+x-auth-context-id: {{auth.context_id}}
+x-auth-permissions: bnpl:credit-limits:create:self
+
+### Decision — Create POS
+# Evaluates checkout feasibility at a POS terminal; may return installment_offer.
+# Why: in-store customer-app flow without partner checkout session.
+# Prerequisite: Customer credit — Initiate; pos_gps_id must be a registered terminal.
+# After success (approved): paste decision id → runtime.decision_id
+POST {{base_url}}/api/v1/checkout-decisions
+Accept: application/json
+Content-Type: application/json
+Idempotency-Key: checkout-pos-{{$timestamp}}
+x-auth-subject-id: {{customer.subject_id}}
+x-auth-tenant-id: {{auth.tenant_id}}
+x-auth-context-id: {{auth.context_id}}
+x-auth-permissions: bnpl:decisions:create:self
+
+{
+  "purchase_context": {
+    "type": "pos",
+    "pos_gps_id": "{{merchant.pos_gps_id}}"
+  },
+  "requested_amount_minor": {{merchant.requested_amount_minor}},
+  "currency": "{{merchant.currency}}"
+}
+
+### Decision — Create online
+# Same as POS decision, but for an online_store_id (+ optional merchant_order_id).
+# Why: online customer-app checkout without partner session.
+# Prerequisite: Customer credit — Initiate; online_store_id registered for a merchant.
+# After success (approved): paste decision id → runtime.decision_id
+POST {{base_url}}/api/v1/checkout-decisions
+Accept: application/json
+Content-Type: application/json
+Idempotency-Key: checkout-online-{{$timestamp}}
+x-auth-subject-id: {{customer.subject_id}}
+x-auth-tenant-id: {{auth.tenant_id}}
+x-auth-context-id: {{auth.context_id}}
+x-auth-permissions: bnpl:decisions:create:self
+
+{
+  "purchase_context": {
+    "type": "online",
+    "online_store_id": "{{merchant.online_store_id}}",
+    "merchant_order_id": "{{merchant.merchant_order_id_prefix}}-DEC-{{$timestamp}}"
+  },
+  "requested_amount_minor": {{merchant.requested_amount_minor}},
+  "currency": "{{merchant.currency}}"
+}
+
+### Contract — Create from decision
+# Creates a contract from an approved decision (idempotent on decision).
+# Why: customer-app confirm path when not using checkout-session Confirm.
+# Prerequisite: Decision — Create POS/online (approved); set runtime.decision_id.
+# Body must be empty — provider selection is not accepted.
+# After success: paste contract id → runtime.contract_id
+POST {{base_url}}/api/v1/checkout-decisions/{{runtime.decision_id}}/contracts
+Accept: application/json
+Content-Type: application/json
+x-auth-subject-id: {{customer.subject_id}}
+x-auth-tenant-id: {{auth.tenant_id}}
+x-auth-context-id: {{auth.context_id}}
+x-auth-permissions: bnpl:contracts:create:self
+
+{}
+
+### Contract — Cancel
+# Requests cancellation of an owned contract (async canceling → canceled).
+# Why: customer abandons after contract creation / before full repayment lifecycle.
+# Prerequisite: Contract — Create (or Confirm that created a contract);
+# set runtime.contract_id. Idempotency-Key required.
+POST {{base_url}}/api/v1/contracts/{{runtime.contract_id}}/cancel
+Accept: application/json
+Content-Type: application/json
+Idempotency-Key: cancel-contract-{{$timestamp}}
+x-auth-subject-id: {{customer.subject_id}}
+x-auth-tenant-id: {{auth.tenant_id}}
+x-auth-context-id: {{auth.context_id}}
+x-auth-permissions: bnpl:contracts:cancel:self
+
+{
+  "reason": "customer_requested"
+}
+
+### Payment — Pay installment
+# Starts a payment attempt for one installment (returns redirect / attempt state).
+# Why: repay a due (or payable) installment via gateway/wallet/bank_transfer.
+# Prerequisite: active contract with installments — Contract create / Confirm;
+# set runtime.contract_id and runtime.installment_id (from Get contract installments
+# or Decision offer / List unpaid). Idempotency-Key required.
+POST {{base_url}}/api/v1/contracts/{{runtime.contract_id}}/installments/{{runtime.installment_id}}/pay
+Accept: application/json
+Content-Type: application/json
+Idempotency-Key: pay-installment-{{$timestamp}}
+x-auth-subject-id: {{customer.subject_id}}
+x-auth-tenant-id: {{auth.tenant_id}}
+x-auth-context-id: {{auth.context_id}}
+x-auth-permissions: bnpl:payments:start:self
+
+{
+  "channel": "gateway"
+}
+
+### Customer account — List active contracts
+# Lists the customer's active contracts (keyset via limit/after_*).
+# Why: customer-app home / contracts tab.
+# Prerequisite: at least one contract created for a non-empty list (empty OK).
+GET {{base_url}}/api/v1/contracts?limit=20
+Accept: application/json
+x-auth-subject-id: {{customer.subject_id}}
+x-auth-tenant-id: {{auth.tenant_id}}
+x-auth-context-id: {{auth.context_id}}
+x-auth-permissions: bnpl:contracts:read:self
+
+### Customer account — Get contract installments
+# Returns installment schedule for one owned contract.
+# Why: pick installment_id before Payment — Pay installment.
+# Prerequisite: Contract — Create / Confirm; set runtime.contract_id.
+# After success: paste an installment id → runtime.installment_id if paying.
+GET {{base_url}}/api/v1/contracts/{{runtime.contract_id}}/installments
+Accept: application/json
+x-auth-subject-id: {{customer.subject_id}}
+x-auth-tenant-id: {{auth.tenant_id}}
+x-auth-context-id: {{auth.context_id}}
+x-auth-permissions: bnpl:installments:read:self
+
+### Customer account — List unpaid installments
+# Cross-contract unpaid installments for the customer (keyset by due_at).
+# Why: "pay next" inbox without opening each contract first.
+# Prerequisite: contracts/installments exist for a non-empty list (empty OK).
+GET {{base_url}}/api/v1/installments?limit=20
+Accept: application/json
+x-auth-subject-id: {{customer.subject_id}}
+x-auth-tenant-id: {{auth.tenant_id}}
+x-auth-context-id: {{auth.context_id}}
+x-auth-permissions: bnpl:installments:read:self
+
+### Customer account — List payments
+# Payment history for the authenticated customer (keyset).
+# Why: receipts / payment history screen.
+# Prerequisite: Payment — Pay installment (or other succeeded attempts) for rows;
+# empty list is valid.
+GET {{base_url}}/api/v1/payments?limit=20
+Accept: application/json
+x-auth-subject-id: {{customer.subject_id}}
+x-auth-tenant-id: {{auth.tenant_id}}
+x-auth-context-id: {{auth.context_id}}
+x-auth-permissions: bnpl:payments:read:self

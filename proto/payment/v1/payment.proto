@@ -1,0 +1,175 @@
+syntax = "proto3";
+
+package parstis.financial.payment.v1;
+
+option go_package = "github.com/parstis/bnpl-backend/gen/proto/payment/v1;paymentv1";
+
+import "google/protobuf/timestamp.proto";
+
+// Financial Core checkout payment service.
+//
+// Canonical published external checkout contract:
+//   package parstis.financial.payment.v1
+//   service CheckoutPaymentService
+// Artifact: contracts/external/checkout-payment/v1/
+//
+// This service is the synchronous service-to-service API for creating a
+// checkout payment. It must be used by upstream services such as BNPL/order
+// instead of HTTP service-to-service calls.
+service CheckoutPaymentService {
+  // Creates a checkout payment and returns a customer-action payment link.
+  //
+  // Server-side implementation rules:
+  // - map request to CreateCheckoutPaymentCommand
+  // - execute through CreateCheckoutPaymentGrpcServiceShell
+  // - execute the use case through TransactionalUseCaseExecutor
+  // - return provider verification/allocation/ledger results through later flows
+  rpc CreateCheckoutPayment(CreateCheckoutPaymentRequest)
+      returns (CreateCheckoutPaymentResponse);
+
+  // Reads the latest Financial-owned checkout payment status.
+  //
+  // This RPC is a side-effect-free query. It does not expire payments, allocate
+  // invoices, or verify the payment provider. Callers poll until a terminal
+  // status is returned.
+  rpc GetPaymentStatus(GetPaymentStatusRequest)
+      returns (GetPaymentStatusResponse);
+}
+
+// Tenant/context scope for all Financial Core operations.
+message FinancialScope {
+  string tenant_id = 1;
+  string context_id = 2;
+}
+
+// Upstream business source reference.
+//
+// The source identifies the upstream operation, such as a BNPL checkout or
+// order checkout. Financial Core uses it for idempotency, traceability, and
+// invoice resolution policies.
+message FinancialSourceReference {
+  string source_service = 1;
+  string source_type = 2;
+  string source_id = 3;
+  int64 source_version = 4;
+}
+
+// Financial party used in checkout payment creation.
+//
+// Supported party_type values are intentionally aligned with the Financial Core
+// domain model:
+// - subject
+// - merchant
+// - platform
+// - payment_provider
+// - external
+message FinancialParty {
+  string party_type = 1;
+  string party_id = 2;
+}
+
+// Money represented in minor units.
+//
+// Never use floating-point values for money.
+// Public contracts must use amount_minor, not ambiguous amount.
+message Money {
+  int64 amount_minor = 1;
+  string currency = 2;
+}
+
+// CreateCheckoutPayment request.
+//
+// This operation creates a payment intent, starts a payment attempt, creates a
+// payment session, and returns a payment link. It does not verify the provider
+// result, allocate invoice payment, or post ledger entries.
+message CreateCheckoutPaymentRequest {
+  FinancialScope scope = 1;
+  FinancialSourceReference source = 2;
+  FinancialParty payer = 3;
+  FinancialParty payee = 4;
+  Money payment_amount = 5;
+
+  string provider_code = 6;
+
+  string success_return_url = 7;
+  string failure_return_url = 8;
+  string cancel_return_url = 9;
+
+  // Required, non-blank payment description.
+  string description = 10;
+
+  google.protobuf.Timestamp expires_at = 11;
+
+  string idempotency_key = 12;
+  string request_fingerprint = 13;
+  string idempotency_record_id = 14;
+
+  // Wave-2 paid collection path (B). When set, Financial loads the
+  // FinancialInvoice collection obligation by this id. Invoice.scope is the
+  // accounting book. Request scope/source/parties/amount are assertions only.
+  // Opaque id is not authorization. Absent value keeps the legacy
+  // source-based invoice resolver (path A).
+  string collection_obligation_id = 15;
+}
+
+// Checkout payment status returned by create checkout payment and
+// GetPaymentStatus. Enum numbers are frozen; PROCESSING is additive.
+enum CheckoutPaymentStatus {
+  CHECKOUT_PAYMENT_STATUS_UNSPECIFIED = 0;
+  CHECKOUT_PAYMENT_STATUS_REQUIRES_CUSTOMER_ACTION = 1;
+  CHECKOUT_PAYMENT_STATUS_SUCCEEDED = 2;
+  CHECKOUT_PAYMENT_STATUS_FAILED = 3;
+  CHECKOUT_PAYMENT_STATUS_EXPIRED = 4;
+  CHECKOUT_PAYMENT_STATUS_CANCELLED = 5;
+  // Provider-verified Collection Obligation payment whose Financial
+  // accounting has not yet completed. Keep polling. Not a failure.
+  CHECKOUT_PAYMENT_STATUS_PROCESSING = 6;
+}
+
+// CreateCheckoutPayment success response.
+//
+// Failures must be returned through gRPC status/details by the generated service
+// boundary, not as a successful response payload.
+message CreateCheckoutPaymentResponse {
+  string invoice_id = 1;
+  string payment_intent_id = 2;
+  string payment_attempt_id = 3;
+  string payment_session_id = 4;
+
+  CheckoutPaymentStatus status = 5;
+  Money payment_amount = 6;
+
+  string payment_link = 7;
+  google.protobuf.Timestamp expires_at = 8;
+
+  bool reused_idempotent_result = 9;
+}
+
+// GetPaymentStatus request.
+//
+// Lookup is by payment_intent_id plus trusted tenant/context and source
+// ownership. Protobuf scope/source fields are business input and must match
+// trusted gRPC metadata. They are not caller authority.
+message GetPaymentStatusRequest {
+  FinancialScope scope = 1;
+  FinancialSourceReference source = 2;
+  string payment_intent_id = 3;
+}
+
+// GetPaymentStatus success response.
+//
+// Failures must be returned through gRPC status, not as a successful payload.
+// completed_at is present only when status is SUCCEEDED.
+// PROCESSING means a Collection Obligation payment may already be
+// provider-verified while Financial accounting is still pending. It is not
+// failure. SUCCEEDED for Collection Obligation means provider verified and
+// Financial accounting completed. Journal and ledger identifiers are not
+// exposed.
+message GetPaymentStatusResponse {
+  string payment_intent_id = 1;
+  CheckoutPaymentStatus status = 2;
+  Money payment_amount = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp expires_at = 5;
+  google.protobuf.Timestamp completed_at = 6;
+}

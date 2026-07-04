@@ -1,2 +1,0 @@
-// Package borroweridentityverificationrp implements borrower identity verification repositories with PostgreSQL.
-package borroweridentityverificationrp

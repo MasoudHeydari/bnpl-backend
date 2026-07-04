@@ -28,7 +28,7 @@ var _ repo.HealthConnQueryer = (*connQueryer)(nil)
 
 // Conn binds the health repository to a non-transactional connection scope.
 func (r *Repo) Conn(c repo.Conn) repo.HealthConnQueryer {
-	return connQueryer{Conn: c.(*postgres.Conn)}
+	return connQueryer{Conn: postgres.MustConn(c)}
 }
 
 func (cq connQueryer) Ping(ctx context.Context) error {

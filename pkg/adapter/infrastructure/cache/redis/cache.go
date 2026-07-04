@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+
 	"github.com/parstis/bnpl-backend/pkg/core/cache"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
-	"github.com/redis/go-redis/v9"
 )
 
 // Verify Cache implements the core cache contract at compile time.
@@ -33,12 +34,15 @@ func New(client *redis.Client) *Cache {
 //
 // It returns cache.ErrMiss when Redis reports that the key does not exist.
 func (c *Cache) Get(ctx context.Context, key string) ([]byte, error) {
+	const op = "redis.Cache.Get"
+
 	value, err := c.client.Get(ctx, key).Bytes()
 	if errors.Is(err, redis.Nil) {
 		return nil, cache.ErrMiss
 	}
+
 	if err != nil {
-		return nil, fmt.Errorf("redis cache get %q: %w", key, err)
+		return nil, fmt.Errorf("%s: redis cache get %q: %w", op, key, err)
 	}
 
 	return value, nil
@@ -48,8 +52,10 @@ func (c *Cache) Get(ctx context.Context, key string) ([]byte, error) {
 //
 // A zero ttl means the key does not expire.
 func (c *Cache) Set(ctx context.Context, key string, value []byte, ttl time.Duration) error {
+	const op = "redis.Cache.Set"
+
 	if err := c.client.Set(ctx, key, value, ttl).Err(); err != nil {
-		return fmt.Errorf("redis cache set %q: %w", key, err)
+		return fmt.Errorf("%s: redis cache set %q: %w", op, key, err)
 	}
 
 	return nil
@@ -63,6 +69,8 @@ func (c *Cache) Set(ctx context.Context, key string, value []byte, ttl time.Dura
 // This uses Redis SET with NX instead of the deprecated SETNX command so TTL
 // and conditional creation are applied atomically in one command.
 func (c *Cache) SetNX(ctx context.Context, key string, value []byte, ttl time.Duration) (bool, error) {
+	const op = "redis.Cache.SetNX"
+
 	result, err := c.client.SetArgs(ctx, key, value, redis.SetArgs{
 		Mode: "NX",
 		TTL:  ttl,
@@ -73,7 +81,7 @@ func (c *Cache) SetNX(ctx context.Context, key string, value []byte, ttl time.Du
 	}
 
 	if err != nil {
-		return false, fmt.Errorf("redis cache setnx %q: %w", key, err)
+		return false, fmt.Errorf("%s: redis cache setnx %q: %w", op, key, err)
 	}
 
 	return result == "OK", nil
@@ -83,12 +91,14 @@ func (c *Cache) SetNX(ctx context.Context, key string, value []byte, ttl time.Du
 //
 // Deleting a missing key is not an error.
 func (c *Cache) Delete(ctx context.Context, keys ...string) error {
+	const op = "redis.Cache.Delete"
+
 	if len(keys) == 0 {
 		return nil
 	}
 
 	if err := c.client.Del(ctx, keys...).Err(); err != nil {
-		return fmt.Errorf("redis cache delete keys: %w", err)
+		return fmt.Errorf("%s: redis cache delete keys: %w", op, err)
 	}
 
 	return nil
@@ -96,9 +106,11 @@ func (c *Cache) Delete(ctx context.Context, keys ...string) error {
 
 // Exists reports whether key exists.
 func (c *Cache) Exists(ctx context.Context, key string) (bool, error) {
+	const op = "redis.Cache.Exists"
+
 	n, err := c.client.Exists(ctx, key).Result()
 	if err != nil {
-		return false, fmt.Errorf("redis cache exists %q: %w", key, err)
+		return false, fmt.Errorf("%s: redis cache exists %q: %w", op, key, err)
 	}
 
 	return n > 0, nil
@@ -109,16 +121,20 @@ func (c *Cache) Exists(ctx context.Context, key string) (bool, error) {
 // It returns cache.ErrMiss when key does not exist. It returns 0 when key
 // exists without expiration.
 func (c *Cache) TTL(ctx context.Context, key string) (time.Duration, error) {
+	const op = "redis.Cache.TTL"
+
 	ttl, err := c.client.TTL(ctx, key).Result()
 	if err != nil {
-		return 0, fmt.Errorf("redis cache ttl %q: %w", key, err)
+		return 0, fmt.Errorf("%s: redis cache ttl %q: %w", op, key, err)
 	}
 
 	switch ttl {
 	case -2 * time.Second:
 		return 0, cache.ErrMiss
+
 	case -1 * time.Second:
 		return 0, nil
+
 	default:
 		return ttl, nil
 	}
@@ -145,6 +161,8 @@ return value
 // If key is created and ttl is greater than zero, ttl is applied to the new
 // key. Existing keys keep their current expiration.
 func (c *Cache) Increment(ctx context.Context, key string, delta int64, ttl time.Duration) (int64, error) {
+	const op = "redis.Cache.Increment"
+
 	ttlMillis := int64(0)
 	if ttl > 0 {
 		ttlMillis = ttl.Milliseconds()
@@ -161,7 +179,7 @@ func (c *Cache) Increment(ctx context.Context, key string, delta int64, ttl time
 		ttlMillis,
 	).Int64()
 	if err != nil {
-		return 0, fmt.Errorf("redis cache increment %q: %w", key, err)
+		return 0, fmt.Errorf("%s: redis cache increment %q: %w", op, key, err)
 	}
 
 	return value, nil
@@ -169,8 +187,10 @@ func (c *Cache) Increment(ctx context.Context, key string, delta int64, ttl time
 
 // Ping verifies that the Redis server is reachable.
 func (c *Cache) Ping(ctx context.Context) error {
+	const op = "redis.Cache.Ping"
+
 	if err := c.client.Ping(ctx).Err(); err != nil {
-		return cerr.ServiceUnavailable(fmt.Errorf("ping: %w", err))
+		return cerr.ServiceUnavailable(fmt.Errorf("%s: ping: %w", op, err))
 	}
 
 	return nil
@@ -178,8 +198,10 @@ func (c *Cache) Ping(ctx context.Context) error {
 
 // Close closes the underlying Redis client.
 func (c *Cache) Close() error {
+	const op = "redis.Cache.Close"
+
 	if err := c.client.Close(); err != nil {
-		return fmt.Errorf("redis cache close: %w", err)
+		return fmt.Errorf("%s: redis cache close: %w", op, err)
 	}
 
 	return nil

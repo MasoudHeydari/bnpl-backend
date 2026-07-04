@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+package parstis.financial.merchantentitlement.v1;
+
+option go_package = "github.com/parstis/bnpl-backend/gen/proto/merchantentitlement/v1;merchantentitlementv1";
+
+// Generic Merchant Entitlement command boundary (G5 / G3-3 / G6E).
+//
+// Economic facts only. Authenticated source_service, FinancialScope, Financial
+// idempotency keys, fingerprints, ledger/wallet ids, fee rates/percentages,
+// accounting classification enums, and business-line pricing fields are
+// deliberately absent from the request body.
+//
+// tenant_id / context_id are omitted: Financial owns canonical merchant
+// settlement FinancialScope resolution and must not treat caller-supplied
+// scope as authority.
+service MerchantEntitlementService {
+  rpc RecordMerchantEntitlement(RecordMerchantEntitlementRequest)
+      returns (RecordMerchantEntitlementResponse);
+
+  // Additive G6E public reversal command. 1.1.0 clients ignore this RPC.
+  rpc ReverseMerchantEntitlement(ReverseMerchantEntitlementRequest)
+      returns (ReverseMerchantEntitlementResponse);
+}
+
+message RecordMerchantEntitlementRequest {
+  string source_type = 1;
+  string source_id = 2;
+  int64 source_version = 3;
+
+  string merchant_id = 4;
+  string customer_subject_id = 5;
+
+  string currency = 6;
+  int64 collected_cash_amount_minor = 7;
+  int64 receivable_amount_minor = 8;
+  int64 merchant_payable_amount_minor = 9;
+
+  optional string collected_cash_payment_intent_id = 10;
+
+  // Final authorized merchant transaction service fee amount in the same
+  // currency / minor units as the other request monetary amounts.
+  // Calculated and authorized by the upstream service/app. Financial does
+  // not calculate the fee, store a fee rate, or branch on BusinessLine
+  // pricing. Use 0 when no transaction fee applies.
+  //
+  // Proto3 scalar default: omitted (v1.0.0 clients) decodes as 0.
+  // v1.1.0 consumers SHOULD send explicit 0 when no fee applies; the server
+  // cannot distinguish omitted vs explicit zero for this scalar field.
+  int64 merchant_transaction_fee_amount_minor = 11;
+}
+
+message RecordMerchantEntitlementResponse {
+  string merchant_entitlement_id = 1;
+  bool reused_idempotent_result = 2;
+
+  // receivable_id identifies the customer receivable created for the financed
+  // amount. Upstream services persist it and use it for later collections with
+  // COLLECTION_APPLICATION_EXISTING_RECEIVABLE.
+  string receivable_id = 3;
+}
+
+// Public Merchant Entitlement reversal facts (G6E).
+//
+// Authenticated source_service is transport-derived (mTLS/SPIFFE) and must not
+// appear on this message. Financial resolves settlement FinancialScope from the
+// stored entitlement merchant binding; callers must not send tenant/context.
+//
+// G6 V1 supports reversal only while the entitlement receivable remains in the
+// currently supported Financial structurally-open state. Callers do not send
+// receivable lifecycle state. Customer refund is a separate Financial event
+// coordinated by the upstream business service when applicable.
+message ReverseMerchantEntitlementRequest {
+  string merchant_entitlement_id = 1;
+  string source_type = 2;
+  string source_id = 3;
+  int64 source_version = 4;
+  string currency = 5;
+  int64 reversed_collected_cash_amount_minor = 6;
+  int64 reversed_receivable_amount_minor = 7;
+  int64 reversed_merchant_payable_amount_minor = 8;
+  int64 reversed_merchant_transaction_fee_amount_minor = 9;
+}
+
+message ReverseMerchantEntitlementResponse {
+  string merchant_entitlement_reversal_id = 1;
+  string merchant_entitlement_id = 2;
+  bool reused_idempotent_result = 3;
+}

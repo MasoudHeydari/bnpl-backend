@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
+	testifymock "github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+
 	tasknoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task/noop"
 	"github.com/parstis/bnpl-backend/pkg/core/mock"
 	"github.com/parstis/bnpl-backend/pkg/core/task"
-	testifymock "github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 )
 
 func TestRegister(t *testing.T) {

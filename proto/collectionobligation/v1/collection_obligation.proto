@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package parstis.financial.collectionobligation.v1;
+
+option go_package = "github.com/parstis/bnpl-backend/gen/proto/collectionobligation/v1;collectionobligationv1";
+
+import "google/protobuf/timestamp.proto";
+
+// Generic collection-obligation command boundary (W2-2).
+//
+// Prepare creates a FinancialInvoice collection instrument. It does not
+// execute payment, does not post accounting, and does not create merchant
+// entitlement.
+//
+// Authenticated source_service, FinancialScope, Financial idempotency keys,
+// fingerprints, ledger/wallet ids, journal lines, and product lifecycle
+// vocabulary are deliberately absent from the request body.
+//
+// tenant_id / context_id are omitted: Financial owns canonical merchant
+// settlement FinancialScope resolution and must not treat caller-supplied
+// scope as authority.
+service CollectionObligationService {
+  rpc PrepareCollectionObligation(PrepareCollectionObligationRequest)
+      returns (PrepareCollectionObligationResponse);
+}
+
+// How collected cash will later be applied in Financial accounting.
+// Unspecified is invalid on Prepare. Financial classifies cash application;
+// it does not know product state.
+enum CollectionApplication {
+  COLLECTION_APPLICATION_UNSPECIFIED = 0;
+  COLLECTION_APPLICATION_PRE_RECOGNITION_CASH = 1;
+  COLLECTION_APPLICATION_EXISTING_RECEIVABLE = 2;
+}
+
+message PrepareCollectionObligationRequest {
+  string source_type = 1;
+  string source_id = 2;
+  int64 source_version = 3;
+  string merchant_id = 4;
+  string customer_subject_id = 5;
+  string currency = 6;
+  int64 amount_minor = 7;
+  CollectionApplication collection_application = 8;
+  optional string description = 9;
+  optional google.protobuf.Timestamp due_at = 10;
+
+  // receivable_id is required when collection_application is EXISTING_RECEIVABLE.
+  // It identifies the exact Financial Core receivable that collected cash must settle.
+  string receivable_id = 11;
+}
+
+message PrepareCollectionObligationResponse {
+  string collection_obligation_id = 1;
+  int64 outstanding_amount_minor = 2;
+  string currency = 3;
+  bool reused_idempotent_result = 4;
+}

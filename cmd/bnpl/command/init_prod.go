@@ -1,19 +1,26 @@
+//go:build production
+
 package command
 
 import (
-	"github.com/parstis/bnpl-backend/cmd/bnpl/bootstrap"
 	"github.com/spf13/cobra"
+
+	"github.com/parstis/bnpl-backend/cmd/bnpl/bootstrap"
 )
 
 var initProdCmd = &cobra.Command{
 	Use:   "init-prod",
-	Short: "Reset the database and load production bootstrap data",
-	Long: `Reset the managed PostgreSQL schema and initialize it for production
-bootstrap.
+	Short: "Create the production schema once when it does not already exist",
+	Long: `Create managed schema bnpl for production bootstrap when it is missing.
 
-The command loads the application configuration, drops and recreates the managed
-schema, ensures the application role and privileges exist, and then applies the
-embedded schema and production seed SQL inside a transaction.`,
+Requires runtime.environment=production (APP_ENVIRONMENT=production).
+If schema bnpl does not exist, this command creates it, ensures the application
+role and privileges exist, and applies embedded schema DDL plus production seed
+SQL inside a transaction.
+
+If schema bnpl already exists, the command fails with a conflict error and does
+not drop or mutate existing objects. Use db migrate (make migrate) for schema
+evolution on an existing production database.`,
 	RunE: initProd,
 	Args: cobra.NoArgs,
 }

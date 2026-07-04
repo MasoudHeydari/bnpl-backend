@@ -1,5 +1,3 @@
-// Package health provides infrastructure implementations for application
-// health checks.
 package health
 
 import (

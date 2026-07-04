@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package parstis.identity.v1;
+
+option go_package = "github.com/parstis/bnpl-backend/gen/proto/identity/v1;identityv1";
+
+// IdentityService exposes subject resolution BNPL depends on for hosted
+// external checkout.
+//
+// BNPL calls these RPCs only outside database transactions.
+// Caller identity is established by the service mesh / mTLS allowlist
+// (implementation of mTLS is out of scope for the BNPL client in this tree).
+service IdentityService {
+  // ResolveSubjectByMobile resolves a subject by verified mobile number.
+  //
+  // BNPL invokes this during External Partner Create with the merchant-asserted
+  // customer mobile so the financing offer can be prepared before Hosted OTP.
+  // Checkout OTP later proves possession and authorizes confirmation of the
+  // prepared evaluation generation; this RPC does not itself prove OTP
+  // possession.
+  //
+  // Errors (gRPC status):
+  //   INVALID_ARGUMENT   - mobile is not a valid Iranian mobile
+  //   NOT_FOUND          - no active individual subject owns this mobile
+  //   PERMISSION_DENIED  - caller is not allowed to resolve by mobile
+  //   RESOURCE_EXHAUSTED - caller rate limit exceeded
+  //   UNAVAILABLE / DEADLINE_EXCEEDED - transient; safe to retry
+  rpc ResolveSubjectByMobile(ResolveSubjectByMobileRequest)
+      returns (ResolveSubjectByMobileResponse);
+}
+
+message ResolveSubjectByMobileRequest {
+  // E.164 Iranian mobile, e.g. +989121234567.
+  // Identity also accepts 09121234567 / 9121234567 and normalizes it.
+  string mobile_number = 1;
+}
+
+message ResolveSubjectByMobileResponse {
+  // Canonical Identity subject id (UUID string). BNPL maps this to
+  // customer_profiles.identity_subject_id.
+  string subject_id = 1;
+
+  // Identity SubjectType wire value.
+  // Known domain values: "individual", "group".
+  string subject_type = 2;
+
+  // Identity SubjectStatus wire value.
+  // Known domain values: "active", "suspended", "deleted".
+  string subject_status = 3;
+}

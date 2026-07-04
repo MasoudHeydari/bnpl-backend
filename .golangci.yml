@@ -1,0 +1,232 @@
+# golangci-lint configuration schema version.
+version: "2"
+
+run:
+  # Maximum duration allowed for the entire lint process.
+  timeout: 5m
+
+  # Prevents golangci-lint from modifying go.mod or downloading dependencies
+  # in a way that changes the module files.
+  modules-download-mode: readonly
+
+  # Resolves relative paths from the directory containing go.mod.
+  relative-path-mode: gomod
+
+  # Includes test files and test packages in lint checks.
+  tests: true
+
+linters:
+  # Disables the default linter set.
+  # Only explicitly enabled linters below will be executed.
+  default: none
+
+  enable:
+    # Detects ignored errors returned by functions.
+    # Example: calling file.Close() without checking its returned error.
+    - errcheck
+
+    # Detects incorrect error wrapping, comparison, and type-checking patterns.
+    # Encourages errors.Is, errors.As, and proper use of %w.
+    - errorlint
+
+    # Runs Go's official static analyzer and detects suspicious constructs,
+    # such as incorrect Printf arguments and unreachable code.
+    - govet
+
+    # Detects assignments whose values are overwritten before being used.
+    - ineffassign
+
+    # Performs advanced static analysis and detects bugs, invalid patterns,
+    # deprecated APIs, concurrency issues, and unnecessary code.
+    - staticcheck
+
+    # Detects unused constants, variables, functions, fields, and types.
+    - unused
+
+    # Enforces a maximum source-code line length.
+    - lll
+
+    # Detects commonly misspelled English words in comments, strings, and names.
+    - misspell
+
+    # Applies configurable Go style and code-quality rules.
+    # It is a modern alternative to golint.
+    - revive
+
+    # Detects common security problems such as unsafe file permissions,
+    # weak cryptography, SQL construction, and command execution risks.
+    - gosec
+
+    # Detects unnecessary explicit type conversions.
+    - unconvert
+
+    # Detects HTTP response bodies that are not closed.
+    # This helps prevent resource and connection leaks.
+    - bodyclose
+
+    # Detects inappropriate context.Context usage and lost context propagation.
+    - contextcheck
+
+    # Detects suspicious multiplication of time.Duration values.
+    # Example: time.Second * time.Duration(delay) mistakes.
+    - durationcheck
+
+    # Detects branches that return nil even though a non-nil error is available.
+    - nilerr
+
+    # Detects incorrect nil-related error handling.
+    # Example: checking the wrong error variable before returning.
+    - nilnesserr
+
+    # Validates //nolint directives and prevents broad or unexplained exclusions.
+    - nolintlint
+
+    # Detects incorrect host and port formatting with fmt.Sprintf.
+    # Recommends net.JoinHostPort where appropriate.
+    - nosprintfhostport
+
+    # Whitespace / blank-line conventions (err cuddle, after blocks, case gaps).
+    - wsl_v5
+
+  settings:
+    errcheck:
+      # Checks ignored errors from type assertions.
+      # Example: value := input.(string) without checking the boolean result.
+      check-type-assertions: true
+
+      # Checks errors intentionally assigned to the blank identifier.
+      # Example: _ = file.Close().
+      check-blank: true
+
+    wsl_v5:
+      # Only the checks that match BNPL syntax rules; avoid the full cuddle set.
+      default: none
+      enable:
+        # No blank line between err assignment and if err != nil.
+        - err
+        # Blank line after if/for/switch/select blocks before the next statement.
+        - after-block
+      # Always require a blank line between switch/select case clauses.
+      case-max-lines: 1
+
+    lll:
+      # Maximum allowed number of characters in a source-code line.
+      line-length: 200
+
+      # Counts each tab character as one character.
+      tab-width: 1
+
+    misspell:
+      # Uses American English spelling.
+      locale: US
+
+    revive:
+      rules:
+        # Requires exported identifiers to have documentation comments.
+        - name: exported
+          severity: warning
+          disabled: false
+
+    gosec:
+      excludes:
+        # Allows launching subprocesses where the command or arguments
+        # are derived from variables.
+        #
+        # Exclude this only when command execution is reviewed and controlled.
+        - G204
+
+        # Allows use of math/rand where cryptographic randomness is not needed.
+        #
+        # crypto/rand must still be used for security-sensitive values.
+        - G404
+
+    nolintlint:
+      # Requires every //nolint directive to explain why it is necessary.
+      require-explanation: true
+
+      # Rejects generic //nolint directives and requires naming the linter.
+      # Example: //nolint:errcheck instead of //nolint.
+      require-specific: true
+
+  exclusions:
+    # Excludes files that contain strict standard generated-code markers.
+    generated: strict
+
+    # Reports exclusion rules that no longer match any issue.
+    # This helps remove obsolete suppression rules.
+    warn-unused: true
+
+    presets:
+      # Excludes common intentional standard-library error handling patterns.
+      - std-error-handling
+
+      # Excludes known common false-positive patterns.
+      - common-false-positives
+
+    paths:
+      # Excludes generated Protocol Buffers files.
+      - ".*\\.pb\\.go$"
+
+      # Excludes other generated Go source files.
+      - ".*\\.gen\\.go$"
+
+      # Excludes mocks generated by tools such as mockery.
+      - ".*_mock\\.go$"
+
+      # Excludes Swaggo-generated API documentation packages.
+      - "^gen/swagger/"
+
+    rules:
+      # Long lines are often acceptable in tests due to fixtures,
+      # expected values, and table-driven test cases.
+      #
+      # gosec may also produce noisy findings for test-only values.
+      - path: "_test\\.go$"
+        linters:
+          - lll
+          - gosec
+
+      # go:generate commands may legitimately exceed the line-length limit.
+      - source: "^//go:generate "
+        linters:
+          - lll
+
+issues:
+  # Reports every issue found by each linter without applying a per-linter limit.
+  max-issues-per-linter: 0
+
+  # Reports every repeated instance of the same issue.
+  max-same-issues: 0
+
+formatters:
+  enable:
+    # Enforces standard Go formatting.
+    - gofmt
+
+    # Enforces formatting and organizes import groups.
+    - goimports
+
+  settings:
+    gofmt:
+      # Applies gofmt simplifications in addition to basic formatting.
+      simplify: true
+
+    goimports:
+      # Defines imports belonging to this project.
+      # Project imports will be placed in their own import group.
+      local-prefixes:
+        - github.com/parstis/bnpl-backend
+
+  exclusions:
+    # Does not apply formatter checks to generated files.
+    generated: strict
+
+    paths:
+      # Excludes generated Protocol Buffers files from formatting checks.
+      - ".*\\.pb\\.go$"
+
+      # Excludes other generated Go source files from formatting checks.
+      - ".*\\.gen\\.go$"
+
+      # Excludes generated mock files from formatting checks.
+      - ".*_mock\\.go$"

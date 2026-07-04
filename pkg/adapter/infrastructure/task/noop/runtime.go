@@ -54,3 +54,8 @@ func (r *Runtime) Start(ctx context.Context) error {
 
 	return nil
 }
+
+// Close is a no-op because the noop runtime owns no durable resources.
+func (r *Runtime) Close() error {
+	return nil
+}

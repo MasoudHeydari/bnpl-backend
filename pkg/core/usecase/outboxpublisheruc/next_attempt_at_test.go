@@ -4,8 +4,9 @@ import (
 	"testing"
 	"time"
 
-	adapterclock "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/clock"
 	"github.com/stretchr/testify/assert"
+
+	adapterclock "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/clock"
 )
 
 func TestNextAttemptAt_AttemptOne_UsesBaseDelay(t *testing.T) {

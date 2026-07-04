@@ -1,19 +1,24 @@
+//go:build development
+
 package command
 
 import (
-	"github.com/parstis/bnpl-backend/cmd/bnpl/bootstrap"
 	"github.com/spf13/cobra"
+
+	"github.com/parstis/bnpl-backend/cmd/bnpl/bootstrap"
 )
 
 var initDevCmd = &cobra.Command{
 	Use:   "init-dev",
-	Short: "Reset the database and load development bootstrap data",
-	Long: `Reset the managed PostgreSQL schema and initialize it for development
-use.
+	Short: "Recreate the development schema and load development bootstrap data",
+	Long: `Destructively reset managed schema bnpl and initialize it for development.
 
-The command loads the application configuration, drops and recreates the managed
-schema, ensures the application role and privileges exist, and then applies the
-embedded schema and development seed SQL inside a transaction.`,
+Requires runtime.environment=development (APP_ENVIRONMENT=development).
+Whether the schema is empty or already populated, this command drops schema bnpl
+(CASCADE), recreates it, ensures the application role and privileges exist, and
+applies embedded schema DDL plus development seed SQL inside a transaction.
+
+Do not run against production databases.`,
 	RunE: initDev,
 	Args: cobra.NoArgs,
 }

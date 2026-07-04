@@ -4,9 +4,16 @@ package log
 type Level string
 
 const (
+	// DebugLevel records diagnostic information for development and troubleshooting.
 	DebugLevel Level = "debug"
-	InfoLevel  Level = "info"
-	WarnLevel  Level = "warn"
+
+	// InfoLevel records normal operational events.
+	InfoLevel Level = "info"
+
+	// WarnLevel records unexpected situations that do not stop operation.
+	WarnLevel Level = "warn"
+
+	// ErrorLevel records failures that require attention.
 	ErrorLevel Level = "error"
 )
 
@@ -34,7 +41,7 @@ type Logger interface {
 	// Example:
 	//
 	//	logger := logger.With(
-	//		"trace_id", trace.TraceID(ctx),
+	//		"trace_id", trace.ID(ctx),
 	//		"request_id", trace.RequestID(ctx),
 	//	)
 	With(args ...any) Logger

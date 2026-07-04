@@ -1,7 +1,6 @@
 package bootstrap
 
 import (
-	"context"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -13,6 +12,7 @@ func TestRegisterRoutes_HealthEnabled(t *testing.T) {
 
 	cfg := noopTestConfig()
 	cfg.Usecases.Health.Enabled = true
+	cfg.Gin.Swagger.Enabled = false
 
 	app := testAppWithInfrastructure(t, cfg)
 
@@ -20,14 +20,35 @@ func TestRegisterRoutes_HealthEnabled(t *testing.T) {
 	require.NoError(t, err)
 	app.UseCases = usecases
 
-	engine := cfg.NewGinEngine(app.Infrastructure.Trace)
+	engine, err := cfg.NewGinEngine(app.Infrastructure.Trace, app.Infrastructure.Logger, app.Infrastructure.ErrorReporter)
+	require.NoError(t, err)
 
-	err = app.RegisterRoutes(context.Background(), engine)
+	err = app.RegisterRoutes(engine)
 	require.NoError(t, err)
 
 	routes := engine.Routes()
 	requireRouteRegistered(t, routes, "GET", "/healthz/live")
 	requireRouteRegistered(t, routes, "GET", "/healthz/ready")
+	requireRouteRegistered(t, routes, "POST", "/api/v1/partner/checkout-sessions")
+	requireRouteRegistered(t, routes, "GET", "/api/v1/partner/checkout-sessions/:checkout_session_id")
+	requireRouteRegistered(t, routes, "POST", "/api/v1/partner/checkout-sessions/:checkout_session_id/cancel")
+	requireRouteRegistered(t, routes, "PUT", "/api/v1/partner/return-destinations/:destination_name")
+	requireRouteRegistered(t, routes, "PUT", "/api/v1/partner/webhook-destination")
+	requireRouteRegistered(t, routes, "POST", "/api/v1/internal/checkout-sessions")
+	requireRouteRegistered(t, routes, "GET", "/api/v1/checkout-sessions/:checkout_session_id")
+	requireRouteRegistered(t, routes, "GET", "/api/v1/checkout-sessions/:checkout_session_id/return")
+	requireRouteRegistered(t, routes, "POST", "/api/v1/checkout-sessions/:checkout_session_id/start")
+	requireRouteRegistered(t, routes, "POST", "/api/v1/checkout-sessions/:checkout_session_id/confirm")
+	requireRouteRegistered(t, routes, "POST", "/api/v1/checkout-sessions/:checkout_session_id/cancel")
+	requireRouteRegistered(t, routes, "GET", "/api/v1/hosted/checkout-sessions/:checkout_session_id")
+	requireRouteRegistered(t, routes, "GET", "/api/v1/hosted/checkout-sessions/:checkout_session_id/return")
+	requireRouteRegistered(t, routes, "POST", "/api/v1/hosted/checkout-sessions/:checkout_session_id/start")
+	requireRouteRegistered(t, routes, "POST", "/api/v1/hosted/checkout-sessions/:checkout_session_id/confirm")
+	requireRouteRegistered(t, routes, "POST", "/api/v1/checkout-decisions")
+	requireRouteNotRegistered(t, routes, "POST", "/api/v1/checkout-decisions/:decision_id/installments/offer")
+	requireRouteRegistered(t, routes, "POST", "/api/v1/customer-credit/initiate")
+	requireRouteRegistered(t, routes, "GET", "/api/v1/payments")
+	requireRouteNotRegistered(t, routes, "GET", "/swagger/*any")
 }
 
 func TestRegisterRoutes_HealthDisabled(t *testing.T) {
@@ -35,6 +56,7 @@ func TestRegisterRoutes_HealthDisabled(t *testing.T) {
 
 	cfg := noopTestConfig()
 	cfg.Usecases.Health.Enabled = false
+	cfg.Gin.Swagger.Enabled = false
 
 	app := testAppWithInfrastructure(t, cfg)
 
@@ -42,14 +64,57 @@ func TestRegisterRoutes_HealthDisabled(t *testing.T) {
 	require.NoError(t, err)
 	app.UseCases = usecases
 
-	engine := cfg.NewGinEngine(app.Infrastructure.Trace)
+	engine, err := cfg.NewGinEngine(app.Infrastructure.Trace, app.Infrastructure.Logger, app.Infrastructure.ErrorReporter)
+	require.NoError(t, err)
 
-	err = app.RegisterRoutes(context.Background(), engine)
+	err = app.RegisterRoutes(engine)
 	require.NoError(t, err)
 
 	routes := engine.Routes()
 	requireRouteNotRegistered(t, routes, "GET", "/healthz/live")
 	requireRouteNotRegistered(t, routes, "GET", "/healthz/ready")
+}
+
+func TestRegisterRoutes_SwaggerEnabled(t *testing.T) {
+	t.Parallel()
+
+	cfg := noopTestConfig()
+	cfg.Gin.Swagger.Enabled = true
+
+	app := testAppWithInfrastructure(t, cfg)
+
+	usecases, err := app.NewUseCases()
+	require.NoError(t, err)
+	app.UseCases = usecases
+
+	engine, err := cfg.NewGinEngine(app.Infrastructure.Trace, app.Infrastructure.Logger, app.Infrastructure.ErrorReporter)
+	require.NoError(t, err)
+
+	err = app.RegisterRoutes(engine)
+	require.NoError(t, err)
+
+	requireRouteRegistered(t, engine.Routes(), "GET", "/swagger/*any")
+}
+
+func TestRegisterRoutes_SwaggerDisabled(t *testing.T) {
+	t.Parallel()
+
+	cfg := noopTestConfig()
+	cfg.Gin.Swagger.Enabled = false
+
+	app := testAppWithInfrastructure(t, cfg)
+
+	usecases, err := app.NewUseCases()
+	require.NoError(t, err)
+	app.UseCases = usecases
+
+	engine, err := cfg.NewGinEngine(app.Infrastructure.Trace, app.Infrastructure.Logger, app.Infrastructure.ErrorReporter)
+	require.NoError(t, err)
+
+	err = app.RegisterRoutes(engine)
+	require.NoError(t, err)
+
+	requireRouteNotRegistered(t, engine.Routes(), "GET", "/swagger/*any")
 }
 
 func requireRouteRegistered(

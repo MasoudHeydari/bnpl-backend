@@ -6,10 +6,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
-	"github.com/parstis/bnpl-backend/pkg/core/pagination"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
+	"github.com/parstis/bnpl-backend/pkg/core/pagination"
 )
 
 func TestSortMap_Column(t *testing.T) {

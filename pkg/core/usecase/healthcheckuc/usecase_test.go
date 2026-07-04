@@ -5,9 +5,10 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/mock"
-	"github.com/stretchr/testify/require"
 )
 
 type healthcheckucDeps struct {
@@ -46,12 +47,12 @@ func TestLivenessReturnsErrorWhenShutdownTimedOut(t *testing.T) {
 	deps := newHealthCheckUCDeps(t)
 	deps.lifecycleState.EXPECT().IsShutdownTimedOut().Return(true).Once()
 
-	uc := New(deps.lifecycleState, nil)
+	uc := deps.newUseCase()
 
 	err := uc.Liveness(context.Background())
 	require.Error(t, err)
 	require.True(t, cerr.IsCode(err, cerr.CodeServiceUnavailable))
-	require.ErrorContains(t, err, "shutdown timed out")
+	require.ErrorContains(t, err, "error.application_shutdown_timed_out")
 }
 
 func TestReadinessReturnsNilWhenDependenciesAreHealthy(t *testing.T) {
