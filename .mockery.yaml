@@ -30,6 +30,10 @@ packages:
           structname: RepoHealth
       HealthConnQueryer:
       HealthQueryer:
+      MerchantBranchProfile:
+      MerchantBranchProfileConnQueryer:
+      MerchantBranchProfileQueryer:
+      MerchantBranchProfileTxQueryer:
       MerchantProfile:
       MerchantProfileConnQueryer:
       MerchantProfileQueryer:
