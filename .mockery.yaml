@@ -12,6 +12,10 @@ packages:
       BorrowerCreditLimitConnQueryer:
       BorrowerCreditLimitQueryer:
       BorrowerCreditLimitTxQueryer:
+      BorrowerExposureSummary:
+      BorrowerExposureSummaryConnQueryer:
+      BorrowerExposureSummaryQueryer:
+      BorrowerExposureSummaryTxQueryer:
       BorrowerIdentityVerification:
       BorrowerIdentityVerificationConnQueryer:
       BorrowerIdentityVerificationQueryer:
