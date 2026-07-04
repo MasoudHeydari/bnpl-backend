@@ -508,3 +508,38 @@ CREATE TABLE IF NOT EXISTS borrower_exposure_summaries (
         AND reserved_exposure_amount_minor >= 0
     )
 );
+
+-- -----------------------------------------------------------------------------
+-- Borrower Exposure Reservations
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS borrower_exposure_reservations (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    checkout_intent_id uuid NOT NULL,
+    decision_id uuid NOT NULL UNIQUE REFERENCES decisions (id),
+    borrower_profile_id uuid NOT NULL REFERENCES borrower_profiles (id),
+    amount_minor bigint NOT NULL,
+    currency text NOT NULL,
+    status text NOT NULL,
+    expires_at timestamptz NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT chk_borrower_exposure_reservations_status
+    CHECK (status IN ('reserved', 'confirmed', 'released', 'expired')),
+
+    CONSTRAINT chk_borrower_exposure_reservations_amount_minor
+    CHECK (amount_minor >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_borrower_exposure_reservations_borrower_profile_id
+    ON borrower_exposure_reservations (borrower_profile_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_borrower_exposure_reservations_one_reserved_per_checkout
+    ON borrower_exposure_reservations (checkout_intent_id)
+    WHERE status = 'reserved';
+
+CREATE INDEX IF NOT EXISTS idx_borrower_exposure_reservations_due
+    ON borrower_exposure_reservations (status, expires_at);
+
+CREATE INDEX IF NOT EXISTS idx_borrower_exposure_reservations_borrower_currency
+    ON borrower_exposure_reservations (borrower_profile_id, currency);
