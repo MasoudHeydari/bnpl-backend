@@ -489,3 +489,22 @@ CREATE INDEX IF NOT EXISTS idx_checkout_financing_terms_merchant_profile_id
 CREATE UNIQUE INDEX IF NOT EXISTS idx_checkout_financing_terms_one_offered_per_checkout
     ON checkout_financing_terms (checkout_intent_id)
     WHERE status = 'offered';
+
+-- -----------------------------------------------------------------------------
+-- Borrower Exposure Summaries
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS borrower_exposure_summaries (
+    borrower_profile_id uuid NOT NULL REFERENCES borrower_profiles (id),
+    currency text NOT NULL,
+    active_exposure_amount_minor bigint NOT NULL DEFAULT 0,
+    reserved_exposure_amount_minor bigint NOT NULL DEFAULT 0,
+    updated_at timestamptz NOT NULL DEFAULT now(),
+
+    PRIMARY KEY (borrower_profile_id, currency),
+
+    CONSTRAINT chk_borrower_exposure_summaries_amounts
+    CHECK (
+        active_exposure_amount_minor >= 0
+        AND reserved_exposure_amount_minor >= 0
+    )
+);
