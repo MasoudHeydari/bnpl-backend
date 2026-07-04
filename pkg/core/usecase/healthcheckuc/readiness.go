@@ -2,9 +2,6 @@ package healthcheckuc
 
 import (
 	"context"
-	"errors"
-
-	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 )
 
 // Readiness reports whether the application can safely accept new work.
@@ -16,8 +13,8 @@ func (uc *UseCase) Readiness(ctx context.Context) error {
 		return err
 	}
 
-	if uc.lifecycleState != nil && uc.lifecycleState.IsDraining() {
-		return cerr.ServiceUnavailable(errors.New("application is draining"))
+	if uc.lifecycleState.IsDraining() {
+		return applicationDrainingError()
 	}
 
 	if err := uc.dependencyChecker.Check(ctx); err != nil {

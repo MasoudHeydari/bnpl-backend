@@ -4,79 +4,59 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
-	"github.com/parstis/bnpl-backend/pkg/adapter/config"
-	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/migrationsrp"
-	"github.com/parstis/bnpl-backend/pkg/core/repo"
-	"github.com/parstis/bnpl-backend/pkg/core/usecase/migrationsuc"
+	coreerrorreporting "github.com/parstis/bnpl-backend/pkg/core/errorreporting"
+	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
 )
 
+// cfgPath is the Runtime configuration path used by Boot and business CLI
+// workflows. Set it through FixConfigPath before invoking those entrypoints.
 var cfgPath string
 
-func InitProd() error {
-	ctx := context.Background()
-	c, err := config.Load(cfgPath)
-	if err != nil {
-		return fmt.Errorf("config.Load(%q): %w", cfgPath, err)
-	}
-	fmt.Printf("configs: %v\n", c)
+const commandPanicFlushTimeout = 2 * time.Second
 
-	muc := migrationsuc.NewInitDB(c)
-	err = muc.InitProd(ctx)
-	if err != nil {
-		return fmt.Errorf("initializing DB with dev data: %w", err)
-	}
+func recoverCommandPanic(
+	ctx context.Context,
+	command string,
+	logger corelog.Logger,
+	reporter coreerrorreporting.Reporter,
+	err *error,
+) {
+	const op = "bootstrap.recoverCommandPanic"
 
-	return nil
-}
-
-func InitDev() error {
-	ctx := context.Background()
-	c, err := config.Load(cfgPath)
-	if err != nil {
-		return fmt.Errorf("config.Load(%q): %w", cfgPath, err)
-	}
-	fmt.Printf("configs: %v\n", c)
-
-	muc := migrationsuc.NewInitDB(c)
-	err = muc.InitDev(ctx)
-	if err != nil {
-		return fmt.Errorf("initializing DB with dev data: %w", err)
+	recovered := recover()
+	if recovered == nil {
+		return
 	}
 
-	return nil
-}
+	if reporter != nil {
+		reporter.CapturePanic(
+			ctx,
+			recovered,
+			coreerrorreporting.Metadata{
+				Component: "cli",
+				Tags: map[string]string{
+					"cli.command": command,
+				},
+			},
+		)
 
-func Migrate() error {
-	ctx := context.Background()
-	c, err := config.Load(cfgPath)
-	if err != nil {
-		return fmt.Errorf("config.Load(%q): %w", cfgPath, err)
+		flushCtx, cancel := context.WithTimeout(context.Background(), commandPanicFlushTimeout)
+		reporter.Flush(flushCtx)
+		cancel()
 	}
 
-	p, err := c.ConnectionPool(ctx, repo.NormalRole)
-	if err != nil {
-		return fmt.Errorf("creating DB pool: %w", err)
-	}
-	defer func() {
-		if err = p.Close(); err != nil {
-			fmt.Printf("failed to close pool connection: %v\n", err)
-		}
-	}()
-
-	systemClock, err := c.NewSystemClockInfrastructure()
-	if err != nil {
-		return fmt.Errorf("initialize system clock: %w", err)
+	if logger != nil {
+		logger.With(
+			"command", command,
+			"panic", fmt.Sprint(recovered),
+		).Error("cli command panic recovered")
 	}
 
-	migrationsRepo := migrationsrp.New()
-	migrationsUC := c.NewMigrationsUseCase(p, migrationsRepo, systemClock)
-	err = migrationsUC.MigrateAll(ctx)
 	if err != nil {
-		return fmt.Errorf("migrate.MigrateAll: %w", err)
+		*err = fmt.Errorf("%s: %s panic recovered: %v", op, command, recovered)
 	}
-
-	return nil
 }
 
 // FixConfigPath resolves the configuration file path from the CLI flag,
@@ -92,5 +72,5 @@ func FixConfigPath(cliPath string) {
 		return
 	}
 
-	cfgPath = "configs/config.yaml"
+	cfgPath = "configs/runtime.yaml"
 }

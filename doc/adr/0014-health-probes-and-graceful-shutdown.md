@@ -10,6 +10,8 @@ Kubernetes and load balancers need liveness and readiness probes that behave cor
 
 The application also needs a composable way to verify runtime dependencies (database, cache, messaging) without embedding SQL or broker clients in HTTP handlers or use case packages.
 
+Process startup must construct dependencies in real dependency order, roll back partial initialization, and share one ownership path for cleanup with graceful shutdown.
+
 ## Decision
 
 ### Core contracts (`pkg/core/health`)
@@ -28,23 +30,49 @@ The application also needs a composable way to verify runtime dependencies (data
 - `AtomicLifecycleState` — implements `LifecycleState`
 - `DatabaseDependencyChecker`, `RedisDependencyChecker`, `MessagingDependencyChecker`
 - `CompositeDependencyChecker` — runs configured checks from `infrastructure.health.checks`
+- Database readiness fails closed when the pool or health repository was not wired (nil is not treated as healthy)
 
 ### HTTP (`pkg/adapter/restful/gin/healthrs`)
 
 - `GET /healthz/live` and `GET /healthz/ready` when `usecases.health.enabled` is true
 - Handlers call the use case only; errors serialized via `serdser.SerErr`
 
-### Graceful shutdown (`cmd/bnpl/bootstrap`)
+### Process lifecycle (`cmd/bnpl/bootstrap`)
 
-- `Boot` listens for `SIGINT` / `SIGTERM`
-- On signal: `LifecycleState.StartDraining()` (readiness fails), bounded shutdown context from `infrastructure.shutdown.timeout`
-- Ordered stop: HTTP → task runtime and message consumer → in-flight drain window → publisher, subscriber, cache, database pool
-- On shutdown timeout: `LifecycleState.MarkShutdownTimedOut()` (liveness fails)
+`Boot` listens for `SIGINT` / `SIGTERM` and delegates to `Run`. The CLI layer owns process exit (`os.Exit`); bootstrap does not.
+
+**Construction (`NewApp`)** — dependency order:
+
+1. Infrastructure adapters that do not need the DB pool (logger, metrics, cache, messaging, task runtime, outbound HTTP client)
+2. Database pool
+3. `DependencyChecker` wired against the live pool (never constructed with a nil pool)
+4. External clients and use cases
+
+Partial construction failures release already-created resources through `App.Close`.
+
+**Prepare / start (`Run`)**
+
+1. Register tasks, consumers, routes
+2. Bind HTTP (and metrics) listeners before starting background workers so bind failures do not leave workers running
+3. Start task runtime + message consumer, then serve
+4. Supervise until context cancel, listener failure, or fatal worker exit
+
+**Graceful shutdown** (single global budget: `infrastructure.shutdown.timeout`)
+
+1. `LifecycleState.StartDraining()` — readiness fails immediately
+2. `drain_delay` — wait for load-balancer / kube-proxy propagation while dependencies stay up
+3. HTTP (then metrics) `Shutdown` — stop accepting; finish in-flight work against live dependencies
+4. Cancel worker runtime context; wait for task scheduler and consumer goroutines
+5. Release App-owned resources in reverse dependency order: outbound HTTP client → publisher → subscriber → messaging health → cache → external → database pool
+
+`App.Close` / `releaseResources` is the single ownership path for shared dependencies. Startup rollback and graceful shutdown both use it; cleanup is idempotent (`sync.Once`).
+
+Normal `http.ErrServerClosed` and expected `context.Canceled` worker stops are not fatal process errors. Unexpected listener exits and fatal task/consumer exits terminate the supervise loop and enter the same shutdown path. On shutdown timeout: `LifecycleState.MarkShutdownTimedOut()` (liveness fails).
 
 Configuration:
 
-- `infrastructure.shutdown.timeout` / `SHUTDOWN_TIMEOUT` (default 30s)
-- `infrastructure.shutdown.drain_delay` / `SHUTDOWN_DRAIN_DELAY` (default 5s) — decoded and exposed via config API; **not yet applied** in the bootstrap shutdown sequence (readiness draining is immediate on signal)
+- `infrastructure.shutdown.timeout` / `SHUTDOWN_TIMEOUT` (default 30s) — global graceful-shutdown budget
+- `infrastructure.shutdown.drain_delay` / `SHUTDOWN_DRAIN_DELAY` — applied after draining starts and before HTTP shutdown (zero means no wait; deployment defaults live in env examples)
 
 ### Config and version validation
 
@@ -56,11 +84,13 @@ Configuration:
 
 - Probe semantics match Kubernetes expectations
 - Dependency checks stay in infrastructure; use case stays technology-agnostic
-- Graceful shutdown stops background workers before closing brokers and the database pool
+- Startup wiring cannot silently skip database readiness via a nil pool
+- Shared dependency cleanup cannot diverge between rollback and shutdown
+- Drain delay is honored so readiness failure can propagate before listeners stop
 
 **Negative**
 
-- `SHUTDOWN_DRAIN_DELAY` is configured but not wired into bootstrap timing yet
+- Non-context `Close()` calls after worker stop are not individually deadline-bounded; the process still uses one overall shutdown budget for context-aware steps
 - Readiness uses standard `serdser` error envelopes on failure (not a dedicated probe JSON schema for all error paths)
 - Health checks list in YAML is static (not env-expanded per check)
 
@@ -68,6 +98,7 @@ Configuration:
 
 - Set `HEALTH_ENABLED=true` and point probes at `/healthz/live` and `/healthz/ready`
 - With `infrastructure.health.checks` including `cache` or `messaging`, readiness fails when Redis or Kafka is unreachable even if the noop provider would otherwise allow startup
+- Size `terminationGracePeriodSeconds` above `SHUTDOWN_TIMEOUT` (+ probe lag)
 
 ## Alternatives Considered
 
@@ -82,6 +113,10 @@ Configuration:
 **Gate interface on `App` separate from infrastructure**
 
 - Rejected; lifecycle state lives with other runtime infrastructure wiring
+
+**Generic lifecycle framework (`Startable` / `Supervisor` registry)**
+
+- Rejected; explicit bootstrap methods keep ownership readable without an internal framework
 
 ## Related ADRs
 

@@ -1,0 +1,17 @@
+# Explicitly loaded with --no-rcfile: home/XDG configs cannot change this policy.
+spaces=4
+tabs=0
+keyword-case=2
+type-case=1
+function-case=0
+format=text
+anonymize=0
+nocomment=0
+wrap-comment=0
+no-extra-line=1
+redundant-parenthesis=1
+# pgFormatter hard wrapping can insert newlines inside SQL literals. Preserve
+# semantics: use structural wrapping and an editor's soft 120-column guide.
+wrap-limit=0
+wrap-after=0
+maxlength=0

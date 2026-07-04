@@ -19,11 +19,12 @@ func QueryOne[T any, Q Queryer](
 	if err != nil {
 		return zero, fmt.Errorf("%s: %w", operation, MapError(err))
 	}
+
 	defer rows.Close()
 
-	value, err := ValueInto[T](rows.(Rows))
+	value, err := ValueInto[T](MustRows(rows))
 	if err != nil {
-		return zero, fmt.Errorf("%s: %w", operation, err)
+		return zero, fmt.Errorf("%s: %w", operation, MapError(err))
 	}
 
 	return value, nil

@@ -7,6 +7,7 @@ package mock
 import (
 	"context"
 
+	"github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -98,8 +99,8 @@ func (_c *SchemaSettings_ConnectionInfo_Call) RunAndReturn(run func() (string, s
 }
 
 // ConnectionPool provides a mock function for the type SchemaSettings
-func (_mock *SchemaSettings) ConnectionPool(ctx context.Context, r repo.Role) (repo.Pool, error) {
-	ret := _mock.Called(ctx, r)
+func (_mock *SchemaSettings) ConnectionPool(ctx context.Context, r repo.Role, logger log.Logger) (repo.Pool, error) {
+	ret := _mock.Called(ctx, r, logger)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ConnectionPool")
@@ -107,18 +108,18 @@ func (_mock *SchemaSettings) ConnectionPool(ctx context.Context, r repo.Role) (r
 
 	var r0 repo.Pool
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, repo.Role) (repo.Pool, error)); ok {
-		return returnFunc(ctx, r)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, repo.Role, log.Logger) (repo.Pool, error)); ok {
+		return returnFunc(ctx, r, logger)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, repo.Role) repo.Pool); ok {
-		r0 = returnFunc(ctx, r)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, repo.Role, log.Logger) repo.Pool); ok {
+		r0 = returnFunc(ctx, r, logger)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(repo.Pool)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, repo.Role) error); ok {
-		r1 = returnFunc(ctx, r)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, repo.Role, log.Logger) error); ok {
+		r1 = returnFunc(ctx, r, logger)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -133,11 +134,12 @@ type SchemaSettings_ConnectionPool_Call struct {
 // ConnectionPool is a helper method to define mock.On call
 //   - ctx context.Context
 //   - r repo.Role
-func (_e *SchemaSettings_Expecter) ConnectionPool(ctx any, r any) *SchemaSettings_ConnectionPool_Call {
-	return &SchemaSettings_ConnectionPool_Call{Call: _e.mock.On("ConnectionPool", ctx, r)}
+//   - logger log.Logger
+func (_e *SchemaSettings_Expecter) ConnectionPool(ctx any, r any, logger any) *SchemaSettings_ConnectionPool_Call {
+	return &SchemaSettings_ConnectionPool_Call{Call: _e.mock.On("ConnectionPool", ctx, r, logger)}
 }
 
-func (_c *SchemaSettings_ConnectionPool_Call) Run(run func(ctx context.Context, r repo.Role)) *SchemaSettings_ConnectionPool_Call {
+func (_c *SchemaSettings_ConnectionPool_Call) Run(run func(ctx context.Context, r repo.Role, logger log.Logger)) *SchemaSettings_ConnectionPool_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -147,9 +149,14 @@ func (_c *SchemaSettings_ConnectionPool_Call) Run(run func(ctx context.Context, 
 		if args[1] != nil {
 			arg1 = args[1].(repo.Role)
 		}
+		var arg2 log.Logger
+		if args[2] != nil {
+			arg2 = args[2].(log.Logger)
+		}
 		run(
 			arg0,
 			arg1,
+			arg2,
 		)
 	})
 	return _c
@@ -160,7 +167,7 @@ func (_c *SchemaSettings_ConnectionPool_Call) Return(pool repo.Pool, err error) 
 	return _c
 }
 
-func (_c *SchemaSettings_ConnectionPool_Call) RunAndReturn(run func(ctx context.Context, r repo.Role) (repo.Pool, error)) *SchemaSettings_ConnectionPool_Call {
+func (_c *SchemaSettings_ConnectionPool_Call) RunAndReturn(run func(ctx context.Context, r repo.Role, logger log.Logger) (repo.Pool, error)) *SchemaSettings_ConnectionPool_Call {
 	_c.Call.Return(run)
 	return _c
 }

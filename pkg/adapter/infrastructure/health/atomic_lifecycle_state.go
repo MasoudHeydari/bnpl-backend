@@ -1,4 +1,3 @@
-// Package health provides infrastructure adapters used by health probes.
 package health
 
 import (

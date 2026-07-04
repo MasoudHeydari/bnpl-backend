@@ -40,6 +40,7 @@ type Message struct {
 // Serialization format is intentionally outside the core messaging contract.
 // Adapters may provide JSON, protobuf, Avro, or other decoder implementations.
 type Decoder interface {
+	// Decode unmarshals data into v.
 	Decode(data []byte, v any) error
 }
 
@@ -75,6 +76,10 @@ type Subscriber interface {
 // ErrNonRetryable marks a message handling error as not safe or useful to retry.
 var ErrNonRetryable = errors.New("non-retryable message error")
 
+// ErrSkipped marks an intentional non-delivery. Outbox publishers treat it as a
+// terminal skip that must not be confused with a successful publish.
+var ErrSkipped = errors.New("delivery skipped")
+
 // NonRetryable wraps err so subscribers can detect that the message should not
 // be retried.
 //
@@ -90,4 +95,19 @@ func NonRetryable(err error) error {
 // IsNonRetryable reports whether err was marked with NonRetryable.
 func IsNonRetryable(err error) bool {
 	return errors.Is(err, ErrNonRetryable)
+}
+
+// Skipped wraps err so outbox publishers can mark the row skipped instead of
+// published. Passing nil returns ErrSkipped alone.
+func Skipped(err error) error {
+	if err == nil {
+		return ErrSkipped
+	}
+
+	return errors.Join(ErrSkipped, err)
+}
+
+// IsSkipped reports whether err was marked with Skipped.
+func IsSkipped(err error) bool {
+	return errors.Is(err, ErrSkipped)
 }

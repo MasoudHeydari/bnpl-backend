@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5"
+
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
@@ -22,6 +23,7 @@ func (tx *Tx) Exec(ctx context.Context, sql string, args ...any) (int64, error) 
 	if err != nil {
 		return 0, err
 	}
+
 	return result.RowsAffected(), nil
 }
 
@@ -32,6 +34,7 @@ func (tx *Tx) Query(ctx context.Context, sql string, args ...any) (repo.Rows, er
 	if err != nil {
 		return nil, err
 	}
+
 	return rowsAdapter{Rows: rows}, nil
 }
 

@@ -6,7 +6,9 @@ package mock
 
 import (
 	"context"
+	"time"
 
+	"github.com/parstis/bnpl-backend/pkg/core/model"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -35,6 +37,275 @@ type MigrationsConnQueryer_Expecter struct {
 
 func (_m *MigrationsConnQueryer) EXPECT() *MigrationsConnQueryer_Expecter {
 	return &MigrationsConnQueryer_Expecter{mock: &_m.Mock}
+}
+
+// AcquireLock provides a mock function for the type MigrationsConnQueryer
+func (_mock *MigrationsConnQueryer) AcquireLock(ctx context.Context) error {
+	ret := _mock.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AcquireLock")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context) error); ok {
+		r0 = returnFunc(ctx)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MigrationsConnQueryer_AcquireLock_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AcquireLock'
+type MigrationsConnQueryer_AcquireLock_Call struct {
+	*mock.Call
+}
+
+// AcquireLock is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *MigrationsConnQueryer_Expecter) AcquireLock(ctx any) *MigrationsConnQueryer_AcquireLock_Call {
+	return &MigrationsConnQueryer_AcquireLock_Call{Call: _e.mock.On("AcquireLock", ctx)}
+}
+
+func (_c *MigrationsConnQueryer_AcquireLock_Call) Run(run func(ctx context.Context)) *MigrationsConnQueryer_AcquireLock_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *MigrationsConnQueryer_AcquireLock_Call) Return(err error) *MigrationsConnQueryer_AcquireLock_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MigrationsConnQueryer_AcquireLock_Call) RunAndReturn(run func(ctx context.Context) error) *MigrationsConnQueryer_AcquireLock_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListApplied provides a mock function for the type MigrationsConnQueryer
+func (_mock *MigrationsConnQueryer) ListApplied(ctx context.Context) ([]model.Migration, error) {
+	ret := _mock.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListApplied")
+	}
+
+	var r0 []model.Migration
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context) ([]model.Migration, error)); ok {
+		return returnFunc(ctx)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context) []model.Migration); ok {
+		r0 = returnFunc(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]model.Migration)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = returnFunc(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MigrationsConnQueryer_ListApplied_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListApplied'
+type MigrationsConnQueryer_ListApplied_Call struct {
+	*mock.Call
+}
+
+// ListApplied is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *MigrationsConnQueryer_Expecter) ListApplied(ctx any) *MigrationsConnQueryer_ListApplied_Call {
+	return &MigrationsConnQueryer_ListApplied_Call{Call: _e.mock.On("ListApplied", ctx)}
+}
+
+func (_c *MigrationsConnQueryer_ListApplied_Call) Run(run func(ctx context.Context)) *MigrationsConnQueryer_ListApplied_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *MigrationsConnQueryer_ListApplied_Call) Return(migrations []model.Migration, err error) *MigrationsConnQueryer_ListApplied_Call {
+	_c.Call.Return(migrations, err)
+	return _c
+}
+
+func (_c *MigrationsConnQueryer_ListApplied_Call) RunAndReturn(run func(ctx context.Context) ([]model.Migration, error)) *MigrationsConnQueryer_ListApplied_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// MarkApplied provides a mock function for the type MigrationsConnQueryer
+func (_mock *MigrationsConnQueryer) MarkApplied(ctx context.Context, migName string, checksum string, appliedAt time.Time) (model.Migration, error) {
+	ret := _mock.Called(ctx, migName, checksum, appliedAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MarkApplied")
+	}
+
+	var r0 model.Migration
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string, time.Time) (model.Migration, error)); ok {
+		return returnFunc(ctx, migName, checksum, appliedAt)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string, time.Time) model.Migration); ok {
+		r0 = returnFunc(ctx, migName, checksum, appliedAt)
+	} else {
+		r0 = ret.Get(0).(model.Migration)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string, string, time.Time) error); ok {
+		r1 = returnFunc(ctx, migName, checksum, appliedAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MigrationsConnQueryer_MarkApplied_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MarkApplied'
+type MigrationsConnQueryer_MarkApplied_Call struct {
+	*mock.Call
+}
+
+// MarkApplied is a helper method to define mock.On call
+//   - ctx context.Context
+//   - migName string
+//   - checksum string
+//   - appliedAt time.Time
+func (_e *MigrationsConnQueryer_Expecter) MarkApplied(ctx any, migName any, checksum any, appliedAt any) *MigrationsConnQueryer_MarkApplied_Call {
+	return &MigrationsConnQueryer_MarkApplied_Call{Call: _e.mock.On("MarkApplied", ctx, migName, checksum, appliedAt)}
+}
+
+func (_c *MigrationsConnQueryer_MarkApplied_Call) Run(run func(ctx context.Context, migName string, checksum string, appliedAt time.Time)) *MigrationsConnQueryer_MarkApplied_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		var arg3 time.Time
+		if args[3] != nil {
+			arg3 = args[3].(time.Time)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *MigrationsConnQueryer_MarkApplied_Call) Return(migration model.Migration, err error) *MigrationsConnQueryer_MarkApplied_Call {
+	_c.Call.Return(migration, err)
+	return _c
+}
+
+func (_c *MigrationsConnQueryer_MarkApplied_Call) RunAndReturn(run func(ctx context.Context, migName string, checksum string, appliedAt time.Time) (model.Migration, error)) *MigrationsConnQueryer_MarkApplied_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// MarkDirty provides a mock function for the type MigrationsConnQueryer
+func (_mock *MigrationsConnQueryer) MarkDirty(ctx context.Context, migName string, checksum string, startedAt time.Time) (model.Migration, error) {
+	ret := _mock.Called(ctx, migName, checksum, startedAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MarkDirty")
+	}
+
+	var r0 model.Migration
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string, time.Time) (model.Migration, error)); ok {
+		return returnFunc(ctx, migName, checksum, startedAt)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string, time.Time) model.Migration); ok {
+		r0 = returnFunc(ctx, migName, checksum, startedAt)
+	} else {
+		r0 = ret.Get(0).(model.Migration)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string, string, time.Time) error); ok {
+		r1 = returnFunc(ctx, migName, checksum, startedAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MigrationsConnQueryer_MarkDirty_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MarkDirty'
+type MigrationsConnQueryer_MarkDirty_Call struct {
+	*mock.Call
+}
+
+// MarkDirty is a helper method to define mock.On call
+//   - ctx context.Context
+//   - migName string
+//   - checksum string
+//   - startedAt time.Time
+func (_e *MigrationsConnQueryer_Expecter) MarkDirty(ctx any, migName any, checksum any, startedAt any) *MigrationsConnQueryer_MarkDirty_Call {
+	return &MigrationsConnQueryer_MarkDirty_Call{Call: _e.mock.On("MarkDirty", ctx, migName, checksum, startedAt)}
+}
+
+func (_c *MigrationsConnQueryer_MarkDirty_Call) Run(run func(ctx context.Context, migName string, checksum string, startedAt time.Time)) *MigrationsConnQueryer_MarkDirty_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		var arg3 time.Time
+		if args[3] != nil {
+			arg3 = args[3].(time.Time)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *MigrationsConnQueryer_MarkDirty_Call) Return(migration model.Migration, err error) *MigrationsConnQueryer_MarkDirty_Call {
+	_c.Call.Return(migration, err)
+	return _c
+}
+
+func (_c *MigrationsConnQueryer_MarkDirty_Call) RunAndReturn(run func(ctx context.Context, migName string, checksum string, startedAt time.Time) (model.Migration, error)) *MigrationsConnQueryer_MarkDirty_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Migrate provides a mock function for the type MigrationsConnQueryer
@@ -96,6 +367,135 @@ func (_c *MigrationsConnQueryer_Migrate_Call) Return(err error) *MigrationsConnQ
 }
 
 func (_c *MigrationsConnQueryer_Migrate_Call) RunAndReturn(run func(ctx context.Context, migName string, migStatements string) error) *MigrationsConnQueryer_Migrate_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// Register provides a mock function for the type MigrationsConnQueryer
+func (_mock *MigrationsConnQueryer) Register(ctx context.Context, migName string, checksum string, createdAt time.Time) (model.Migration, error) {
+	ret := _mock.Called(ctx, migName, checksum, createdAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Register")
+	}
+
+	var r0 model.Migration
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string, time.Time) (model.Migration, error)); ok {
+		return returnFunc(ctx, migName, checksum, createdAt)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string, time.Time) model.Migration); ok {
+		r0 = returnFunc(ctx, migName, checksum, createdAt)
+	} else {
+		r0 = ret.Get(0).(model.Migration)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string, string, time.Time) error); ok {
+		r1 = returnFunc(ctx, migName, checksum, createdAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MigrationsConnQueryer_Register_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Register'
+type MigrationsConnQueryer_Register_Call struct {
+	*mock.Call
+}
+
+// Register is a helper method to define mock.On call
+//   - ctx context.Context
+//   - migName string
+//   - checksum string
+//   - createdAt time.Time
+func (_e *MigrationsConnQueryer_Expecter) Register(ctx any, migName any, checksum any, createdAt any) *MigrationsConnQueryer_Register_Call {
+	return &MigrationsConnQueryer_Register_Call{Call: _e.mock.On("Register", ctx, migName, checksum, createdAt)}
+}
+
+func (_c *MigrationsConnQueryer_Register_Call) Run(run func(ctx context.Context, migName string, checksum string, createdAt time.Time)) *MigrationsConnQueryer_Register_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		var arg3 time.Time
+		if args[3] != nil {
+			arg3 = args[3].(time.Time)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *MigrationsConnQueryer_Register_Call) Return(migration model.Migration, err error) *MigrationsConnQueryer_Register_Call {
+	_c.Call.Return(migration, err)
+	return _c
+}
+
+func (_c *MigrationsConnQueryer_Register_Call) RunAndReturn(run func(ctx context.Context, migName string, checksum string, createdAt time.Time) (model.Migration, error)) *MigrationsConnQueryer_Register_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ReleaseLock provides a mock function for the type MigrationsConnQueryer
+func (_mock *MigrationsConnQueryer) ReleaseLock(ctx context.Context) error {
+	ret := _mock.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ReleaseLock")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context) error); ok {
+		r0 = returnFunc(ctx)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MigrationsConnQueryer_ReleaseLock_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ReleaseLock'
+type MigrationsConnQueryer_ReleaseLock_Call struct {
+	*mock.Call
+}
+
+// ReleaseLock is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *MigrationsConnQueryer_Expecter) ReleaseLock(ctx any) *MigrationsConnQueryer_ReleaseLock_Call {
+	return &MigrationsConnQueryer_ReleaseLock_Call{Call: _e.mock.On("ReleaseLock", ctx)}
+}
+
+func (_c *MigrationsConnQueryer_ReleaseLock_Call) Run(run func(ctx context.Context)) *MigrationsConnQueryer_ReleaseLock_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *MigrationsConnQueryer_ReleaseLock_Call) Return(err error) *MigrationsConnQueryer_ReleaseLock_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MigrationsConnQueryer_ReleaseLock_Call) RunAndReturn(run func(ctx context.Context) error) *MigrationsConnQueryer_ReleaseLock_Call {
 	_c.Call.Return(run)
 	return _c
 }

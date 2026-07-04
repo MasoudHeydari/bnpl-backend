@@ -3,17 +3,18 @@ package config
 import (
 	"testing"
 
-	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/parstis/bnpl-backend/pkg/core/model"
 )
 
 func TestVersions_Validate_SupportedVersions(t *testing.T) {
 	t.Parallel()
 
 	v := Versions{
-		Config:   model.SemVer{0, 2, 0},
-		Database: model.SemVer{0, 2, 0},
+		Config:   Version,
+		Database: DatabaseVersion,
 	}
 
 	require.NoError(t, v.Validate())
@@ -34,7 +35,7 @@ func TestVersions_ValidateConfig_MissingConfigVersion(t *testing.T) {
 	t.Parallel()
 
 	v := Versions{
-		Database: model.SemVer{0, 2, 0},
+		Database: DatabaseVersion,
 	}
 
 	err := v.ValidateConfig()
@@ -46,7 +47,7 @@ func TestVersions_ValidateDatabase_MissingDatabaseVersion(t *testing.T) {
 	t.Parallel()
 
 	v := Versions{
-		Config: model.SemVer{0, 2, 0},
+		Config: Version,
 	}
 
 	err := v.ValidateDatabase()
@@ -59,7 +60,7 @@ func TestVersions_ValidateConfig_IncompatibleMajorVersion(t *testing.T) {
 
 	v := Versions{
 		Config:   model.SemVer{1, 0, 0},
-		Database: model.SemVer{0, 2, 0},
+		Database: DatabaseVersion,
 	}
 
 	err := v.ValidateConfig()
@@ -71,7 +72,7 @@ func TestVersions_ValidateDatabase_IncompatibleMajorVersion(t *testing.T) {
 	t.Parallel()
 
 	v := Versions{
-		Config:   model.SemVer{0, 2, 0},
+		Config:   Version,
 		Database: model.SemVer{2, 0, 0},
 	}
 
@@ -83,34 +84,36 @@ func TestVersions_ValidateDatabase_IncompatibleMajorVersion(t *testing.T) {
 func TestVersions_ValidateConfig_UnsupportedMinorVersion(t *testing.T) {
 	t.Parallel()
 
+	unsupportedMinor := Version[1] + 1
 	v := Versions{
-		Config:   model.SemVer{0, 3, 0},
-		Database: model.SemVer{0, 2, 0},
+		Config:   model.SemVer{Version[0], unsupportedMinor, 0},
+		Database: DatabaseVersion,
 	}
 
 	err := v.ValidateConfig()
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "versions.config: unsupported minor version: 3")
+	assert.Contains(t, err.Error(), "versions.config: unsupported minor version")
 }
 
 func TestVersions_ValidateDatabase_UnsupportedMinorVersion(t *testing.T) {
 	t.Parallel()
 
+	unsupportedMinor := DatabaseVersion[1] + 1
 	v := Versions{
-		Config:   model.SemVer{0, 2, 0},
-		Database: model.SemVer{0, 5, 1},
+		Config:   Version,
+		Database: model.SemVer{DatabaseVersion[0], unsupportedMinor, 0},
 	}
 
 	err := v.ValidateDatabase()
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "versions.database: unsupported minor version: 5")
+	assert.Contains(t, err.Error(), "versions.database: unsupported minor version")
 }
 
 func TestVersions_Validate_ConfigFailurePrecedesDatabase(t *testing.T) {
 	t.Parallel()
 
 	v := Versions{
-		Config:   model.SemVer{0, 3, 0},
+		Config:   model.SemVer{Version[0], Version[1] + 1, 0},
 		Database: model.SemVer{9, 9, 9},
 	}
 

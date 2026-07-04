@@ -13,10 +13,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
-	"github.com/parstis/bnpl-backend/pkg/core/cerr"
-	"github.com/parstis/bnpl-backend/pkg/core/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	resti18n "github.com/parstis/bnpl-backend/pkg/adapter/restful/i18n"
+	"github.com/parstis/bnpl-backend/pkg/core/cerr"
+	"github.com/parstis/bnpl-backend/pkg/core/trace"
 )
 
 type bindSuccessRequest struct {
@@ -62,7 +64,7 @@ func TestBind_ValidationErrors(t *testing.T) {
 	var resp ErrorResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 
-	assert.Equal(t, cerr.CodeValidationFailed.HTTPStatusCode(), w.Code)
+	assert.Equal(t, StatusCode(cerr.CodeValidationFailed), w.Code)
 	assert.Equal(t, string(cerr.CodeValidationFailed), resp.Code)
 	assert.Equal(t, "The request contains invalid fields.", resp.Message)
 	assert.Equal(t, "trace-bind", resp.TraceID)
@@ -85,7 +87,7 @@ func TestBind_InvalidValidationError(t *testing.T) {
 	var resp ErrorResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 
-	assert.Equal(t, cerr.CodeInternalError.HTTPStatusCode(), w.Code)
+	assert.Equal(t, StatusCode(cerr.CodeInternalError), w.Code)
 	assert.Equal(t, string(cerr.CodeInternalError), resp.Code)
 	assert.Equal(t, "An unexpected error occurred.", resp.Message)
 	assert.Equal(t, "trace-bind", resp.TraceID)
@@ -106,7 +108,7 @@ func TestBind_InvalidArgument(t *testing.T) {
 	var resp ErrorResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 
-	assert.Equal(t, cerr.CodeInvalidArgument.HTTPStatusCode(), w.Code)
+	assert.Equal(t, StatusCode(cerr.CodeInvalidArgument), w.Code)
 	assert.Equal(t, string(cerr.CodeInvalidArgument), resp.Code)
 	assert.Equal(t, "The request payload is invalid.", resp.Message)
 	assert.Equal(t, "trace-bind", resp.TraceID)
@@ -151,7 +153,12 @@ func TestSerErr_CerrCodes(t *testing.T) {
 
 			assert.Equal(t, tt.wantStatus, w.Code)
 			assert.Equal(t, tt.wantCode, resp.Code)
-			assert.Equal(t, tt.err.Err.Error(), resp.Message)
+			if tt.wantCode == string(cerr.CodeInternalError) {
+				assert.Equal(t, "An unexpected error occurred.", resp.Message)
+			} else {
+				assert.Equal(t, localizedMessageForTest(tt.err), resp.Message)
+			}
+
 			assert.Equal(t, "trace-sererr", resp.TraceID)
 		})
 	}
@@ -161,7 +168,7 @@ func TestSerErr_EmptyCodeDefaultsToInternalError(t *testing.T) {
 	t.Parallel()
 
 	c, w := newBindContext("", "trace-sererr")
-	SerErr(c, &cerr.Error{Err: errors.New("no code"), Code: ""})
+	SerErr(c, cerr.NewPublic("", "error.default.internal", errors.New("no code"), cerr.Details{}))
 
 	var resp ErrorResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
@@ -170,7 +177,7 @@ func TestSerErr_EmptyCodeDefaultsToInternalError(t *testing.T) {
 	assert.Equal(t, string(cerr.CodeInternalError), resp.Code)
 }
 
-func TestSerErr_NilDataReturnsEmptyDetails(t *testing.T) {
+func TestSerErr_ZeroDetailsReturnsEmptyDetails(t *testing.T) {
 	t.Parallel()
 
 	c, w := newBindContext("", "trace-sererr")
@@ -188,7 +195,7 @@ func TestSerErr_NilDataReturnsEmptyDetails(t *testing.T) {
 func TestSerErr_ErrorDetailsNormalized(t *testing.T) {
 	t.Parallel()
 
-	details := ErrorDetails{
+	details := cerr.Details{
 		Fields:     nil,
 		Violations: nil,
 	}
@@ -205,42 +212,52 @@ func TestSerErr_ErrorDetailsNormalized(t *testing.T) {
 	assert.Empty(t, resp.Details.Violations)
 }
 
-func TestSerErr_ViolationSliceDerivesFields(t *testing.T) {
+func TestSerErr_PublicDetailsAreSerialized(t *testing.T) {
 	t.Parallel()
 
-	violations := []ErrorViolation{
-		{Code: "REQUIRED", Message: "name is required", Fields: []string{"name"}},
-		{Code: "REQUIRED", Message: "email is required", Fields: []string{"email"}},
+	details := cerr.Details{
+		Fields: []string{"merchant_id"},
+		Violations: []cerr.Violation{{
+			Code:       "REQUIRED",
+			MessageKey: "error.merchant_id_required",
+			Fields:     []string{"merchant_id"},
+		}},
 	}
 
 	c, w := newBindContext("", "trace-sererr")
-	SerErr(c, cerr.ValidationFailed(errors.New("invalid"), violations))
+	SerErr(c, cerr.NewPublic(
+		cerr.CodeInvalidArgument,
+		"error.merchant_id_required",
+		errors.New("internal validation cause"),
+		details,
+	))
 
 	var resp ErrorResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 
-	assert.ElementsMatch(t, []string{"name", "email"}, resp.Details.Fields)
-	assert.Len(t, resp.Details.Violations, 2)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, "Merchant id is required.", resp.Message)
+	assert.Equal(t, []string{"merchant_id"}, resp.Details.Fields)
+	require.Len(t, resp.Details.Violations, 1)
+	assert.Equal(t, "REQUIRED", resp.Details.Violations[0].Code)
 }
 
-func TestSerErr_FieldErrorMapConverted(t *testing.T) {
+func TestSerErr_LocalizesPersian(t *testing.T) {
 	t.Parallel()
 
-	fieldErrors := map[string][]string{
-		"amount": {"must be positive"},
-	}
+	c, w := newBindContext("", "trace-fa")
+	c.Request = c.Request.WithContext(withTestLocalization(c.Request.Context(), resti18n.LocaleFAIR))
 
-	c, w := newBindContext("", "trace-sererr")
-	SerErr(c, cerr.ValidationFailed(errors.New("invalid"), fieldErrors))
+	SerErr(c, cerr.NewPublic(
+		cerr.CodeInvalidArgument,
+		"error.merchant_id_required",
+		nil,
+		cerr.Details{},
+	))
 
 	var resp ErrorResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-
-	assert.Contains(t, resp.Details.Fields, "amount")
-	require.Len(t, resp.Details.Violations, 1)
-	assert.Equal(t, "INVALID", resp.Details.Violations[0].Code)
-	assert.Equal(t, "must be positive", resp.Details.Violations[0].Message)
-	assert.Equal(t, []string{"amount"}, resp.Details.Violations[0].Fields)
+	assert.Equal(t, "شناسه پذیرنده الزامی است.", resp.Message)
 }
 
 func TestSerErr_UnknownError(t *testing.T) {
@@ -264,31 +281,20 @@ func TestSerValidationErr(t *testing.T) {
 	t.Parallel()
 
 	c, w := newBindContext("", "trace-validation")
-	SerValidationErr(c, "amount", "must be greater than zero")
+	SerValidationErr(c, "amount", "validation.positive_integer", map[string]any{"field": "amount"})
 
 	var resp ErrorResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 
-	assert.Equal(t, cerr.CodeValidationFailed.HTTPStatusCode(), w.Code)
+	assert.Equal(t, StatusCode(cerr.CodeValidationFailed), w.Code)
 	assert.Equal(t, string(cerr.CodeValidationFailed), resp.Code)
 	assert.Equal(t, "The request contains invalid fields.", resp.Message)
 	assert.Equal(t, "trace-validation", resp.TraceID)
 	assert.Equal(t, []string{"amount"}, resp.Details.Fields)
 	require.Len(t, resp.Details.Violations, 1)
 	assert.Equal(t, "INVALID", resp.Details.Violations[0].Code)
-	assert.Equal(t, "must be greater than zero", resp.Details.Violations[0].Message)
+	assert.Equal(t, "amount must be a positive integer.", resp.Details.Violations[0].Message)
 	assert.Equal(t, []string{"amount"}, resp.Details.Violations[0].Fields)
-}
-
-func TestAddErr(t *testing.T) {
-	t.Parallel()
-
-	var errs map[string][]string
-	AddErr(&errs, "name", "required")
-	AddErr(&errs, "name", "too short")
-
-	require.Len(t, errs, 1)
-	assert.Equal(t, []string{"required", "too short"}, errs["name"])
 }
 
 func newBindContext(body, traceID string) (*gin.Context, *httptest.ResponseRecorder) {
@@ -297,7 +303,7 @@ func newBindContext(body, traceID string) (*gin.Context, *httptest.ResponseRecor
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 
-	ctx := context.Background()
+	ctx := withTestLocalization(context.Background(), resti18n.LocaleENUS)
 	ctx = trace.WithTraceID(ctx, traceID)
 
 	var req *http.Request
@@ -307,6 +313,7 @@ func newBindContext(body, traceID string) (*gin.Context, *httptest.ResponseRecor
 		req = httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 	}
+
 	req = req.WithContext(ctx)
 	c.Request = req
 
@@ -334,34 +341,9 @@ func TestValidationDetails(t *testing.T) {
 	assert.Len(t, violations, 2)
 	for _, v := range violations {
 		assert.NotEmpty(t, v.Code)
-		assert.NotEmpty(t, v.Message)
+		assert.NotEmpty(t, v.MessageKey)
 		assert.NotEmpty(t, v.Fields)
 	}
-}
-
-func TestDetailsFromData_UnknownShapeIgnored(t *testing.T) {
-	t.Parallel()
-
-	details := detailsFromData(struct{ Secret string }{Secret: "hidden"})
-	assert.Empty(t, details.Fields)
-	assert.Empty(t, details.Violations)
-}
-
-func TestDetailsFromData_PointerDetails(t *testing.T) {
-	t.Parallel()
-
-	ptr := &ErrorDetails{
-		Fields: []string{"id"},
-		Violations: []ErrorViolation{{
-			Code:    "INVALID",
-			Message: "bad id",
-			Fields:  []string{"id"},
-		}},
-	}
-
-	details := detailsFromData(ptr)
-	assert.Equal(t, []string{"id"}, details.Fields)
-	require.Len(t, details.Violations, 1)
 }
 
 func TestSerErr_MessageDoesNotLeakInternalDetails(t *testing.T) {
@@ -375,4 +357,90 @@ func TestSerErr_MessageDoesNotLeakInternalDetails(t *testing.T) {
 
 	assert.False(t, strings.Contains(resp.Message, "SELECT"))
 	assert.Equal(t, "An unexpected error occurred.", resp.Message)
+}
+
+func TestSerErr_ClientErrorDoesNotLeakCause(t *testing.T) {
+	t.Parallel()
+
+	c, w := newBindContext("", "trace-sererr")
+	SerErr(c, cerr.ValidationFailed(errors.New(`ERROR: duplicate key violates constraint "secret_constraint"`)))
+
+	var resp ErrorResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+
+	assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
+	assert.Equal(t, "The request contains invalid fields.", resp.Message)
+	assert.NotContains(t, resp.Message, "secret_constraint")
+}
+
+func TestSerErr_ServiceUnavailableDoesNotLeakCause(t *testing.T) {
+	t.Parallel()
+
+	c, w := newBindContext("", "trace-sererr")
+	SerErr(c, cerr.ServiceUnavailable(errors.New("dial tcp financial-core.prod.svc: connection refused")))
+
+	var resp ErrorResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Equal(t, "A required service is temporarily unavailable.", resp.Message)
+	assert.NotContains(t, resp.Message, "financial-core.prod.svc")
+}
+
+func TestSerErr_InternalErrorCerrDoesNotLeakCause(t *testing.T) {
+	t.Parallel()
+
+	c, w := newBindContext("", "trace-sererr")
+	SerErr(c, cerr.NewPublic(
+		cerr.CodeInternalError,
+		"error.default.internal",
+		errors.New(`ERROR: column "display_name" does not exist (SQLSTATE 42703)`),
+		cerr.Details{
+			Fields: []string{"internal_column"},
+			Violations: []cerr.Violation{{
+				Code:       "DB_SCHEMA_ERROR",
+				MessageKey: "error.default.internal",
+				Fields:     []string{"internal_column"},
+			}},
+		},
+	))
+
+	var resp ErrorResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, string(cerr.CodeInternalError), resp.Code)
+	assert.Equal(t, "An unexpected error occurred.", resp.Message)
+	assert.NotContains(t, resp.Message, "display_name")
+	assert.NotContains(t, resp.Message, "SQLSTATE")
+	require.NotNil(t, resp.Details)
+	assert.Empty(t, resp.Details.Fields)
+	assert.Empty(t, resp.Details.Violations)
+}
+
+func TestSerErr_DoesNotLeakFinancialCorePaymentTerms(t *testing.T) {
+	t.Parallel()
+
+	c, w := newBindContext("", "trace-sererr-fc")
+	SerErr(c, cerr.InternalError(errors.New(
+		"submit payment: financial_payment_intent_id=fpi_01HXYZ payment_session_id=fps_01HXYZ invoice_id=inv_01HXYZ provider_code=default",
+	)))
+
+	body := w.Body.String()
+	var resp ErrorResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, string(cerr.CodeInternalError), resp.Code)
+	for _, term := range []string{
+		"financial_payment_",
+		"payment_intent_id",
+		"payment_session_id",
+		"provider_code",
+		"invoice_id",
+		"fpi_01HXYZ",
+		"fps_01HXYZ",
+	} {
+		assert.NotContains(t, body, term)
+	}
 }

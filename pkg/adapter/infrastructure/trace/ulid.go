@@ -5,11 +5,19 @@ import (
 	"time"
 
 	"github.com/oklog/ulid/v2"
+
+	"github.com/parstis/bnpl-backend/pkg/core/identifier"
 	coretrace "github.com/parstis/bnpl-backend/pkg/core/trace"
 )
 
 // Verify Provider implements the core trace provider contract.
 var _ coretrace.Provider = (*Provider)(nil)
+
+// Verify Provider implements the core trace ID generator contract.
+var _ coretrace.IDGenerator = (*Provider)(nil)
+
+// Verify Provider implements the generic identifier generator contract.
+var _ identifier.Generator = (*Provider)(nil)
 
 // Provider generates trace identifiers using ULID.
 //
@@ -34,6 +42,11 @@ func (p *Provider) NewRequestID() string {
 
 // NewCorrelationID returns a new correlation ID.
 func (p *Provider) NewCorrelationID() string {
+	return newULID()
+}
+
+// Generate returns a new opaque identifier for use-case level event generation.
+func (p *Provider) Generate() string {
 	return newULID()
 }
 

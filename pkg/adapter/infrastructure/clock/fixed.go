@@ -70,7 +70,16 @@ func (f Fixed) AddDate(t time.Time, years, months, days int) time.Time {
 func (f Fixed) StartOfDay(t time.Time) time.Time {
 	t = t.In(f.BusinessLocation())
 
-	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, f.BusinessLocation())
+	return time.Date(
+		t.Year(),
+		t.Month(),
+		t.Day(),
+		0,
+		0,
+		0,
+		0,
+		f.BusinessLocation(),
+	)
 }
 
 // EndOfDay returns the final instant of t's calendar date in the business

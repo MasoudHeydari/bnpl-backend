@@ -8,7 +8,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -41,8 +40,8 @@ func (_m *OutboxConnQueryer) EXPECT() *OutboxConnQueryer_Expecter {
 }
 
 // ClaimPending provides a mock function for the type OutboxConnQueryer
-func (_mock *OutboxConnQueryer) ClaimPending(ctx context.Context, workerID string, limit int, now time.Time) ([]model.OutboxMessage, error) {
-	ret := _mock.Called(ctx, workerID, limit, now)
+func (_mock *OutboxConnQueryer) ClaimPending(ctx context.Context, workerID string, limit int, now time.Time, processingLeaseTimeout time.Duration) ([]model.OutboxMessage, error) {
+	ret := _mock.Called(ctx, workerID, limit, now, processingLeaseTimeout)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ClaimPending")
@@ -50,18 +49,18 @@ func (_mock *OutboxConnQueryer) ClaimPending(ctx context.Context, workerID strin
 
 	var r0 []model.OutboxMessage
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string, int, time.Time) ([]model.OutboxMessage, error)); ok {
-		return returnFunc(ctx, workerID, limit, now)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, int, time.Time, time.Duration) ([]model.OutboxMessage, error)); ok {
+		return returnFunc(ctx, workerID, limit, now, processingLeaseTimeout)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string, int, time.Time) []model.OutboxMessage); ok {
-		r0 = returnFunc(ctx, workerID, limit, now)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, int, time.Time, time.Duration) []model.OutboxMessage); ok {
+		r0 = returnFunc(ctx, workerID, limit, now, processingLeaseTimeout)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]model.OutboxMessage)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, string, int, time.Time) error); ok {
-		r1 = returnFunc(ctx, workerID, limit, now)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string, int, time.Time, time.Duration) error); ok {
+		r1 = returnFunc(ctx, workerID, limit, now, processingLeaseTimeout)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -78,11 +77,12 @@ type OutboxConnQueryer_ClaimPending_Call struct {
 //   - workerID string
 //   - limit int
 //   - now time.Time
-func (_e *OutboxConnQueryer_Expecter) ClaimPending(ctx any, workerID any, limit any, now any) *OutboxConnQueryer_ClaimPending_Call {
-	return &OutboxConnQueryer_ClaimPending_Call{Call: _e.mock.On("ClaimPending", ctx, workerID, limit, now)}
+//   - processingLeaseTimeout time.Duration
+func (_e *OutboxConnQueryer_Expecter) ClaimPending(ctx any, workerID any, limit any, now any, processingLeaseTimeout any) *OutboxConnQueryer_ClaimPending_Call {
+	return &OutboxConnQueryer_ClaimPending_Call{Call: _e.mock.On("ClaimPending", ctx, workerID, limit, now, processingLeaseTimeout)}
 }
 
-func (_c *OutboxConnQueryer_ClaimPending_Call) Run(run func(ctx context.Context, workerID string, limit int, now time.Time)) *OutboxConnQueryer_ClaimPending_Call {
+func (_c *OutboxConnQueryer_ClaimPending_Call) Run(run func(ctx context.Context, workerID string, limit int, now time.Time, processingLeaseTimeout time.Duration)) *OutboxConnQueryer_ClaimPending_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -100,11 +100,16 @@ func (_c *OutboxConnQueryer_ClaimPending_Call) Run(run func(ctx context.Context,
 		if args[3] != nil {
 			arg3 = args[3].(time.Time)
 		}
+		var arg4 time.Duration
+		if args[4] != nil {
+			arg4 = args[4].(time.Duration)
+		}
 		run(
 			arg0,
 			arg1,
 			arg2,
 			arg3,
+			arg4,
 		)
 	})
 	return _c
@@ -115,22 +120,22 @@ func (_c *OutboxConnQueryer_ClaimPending_Call) Return(outboxMessages []model.Out
 	return _c
 }
 
-func (_c *OutboxConnQueryer_ClaimPending_Call) RunAndReturn(run func(ctx context.Context, workerID string, limit int, now time.Time) ([]model.OutboxMessage, error)) *OutboxConnQueryer_ClaimPending_Call {
+func (_c *OutboxConnQueryer_ClaimPending_Call) RunAndReturn(run func(ctx context.Context, workerID string, limit int, now time.Time, processingLeaseTimeout time.Duration) ([]model.OutboxMessage, error)) *OutboxConnQueryer_ClaimPending_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // MarkFailed provides a mock function for the type OutboxConnQueryer
-func (_mock *OutboxConnQueryer) MarkFailed(ctx context.Context, outboxID uuid.UUID, lastError string) error {
-	ret := _mock.Called(ctx, outboxID, lastError)
+func (_mock *OutboxConnQueryer) MarkFailed(ctx context.Context, outboxID model.OutboxID, workerID string, lockVersion int64, lastError string) error {
+	ret := _mock.Called(ctx, outboxID, workerID, lockVersion, lastError)
 
 	if len(ret) == 0 {
 		panic("no return value specified for MarkFailed")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, string) error); ok {
-		r0 = returnFunc(ctx, outboxID, lastError)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.OutboxID, string, int64, string) error); ok {
+		r0 = returnFunc(ctx, outboxID, workerID, lockVersion, lastError)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -144,30 +149,42 @@ type OutboxConnQueryer_MarkFailed_Call struct {
 
 // MarkFailed is a helper method to define mock.On call
 //   - ctx context.Context
-//   - outboxID uuid.UUID
+//   - outboxID model.OutboxID
+//   - workerID string
+//   - lockVersion int64
 //   - lastError string
-func (_e *OutboxConnQueryer_Expecter) MarkFailed(ctx any, outboxID any, lastError any) *OutboxConnQueryer_MarkFailed_Call {
-	return &OutboxConnQueryer_MarkFailed_Call{Call: _e.mock.On("MarkFailed", ctx, outboxID, lastError)}
+func (_e *OutboxConnQueryer_Expecter) MarkFailed(ctx any, outboxID any, workerID any, lockVersion any, lastError any) *OutboxConnQueryer_MarkFailed_Call {
+	return &OutboxConnQueryer_MarkFailed_Call{Call: _e.mock.On("MarkFailed", ctx, outboxID, workerID, lockVersion, lastError)}
 }
 
-func (_c *OutboxConnQueryer_MarkFailed_Call) Run(run func(ctx context.Context, outboxID uuid.UUID, lastError string)) *OutboxConnQueryer_MarkFailed_Call {
+func (_c *OutboxConnQueryer_MarkFailed_Call) Run(run func(ctx context.Context, outboxID model.OutboxID, workerID string, lockVersion int64, lastError string)) *OutboxConnQueryer_MarkFailed_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 uuid.UUID
+		var arg1 model.OutboxID
 		if args[1] != nil {
-			arg1 = args[1].(uuid.UUID)
+			arg1 = args[1].(model.OutboxID)
 		}
 		var arg2 string
 		if args[2] != nil {
 			arg2 = args[2].(string)
 		}
+		var arg3 int64
+		if args[3] != nil {
+			arg3 = args[3].(int64)
+		}
+		var arg4 string
+		if args[4] != nil {
+			arg4 = args[4].(string)
+		}
 		run(
 			arg0,
 			arg1,
 			arg2,
+			arg3,
+			arg4,
 		)
 	})
 	return _c
@@ -178,22 +195,22 @@ func (_c *OutboxConnQueryer_MarkFailed_Call) Return(err error) *OutboxConnQuerye
 	return _c
 }
 
-func (_c *OutboxConnQueryer_MarkFailed_Call) RunAndReturn(run func(ctx context.Context, outboxID uuid.UUID, lastError string) error) *OutboxConnQueryer_MarkFailed_Call {
+func (_c *OutboxConnQueryer_MarkFailed_Call) RunAndReturn(run func(ctx context.Context, outboxID model.OutboxID, workerID string, lockVersion int64, lastError string) error) *OutboxConnQueryer_MarkFailed_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // MarkPublished provides a mock function for the type OutboxConnQueryer
-func (_mock *OutboxConnQueryer) MarkPublished(ctx context.Context, outboxID uuid.UUID, publishedAt time.Time) error {
-	ret := _mock.Called(ctx, outboxID, publishedAt)
+func (_mock *OutboxConnQueryer) MarkPublished(ctx context.Context, outboxID model.OutboxID, workerID string, lockVersion int64, publishedAt time.Time) error {
+	ret := _mock.Called(ctx, outboxID, workerID, lockVersion, publishedAt)
 
 	if len(ret) == 0 {
 		panic("no return value specified for MarkPublished")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, time.Time) error); ok {
-		r0 = returnFunc(ctx, outboxID, publishedAt)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.OutboxID, string, int64, time.Time) error); ok {
+		r0 = returnFunc(ctx, outboxID, workerID, lockVersion, publishedAt)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -207,30 +224,42 @@ type OutboxConnQueryer_MarkPublished_Call struct {
 
 // MarkPublished is a helper method to define mock.On call
 //   - ctx context.Context
-//   - outboxID uuid.UUID
+//   - outboxID model.OutboxID
+//   - workerID string
+//   - lockVersion int64
 //   - publishedAt time.Time
-func (_e *OutboxConnQueryer_Expecter) MarkPublished(ctx any, outboxID any, publishedAt any) *OutboxConnQueryer_MarkPublished_Call {
-	return &OutboxConnQueryer_MarkPublished_Call{Call: _e.mock.On("MarkPublished", ctx, outboxID, publishedAt)}
+func (_e *OutboxConnQueryer_Expecter) MarkPublished(ctx any, outboxID any, workerID any, lockVersion any, publishedAt any) *OutboxConnQueryer_MarkPublished_Call {
+	return &OutboxConnQueryer_MarkPublished_Call{Call: _e.mock.On("MarkPublished", ctx, outboxID, workerID, lockVersion, publishedAt)}
 }
 
-func (_c *OutboxConnQueryer_MarkPublished_Call) Run(run func(ctx context.Context, outboxID uuid.UUID, publishedAt time.Time)) *OutboxConnQueryer_MarkPublished_Call {
+func (_c *OutboxConnQueryer_MarkPublished_Call) Run(run func(ctx context.Context, outboxID model.OutboxID, workerID string, lockVersion int64, publishedAt time.Time)) *OutboxConnQueryer_MarkPublished_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 uuid.UUID
+		var arg1 model.OutboxID
 		if args[1] != nil {
-			arg1 = args[1].(uuid.UUID)
+			arg1 = args[1].(model.OutboxID)
 		}
-		var arg2 time.Time
+		var arg2 string
 		if args[2] != nil {
-			arg2 = args[2].(time.Time)
+			arg2 = args[2].(string)
+		}
+		var arg3 int64
+		if args[3] != nil {
+			arg3 = args[3].(int64)
+		}
+		var arg4 time.Time
+		if args[4] != nil {
+			arg4 = args[4].(time.Time)
 		}
 		run(
 			arg0,
 			arg1,
 			arg2,
+			arg3,
+			arg4,
 		)
 	})
 	return _c
@@ -241,22 +270,22 @@ func (_c *OutboxConnQueryer_MarkPublished_Call) Return(err error) *OutboxConnQue
 	return _c
 }
 
-func (_c *OutboxConnQueryer_MarkPublished_Call) RunAndReturn(run func(ctx context.Context, outboxID uuid.UUID, publishedAt time.Time) error) *OutboxConnQueryer_MarkPublished_Call {
+func (_c *OutboxConnQueryer_MarkPublished_Call) RunAndReturn(run func(ctx context.Context, outboxID model.OutboxID, workerID string, lockVersion int64, publishedAt time.Time) error) *OutboxConnQueryer_MarkPublished_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // MarkRetry provides a mock function for the type OutboxConnQueryer
-func (_mock *OutboxConnQueryer) MarkRetry(ctx context.Context, outboxID uuid.UUID, nextAttemptAt time.Time, lastError string) error {
-	ret := _mock.Called(ctx, outboxID, nextAttemptAt, lastError)
+func (_mock *OutboxConnQueryer) MarkRetry(ctx context.Context, outboxID model.OutboxID, workerID string, lockVersion int64, nextAttemptAt time.Time, lastError string) error {
+	ret := _mock.Called(ctx, outboxID, workerID, lockVersion, nextAttemptAt, lastError)
 
 	if len(ret) == 0 {
 		panic("no return value specified for MarkRetry")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, time.Time, string) error); ok {
-		r0 = returnFunc(ctx, outboxID, nextAttemptAt, lastError)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.OutboxID, string, int64, time.Time, string) error); ok {
+		r0 = returnFunc(ctx, outboxID, workerID, lockVersion, nextAttemptAt, lastError)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -270,36 +299,48 @@ type OutboxConnQueryer_MarkRetry_Call struct {
 
 // MarkRetry is a helper method to define mock.On call
 //   - ctx context.Context
-//   - outboxID uuid.UUID
+//   - outboxID model.OutboxID
+//   - workerID string
+//   - lockVersion int64
 //   - nextAttemptAt time.Time
 //   - lastError string
-func (_e *OutboxConnQueryer_Expecter) MarkRetry(ctx any, outboxID any, nextAttemptAt any, lastError any) *OutboxConnQueryer_MarkRetry_Call {
-	return &OutboxConnQueryer_MarkRetry_Call{Call: _e.mock.On("MarkRetry", ctx, outboxID, nextAttemptAt, lastError)}
+func (_e *OutboxConnQueryer_Expecter) MarkRetry(ctx any, outboxID any, workerID any, lockVersion any, nextAttemptAt any, lastError any) *OutboxConnQueryer_MarkRetry_Call {
+	return &OutboxConnQueryer_MarkRetry_Call{Call: _e.mock.On("MarkRetry", ctx, outboxID, workerID, lockVersion, nextAttemptAt, lastError)}
 }
 
-func (_c *OutboxConnQueryer_MarkRetry_Call) Run(run func(ctx context.Context, outboxID uuid.UUID, nextAttemptAt time.Time, lastError string)) *OutboxConnQueryer_MarkRetry_Call {
+func (_c *OutboxConnQueryer_MarkRetry_Call) Run(run func(ctx context.Context, outboxID model.OutboxID, workerID string, lockVersion int64, nextAttemptAt time.Time, lastError string)) *OutboxConnQueryer_MarkRetry_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 uuid.UUID
+		var arg1 model.OutboxID
 		if args[1] != nil {
-			arg1 = args[1].(uuid.UUID)
+			arg1 = args[1].(model.OutboxID)
 		}
-		var arg2 time.Time
+		var arg2 string
 		if args[2] != nil {
-			arg2 = args[2].(time.Time)
+			arg2 = args[2].(string)
 		}
-		var arg3 string
+		var arg3 int64
 		if args[3] != nil {
-			arg3 = args[3].(string)
+			arg3 = args[3].(int64)
+		}
+		var arg4 time.Time
+		if args[4] != nil {
+			arg4 = args[4].(time.Time)
+		}
+		var arg5 string
+		if args[5] != nil {
+			arg5 = args[5].(string)
 		}
 		run(
 			arg0,
 			arg1,
 			arg2,
 			arg3,
+			arg4,
+			arg5,
 		)
 	})
 	return _c
@@ -310,7 +351,88 @@ func (_c *OutboxConnQueryer_MarkRetry_Call) Return(err error) *OutboxConnQueryer
 	return _c
 }
 
-func (_c *OutboxConnQueryer_MarkRetry_Call) RunAndReturn(run func(ctx context.Context, outboxID uuid.UUID, nextAttemptAt time.Time, lastError string) error) *OutboxConnQueryer_MarkRetry_Call {
+func (_c *OutboxConnQueryer_MarkRetry_Call) RunAndReturn(run func(ctx context.Context, outboxID model.OutboxID, workerID string, lockVersion int64, nextAttemptAt time.Time, lastError string) error) *OutboxConnQueryer_MarkRetry_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// MarkSkipped provides a mock function for the type OutboxConnQueryer
+func (_mock *OutboxConnQueryer) MarkSkipped(ctx context.Context, outboxID model.OutboxID, workerID string, lockVersion int64, skippedAt time.Time, reason string) error {
+	ret := _mock.Called(ctx, outboxID, workerID, lockVersion, skippedAt, reason)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MarkSkipped")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.OutboxID, string, int64, time.Time, string) error); ok {
+		r0 = returnFunc(ctx, outboxID, workerID, lockVersion, skippedAt, reason)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// OutboxConnQueryer_MarkSkipped_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MarkSkipped'
+type OutboxConnQueryer_MarkSkipped_Call struct {
+	*mock.Call
+}
+
+// MarkSkipped is a helper method to define mock.On call
+//   - ctx context.Context
+//   - outboxID model.OutboxID
+//   - workerID string
+//   - lockVersion int64
+//   - skippedAt time.Time
+//   - reason string
+func (_e *OutboxConnQueryer_Expecter) MarkSkipped(ctx any, outboxID any, workerID any, lockVersion any, skippedAt any, reason any) *OutboxConnQueryer_MarkSkipped_Call {
+	return &OutboxConnQueryer_MarkSkipped_Call{Call: _e.mock.On("MarkSkipped", ctx, outboxID, workerID, lockVersion, skippedAt, reason)}
+}
+
+func (_c *OutboxConnQueryer_MarkSkipped_Call) Run(run func(ctx context.Context, outboxID model.OutboxID, workerID string, lockVersion int64, skippedAt time.Time, reason string)) *OutboxConnQueryer_MarkSkipped_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.OutboxID
+		if args[1] != nil {
+			arg1 = args[1].(model.OutboxID)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		var arg3 int64
+		if args[3] != nil {
+			arg3 = args[3].(int64)
+		}
+		var arg4 time.Time
+		if args[4] != nil {
+			arg4 = args[4].(time.Time)
+		}
+		var arg5 string
+		if args[5] != nil {
+			arg5 = args[5].(string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+			arg4,
+			arg5,
+		)
+	})
+	return _c
+}
+
+func (_c *OutboxConnQueryer_MarkSkipped_Call) Return(err error) *OutboxConnQueryer_MarkSkipped_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *OutboxConnQueryer_MarkSkipped_Call) RunAndReturn(run func(ctx context.Context, outboxID model.OutboxID, workerID string, lockVersion int64, skippedAt time.Time, reason string) error) *OutboxConnQueryer_MarkSkipped_Call {
 	_c.Call.Return(run)
 	return _c
 }

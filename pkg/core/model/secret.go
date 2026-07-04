@@ -5,16 +5,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-
-	"gopkg.in/yaml.v3"
 )
 
-// Secret holds a sensitive string with redacted String, JSON, and YAML output.
+// Secret holds a sensitive string with redacted String, text, and JSON output.
 // Plaintext is available only through Reveal, which should be used solely for
 // connection setup and never logged.
 type Secret struct {
 	// value holds the plaintext secret. It is unexported so callers must go
-	// through Reveal, and is never included in String, Format, JSON, or YAML
+	// through Reveal, and is never included in String, Format, text, or JSON
 	// output.
 	value string
 
@@ -32,35 +30,26 @@ func NewSecret(value string) Secret {
 	}
 }
 
-// UnmarshalYAML decodes a YAML string into Secret, storing a SHA-256 hash for comparisons.
-func (s *Secret) UnmarshalYAML(value *yaml.Node) error {
-	var str string
-	if err := value.Decode(&str); err != nil {
-		return fmt.Errorf("failed to decode secret: %w", err)
-	}
-
-	// Store the raw value
-	s.value = str
-
-	// Calculate and store SHA256 hash
-	hash := sha256.Sum256([]byte(str))
-	s.hash = hex.EncodeToString(hash[:])
-
+// UnmarshalText decodes a scalar text value into Secret.
+// Serialization adapters such as YAML may use this technology-neutral contract
+// without making the Core model depend on a concrete serialization package.
+func (s *Secret) UnmarshalText(text []byte) error {
+	*s = NewSecret(string(text))
 	return nil
 }
 
-// MarshalYAML returns a redacted representation; it never writes the raw value.
-func (s Secret) MarshalYAML() (interface{}, error) {
+// MarshalText returns a redacted scalar representation and never exposes the raw value.
+func (s Secret) MarshalText() ([]byte, error) {
 	if s.value == "" && s.hash == "" {
-		return "", nil
+		return []byte{}, nil
 	}
 
 	// Never output the actual value, only a redacted version
 	if s.hash != "" {
-		return fmt.Sprintf("REDACTED[%s...]", s.hash[:16]), nil
+		return []byte(fmt.Sprintf("REDACTED[%s...]", s.hash[:16])), nil
 	}
 
-	return "REDACTED", nil
+	return []byte("REDACTED"), nil
 }
 
 // String returns a redacted form safe for logs and fmt printing.
@@ -88,8 +77,10 @@ func (s Secret) Format(f fmt.State, verb rune) {
 		} else {
 			_, _ = fmt.Fprint(f, s.String())
 		}
+
 	case 's':
 		_, _ = fmt.Fprint(f, s.String())
+
 	default:
 		_, _ = fmt.Fprint(f, s.String())
 	}
@@ -131,8 +122,10 @@ func (s Secret) Equal(other Secret) bool {
 // UnmarshalJSON decodes a JSON string into Secret.
 func (s *Secret) UnmarshalJSON(data []byte) error {
 	var str string
+	const op = "model.Secret.UnmarshalJSON"
+
 	if err := json.Unmarshal(data, &str); err != nil {
-		return fmt.Errorf("failed to decode JSON secret: %w", err)
+		return fmt.Errorf("%s: failed to decode JSON secret: %w", op, err)
 	}
 
 	s.value = str

@@ -28,7 +28,7 @@ var _ repo.SchemaConnQueryer = (*connQueryer)(nil)
 
 // Conn binds the schema repository to a non-transactional connection scope.
 func (schema *Repo) Conn(c repo.Conn) repo.SchemaConnQueryer {
-	cc := c.(*postgres.Conn)
+	cc := postgres.MustConn(c)
 	return connQueryer{Conn: cc}
 }
 
@@ -56,6 +56,12 @@ func (cq connQueryer) SetSearchPath(
 	return SetSearchPath(ctx, cq.Conn, schema, role)
 }
 
+func (cq connQueryer) Exists(
+	ctx context.Context, schema string,
+) (bool, error) {
+	return Exists(ctx, cq.Conn, schema)
+}
+
 func (cq connQueryer) DropIfExists(
 	ctx context.Context, schema string,
 ) error {
@@ -71,7 +77,7 @@ var _ repo.SchemaTxQueryer = (*txQueryer)(nil)
 
 // Tx binds the schema repository to a transaction scope.
 func (schema *Repo) Tx(tx repo.Tx) repo.SchemaTxQueryer {
-	tt := tx.(*postgres.Tx)
+	tt := postgres.MustTx(tx)
 	return txQueryer{Tx: tt}
 }
 
@@ -97,6 +103,12 @@ func (tq txQueryer) SetSearchPath(
 	ctx context.Context, schema string, role repo.Role,
 ) error {
 	return SetSearchPath(ctx, tq.Tx, schema, role)
+}
+
+func (tq txQueryer) Exists(
+	ctx context.Context, schema string,
+) (bool, error) {
+	return Exists(ctx, tq.Tx, schema)
 }
 
 func (tq txQueryer) DropIfExists(

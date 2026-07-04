@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 )
 
@@ -13,7 +14,7 @@ type DecisionQueryer interface {
 	// GetByID returns the decision identified by id.
 	GetByID(
 		ctx context.Context,
-		id uuid.UUID,
+		id model.DecisionID,
 	) (model.Decision, error)
 
 	// ListByTarget returns decisions recorded for a target entity.
@@ -34,7 +35,7 @@ type DecisionQueryer interface {
 	// ListByPriorDecisionID returns decisions that override, renew, or correct a prior decision.
 	ListByPriorDecisionID(
 		ctx context.Context,
-		priorDecisionID uuid.UUID,
+		priorDecisionID model.DecisionID,
 	) ([]model.Decision, error)
 
 	// GetByIdempotencyKey returns the decision recorded for idempotencyKey.
@@ -46,12 +47,22 @@ type DecisionQueryer interface {
 
 // DecisionConnQueryer exposes decision operations on a connection.
 type DecisionConnQueryer interface {
+	// DecisionQueryer provides shared decision query operations.
 	DecisionQueryer
 }
 
 // DecisionTxQueryer exposes transaction-scoped decision operations.
 type DecisionTxQueryer interface {
+	// DecisionQueryer provides shared decision query operations.
 	DecisionQueryer
+
+	// LockLiveCheckoutDecisionByID locks an approved or conditional checkout decision
+	// that has not expired.
+	LockLiveCheckoutDecisionByID(
+		ctx context.Context,
+		id model.DecisionID,
+		now time.Time,
+	) (model.Decision, error)
 
 	// Create stores a new decision audit envelope inside the current transaction.
 	Create(
@@ -66,7 +77,7 @@ type DecisionTxQueryer interface {
 		jurisdiction model.Jurisdiction,
 		actorType model.DecisionActorType,
 		actorID *uuid.UUID,
-		priorDecisionID *uuid.UUID,
+		priorDecisionID *model.DecisionID,
 		reviewableUntil *time.Time,
 		expiresAt *time.Time,
 		decidedAt time.Time,

@@ -21,9 +21,11 @@ func TestNewSecret(t *testing.T) {
 	if got := secret.Reveal(); got != "my-password" {
 		t.Errorf("Reveal() = %q, want %q", got, "my-password")
 	}
+
 	if got := secret.Hash(); got != hashOf("my-password") {
 		t.Errorf("Hash() = %q, want %q", got, hashOf("my-password"))
 	}
+
 	if secret.IsEmpty() {
 		t.Error("IsEmpty() = true, want false")
 	}
@@ -42,6 +44,7 @@ func TestSecret_Verify(t *testing.T) {
 	if !secret.Verify("correct-password") {
 		t.Error("Verify() = false for matching password, want true")
 	}
+
 	if secret.Verify("wrong-password") {
 		t.Error("Verify() = true for non-matching password, want false")
 	}
@@ -66,9 +69,11 @@ func TestSecret_Clear(t *testing.T) {
 	if got := secret.Reveal(); got != "" {
 		t.Errorf("Reveal() after Clear = %q, want empty", got)
 	}
+
 	if got := secret.Hash(); got != "" {
 		t.Errorf("Hash() after Clear = %q, want empty", got)
 	}
+
 	if !secret.IsEmpty() {
 		t.Error("IsEmpty() after Clear = false, want true")
 	}
@@ -82,6 +87,7 @@ func TestSecret_Equal(t *testing.T) {
 	if !a.Equal(b) {
 		t.Error("Equal() = false for same value, want true")
 	}
+
 	if a.Equal(c) {
 		t.Error("Equal() = true for different values, want false")
 	}
@@ -148,6 +154,7 @@ func TestSecret_MarshalUnmarshalJSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(`"json-secret"`), &decoded); err != nil {
 		t.Fatalf("UnmarshalJSON() error: %v", err)
 	}
+
 	if !original.Equal(decoded) {
 		t.Error("Unmarshaled secret does not equal original")
 	}
@@ -158,6 +165,7 @@ func TestSecret_MarshalJSON_empty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MarshalJSON() on empty error: %v", err)
 	}
+
 	if string(data) != `""` {
 		t.Errorf("MarshalJSON() on empty = %s, want %q", data, `""`)
 	}
@@ -188,6 +196,7 @@ func TestSecret_MarshalUnmarshalYAML(t *testing.T) {
 	if err := yaml.Unmarshal([]byte("yaml-secret"), &decoded); err != nil {
 		t.Fatalf("UnmarshalYAML() error: %v", err)
 	}
+
 	if !original.Equal(decoded) {
 		t.Error("Unmarshaled secret does not equal original")
 	}
@@ -198,16 +207,21 @@ func TestSecret_MarshalYAML_empty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MarshalYAML() on empty error: %v", err)
 	}
+
 	if string(data) != `""`+"\n" {
 		t.Errorf("MarshalYAML() on empty = %q, want %q", data, `""`+"\n")
 	}
 }
 
-func TestSecret_UnmarshalYAML_invalid(t *testing.T) {
+func TestSecret_UnmarshalYAML_mappingDoesNotPopulateSecret(t *testing.T) {
 	var s Secret
 	err := yaml.Unmarshal([]byte("key: value"), &s)
-	if err == nil {
-		t.Fatal("UnmarshalYAML() with mapping input: expected error")
+	if err != nil {
+		t.Fatalf("UnmarshalYAML() with mapping input error: %v", err)
+	}
+
+	if !s.IsEmpty() {
+		t.Fatal("mapping input should not populate Secret")
 	}
 }
 
@@ -227,12 +241,14 @@ func TestSecret_doesNotLeakPlaintext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("json.Marshal() error: %v", err)
 	}
+
 	checks = append(checks, string(data))
 
 	yamlData, err := yaml.Marshal(secret)
 	if err != nil {
 		t.Fatalf("yaml.Marshal() error: %v", err)
 	}
+
 	checks = append(checks, string(yamlData))
 
 	for _, got := range checks {

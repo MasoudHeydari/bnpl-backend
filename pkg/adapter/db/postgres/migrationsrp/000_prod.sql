@@ -1,0 +1,3 @@
+-- Production seed is intentionally empty.
+-- Merchant selling-point, POS-terminal, and online-store mappings are operational business data.
+-- Populate them through the merchant onboarding/administration workflow rather than production seed SQL.

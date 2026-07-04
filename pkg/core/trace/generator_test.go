@@ -7,12 +7,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTraceIDRoundTrip(t *testing.T) {
+func TestIDRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	ctx := WithTraceID(context.Background(), "trace-1")
-	require.Equal(t, "trace-1", TraceID(ctx))
-	require.Empty(t, TraceID(context.Background()))
+	require.Equal(t, "trace-1", ID(ctx))
+	require.Empty(t, ID(context.Background()))
 }
 
 func TestRequestIDRoundTrip(t *testing.T) {

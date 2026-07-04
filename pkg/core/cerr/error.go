@@ -3,21 +3,20 @@ package cerr
 import (
 	"errors"
 	"fmt"
-	"net/http"
 )
 
 // Code identifies a stable error category.
 //
-// Codes are part of the public application contract and may be consumed by:
-//
-//   - HTTP clients
-//   - Frontend applications
-//   - External services
-//   - Monitoring and alerting systems
-//
-// Codes should be treated as stable identifiers.
-// Changing an existing code is considered a breaking change.
+// Codes are part of the public application contract and may be consumed by
+// transports, clients, and monitoring systems. A transport is responsible for
+// mapping a Code to its protocol-specific status (for example HTTP or gRPC).
 type Code string
+
+// MessageKey identifies a stable, language-neutral message in the presentation catalog.
+//
+// The core carries only semantic keys. Transport adapters decide how those keys
+// are localized for a particular protocol/request.
+type MessageKey string
 
 const (
 	// CodeValidationFailed indicates that business validation rules failed.
@@ -74,106 +73,229 @@ const (
 	// CodeServiceUnavailable indicates that a required dependency is
 	// temporarily unavailable.
 	CodeServiceUnavailable Code = "SERVICE_UNAVAILABLE"
+
+	// CodePayloadTooLarge indicates that the request body exceeds the
+	// transport safety limit configured by the serving application.
+	CodePayloadTooLarge Code = "PAYLOAD_TOO_LARGE"
+
+	// CodeTooManyRequests indicates that the caller exceeded a rate or attempt
+	// budget for the requested operation.
+	CodeTooManyRequests Code = "TOO_MANY_REQUESTS"
 )
 
-// HTTPStatusCode returns the HTTP status code that should be used
-// when this application error code is serialized by a REST adapter.
-func (c Code) HTTPStatusCode() int {
-	switch c {
-	case CodeValidationFailed:
-		return http.StatusUnprocessableEntity
-	case CodeInvalidArgument:
-		return http.StatusBadRequest
-	case CodeResourceNotFound,
-		CodeDecisionNotFound,
-		CodeContractNotFound,
-		CodeInstallmentNotFound:
-		return http.StatusNotFound
-	case CodeDecisionRejected,
-		CodeDecisionExpired:
-		return http.StatusUnprocessableEntity
-	case CodeContractAlreadyExists,
-		CodeIdempotencyConflict,
-		CodeConflict:
-		return http.StatusConflict
-	case CodePaymentProviderError:
-		return http.StatusBadGateway
-	case CodeUnauthorized:
-		return http.StatusUnauthorized
-	case CodeForbidden:
-		return http.StatusForbidden
-	case CodeServiceUnavailable:
-		return http.StatusServiceUnavailable
-	case CodeInternalError:
-		return http.StatusInternalServerError
-	default:
-		return http.StatusInternalServerError
-	}
+// Details is the transport-agnostic, client-safe structured context associated
+// with an application error.
+//
+// Details must never contain secrets, SQL/driver diagnostics, stack traces,
+// internal host names, provider payloads, or any other infrastructure detail.
+type Details struct {
+	// Fields lists client-safe field names implicated by the error.
+	Fields []string `json:"fields"`
+
+	// Violations lists structured field-level or rule-level failures.
+	Violations []Violation `json:"violations"`
+
+	// RetryAfterSeconds suggests how long clients should wait before retrying,
+	// when the failure is expected to be transient.
+	RetryAfterSeconds *int `json:"retry_after_seconds,omitempty"`
+}
+
+// MessageParams contains language-neutral template data used by a transport
+// localizer. Values must be client-safe because they may influence public text.
+type MessageParams map[string]any
+
+// Violation describes a client-safe field-level or rule-level failure.
+type Violation struct {
+	// Code is a stable machine-readable identifier for this violation.
+	Code string `json:"code"`
+
+	// MessageKey selects the language-neutral template for this violation.
+	MessageKey MessageKey `json:"-"`
+
+	// MessageParams supplies language-neutral template data for localization.
+	MessageParams MessageParams `json:"-"`
+
+	// Fields lists client-safe field names implicated by this violation.
+	Fields []string `json:"fields"`
 }
 
 // Error represents an application-level error.
 //
-// Error carries a stable machine-readable code,
-// the underlying cause,
-// and optional structured metadata.
-//
-// Error implements the standard error interface
-// and supports unwrapping via errors.Unwrap.
+// MessageKey and Details are the only client-facing semantic parts of Error.
+// The underlying cause is deliberately private so transport serializers cannot
+// accidentally expose infrastructure diagnostics by reading cause.Error(). The
+// cause remains available to logging/tracing through Error(), errors.Is/errors.As,
+// and Unwrap.
 type Error struct {
-	// Err is the underlying cause.
-	Err error
-
-	// Code is a stable machine-readable identifier.
+	// Code is the stable application error classification.
 	Code Code
 
-	// Data contains optional structured metadata.
-	//
-	// Data is intended for transport serialization and should never contain:
-	//
-	//   - secrets
-	//   - access tokens
-	//   - SQL statements
-	//   - stack traces
-	//   - internal infrastructure details
-	//
-	// Data must be safe to expose to API consumers.
-	Data any
+	// MessageKey selects the language-neutral public message template.
+	MessageKey MessageKey
+
+	// MessageParams supplies language-neutral template data for localization.
+	MessageParams MessageParams
+
+	// Details carries client-safe structured context for the error.
+	Details Details
+
+	cause error
 }
 
-// newError creates a structured application error.
+// NewPublic creates an application error with an explicitly client-safe,
+// language-neutral message key and details while retaining cause for internal
+// diagnostics.
 //
-// This function is intentionally unexported.
-// Callers should use one of the exported constructors instead.
-func newError(code Code, err error, data ...any) *Error {
-	var d any
-	if len(data) > 0 {
-		d = data[0]
+// messageKey identifies presentation text; the core never stores a translated
+// sentence. details are part of the public error contract and must already be
+// sanitized by the caller.
+func NewPublic(code Code, messageKey MessageKey, cause error, details Details) *Error {
+	return NewPublicWithParams(
+		code,
+		messageKey,
+		nil,
+		cause,
+		details,
+	)
+}
+
+// NewPublicWithParams is NewPublic with template data for a dynamic public
+// message. Params remain language-neutral and are rendered only by the
+// presentation localizer.
+func NewPublicWithParams(
+	code Code,
+	messageKey MessageKey,
+	messageParams MessageParams,
+	cause error,
+	details Details,
+) *Error {
+	if messageKey == "" {
+		messageKey = DefaultMessageKey(code)
 	}
 
 	return &Error{
-		Err:  err,
-		Code: code,
-		Data: d,
+		Code:          code,
+		MessageKey:    messageKey,
+		MessageParams: messageParams,
+		Details:       details,
+		cause:         cause,
 	}
 }
 
-// Error returns the string representation of the error.
+// newError creates an error using the safe default message for code.
 //
-// The returned value is intended primarily for logs and diagnostics.
+// The variadic argument is retained for source compatibility with older call
+// sites. Only cerr.Details (or *cerr.Details) is accepted as public metadata;
+// arbitrary maps/structs are intentionally ignored so internal metadata cannot
+// become API output by accident. New code should prefer NewPublic whenever it
+// needs custom client-facing details.
+func newError(code Code, cause error, legacyData ...any) *Error {
+	var details Details
+
+	for _, data := range legacyData {
+		switch d := data.(type) {
+		case Details:
+			details = d
+
+		case *Details:
+			if d != nil {
+				details = *d
+			}
+		}
+	}
+
+	return NewPublic(code, DefaultMessageKey(code), cause, details)
+}
+
+// Error returns a diagnostic string suitable for server-side logs.
+// It is not a public/client-facing message.
 func (e *Error) Error() string {
-	return fmt.Sprintf("[%s] %s", e.Code, e.Err.Error())
+	if e == nil {
+		return "<nil>"
+	}
+
+	if e.cause == nil {
+		return fmt.Sprintf("[%s] %s", e.Code, e.MessageKey)
+	}
+
+	return fmt.Sprintf("[%s] %s", e.Code, e.cause.Error())
 }
 
-// Unwrap returns the underlying cause.
+// Unwrap returns the private underlying cause for errors.Is/errors.As.
 func (e *Error) Unwrap() error {
-	return e.Err
+	if e == nil {
+		return nil
+	}
+
+	return e.cause
 }
 
-// IsCode reports whether err or any wrapped error
-// is a cerr.Error with the specified code.
+// IsCode reports whether err or any wrapped error is a cerr.Error with code.
 func IsCode(err error, code Code) bool {
 	var ce *Error
 	return errors.As(err, &ce) && ce.Code == code
+}
+
+// DefaultMessageKey returns the stable language-neutral fallback key for code.
+func DefaultMessageKey(code Code) MessageKey {
+	switch code {
+	case CodeValidationFailed:
+		return "error.default.validation_failed"
+
+	case CodeInvalidArgument:
+		return "error.default.invalid_argument"
+
+	case CodeResourceNotFound:
+		return "error.default.resource_not_found"
+
+	case CodeDecisionNotFound:
+		return "error.default.decision_not_found"
+
+	case CodeDecisionRejected:
+		return "error.default.decision_rejected"
+
+	case CodeDecisionExpired:
+		return "error.default.decision_expired"
+
+	case CodeContractNotFound:
+		return "error.default.contract_not_found"
+
+	case CodeContractAlreadyExists:
+		return "error.default.contract_already_exists"
+
+	case CodeInstallmentNotFound:
+		return "error.default.installment_not_found"
+
+	case CodeIdempotencyConflict:
+		return "error.default.idempotency_conflict"
+
+	case CodePaymentProviderError:
+		return "error.default.payment_provider_error"
+
+	case CodeUnauthorized:
+		return "error.default.unauthorized"
+
+	case CodeForbidden:
+		return "error.default.forbidden"
+
+	case CodeConflict:
+		return "error.default.conflict"
+
+	case CodeServiceUnavailable:
+		return "error.default.service_unavailable"
+
+	case CodePayloadTooLarge:
+		return "error.default.payload_too_large"
+
+	case CodeTooManyRequests:
+		return "error.default.too_many_requests"
+
+	case CodeInternalError:
+		return "error.default.internal"
+
+	default:
+		return "error.default.internal"
+	}
 }
 
 // ValidationFailed indicates that business validation rules failed.

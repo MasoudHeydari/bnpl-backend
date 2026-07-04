@@ -14,4 +14,7 @@ const (
 
 	// MessagingCheck verifies messaging backend availability.
 	MessagingCheck Check = "messaging"
+
+	// ConsumerCheck verifies Kafka consumer runtime supervision state.
+	ConsumerCheck Check = "consumer"
 )

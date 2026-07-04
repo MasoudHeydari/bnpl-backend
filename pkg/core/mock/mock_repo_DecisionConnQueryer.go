@@ -40,7 +40,7 @@ func (_m *DecisionConnQueryer) EXPECT() *DecisionConnQueryer_Expecter {
 }
 
 // GetByID provides a mock function for the type DecisionConnQueryer
-func (_mock *DecisionConnQueryer) GetByID(ctx context.Context, id uuid.UUID) (model.Decision, error) {
+func (_mock *DecisionConnQueryer) GetByID(ctx context.Context, id model.DecisionID) (model.Decision, error) {
 	ret := _mock.Called(ctx, id)
 
 	if len(ret) == 0 {
@@ -49,15 +49,15 @@ func (_mock *DecisionConnQueryer) GetByID(ctx context.Context, id uuid.UUID) (mo
 
 	var r0 model.Decision
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) (model.Decision, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.DecisionID) (model.Decision, error)); ok {
 		return returnFunc(ctx, id)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) model.Decision); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.DecisionID) model.Decision); ok {
 		r0 = returnFunc(ctx, id)
 	} else {
 		r0 = ret.Get(0).(model.Decision)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.DecisionID) error); ok {
 		r1 = returnFunc(ctx, id)
 	} else {
 		r1 = ret.Error(1)
@@ -72,20 +72,20 @@ type DecisionConnQueryer_GetByID_Call struct {
 
 // GetByID is a helper method to define mock.On call
 //   - ctx context.Context
-//   - id uuid.UUID
+//   - id model.DecisionID
 func (_e *DecisionConnQueryer_Expecter) GetByID(ctx any, id any) *DecisionConnQueryer_GetByID_Call {
 	return &DecisionConnQueryer_GetByID_Call{Call: _e.mock.On("GetByID", ctx, id)}
 }
 
-func (_c *DecisionConnQueryer_GetByID_Call) Run(run func(ctx context.Context, id uuid.UUID)) *DecisionConnQueryer_GetByID_Call {
+func (_c *DecisionConnQueryer_GetByID_Call) Run(run func(ctx context.Context, id model.DecisionID)) *DecisionConnQueryer_GetByID_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 uuid.UUID
+		var arg1 model.DecisionID
 		if args[1] != nil {
-			arg1 = args[1].(uuid.UUID)
+			arg1 = args[1].(model.DecisionID)
 		}
 		run(
 			arg0,
@@ -100,7 +100,7 @@ func (_c *DecisionConnQueryer_GetByID_Call) Return(decision model.Decision, err 
 	return _c
 }
 
-func (_c *DecisionConnQueryer_GetByID_Call) RunAndReturn(run func(ctx context.Context, id uuid.UUID) (model.Decision, error)) *DecisionConnQueryer_GetByID_Call {
+func (_c *DecisionConnQueryer_GetByID_Call) RunAndReturn(run func(ctx context.Context, id model.DecisionID) (model.Decision, error)) *DecisionConnQueryer_GetByID_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -250,7 +250,7 @@ func (_c *DecisionConnQueryer_GetLatestByTargetAndType_Call) RunAndReturn(run fu
 }
 
 // ListByPriorDecisionID provides a mock function for the type DecisionConnQueryer
-func (_mock *DecisionConnQueryer) ListByPriorDecisionID(ctx context.Context, priorDecisionID uuid.UUID) ([]model.Decision, error) {
+func (_mock *DecisionConnQueryer) ListByPriorDecisionID(ctx context.Context, priorDecisionID model.DecisionID) ([]model.Decision, error) {
 	ret := _mock.Called(ctx, priorDecisionID)
 
 	if len(ret) == 0 {
@@ -259,17 +259,17 @@ func (_mock *DecisionConnQueryer) ListByPriorDecisionID(ctx context.Context, pri
 
 	var r0 []model.Decision
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) ([]model.Decision, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.DecisionID) ([]model.Decision, error)); ok {
 		return returnFunc(ctx, priorDecisionID)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) []model.Decision); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.DecisionID) []model.Decision); ok {
 		r0 = returnFunc(ctx, priorDecisionID)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]model.Decision)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.DecisionID) error); ok {
 		r1 = returnFunc(ctx, priorDecisionID)
 	} else {
 		r1 = ret.Error(1)
@@ -284,20 +284,20 @@ type DecisionConnQueryer_ListByPriorDecisionID_Call struct {
 
 // ListByPriorDecisionID is a helper method to define mock.On call
 //   - ctx context.Context
-//   - priorDecisionID uuid.UUID
+//   - priorDecisionID model.DecisionID
 func (_e *DecisionConnQueryer_Expecter) ListByPriorDecisionID(ctx any, priorDecisionID any) *DecisionConnQueryer_ListByPriorDecisionID_Call {
 	return &DecisionConnQueryer_ListByPriorDecisionID_Call{Call: _e.mock.On("ListByPriorDecisionID", ctx, priorDecisionID)}
 }
 
-func (_c *DecisionConnQueryer_ListByPriorDecisionID_Call) Run(run func(ctx context.Context, priorDecisionID uuid.UUID)) *DecisionConnQueryer_ListByPriorDecisionID_Call {
+func (_c *DecisionConnQueryer_ListByPriorDecisionID_Call) Run(run func(ctx context.Context, priorDecisionID model.DecisionID)) *DecisionConnQueryer_ListByPriorDecisionID_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 uuid.UUID
+		var arg1 model.DecisionID
 		if args[1] != nil {
-			arg1 = args[1].(uuid.UUID)
+			arg1 = args[1].(model.DecisionID)
 		}
 		run(
 			arg0,
@@ -312,7 +312,7 @@ func (_c *DecisionConnQueryer_ListByPriorDecisionID_Call) Return(decisions []mod
 	return _c
 }
 
-func (_c *DecisionConnQueryer_ListByPriorDecisionID_Call) RunAndReturn(run func(ctx context.Context, priorDecisionID uuid.UUID) ([]model.Decision, error)) *DecisionConnQueryer_ListByPriorDecisionID_Call {
+func (_c *DecisionConnQueryer_ListByPriorDecisionID_Call) RunAndReturn(run func(ctx context.Context, priorDecisionID model.DecisionID) ([]model.Decision, error)) *DecisionConnQueryer_ListByPriorDecisionID_Call {
 	_c.Call.Return(run)
 	return _c
 }

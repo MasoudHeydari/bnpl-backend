@@ -24,7 +24,7 @@ Adopt a layered architecture with strict inward dependency flow:
 | Core | `pkg/core/model`, `pkg/core/repo`, `pkg/core/cerr` | Domain-shaped types, port interfaces, shared error semantics |
 | Application | `pkg/core/usecase/*` | Orchestration and transaction boundaries |
 | Adapter | `cmd/bnpl`, `pkg/adapter/config`, `pkg/adapter/restful/gin` | CLI, HTTP, configuration translation |
-| Infrastructure | `pkg/adapter/db/postgres`, `pkg/adapter/infrastructure/*` | PostgreSQL, cache, messaging, logging, tasks, trace |
+| Infrastructure | `pkg/adapter/db/postgres`, `pkg/adapter/infrastructure/*` | PostgreSQL, cache, messaging, logging, tasks, trace, fingerprint |
 
 Adapters and infrastructure depend on core interfaces; core packages never depend on adapters.
 
@@ -33,6 +33,10 @@ Evidence: `migrationsuc.InitDBUseCase` depends on `repo.SchemaSettings` and `rep
 ### Amendment (2026-06-27)
 
 Infrastructure concerns (cache, messaging, logging, tasks, trace, clock) now live under `pkg/adapter/infrastructure/*` with ports in `pkg/core`. The infrastructure layer table row above was expanded accordingly. Core packages `pkg/core/cache`, `pkg/core/messaging`, `pkg/core/task`, `pkg/core/log`, `pkg/core/clock`, and `pkg/core/trace` define ports only.
+
+### Amendment (2026-07-17)
+
+Fingerprint hashing follows the same infrastructure layout: port in `pkg/core/fingerprint`, SHA-256 adapter in `pkg/adapter/infrastructure/fingerprint/sha256`.
 
 ## Consequences
 

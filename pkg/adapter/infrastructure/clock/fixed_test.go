@@ -10,7 +10,16 @@ import (
 
 func TestFixed_Now_ReturnsSameInstant(t *testing.T) {
 	loc := time.UTC
-	fixed := NewFixed(time.Date(2026, 6, 25, 12, 0, 0, 0, loc), loc)
+	fixed := NewFixed(time.Date(
+		2026,
+		6,
+		25,
+		12,
+		0,
+		0,
+		0,
+		loc,
+	), loc)
 
 	assert.Equal(t, fixed.Now(), fixed.Now())
 }
@@ -18,7 +27,16 @@ func TestFixed_Now_ReturnsSameInstant(t *testing.T) {
 func TestFixed_Now_UsesBusinessLocation(t *testing.T) {
 	loc, err := time.LoadLocation("Asia/Tehran")
 	require.NoError(t, err)
-	fixed := NewFixed(time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC), loc)
+	fixed := NewFixed(time.Date(
+		2026,
+		6,
+		25,
+		12,
+		0,
+		0,
+		0,
+		time.UTC,
+	), loc)
 
 	now := fixed.Now()
 
@@ -28,7 +46,16 @@ func TestFixed_Now_UsesBusinessLocation(t *testing.T) {
 func TestFixed_Add_ReturnsCorrectOffset(t *testing.T) {
 	loc, err := time.LoadLocation("Asia/Tehran")
 	require.NoError(t, err)
-	base := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+	base := time.Date(
+		2026,
+		6,
+		25,
+		12,
+		0,
+		0,
+		0,
+		time.UTC,
+	)
 	fixed := NewFixed(base, loc)
 	d := 3 * time.Hour
 

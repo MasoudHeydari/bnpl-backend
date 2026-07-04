@@ -8,15 +8,22 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	testifymock "github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+
 	adapterclock "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/clock"
 	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/messaging"
 	"github.com/parstis/bnpl-backend/pkg/core/mock"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
-	"github.com/stretchr/testify/assert"
-	testifymock "github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
+)
+
+const (
+	testWorkerID               = "worker-1"
+	testBatchSize              = 5
+	testProcessingLeaseTimeout = 5 * time.Minute
 )
 
 type logRecord struct {
@@ -32,10 +39,9 @@ type recordingLogger struct {
 }
 
 func newRecordingLogger() *recordingLogger {
-	records := make([]logRecord, 0)
 	return &recordingLogger{
 		mu:      &sync.Mutex{},
-		records: &records,
+		records: new(make([]logRecord, 0)),
 	}
 }
 
@@ -70,7 +76,16 @@ func TestPublishDue_ContextCancelledBeforeConn_ReturnsContextError(t *testing.T)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	deps := newOutboxPublisherDeps(t, time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC))
+	deps := newOutboxPublisherDeps(t, time.Date(
+		2026,
+		6,
+		25,
+		12,
+		0,
+		0,
+		0,
+		time.UTC,
+	))
 	deps.pool.EXPECT().Conn(ctx, testifymock.Anything).Return(context.Canceled).Once()
 
 	uc := deps.newUseCase("worker-1", 5)
@@ -82,25 +97,53 @@ func TestPublishDue_ContextCancelledBeforeConn_ReturnsContextError(t *testing.T)
 
 func TestPublishDue_TwoMessagesBatch_PartialFailure(t *testing.T) {
 	ctx := context.Background()
-	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+	now := time.Date(
+		2026,
+		6,
+		25,
+		12,
+		0,
+		0,
+		0,
+		time.UTC,
+	)
 	deps := newOutboxPublisherDeps(t, now)
 	msg1 := sampleOutboxMessage()
 	msg2 := sampleOutboxMessage()
-	msg2.ID = uuid.New()
+	msg2.ID = model.OutboxID(uuid.New())
 	publishErr := errors.New("publisher unavailable")
 	nextAttemptAt := now.Add(time.Second)
 
-	deps.outbox.EXPECT().Conn(deps.conn).Return(deps.outboxQueryer).Once()
-	deps.outboxQueryer.EXPECT().ClaimPending(ctx, "worker-1", 5, now).Return([]model.OutboxMessage{msg1, msg2}, nil).Once()
+	deps.outbox.EXPECT().Conn(deps.conn).Return(deps.outboxQueryer).Times(3)
+	deps.outboxQueryer.EXPECT().ClaimPending(
+		ctx,
+		testWorkerID,
+		testBatchSize,
+		now,
+		testProcessingLeaseTimeout,
+	).Return([]model.OutboxMessage{msg1, msg2}, nil).Once()
 	deps.publisher.EXPECT().Publish(ctx, msg1.Destination, expectedMessage(msg1)).Return(publishErr).Once()
-	deps.outboxQueryer.EXPECT().MarkRetry(ctx, msg1.ID, nextAttemptAt, publishErr.Error()).Return(nil).Once()
+	deps.outboxQueryer.EXPECT().MarkRetry(
+		ctx,
+		msg1.ID,
+		testWorkerID,
+		msg1.LockVersion,
+		nextAttemptAt,
+		publishErr.Error(),
+	).Return(nil).Once()
 	deps.publisher.EXPECT().Publish(ctx, msg2.Destination, expectedMessage(msg2)).Return(nil).Once()
-	deps.outboxQueryer.EXPECT().MarkPublished(ctx, msg2.ID, now).Return(nil).Once()
+	deps.outboxQueryer.EXPECT().MarkPublished(
+		ctx,
+		msg2.ID,
+		testWorkerID,
+		msg2.LockVersion,
+		now,
+	).Return(nil).Once()
 	deps.pool.EXPECT().Conn(ctx, testifymock.Anything).RunAndReturn(func(ctx context.Context, handler repo.ConnHandler) error {
 		return handler(ctx, deps.conn)
-	}).Once()
+	}).Times(3)
 
-	uc := deps.newUseCase("worker-1", 5)
+	uc := deps.newUseCase(testWorkerID, testBatchSize)
 
 	err := uc.PublishDue(ctx)
 
@@ -126,16 +169,31 @@ func TestPublishDue_ReturnsErrInvalidBatchSize(t *testing.T) {
 
 func TestPublishDue_NoMessages_ReturnsNil(t *testing.T) {
 	ctx := context.Background()
-	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+	now := time.Date(
+		2026,
+		6,
+		25,
+		12,
+		0,
+		0,
+		0,
+		time.UTC,
+	)
 	deps := newOutboxPublisherDeps(t, now)
 
 	deps.outbox.EXPECT().Conn(deps.conn).Return(deps.outboxQueryer).Once()
-	deps.outboxQueryer.EXPECT().ClaimPending(ctx, "worker-1", 5, now).Return([]model.OutboxMessage{}, nil).Once()
+	deps.outboxQueryer.EXPECT().ClaimPending(
+		ctx,
+		testWorkerID,
+		testBatchSize,
+		now,
+		testProcessingLeaseTimeout,
+	).Return([]model.OutboxMessage{}, nil).Once()
 	deps.pool.EXPECT().Conn(ctx, testifymock.Anything).RunAndReturn(func(ctx context.Context, handler repo.ConnHandler) error {
 		return handler(ctx, deps.conn)
 	}).Once()
 
-	uc := deps.newUseCase("worker-1", 5)
+	uc := deps.newUseCase(testWorkerID, testBatchSize)
 
 	err := uc.PublishDue(ctx)
 
@@ -144,19 +202,40 @@ func TestPublishDue_NoMessages_ReturnsNil(t *testing.T) {
 
 func TestPublishDue_SuccessfulPublish_MarksPublished(t *testing.T) {
 	ctx := context.Background()
-	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+	now := time.Date(
+		2026,
+		6,
+		25,
+		12,
+		0,
+		0,
+		0,
+		time.UTC,
+	)
 	deps := newOutboxPublisherDeps(t, now)
 	msg := sampleOutboxMessage()
 
-	deps.outbox.EXPECT().Conn(deps.conn).Return(deps.outboxQueryer).Once()
-	deps.outboxQueryer.EXPECT().ClaimPending(ctx, "worker-1", 5, now).Return([]model.OutboxMessage{msg}, nil).Once()
+	deps.outbox.EXPECT().Conn(deps.conn).Return(deps.outboxQueryer).Twice()
+	deps.outboxQueryer.EXPECT().ClaimPending(
+		ctx,
+		testWorkerID,
+		testBatchSize,
+		now,
+		testProcessingLeaseTimeout,
+	).Return([]model.OutboxMessage{msg}, nil).Once()
 	deps.publisher.EXPECT().Publish(ctx, msg.Destination, expectedMessage(msg)).Return(nil).Once()
-	deps.outboxQueryer.EXPECT().MarkPublished(ctx, msg.ID, now).Return(nil).Once()
+	deps.outboxQueryer.EXPECT().MarkPublished(
+		ctx,
+		msg.ID,
+		testWorkerID,
+		msg.LockVersion,
+		now,
+	).Return(nil).Once()
 	deps.pool.EXPECT().Conn(ctx, testifymock.Anything).RunAndReturn(func(ctx context.Context, handler repo.ConnHandler) error {
 		return handler(ctx, deps.conn)
-	}).Once()
+	}).Twice()
 
-	uc := deps.newUseCase("worker-1", 5)
+	uc := deps.newUseCase(testWorkerID, testBatchSize)
 
 	err := uc.PublishDue(ctx)
 
@@ -165,22 +244,44 @@ func TestPublishDue_SuccessfulPublish_MarksPublished(t *testing.T) {
 
 func TestPublishDue_PublishFails_SchedulesRetry(t *testing.T) {
 	ctx := context.Background()
-	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+	now := time.Date(
+		2026,
+		6,
+		25,
+		12,
+		0,
+		0,
+		0,
+		time.UTC,
+	)
 	deps := newOutboxPublisherDeps(t, now)
 	msg := sampleOutboxMessage()
 	msg.AttemptCount = 1
 	publishErr := errors.New("publisher unavailable")
 	nextAttemptAt := now.Add(time.Second)
 
-	deps.outbox.EXPECT().Conn(deps.conn).Return(deps.outboxQueryer).Once()
-	deps.outboxQueryer.EXPECT().ClaimPending(ctx, "worker-1", 5, now).Return([]model.OutboxMessage{msg}, nil).Once()
+	deps.outbox.EXPECT().Conn(deps.conn).Return(deps.outboxQueryer).Twice()
+	deps.outboxQueryer.EXPECT().ClaimPending(
+		ctx,
+		testWorkerID,
+		testBatchSize,
+		now,
+		testProcessingLeaseTimeout,
+	).Return([]model.OutboxMessage{msg}, nil).Once()
 	deps.publisher.EXPECT().Publish(ctx, msg.Destination, expectedMessage(msg)).Return(publishErr).Once()
-	deps.outboxQueryer.EXPECT().MarkRetry(ctx, msg.ID, nextAttemptAt, publishErr.Error()).Return(nil).Once()
+	deps.outboxQueryer.EXPECT().MarkRetry(
+		ctx,
+		msg.ID,
+		testWorkerID,
+		msg.LockVersion,
+		nextAttemptAt,
+		publishErr.Error(),
+	).Return(nil).Once()
 	deps.pool.EXPECT().Conn(ctx, testifymock.Anything).RunAndReturn(func(ctx context.Context, handler repo.ConnHandler) error {
 		return handler(ctx, deps.conn)
-	}).Once()
+	}).Twice()
 
-	uc := deps.newUseCase("worker-1", 5)
+	uc := deps.newUseCase(testWorkerID, testBatchSize)
 
 	err := uc.PublishDue(ctx)
 
@@ -190,21 +291,42 @@ func TestPublishDue_PublishFails_SchedulesRetry(t *testing.T) {
 
 func TestPublishDue_PublishFails_ExhaustedRetries_MarksFailed(t *testing.T) {
 	ctx := context.Background()
-	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+	now := time.Date(
+		2026,
+		6,
+		25,
+		12,
+		0,
+		0,
+		0,
+		time.UTC,
+	)
 	deps := newOutboxPublisherDeps(t, now)
 	msg := sampleOutboxMessage()
 	msg.AttemptCount = msg.MaxAttempts
 	publishErr := errors.New("publisher unavailable")
 
-	deps.outbox.EXPECT().Conn(deps.conn).Return(deps.outboxQueryer).Once()
-	deps.outboxQueryer.EXPECT().ClaimPending(ctx, "worker-1", 5, now).Return([]model.OutboxMessage{msg}, nil).Once()
+	deps.outbox.EXPECT().Conn(deps.conn).Return(deps.outboxQueryer).Twice()
+	deps.outboxQueryer.EXPECT().ClaimPending(
+		ctx,
+		testWorkerID,
+		testBatchSize,
+		now,
+		testProcessingLeaseTimeout,
+	).Return([]model.OutboxMessage{msg}, nil).Once()
 	deps.publisher.EXPECT().Publish(ctx, msg.Destination, expectedMessage(msg)).Return(publishErr).Once()
-	deps.outboxQueryer.EXPECT().MarkFailed(ctx, msg.ID, publishErr.Error()).Return(nil).Once()
+	deps.outboxQueryer.EXPECT().MarkFailed(
+		ctx,
+		msg.ID,
+		testWorkerID,
+		msg.LockVersion,
+		publishErr.Error(),
+	).Return(nil).Once()
 	deps.pool.EXPECT().Conn(ctx, testifymock.Anything).RunAndReturn(func(ctx context.Context, handler repo.ConnHandler) error {
 		return handler(ctx, deps.conn)
-	}).Once()
+	}).Twice()
 
-	uc := deps.newUseCase("worker-1", 5)
+	uc := deps.newUseCase(testWorkerID, testBatchSize)
 
 	err := uc.PublishDue(ctx)
 
@@ -212,26 +334,99 @@ func TestPublishDue_PublishFails_ExhaustedRetries_MarksFailed(t *testing.T) {
 	require.ErrorContains(t, err, publishErr.Error())
 }
 
+func TestPublishDue_NonRetryablePublishFailure_MarksFailedWithRetryBudgetRemaining(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(
+		2026,
+		6,
+		25,
+		12,
+		0,
+		0,
+		0,
+		time.UTC,
+	)
+	deps := newOutboxPublisherDeps(t, now)
+	msg := sampleOutboxMessage()
+	msg.AttemptCount = 1
+	msg.MaxAttempts = 10
+	publishErr := messaging.NonRetryable(errors.New("webhook destination is disabled"))
+
+	deps.outbox.EXPECT().Conn(deps.conn).Return(deps.outboxQueryer).Twice()
+	deps.outboxQueryer.EXPECT().ClaimPending(
+		ctx,
+		testWorkerID,
+		testBatchSize,
+		now,
+		testProcessingLeaseTimeout,
+	).Return([]model.OutboxMessage{msg}, nil).Once()
+	deps.publisher.EXPECT().Publish(ctx, msg.Destination, expectedMessage(msg)).Return(publishErr).Once()
+	deps.outboxQueryer.EXPECT().MarkFailed(
+		ctx,
+		msg.ID,
+		testWorkerID,
+		msg.LockVersion,
+		publishErr.Error(),
+	).Return(nil).Once()
+	deps.pool.EXPECT().Conn(ctx, testifymock.Anything).RunAndReturn(func(ctx context.Context, handler repo.ConnHandler) error {
+		return handler(ctx, deps.conn)
+	}).Twice()
+
+	uc := deps.newUseCase(testWorkerID, testBatchSize)
+
+	err := uc.PublishDue(ctx)
+
+	require.Error(t, err)
+	require.True(t, messaging.IsNonRetryable(err))
+}
+
 func TestPublishDue_MarkPublishedFails_Logs_ContinuesProcessing(t *testing.T) {
 	ctx := context.Background()
-	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+	now := time.Date(
+		2026,
+		6,
+		25,
+		12,
+		0,
+		0,
+		0,
+		time.UTC,
+	)
 	deps := newOutboxPublisherDeps(t, now)
 	msg1 := sampleOutboxMessage()
 	msg2 := sampleOutboxMessage()
-	msg2.ID = uuid.New()
+	msg2.ID = model.OutboxID(uuid.New())
 	markErr := errors.New("mark published failed")
 
-	deps.outbox.EXPECT().Conn(deps.conn).Return(deps.outboxQueryer).Once()
-	deps.outboxQueryer.EXPECT().ClaimPending(ctx, "worker-1", 5, now).Return([]model.OutboxMessage{msg1, msg2}, nil).Once()
+	deps.outbox.EXPECT().Conn(deps.conn).Return(deps.outboxQueryer).Times(3)
+	deps.outboxQueryer.EXPECT().ClaimPending(
+		ctx,
+		testWorkerID,
+		testBatchSize,
+		now,
+		testProcessingLeaseTimeout,
+	).Return([]model.OutboxMessage{msg1, msg2}, nil).Once()
 	deps.publisher.EXPECT().Publish(ctx, msg1.Destination, expectedMessage(msg1)).Return(nil).Once()
-	deps.outboxQueryer.EXPECT().MarkPublished(ctx, msg1.ID, now).Return(markErr).Once()
+	deps.outboxQueryer.EXPECT().MarkPublished(
+		ctx,
+		msg1.ID,
+		testWorkerID,
+		msg1.LockVersion,
+		now,
+	).Return(markErr).Once()
 	deps.publisher.EXPECT().Publish(ctx, msg2.Destination, expectedMessage(msg2)).Return(nil).Once()
-	deps.outboxQueryer.EXPECT().MarkPublished(ctx, msg2.ID, now).Return(nil).Once()
+	deps.outboxQueryer.EXPECT().MarkPublished(
+		ctx,
+		msg2.ID,
+		testWorkerID,
+		msg2.LockVersion,
+		now,
+	).Return(nil).Once()
 	deps.pool.EXPECT().Conn(ctx, testifymock.Anything).RunAndReturn(func(ctx context.Context, handler repo.ConnHandler) error {
 		return handler(ctx, deps.conn)
-	}).Once()
+	}).Times(3)
 
-	uc := deps.newUseCase("worker-1", 5)
+	uc := deps.newUseCase(testWorkerID, testBatchSize)
 
 	err := uc.PublishDue(ctx)
 
@@ -246,17 +441,32 @@ func TestPublishDue_MarkPublishedFails_Logs_ContinuesProcessing(t *testing.T) {
 
 func TestPublishDue_ClaimPendingFails_ReturnsError(t *testing.T) {
 	ctx := context.Background()
-	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+	now := time.Date(
+		2026,
+		6,
+		25,
+		12,
+		0,
+		0,
+		0,
+		time.UTC,
+	)
 	deps := newOutboxPublisherDeps(t, now)
 	claimErr := errors.New("claim failed")
 
 	deps.outbox.EXPECT().Conn(deps.conn).Return(deps.outboxQueryer).Once()
-	deps.outboxQueryer.EXPECT().ClaimPending(ctx, "worker-1", 5, now).Return(nil, claimErr).Once()
+	deps.outboxQueryer.EXPECT().ClaimPending(
+		ctx,
+		testWorkerID,
+		testBatchSize,
+		now,
+		testProcessingLeaseTimeout,
+	).Return(nil, claimErr).Once()
 	deps.pool.EXPECT().Conn(ctx, testifymock.Anything).RunAndReturn(func(ctx context.Context, handler repo.ConnHandler) error {
 		return handler(ctx, deps.conn)
 	}).Once()
 
-	uc := deps.newUseCase("worker-1", 5)
+	uc := deps.newUseCase(testWorkerID, testBatchSize)
 
 	err := uc.PublishDue(ctx)
 
@@ -272,7 +482,16 @@ type useCaseOptions struct {
 
 func newUseCaseForTest(t *testing.T, opts useCaseOptions) *UseCase {
 	t.Helper()
-	deps := newOutboxPublisherDeps(t, time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC))
+	deps := newOutboxPublisherDeps(t, time.Date(
+		2026,
+		6,
+		25,
+		12,
+		0,
+		0,
+		0,
+		time.UTC,
+	))
 	return deps.newUseCase(opts.workerID, opts.batchSize)
 }
 
@@ -311,23 +530,26 @@ func (d outboxPublisherDeps) newUseCase(workerID string, batchSize int) *UseCase
 		batchSize,
 		time.Second,
 		time.Minute,
+		testProcessingLeaseTimeout,
 	)
 }
 
 func sampleOutboxMessage() model.OutboxMessage {
 	return model.OutboxMessage{
-		ID:           uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+		ID:           model.OutboxID(uuid.MustParse("11111111-1111-1111-1111-111111111111")),
 		Destination:  "payments.result",
+		MessageKey:   "payment-intent-123",
 		EventType:    "payment.completed",
 		Payload:      []byte(`{"status":"ok"}`),
 		AttemptCount: 1,
 		MaxAttempts:  3,
+		LockVersion:  1,
 	}
 }
 
 func expectedMessage(msg model.OutboxMessage) messaging.Message {
 	return messaging.Message{
-		Key:   []byte(msg.ID.String()),
+		Key:   []byte(msg.MessageKey),
 		Value: msg.Payload,
 		Topic: msg.Destination,
 		Headers: map[string][]byte{

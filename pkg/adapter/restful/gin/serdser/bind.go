@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
 
+	resti18n "github.com/parstis/bnpl-backend/pkg/adapter/restful/i18n"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/trace"
 )
@@ -15,10 +16,9 @@ import (
 // Bind deserializes and validates the request body into req.
 //
 // Bind returns true when binding succeeds. When binding fails, it writes a
-// standardized APIError response to the client and returns false.
+// standardized ErrorResponse to the client and returns false.
 //
 // Binding failures are classified as:
-//
 //   - invalid validator configuration: INTERNAL_ERROR / 500
 //   - request validation failure: VALIDATION_FAILED / 422
 //   - malformed or unsupported request payload: INVALID_ARGUMENT / 400
@@ -28,248 +28,238 @@ func Bind(c *gin.Context, req any, b binding.Binding) bool {
 		return true
 	}
 
-	traceID := trace.TraceID(c.Request.Context())
-
-	if _, ok := errors.AsType[*validator.InvalidValidationError](err); ok {
-		c.JSON(
-			cerr.CodeInternalError.HTTPStatusCode(),
-			ErrorResponse{
-				Code:    string(cerr.CodeInternalError),
-				Message: "An unexpected error occurred.",
-				TraceID: traceID,
-				Details: emptyDetails(),
-			},
+	var maxBytesErr *http.MaxBytesError
+	if errors.As(err, &maxBytesErr) {
+		SerErr(
+			c,
+			cerr.NewPublic(
+				cerr.CodePayloadTooLarge,
+				cerr.DefaultMessageKey(cerr.CodePayloadTooLarge),
+				err,
+				cerr.Details{},
+			),
 		)
 		return false
 	}
 
-	if validationErrs, ok := errors.AsType[validator.ValidationErrors](err); ok {
+	var invalidValidation *validator.InvalidValidationError
+	if errors.As(err, &invalidValidation) {
+		SerErr(c, cerr.InternalError(err))
+		return false
+	}
+
+	var validationErrs validator.ValidationErrors
+	if errors.As(err, &validationErrs) {
 		fields, violations := validationDetails(validationErrs)
-
-		c.JSON(
-			cerr.CodeValidationFailed.HTTPStatusCode(),
-			ErrorResponse{
-				Code:    string(cerr.CodeValidationFailed),
-				Message: "The request contains invalid fields.",
-				TraceID: traceID,
-				Details: ErrorDetails{
-					Fields:     fields,
-					Violations: violations,
-				},
-			},
+		SerErr(
+			c,
+			cerr.NewPublic(
+				cerr.CodeValidationFailed,
+				cerr.DefaultMessageKey(cerr.CodeValidationFailed),
+				err,
+				cerr.Details{Fields: fields, Violations: violations},
+			),
 		)
 		return false
 	}
 
-	c.JSON(cerr.CodeInvalidArgument.HTTPStatusCode(), ErrorResponse{
-		Code:    string(cerr.CodeInvalidArgument),
-		Message: "The request payload is invalid.",
-		TraceID: traceID,
-		Details: emptyDetails(),
-	})
+	SerErr(
+		c,
+		cerr.NewPublic(
+			cerr.CodeInvalidArgument,
+			"validation.request_payload_invalid",
+			err,
+			cerr.Details{},
+		),
+	)
 	return false
 }
 
 // SerValidationErr writes a single-field validation error response.
 //
-// Use this helper when validation is performed manually inside a handler
-// instead of through Gin binding tags.
-func SerValidationErr(c *gin.Context, fieldName, msg string) {
-	traceID := trace.TraceID(c.Request.Context())
-
-	c.JSON(cerr.CodeValidationFailed.HTTPStatusCode(), ErrorResponse{
-		Code:    string(cerr.CodeValidationFailed),
-		Message: "The request contains invalid fields.",
-		TraceID: traceID,
-		Details: ErrorDetails{
-			Fields: []string{fieldName},
-			Violations: []ErrorViolation{{
-				Code:    "INVALID",
-				Message: msg,
-				Fields:  []string{fieldName},
-			}},
-		},
-	})
-}
-
-// AddErr appends validation messages to a field-keyed error map.
-//
-// This helper is useful when a handler needs to collect multiple validation
-// errors before serializing them into a single response.
-func AddErr(errs *map[string][]string, name string, msgs ...string) {
-	if *errs == nil {
-		*errs = make(map[string][]string)
+// messageKey is language-neutral. Optional params are passed to the active
+// Localizer implementation, allowing this API to work with template-capable
+// providers such as go-i18n without changing callers later.
+func SerValidationErr(
+	c *gin.Context,
+	fieldName string,
+	messageKey string,
+	params ...resti18n.Params,
+) {
+	var messageParams cerr.MessageParams
+	if len(params) > 0 {
+		messageParams = cerr.MessageParams(params[0])
 	}
 
-	(*errs)[name] = append((*errs)[name], msgs...)
+	SerErr(
+		c,
+		cerr.NewPublic(
+			cerr.CodeValidationFailed,
+			cerr.DefaultMessageKey(cerr.CodeValidationFailed),
+			nil,
+			cerr.Details{
+				Fields: []string{fieldName},
+				Violations: []cerr.Violation{
+					{
+						Code:          "INVALID",
+						MessageKey:    cerr.MessageKey(messageKey),
+						MessageParams: messageParams,
+						Fields:        []string{fieldName},
+					},
+				},
+			},
+		),
+	)
 }
 
-// SerErr writes the standard APIError response for err.
+// SerErr serializes err into the standard public API error response.
 //
-// When err wraps a cerr.Error, SerErr uses its stable application code and
-// derives the HTTP status code from cerr.Code.HTTPStatusCode.
+// Only semantic public fields of cerr.Error (Code, MessageKey, and Details) may
+// cross the HTTP boundary. The underlying cause is registered on the Gin
+// context for observability purposes, but is never serialized.
 //
-// Unknown errors are serialized as INTERNAL_ERROR with a sanitized message.
-// Raw internal error messages must not be exposed to API consumers.
+// Unclassified errors, malformed cerr.Errors, and unknown error codes fail
+// closed as INTERNAL_ERROR.
 func SerErr(c *gin.Context, err error) {
-	traceID := trace.TraceID(c.Request.Context())
+	_ = c.Error(err)
+	c.Abort()
 
-	if ce, ok := errors.AsType[*cerr.Error](err); ok {
-		code := ce.Code
-		if code == "" {
-			code = cerr.CodeInternalError
-		}
+	traceID := trace.ID(c.Request.Context())
 
-		c.JSON(
-			code.HTTPStatusCode(),
-			ErrorResponse{
-				Code:    string(code),
-				Message: ce.Err.Error(),
-				TraceID: traceID,
-				Details: detailsFromData(ce.Data),
-			},
-		)
+	ce, ok := errors.AsType[*cerr.Error](err)
+	if !ok || ce.Code == "" {
+		writeInternalError(c, traceID)
 		return
 	}
 
-	c.JSON(http.StatusInternalServerError, ErrorResponse{
-		Code:    string(cerr.CodeInternalError),
-		Message: "An unexpected error occurred.",
-		TraceID: traceID,
-		Details: emptyDetails(),
-	})
+	code := ce.Code
+	statusCode := StatusCode(code)
+	if statusCode == http.StatusInternalServerError && code != cerr.CodeInternalError {
+		writeInternalError(c, traceID)
+		return
+	}
+
+	messageKey := ce.MessageKey
+	if messageKey == "" {
+		messageKey = cerr.DefaultMessageKey(code)
+	}
+
+	details := localizedDetails(c, ce.Details)
+	if code == cerr.CodeInternalError {
+		messageKey = cerr.DefaultMessageKey(cerr.CodeInternalError)
+		details = emptyDetails()
+	}
+
+	c.JSON(
+		statusCode,
+		ErrorResponse{
+			Code:    string(code),
+			Message: localizeError(c.Request.Context(), string(messageKey), resti18n.Params(ce.MessageParams)),
+			TraceID: traceID,
+			Details: details,
+		},
+	)
 }
 
-// emptyDetails returns a non-nil Details value.
-//
-// Returning empty slices instead of nil keeps the JSON response shape stable.
-func emptyDetails() ErrorDetails {
-	return ErrorDetails{
+func writeInternalError(c *gin.Context, traceID string) {
+	c.JSON(
+		http.StatusInternalServerError,
+		ErrorResponse{
+			Code: string(cerr.CodeInternalError),
+			Message: localizeError(
+				c.Request.Context(),
+				string(cerr.DefaultMessageKey(cerr.CodeInternalError)),
+				nil,
+			),
+			TraceID: traceID,
+			Details: emptyDetails(),
+		},
+	)
+}
+
+func emptyDetails() *ErrorDetails {
+	return &ErrorDetails{
 		Fields:     []string{},
 		Violations: []ErrorViolation{},
 	}
 }
 
-// validationDetails converts validator.ValidationErrors into APIError details.
-func validationDetails(errs validator.ValidationErrors) ([]string, []ErrorViolation) {
+func localizedDetails(c *gin.Context, details cerr.Details) *ErrorDetails {
+	fields := details.Fields
+	if fields == nil {
+		fields = []string{}
+	}
+
+	violations := make([]ErrorViolation, 0, len(details.Violations))
+	for _, violation := range details.Violations {
+		fieldsForViolation := violation.Fields
+		if fieldsForViolation == nil {
+			fieldsForViolation = []string{}
+		}
+
+		key := violation.MessageKey
+		if key == "" {
+			key = "validation.invalid"
+		}
+
+		violations = append(violations, ErrorViolation{
+			Code: violation.Code,
+			Message: localizeError(
+				c.Request.Context(),
+				string(key),
+				resti18n.Params(violation.MessageParams),
+			),
+			Fields: fieldsForViolation,
+		})
+	}
+
+	return &ErrorDetails{
+		Fields:            fields,
+		Violations:        violations,
+		RetryAfterSeconds: details.RetryAfterSeconds,
+	}
+}
+
+func validationDetails(errs validator.ValidationErrors) ([]string, []cerr.Violation) {
 	fields := make([]string, 0, len(errs))
-	violations := make([]ErrorViolation, 0, len(errs))
+	violations := make([]cerr.Violation, 0, len(errs))
 	seen := make(map[string]struct{}, len(errs))
 
 	for _, ferr := range errs {
 		fieldName := ferr.Field()
-
 		if _, ok := seen[fieldName]; !ok {
 			seen[fieldName] = struct{}{}
 			fields = append(fields, fieldName)
 		}
 
-		violations = append(
-			violations,
-			ErrorViolation{
-				Code:    ferr.Tag(),
-				Message: ferr.Error(),
-				Fields:  []string{fieldName},
-			},
-		)
+		violations = append(violations, cerr.Violation{
+			Code:       ferr.Tag(),
+			MessageKey: cerr.MessageKey(validationMessageKey(ferr.Tag())),
+			Fields:     []string{fieldName},
+		})
 	}
 
 	return fields, violations
 }
 
-// detailsFromData converts cerr.Error.Data into Details when possible.
-//
-// Supported data forms:
-//
-//   - nil: empty details
-//   - Details: returned as-is
-//   - *Details: dereferenced when non-nil
-//   - []Violation: used as Details.Violations
-//   - map[string][]string: converted to field violations
-//
-// Unknown data shapes are intentionally ignored to avoid leaking internal
-// structures into the public REST contract.
-func detailsFromData(data any) ErrorDetails {
-	switch d := data.(type) {
-	case nil:
-		return emptyDetails()
+func validationMessageKey(tag string) string {
+	switch tag {
+	case "required":
+		return "validation.required"
 
-	case ErrorDetails:
-		return normalizeDetails(d)
+	case "uuid", "uuid3", "uuid4", "uuid5":
+		return "validation.uuid"
 
-	case *ErrorDetails:
-		if d == nil {
-			return emptyDetails()
-		}
-		return normalizeDetails(*d)
+	case "min":
+		return "validation.min"
 
-	case []ErrorViolation:
-		fields := fieldsFromViolations(d)
-		return ErrorDetails{
-			Fields:     fields,
-			Violations: d,
-		}
+	case "max":
+		return "validation.max"
 
-	case map[string][]string:
-		return detailsFromFieldErrors(d)
+	case "oneof":
+		return "validation.oneof"
 
 	default:
-		return emptyDetails()
+		return "validation.invalid"
 	}
-}
-
-// normalizeDetails ensures slices inside Details are non-nil.
-func normalizeDetails(d ErrorDetails) ErrorDetails {
-	if d.Fields == nil {
-		d.Fields = []string{}
-	}
-	if d.Violations == nil {
-		d.Violations = []ErrorViolation{}
-	}
-	return d
-}
-
-// detailsFromFieldErrors converts a field-keyed validation map into Details.
-func detailsFromFieldErrors(errs map[string][]string) ErrorDetails {
-	fields := make([]string, 0, len(errs))
-	violations := make([]ErrorViolation, 0)
-
-	for field, messages := range errs {
-		fields = append(fields, field)
-
-		for _, msg := range messages {
-			violations = append(
-				violations,
-				ErrorViolation{
-					Code:    "INVALID",
-					Message: msg,
-					Fields:  []string{field},
-				},
-			)
-		}
-	}
-
-	return ErrorDetails{
-		Fields:     fields,
-		Violations: violations,
-	}
-}
-
-// fieldsFromViolations returns the unique field names referenced by violations.
-func fieldsFromViolations(violations []ErrorViolation) []string {
-	seen := make(map[string]struct{})
-	fields := make([]string, 0)
-
-	for _, violation := range violations {
-		for _, field := range violation.Fields {
-			if _, ok := seen[field]; ok {
-				continue
-			}
-
-			seen[field] = struct{}{}
-			fields = append(fields, field)
-		}
-	}
-
-	return fields
 }

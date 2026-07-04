@@ -6,11 +6,12 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/header"
 	"github.com/parstis/bnpl-backend/pkg/core/mock"
 	"github.com/parstis/bnpl-backend/pkg/core/trace"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestTraceID_ReusesIncomingHeaders(t *testing.T) {
@@ -21,7 +22,7 @@ func TestTraceID_ReusesIncomingHeaders(t *testing.T) {
 	var capturedTraceID, capturedRequestID, capturedCorrelationID string
 	e := newTraceEngine(provider, func(c *gin.Context) {
 		ctx := c.Request.Context()
-		capturedTraceID = trace.TraceID(ctx)
+		capturedTraceID = trace.ID(ctx)
 		capturedRequestID = trace.RequestID(ctx)
 		capturedCorrelationID = trace.CorrelationID(ctx)
 	})
@@ -53,7 +54,7 @@ func TestTraceID_GeneratesMissingHeaders(t *testing.T) {
 	var capturedTraceID, capturedRequestID, capturedCorrelationID string
 	e := newTraceEngine(provider, func(c *gin.Context) {
 		ctx := c.Request.Context()
-		capturedTraceID = trace.TraceID(ctx)
+		capturedTraceID = trace.ID(ctx)
 		capturedRequestID = trace.RequestID(ctx)
 		capturedCorrelationID = trace.CorrelationID(ctx)
 	})

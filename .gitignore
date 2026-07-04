@@ -54,3 +54,20 @@ fabric.properties
 dist
 *.env
 doc/collections/http-client.env.json
+
+# Ignore Cursor local state, but keep the always-on test-verification rule.
+.cursor/
+
+.codex/
+.claude/
+graphify-out/
+AGENTS.md
+# Retain the legacy ignore rule to avoid accidentally committing local historical CSV files.
+assets/csv/trusted-subjects/*.csv
+assets/csv/trusted-customers/*.csv
+# Development-only TLS keys and local overrides.
+assets/local-development/**/*.key
+assets/local-development/**/*-key.pem
+assets/local-development/**/certs/
+assets/local-development/**/.env
+.gocache

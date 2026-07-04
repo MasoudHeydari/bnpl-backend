@@ -7,8 +7,8 @@ package mock
 import (
 	"context"
 
-	"github.com/google/uuid"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
+	"github.com/parstis/bnpl-backend/pkg/core/pagination"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -39,8 +39,74 @@ func (_m *MerchantBranchProfileQueryer) EXPECT() *MerchantBranchProfileQueryer_E
 	return &MerchantBranchProfileQueryer_Expecter{mock: &_m.Mock}
 }
 
+// CountByMerchantID provides a mock function for the type MerchantBranchProfileQueryer
+func (_mock *MerchantBranchProfileQueryer) CountByMerchantID(ctx context.Context, merchantID model.MerchantID) (int64, error) {
+	ret := _mock.Called(ctx, merchantID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CountByMerchantID")
+	}
+
+	var r0 int64
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantID) (int64, error)); ok {
+		return returnFunc(ctx, merchantID)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantID) int64); ok {
+		r0 = returnFunc(ctx, merchantID)
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.MerchantID) error); ok {
+		r1 = returnFunc(ctx, merchantID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MerchantBranchProfileQueryer_CountByMerchantID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CountByMerchantID'
+type MerchantBranchProfileQueryer_CountByMerchantID_Call struct {
+	*mock.Call
+}
+
+// CountByMerchantID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - merchantID model.MerchantID
+func (_e *MerchantBranchProfileQueryer_Expecter) CountByMerchantID(ctx any, merchantID any) *MerchantBranchProfileQueryer_CountByMerchantID_Call {
+	return &MerchantBranchProfileQueryer_CountByMerchantID_Call{Call: _e.mock.On("CountByMerchantID", ctx, merchantID)}
+}
+
+func (_c *MerchantBranchProfileQueryer_CountByMerchantID_Call) Run(run func(ctx context.Context, merchantID model.MerchantID)) *MerchantBranchProfileQueryer_CountByMerchantID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.MerchantID
+		if args[1] != nil {
+			arg1 = args[1].(model.MerchantID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MerchantBranchProfileQueryer_CountByMerchantID_Call) Return(n int64, err error) *MerchantBranchProfileQueryer_CountByMerchantID_Call {
+	_c.Call.Return(n, err)
+	return _c
+}
+
+func (_c *MerchantBranchProfileQueryer_CountByMerchantID_Call) RunAndReturn(run func(ctx context.Context, merchantID model.MerchantID) (int64, error)) *MerchantBranchProfileQueryer_CountByMerchantID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetByBranchID provides a mock function for the type MerchantBranchProfileQueryer
-func (_mock *MerchantBranchProfileQueryer) GetByBranchID(ctx context.Context, branchID uuid.UUID) (model.MerchantBranchProfile, error) {
+func (_mock *MerchantBranchProfileQueryer) GetByBranchID(ctx context.Context, branchID model.BranchID) (model.MerchantBranchProfile, error) {
 	ret := _mock.Called(ctx, branchID)
 
 	if len(ret) == 0 {
@@ -49,15 +115,15 @@ func (_mock *MerchantBranchProfileQueryer) GetByBranchID(ctx context.Context, br
 
 	var r0 model.MerchantBranchProfile
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) (model.MerchantBranchProfile, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.BranchID) (model.MerchantBranchProfile, error)); ok {
 		return returnFunc(ctx, branchID)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) model.MerchantBranchProfile); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.BranchID) model.MerchantBranchProfile); ok {
 		r0 = returnFunc(ctx, branchID)
 	} else {
 		r0 = ret.Get(0).(model.MerchantBranchProfile)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.BranchID) error); ok {
 		r1 = returnFunc(ctx, branchID)
 	} else {
 		r1 = ret.Error(1)
@@ -72,20 +138,20 @@ type MerchantBranchProfileQueryer_GetByBranchID_Call struct {
 
 // GetByBranchID is a helper method to define mock.On call
 //   - ctx context.Context
-//   - branchID uuid.UUID
+//   - branchID model.BranchID
 func (_e *MerchantBranchProfileQueryer_Expecter) GetByBranchID(ctx any, branchID any) *MerchantBranchProfileQueryer_GetByBranchID_Call {
 	return &MerchantBranchProfileQueryer_GetByBranchID_Call{Call: _e.mock.On("GetByBranchID", ctx, branchID)}
 }
 
-func (_c *MerchantBranchProfileQueryer_GetByBranchID_Call) Run(run func(ctx context.Context, branchID uuid.UUID)) *MerchantBranchProfileQueryer_GetByBranchID_Call {
+func (_c *MerchantBranchProfileQueryer_GetByBranchID_Call) Run(run func(ctx context.Context, branchID model.BranchID)) *MerchantBranchProfileQueryer_GetByBranchID_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 uuid.UUID
+		var arg1 model.BranchID
 		if args[1] != nil {
-			arg1 = args[1].(uuid.UUID)
+			arg1 = args[1].(model.BranchID)
 		}
 		run(
 			arg0,
@@ -100,13 +166,13 @@ func (_c *MerchantBranchProfileQueryer_GetByBranchID_Call) Return(merchantBranch
 	return _c
 }
 
-func (_c *MerchantBranchProfileQueryer_GetByBranchID_Call) RunAndReturn(run func(ctx context.Context, branchID uuid.UUID) (model.MerchantBranchProfile, error)) *MerchantBranchProfileQueryer_GetByBranchID_Call {
+func (_c *MerchantBranchProfileQueryer_GetByBranchID_Call) RunAndReturn(run func(ctx context.Context, branchID model.BranchID) (model.MerchantBranchProfile, error)) *MerchantBranchProfileQueryer_GetByBranchID_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetByID provides a mock function for the type MerchantBranchProfileQueryer
-func (_mock *MerchantBranchProfileQueryer) GetByID(ctx context.Context, id uuid.UUID) (model.MerchantBranchProfile, error) {
+func (_mock *MerchantBranchProfileQueryer) GetByID(ctx context.Context, id model.MerchantBranchProfileID) (model.MerchantBranchProfile, error) {
 	ret := _mock.Called(ctx, id)
 
 	if len(ret) == 0 {
@@ -115,15 +181,15 @@ func (_mock *MerchantBranchProfileQueryer) GetByID(ctx context.Context, id uuid.
 
 	var r0 model.MerchantBranchProfile
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) (model.MerchantBranchProfile, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantBranchProfileID) (model.MerchantBranchProfile, error)); ok {
 		return returnFunc(ctx, id)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) model.MerchantBranchProfile); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantBranchProfileID) model.MerchantBranchProfile); ok {
 		r0 = returnFunc(ctx, id)
 	} else {
 		r0 = ret.Get(0).(model.MerchantBranchProfile)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.MerchantBranchProfileID) error); ok {
 		r1 = returnFunc(ctx, id)
 	} else {
 		r1 = ret.Error(1)
@@ -138,20 +204,20 @@ type MerchantBranchProfileQueryer_GetByID_Call struct {
 
 // GetByID is a helper method to define mock.On call
 //   - ctx context.Context
-//   - id uuid.UUID
+//   - id model.MerchantBranchProfileID
 func (_e *MerchantBranchProfileQueryer_Expecter) GetByID(ctx any, id any) *MerchantBranchProfileQueryer_GetByID_Call {
 	return &MerchantBranchProfileQueryer_GetByID_Call{Call: _e.mock.On("GetByID", ctx, id)}
 }
 
-func (_c *MerchantBranchProfileQueryer_GetByID_Call) Run(run func(ctx context.Context, id uuid.UUID)) *MerchantBranchProfileQueryer_GetByID_Call {
+func (_c *MerchantBranchProfileQueryer_GetByID_Call) Run(run func(ctx context.Context, id model.MerchantBranchProfileID)) *MerchantBranchProfileQueryer_GetByID_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 uuid.UUID
+		var arg1 model.MerchantBranchProfileID
 		if args[1] != nil {
-			arg1 = args[1].(uuid.UUID)
+			arg1 = args[1].(model.MerchantBranchProfileID)
 		}
 		run(
 			arg0,
@@ -166,13 +232,145 @@ func (_c *MerchantBranchProfileQueryer_GetByID_Call) Return(merchantBranchProfil
 	return _c
 }
 
-func (_c *MerchantBranchProfileQueryer_GetByID_Call) RunAndReturn(run func(ctx context.Context, id uuid.UUID) (model.MerchantBranchProfile, error)) *MerchantBranchProfileQueryer_GetByID_Call {
+func (_c *MerchantBranchProfileQueryer_GetByID_Call) RunAndReturn(run func(ctx context.Context, id model.MerchantBranchProfileID) (model.MerchantBranchProfile, error)) *MerchantBranchProfileQueryer_GetByID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetByOnlineStoreID provides a mock function for the type MerchantBranchProfileQueryer
+func (_mock *MerchantBranchProfileQueryer) GetByOnlineStoreID(ctx context.Context, onlineStoreID model.OnlineStoreID) (model.MerchantBranchProfile, error) {
+	ret := _mock.Called(ctx, onlineStoreID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetByOnlineStoreID")
+	}
+
+	var r0 model.MerchantBranchProfile
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.OnlineStoreID) (model.MerchantBranchProfile, error)); ok {
+		return returnFunc(ctx, onlineStoreID)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.OnlineStoreID) model.MerchantBranchProfile); ok {
+		r0 = returnFunc(ctx, onlineStoreID)
+	} else {
+		r0 = ret.Get(0).(model.MerchantBranchProfile)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.OnlineStoreID) error); ok {
+		r1 = returnFunc(ctx, onlineStoreID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MerchantBranchProfileQueryer_GetByOnlineStoreID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetByOnlineStoreID'
+type MerchantBranchProfileQueryer_GetByOnlineStoreID_Call struct {
+	*mock.Call
+}
+
+// GetByOnlineStoreID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - onlineStoreID model.OnlineStoreID
+func (_e *MerchantBranchProfileQueryer_Expecter) GetByOnlineStoreID(ctx any, onlineStoreID any) *MerchantBranchProfileQueryer_GetByOnlineStoreID_Call {
+	return &MerchantBranchProfileQueryer_GetByOnlineStoreID_Call{Call: _e.mock.On("GetByOnlineStoreID", ctx, onlineStoreID)}
+}
+
+func (_c *MerchantBranchProfileQueryer_GetByOnlineStoreID_Call) Run(run func(ctx context.Context, onlineStoreID model.OnlineStoreID)) *MerchantBranchProfileQueryer_GetByOnlineStoreID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.OnlineStoreID
+		if args[1] != nil {
+			arg1 = args[1].(model.OnlineStoreID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MerchantBranchProfileQueryer_GetByOnlineStoreID_Call) Return(merchantBranchProfile model.MerchantBranchProfile, err error) *MerchantBranchProfileQueryer_GetByOnlineStoreID_Call {
+	_c.Call.Return(merchantBranchProfile, err)
+	return _c
+}
+
+func (_c *MerchantBranchProfileQueryer_GetByOnlineStoreID_Call) RunAndReturn(run func(ctx context.Context, onlineStoreID model.OnlineStoreID) (model.MerchantBranchProfile, error)) *MerchantBranchProfileQueryer_GetByOnlineStoreID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetByPosGpsID provides a mock function for the type MerchantBranchProfileQueryer
+func (_mock *MerchantBranchProfileQueryer) GetByPosGpsID(ctx context.Context, posGpsID model.PosGpsID) (model.MerchantBranchProfile, error) {
+	ret := _mock.Called(ctx, posGpsID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetByPosGpsID")
+	}
+
+	var r0 model.MerchantBranchProfile
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.PosGpsID) (model.MerchantBranchProfile, error)); ok {
+		return returnFunc(ctx, posGpsID)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.PosGpsID) model.MerchantBranchProfile); ok {
+		r0 = returnFunc(ctx, posGpsID)
+	} else {
+		r0 = ret.Get(0).(model.MerchantBranchProfile)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.PosGpsID) error); ok {
+		r1 = returnFunc(ctx, posGpsID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MerchantBranchProfileQueryer_GetByPosGpsID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetByPosGpsID'
+type MerchantBranchProfileQueryer_GetByPosGpsID_Call struct {
+	*mock.Call
+}
+
+// GetByPosGpsID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - posGpsID model.PosGpsID
+func (_e *MerchantBranchProfileQueryer_Expecter) GetByPosGpsID(ctx any, posGpsID any) *MerchantBranchProfileQueryer_GetByPosGpsID_Call {
+	return &MerchantBranchProfileQueryer_GetByPosGpsID_Call{Call: _e.mock.On("GetByPosGpsID", ctx, posGpsID)}
+}
+
+func (_c *MerchantBranchProfileQueryer_GetByPosGpsID_Call) Run(run func(ctx context.Context, posGpsID model.PosGpsID)) *MerchantBranchProfileQueryer_GetByPosGpsID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.PosGpsID
+		if args[1] != nil {
+			arg1 = args[1].(model.PosGpsID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MerchantBranchProfileQueryer_GetByPosGpsID_Call) Return(merchantBranchProfile model.MerchantBranchProfile, err error) *MerchantBranchProfileQueryer_GetByPosGpsID_Call {
+	_c.Call.Return(merchantBranchProfile, err)
+	return _c
+}
+
+func (_c *MerchantBranchProfileQueryer_GetByPosGpsID_Call) RunAndReturn(run func(ctx context.Context, posGpsID model.PosGpsID) (model.MerchantBranchProfile, error)) *MerchantBranchProfileQueryer_GetByPosGpsID_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // ListByMerchantID provides a mock function for the type MerchantBranchProfileQueryer
-func (_mock *MerchantBranchProfileQueryer) ListByMerchantID(ctx context.Context, merchantID uuid.UUID) ([]model.MerchantBranchProfile, error) {
+func (_mock *MerchantBranchProfileQueryer) ListByMerchantID(ctx context.Context, merchantID model.MerchantID) ([]model.MerchantBranchProfile, error) {
 	ret := _mock.Called(ctx, merchantID)
 
 	if len(ret) == 0 {
@@ -181,17 +379,17 @@ func (_mock *MerchantBranchProfileQueryer) ListByMerchantID(ctx context.Context,
 
 	var r0 []model.MerchantBranchProfile
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) ([]model.MerchantBranchProfile, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantID) ([]model.MerchantBranchProfile, error)); ok {
 		return returnFunc(ctx, merchantID)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) []model.MerchantBranchProfile); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantID) []model.MerchantBranchProfile); ok {
 		r0 = returnFunc(ctx, merchantID)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]model.MerchantBranchProfile)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.MerchantID) error); ok {
 		r1 = returnFunc(ctx, merchantID)
 	} else {
 		r1 = ret.Error(1)
@@ -206,20 +404,20 @@ type MerchantBranchProfileQueryer_ListByMerchantID_Call struct {
 
 // ListByMerchantID is a helper method to define mock.On call
 //   - ctx context.Context
-//   - merchantID uuid.UUID
+//   - merchantID model.MerchantID
 func (_e *MerchantBranchProfileQueryer_Expecter) ListByMerchantID(ctx any, merchantID any) *MerchantBranchProfileQueryer_ListByMerchantID_Call {
 	return &MerchantBranchProfileQueryer_ListByMerchantID_Call{Call: _e.mock.On("ListByMerchantID", ctx, merchantID)}
 }
 
-func (_c *MerchantBranchProfileQueryer_ListByMerchantID_Call) Run(run func(ctx context.Context, merchantID uuid.UUID)) *MerchantBranchProfileQueryer_ListByMerchantID_Call {
+func (_c *MerchantBranchProfileQueryer_ListByMerchantID_Call) Run(run func(ctx context.Context, merchantID model.MerchantID)) *MerchantBranchProfileQueryer_ListByMerchantID_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 uuid.UUID
+		var arg1 model.MerchantID
 		if args[1] != nil {
-			arg1 = args[1].(uuid.UUID)
+			arg1 = args[1].(model.MerchantID)
 		}
 		run(
 			arg0,
@@ -234,7 +432,155 @@ func (_c *MerchantBranchProfileQueryer_ListByMerchantID_Call) Return(merchantBra
 	return _c
 }
 
-func (_c *MerchantBranchProfileQueryer_ListByMerchantID_Call) RunAndReturn(run func(ctx context.Context, merchantID uuid.UUID) ([]model.MerchantBranchProfile, error)) *MerchantBranchProfileQueryer_ListByMerchantID_Call {
+func (_c *MerchantBranchProfileQueryer_ListByMerchantID_Call) RunAndReturn(run func(ctx context.Context, merchantID model.MerchantID) ([]model.MerchantBranchProfile, error)) *MerchantBranchProfileQueryer_ListByMerchantID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListByMerchantIDKeyset provides a mock function for the type MerchantBranchProfileQueryer
+func (_mock *MerchantBranchProfileQueryer) ListByMerchantIDKeyset(ctx context.Context, merchantID model.MerchantID, page pagination.KeysetRequest) ([]model.MerchantBranchProfile, error) {
+	ret := _mock.Called(ctx, merchantID, page)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListByMerchantIDKeyset")
+	}
+
+	var r0 []model.MerchantBranchProfile
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantID, pagination.KeysetRequest) ([]model.MerchantBranchProfile, error)); ok {
+		return returnFunc(ctx, merchantID, page)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantID, pagination.KeysetRequest) []model.MerchantBranchProfile); ok {
+		r0 = returnFunc(ctx, merchantID, page)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]model.MerchantBranchProfile)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.MerchantID, pagination.KeysetRequest) error); ok {
+		r1 = returnFunc(ctx, merchantID, page)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MerchantBranchProfileQueryer_ListByMerchantIDKeyset_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListByMerchantIDKeyset'
+type MerchantBranchProfileQueryer_ListByMerchantIDKeyset_Call struct {
+	*mock.Call
+}
+
+// ListByMerchantIDKeyset is a helper method to define mock.On call
+//   - ctx context.Context
+//   - merchantID model.MerchantID
+//   - page pagination.KeysetRequest
+func (_e *MerchantBranchProfileQueryer_Expecter) ListByMerchantIDKeyset(ctx any, merchantID any, page any) *MerchantBranchProfileQueryer_ListByMerchantIDKeyset_Call {
+	return &MerchantBranchProfileQueryer_ListByMerchantIDKeyset_Call{Call: _e.mock.On("ListByMerchantIDKeyset", ctx, merchantID, page)}
+}
+
+func (_c *MerchantBranchProfileQueryer_ListByMerchantIDKeyset_Call) Run(run func(ctx context.Context, merchantID model.MerchantID, page pagination.KeysetRequest)) *MerchantBranchProfileQueryer_ListByMerchantIDKeyset_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.MerchantID
+		if args[1] != nil {
+			arg1 = args[1].(model.MerchantID)
+		}
+		var arg2 pagination.KeysetRequest
+		if args[2] != nil {
+			arg2 = args[2].(pagination.KeysetRequest)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MerchantBranchProfileQueryer_ListByMerchantIDKeyset_Call) Return(merchantBranchProfiles []model.MerchantBranchProfile, err error) *MerchantBranchProfileQueryer_ListByMerchantIDKeyset_Call {
+	_c.Call.Return(merchantBranchProfiles, err)
+	return _c
+}
+
+func (_c *MerchantBranchProfileQueryer_ListByMerchantIDKeyset_Call) RunAndReturn(run func(ctx context.Context, merchantID model.MerchantID, page pagination.KeysetRequest) ([]model.MerchantBranchProfile, error)) *MerchantBranchProfileQueryer_ListByMerchantIDKeyset_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListByMerchantIDOffset provides a mock function for the type MerchantBranchProfileQueryer
+func (_mock *MerchantBranchProfileQueryer) ListByMerchantIDOffset(ctx context.Context, merchantID model.MerchantID, page pagination.OffsetRequest) ([]model.MerchantBranchProfile, error) {
+	ret := _mock.Called(ctx, merchantID, page)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListByMerchantIDOffset")
+	}
+
+	var r0 []model.MerchantBranchProfile
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantID, pagination.OffsetRequest) ([]model.MerchantBranchProfile, error)); ok {
+		return returnFunc(ctx, merchantID, page)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantID, pagination.OffsetRequest) []model.MerchantBranchProfile); ok {
+		r0 = returnFunc(ctx, merchantID, page)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]model.MerchantBranchProfile)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.MerchantID, pagination.OffsetRequest) error); ok {
+		r1 = returnFunc(ctx, merchantID, page)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MerchantBranchProfileQueryer_ListByMerchantIDOffset_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListByMerchantIDOffset'
+type MerchantBranchProfileQueryer_ListByMerchantIDOffset_Call struct {
+	*mock.Call
+}
+
+// ListByMerchantIDOffset is a helper method to define mock.On call
+//   - ctx context.Context
+//   - merchantID model.MerchantID
+//   - page pagination.OffsetRequest
+func (_e *MerchantBranchProfileQueryer_Expecter) ListByMerchantIDOffset(ctx any, merchantID any, page any) *MerchantBranchProfileQueryer_ListByMerchantIDOffset_Call {
+	return &MerchantBranchProfileQueryer_ListByMerchantIDOffset_Call{Call: _e.mock.On("ListByMerchantIDOffset", ctx, merchantID, page)}
+}
+
+func (_c *MerchantBranchProfileQueryer_ListByMerchantIDOffset_Call) Run(run func(ctx context.Context, merchantID model.MerchantID, page pagination.OffsetRequest)) *MerchantBranchProfileQueryer_ListByMerchantIDOffset_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.MerchantID
+		if args[1] != nil {
+			arg1 = args[1].(model.MerchantID)
+		}
+		var arg2 pagination.OffsetRequest
+		if args[2] != nil {
+			arg2 = args[2].(pagination.OffsetRequest)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MerchantBranchProfileQueryer_ListByMerchantIDOffset_Call) Return(merchantBranchProfiles []model.MerchantBranchProfile, err error) *MerchantBranchProfileQueryer_ListByMerchantIDOffset_Call {
+	_c.Call.Return(merchantBranchProfiles, err)
+	return _c
+}
+
+func (_c *MerchantBranchProfileQueryer_ListByMerchantIDOffset_Call) RunAndReturn(run func(ctx context.Context, merchantID model.MerchantID, page pagination.OffsetRequest) ([]model.MerchantBranchProfile, error)) *MerchantBranchProfileQueryer_ListByMerchantIDOffset_Call {
 	_c.Call.Return(run)
 	return _c
 }

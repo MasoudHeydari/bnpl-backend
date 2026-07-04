@@ -6,23 +6,28 @@ import (
 	"time"
 
 	"github.com/IBM/sarama"
+
 	"github.com/parstis/bnpl-backend/pkg/core/messaging"
 )
 
 var _ messaging.Publisher = (*Producer)(nil)
 
+// Producer publishes messages through a Sarama sync producer.
 type Producer struct {
 	producer sarama.SyncProducer
 }
 
+// NewProducer creates a Kafka sync producer configured for reliable delivery.
 func NewProducer(
 	brokers []string,
 	returnSuccesses bool,
 	requiredAcks sarama.RequiredAcks,
 	maxRetries int,
 ) (*Producer, error) {
+	const op = "sarama.NewProducer"
+
 	if len(brokers) == 0 {
-		return nil, fmt.Errorf("kafka producer brokers: empty")
+		return nil, fmt.Errorf("%s: kafka producer brokers: empty", op)
 	}
 
 	config := sarama.NewConfig()
@@ -33,20 +38,24 @@ func NewProducer(
 
 	producer, err := sarama.NewSyncProducer(brokers, config)
 	if err != nil {
-		return nil, fmt.Errorf("create kafka producer: %w", err)
+		return nil, fmt.Errorf("%s: create kafka producer: %w", op, err)
 	}
 
 	return &Producer{producer: producer}, nil
 }
 
+// Publish sends a message to the given Kafka topic.
 func (p *Producer) Publish(ctx context.Context, topic string, msg messaging.Message) error {
+	const op = "sarama.Producer.Publish"
+
 	if topic == "" {
-		return fmt.Errorf("kafka publish topic: empty")
+		return fmt.Errorf("%s: kafka publish topic: empty", op)
 	}
 
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
+
 	default:
 	}
 
@@ -68,15 +77,18 @@ func (p *Producer) Publish(ctx context.Context, topic string, msg messaging.Mess
 
 	_, _, err := p.producer.SendMessage(kafkaMsg)
 	if err != nil {
-		return fmt.Errorf("publish kafka message to %q: %w", topic, err)
+		return fmt.Errorf("%s: publish kafka message to %q: %w", op, topic, err)
 	}
 
 	return nil
 }
 
+// Close shuts down the underlying Kafka producer.
 func (p *Producer) Close() error {
+	const op = "sarama.Producer.Close"
+
 	if err := p.producer.Close(); err != nil {
-		return fmt.Errorf("close kafka producer: %w", err)
+		return fmt.Errorf("%s: close kafka producer: %w", op, err)
 	}
 
 	return nil

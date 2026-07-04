@@ -46,7 +46,7 @@ Docker sets `CONFIG_FILE=configs/config.yaml` in the `Dockerfile`.
 The following gaps from the original ADR are **resolved**:
 
 - `gin.trusted_proxies` — decoded and passed to the Gin adapter.
-- `usecases.migration.files-dir` — decoded into `config.Migrations.filesDir` via `yaml:"files-dir"`.
+- `usecases.migration.files-dir` — decoded into `config.Migrations.FilesDir` via `yaml:"files-dir"`.
 - Kafka, Redis, logging, task, and clock settings — wired under `infrastructure:` (see ADR [0009](0009-provider-based-infrastructure-configuration.md)).
 
 ### Amendment (2026-06-30)
@@ -56,7 +56,7 @@ The following gaps are **resolved**:
 - `versions.config` and `versions.database` — decoded and validated at `config.Load` against binary-supported semver (see `pkg/adapter/config/vers.go`).
 - Circuit breaker, shutdown, and health-check settings — wired under `infrastructure:` (see ADR [0009](0009-provider-based-infrastructure-configuration.md) and [0014](0014-health-probes-and-graceful-shutdown.md)).
 
-Remaining gaps: no post-decode validation for empty required env-expanded fields; `SHUTDOWN_DRAIN_DELAY` decoded but not yet used in bootstrap shutdown timing.
+Remaining gaps: no post-decode validation for empty required env-expanded fields.
 
 **Operational impact**
 
