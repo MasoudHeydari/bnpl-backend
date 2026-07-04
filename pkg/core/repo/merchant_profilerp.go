@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 )
 
@@ -13,35 +12,43 @@ type MerchantProfileQueryer interface {
 	// GetByID returns the merchant profile identified by id.
 	GetByID(
 		ctx context.Context,
-		id uuid.UUID,
+		id model.MerchantProfileID,
 	) (model.MerchantProfile, error)
 
 	// GetByMerchantID returns the BNPL profile for a merchant identity.
 	GetByMerchantID(
 		ctx context.Context,
-		merchantID uuid.UUID,
+		merchantID model.MerchantID,
 	) (model.MerchantProfile, error)
 }
 
 // MerchantProfileConnQueryer exposes merchant profile operations on a connection.
 type MerchantProfileConnQueryer interface {
+	// MerchantProfileQueryer provides shared merchant profile query operations.
 	MerchantProfileQueryer
 }
 
 // MerchantProfileTxQueryer exposes transaction-scoped merchant profile operations.
 type MerchantProfileTxQueryer interface {
+	// MerchantProfileQueryer provides shared merchant profile query operations.
 	MerchantProfileQueryer
 
 	// Create stores a new merchant profile inside the current transaction.
 	Create(
 		ctx context.Context,
-		merchantID uuid.UUID,
+		merchantID model.MerchantID,
+		displayName string,
+		legalName string,
+		logoURL string,
+		supportPhone string,
+		supportEmail string,
 		status model.MerchantStatus,
 		fundingModels []model.FundingModel,
 		settlementModels []model.SettlementModel,
 		currencies []model.Currency,
 		riskTier model.RiskTier,
-		maxAmount model.Money,
+		maxAmountMinor uint64,
+		maxAmountCurrency model.Currency,
 		maxTenureMonths uint,
 		requiresBranchMode bool,
 		jurisdiction model.Jurisdiction,
@@ -52,15 +59,16 @@ type MerchantProfileTxQueryer interface {
 	// LockByID returns the merchant profile and locks it for state changes.
 	LockByID(
 		ctx context.Context,
-		id uuid.UUID,
+		id model.MerchantProfileID,
 	) (model.MerchantProfile, error)
 
 	// LockByMerchantID returns the merchant profile for merchantID and locks it
 	// for state changes.
 	LockByMerchantID(
 		ctx context.Context,
-		merchantID uuid.UUID,
+		merchantID model.MerchantID,
 	) (model.MerchantProfile, error)
+
 }
 
 // MerchantProfile persists BNPL-specific merchant profile records.

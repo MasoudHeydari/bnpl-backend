@@ -19,7 +19,6 @@ func TestCircuitBreaker_Execute_runsFunction(t *testing.T) {
 		called = true
 		return nil
 	})
-
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
@@ -24,12 +23,12 @@ func New() *Repo {
 
 // Conn binds the repository to a non-transactional connection scope.
 func (r *Repo) Conn(c repo.Conn) repo.MerchantProfileConnQueryer {
-	return connQueryer{Conn: c.(*postgres.Conn)}
+	return connQueryer{Conn: postgres.MustConn(c)}
 }
 
 // Tx binds the repository to a transaction scope.
 func (r *Repo) Tx(tx repo.Tx) repo.MerchantProfileTxQueryer {
-	return txQueryer{Tx: tx.(*postgres.Tx)}
+	return txQueryer{Tx: postgres.MustTx(tx)}
 }
 
 type connQueryer struct {
@@ -42,7 +41,7 @@ var _ repo.MerchantProfileConnQueryer = (*connQueryer)(nil)
 // GetByID returns the merchant profile identified by id.
 func (q connQueryer) GetByID(
 	ctx context.Context,
-	id uuid.UUID,
+	id model.MerchantProfileID,
 ) (model.MerchantProfile, error) {
 	return GetByID(ctx, q.Conn, id)
 }
@@ -50,7 +49,7 @@ func (q connQueryer) GetByID(
 // GetByMerchantID returns the BNPL profile for a merchant identity.
 func (q connQueryer) GetByMerchantID(
 	ctx context.Context,
-	merchantID uuid.UUID,
+	merchantID model.MerchantID,
 ) (model.MerchantProfile, error) {
 	return GetByMerchantID(ctx, q.Conn, merchantID)
 }
@@ -65,7 +64,7 @@ var _ repo.MerchantProfileTxQueryer = (*txQueryer)(nil)
 // GetByID returns the merchant profile identified by id.
 func (q txQueryer) GetByID(
 	ctx context.Context,
-	id uuid.UUID,
+	id model.MerchantProfileID,
 ) (model.MerchantProfile, error) {
 	return GetByID(ctx, q.Tx, id)
 }
@@ -73,7 +72,7 @@ func (q txQueryer) GetByID(
 // GetByMerchantID returns the BNPL profile for a merchant identity.
 func (q txQueryer) GetByMerchantID(
 	ctx context.Context,
-	merchantID uuid.UUID,
+	merchantID model.MerchantID,
 ) (model.MerchantProfile, error) {
 	return GetByMerchantID(ctx, q.Tx, merchantID)
 }
@@ -81,13 +80,19 @@ func (q txQueryer) GetByMerchantID(
 // Create stores a new merchant profile inside the current transaction.
 func (q txQueryer) Create(
 	ctx context.Context,
-	merchantID uuid.UUID,
+	merchantID model.MerchantID,
+	displayName string,
+	legalName string,
+	logoURL string,
+	supportPhone string,
+	supportEmail string,
 	status model.MerchantStatus,
 	fundingModels []model.FundingModel,
 	settlementModels []model.SettlementModel,
 	currencies []model.Currency,
 	riskTier model.RiskTier,
-	maxAmount model.Money,
+	maxAmountMinor uint64,
+	maxAmountCurrency model.Currency,
 	maxTenureMonths uint,
 	requiresBranchMode bool,
 	jurisdiction model.Jurisdiction,
@@ -98,12 +103,18 @@ func (q txQueryer) Create(
 		ctx,
 		q.Tx,
 		merchantID,
+		displayName,
+		legalName,
+		logoURL,
+		supportPhone,
+		supportEmail,
 		status,
 		fundingModels,
 		settlementModels,
 		currencies,
 		riskTier,
-		maxAmount,
+		maxAmountMinor,
+		maxAmountCurrency,
 		maxTenureMonths,
 		requiresBranchMode,
 		jurisdiction,
@@ -115,7 +126,7 @@ func (q txQueryer) Create(
 // LockByID returns the merchant profile and locks it for state changes.
 func (q txQueryer) LockByID(
 	ctx context.Context,
-	id uuid.UUID,
+	id model.MerchantProfileID,
 ) (model.MerchantProfile, error) {
 	return LockByID(ctx, q.Tx, id)
 }
@@ -123,7 +134,8 @@ func (q txQueryer) LockByID(
 // LockByMerchantID returns the merchant profile for merchantID and locks it for state changes.
 func (q txQueryer) LockByMerchantID(
 	ctx context.Context,
-	merchantID uuid.UUID,
+	merchantID model.MerchantID,
 ) (model.MerchantProfile, error) {
 	return LockByMerchantID(ctx, q.Tx, merchantID)
 }
+

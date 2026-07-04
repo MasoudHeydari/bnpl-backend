@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestShutdownTimeoutOrDefault(t *testing.T) {
 	t.Parallel()
@@ -18,12 +21,17 @@ func TestShutdownTimeoutOrDefault(t *testing.T) {
 func TestShutdownDrainDelayOrDefault(t *testing.T) {
 	t.Parallel()
 
-	if got := (Shutdown{}).getShutdownDrainDelay(); got != defaultShutdownDrainDelay {
-		t.Fatalf("default drain delay = %s, want %s", got, defaultShutdownDrainDelay)
+	if got := (Shutdown{}).getShutdownDrainDelay(); got != 0 {
+		t.Fatalf("zero drain delay = %s, want 0", got)
 	}
 
 	custom := Shutdown{DrainDelay: defaultShutdownDrainDelay + 1}
 	if got := custom.getShutdownDrainDelay(); got != custom.DrainDelay {
 		t.Fatalf("custom drain delay = %s, want %s", got, custom.DrainDelay)
+	}
+
+	negative := Shutdown{DrainDelay: -time.Second}
+	if got := negative.getShutdownDrainDelay(); got != defaultShutdownDrainDelay {
+		t.Fatalf("negative drain delay = %s, want default %s", got, defaultShutdownDrainDelay)
 	}
 }

@@ -3,10 +3,12 @@ package config
 import (
 	"testing"
 
-	"github.com/parstis/bnpl-backend/pkg/core/model"
-	"github.com/parstis/bnpl-backend/pkg/core/repo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	lognoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/noop"
+	"github.com/parstis/bnpl-backend/pkg/core/model"
+	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
 func testDatabase(t *testing.T) Database {
@@ -101,4 +103,36 @@ func TestDatabase_ConnectionURL_MissingPassword(t *testing.T) {
 	_, err := db.ConnectionURL(repo.NormalRole)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ConnectionURL: resolve role password")
+}
+
+func TestDatabase_getConfig_QueryLoggingInstallsTracer(t *testing.T) {
+	t.Parallel()
+
+	db := testDatabase(t)
+	db.QueryLogging = QueryLogging{
+		Enabled:          true,
+		IncludeArguments: true,
+	}
+
+	connURL, err := db.ConnectionURL(repo.NormalRole)
+	require.NoError(t, err)
+
+	logger := lognoop.New()
+	cfg, err := db.getConfig(connURL, logger)
+	require.NoError(t, err)
+	require.NotNil(t, cfg.ConnConfig.Tracer)
+}
+
+func TestDatabase_getConfig_QueryLoggingRequiresLogger(t *testing.T) {
+	t.Parallel()
+
+	db := testDatabase(t)
+	db.QueryLogging.Enabled = true
+
+	connURL, err := db.ConnectionURL(repo.NormalRole)
+	require.NoError(t, err)
+
+	_, err = db.getConfig(connURL, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "query logger is required")
 }

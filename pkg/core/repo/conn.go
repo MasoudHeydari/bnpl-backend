@@ -10,6 +10,7 @@ type TxHandler func(context.Context, Tx) error
 // open transactions. Implementations are expected to be request-scoped rather
 // than shared freely across concurrent callers unless documented otherwise.
 type Conn interface {
+	// Queryer provides statement execution and row queries on the connection.
 	Queryer
 
 	// Tx executes handler inside a database transaction.

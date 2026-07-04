@@ -5,33 +5,45 @@ filename: "mock_{{.SrcPackageName}}_{{.InterfaceName}}.go"
 pkgname: "mock"
 structname: "{{.InterfaceName}}"
 
+# SchemaInitializer and related packages are build-profile gated; generate
+# mocks under the development profile used by `make test` / local tooling.
+build-tags: "go_json,nomsgpack,development"
+
 packages:
   github.com/parstis/bnpl-backend/pkg/core/repo:
     interfaces:
-      BorrowerCreditLimit:
-      BorrowerCreditLimitConnQueryer:
-      BorrowerCreditLimitQueryer:
-      BorrowerCreditLimitTxQueryer:
-      BorrowerExposureReservation:
-      BorrowerExposureReservationConnQueryer:
-      BorrowerExposureReservationQueryer:
-      BorrowerExposureReservationTxQueryer:
-      BorrowerExposureSummary:
-      BorrowerExposureSummaryConnQueryer:
-      BorrowerExposureSummaryQueryer:
-      BorrowerExposureSummaryTxQueryer:
-      BorrowerIdentityVerification:
-      BorrowerIdentityVerificationConnQueryer:
-      BorrowerIdentityVerificationQueryer:
-      BorrowerIdentityVerificationTxQueryer:
-      BorrowerProfile:
-      BorrowerProfileConnQueryer:
-      BorrowerProfileQueryer:
-      BorrowerProfileTxQueryer:
-      CheckoutFinancingTerm:
-      CheckoutFinancingTermConnQueryer:
-      CheckoutFinancingTermQueryer:
-      CheckoutFinancingTermTxQueryer:
+      CreditAccount:
+      CreditAccountConnQueryer:
+      CreditAccountQueryer:
+      CreditAccountTxQueryer:
+      CheckoutDecisionAllocation:
+      CheckoutDecisionAllocationConnQueryer:
+      CheckoutDecisionAllocationQueryer:
+      CheckoutDecisionAllocationTxQueryer:
+      CheckoutSession:
+      CheckoutSessionConnQueryer:
+      CheckoutSessionQueryer:
+      CheckoutSessionTxQueryer:
+      CustomerProfile:
+      CustomerProfileConnQueryer:
+      CustomerProfileQueryer:
+      CustomerProfileTxQueryer:
+      Installment:
+      InstallmentConnQueryer:
+      InstallmentQueryer:
+      InstallmentTxQueryer:
+      InstallmentCharge:
+      InstallmentChargeConnQueryer:
+      InstallmentChargeQueryer:
+      InstallmentChargeTxQueryer:
+      Inbox:
+      InboxConnQueryer:
+      InboxQueryer:
+      InboxTxQueryer:
+      Contract:
+      ContractConnQueryer:
+      ContractQueryer:
+      ContractTxQueryer:
       Conn:
       Decision:
       DecisionConnQueryer:
@@ -50,6 +62,10 @@ packages:
       MerchantProfileConnQueryer:
       MerchantProfileQueryer:
       MerchantProfileTxQueryer:
+      MerchantTerminal:
+      MerchantTerminalConnQueryer:
+      MerchantTerminalQueryer:
+      MerchantTerminalTxQueryer:
       Migrations:
       MigrationsConnQueryer:
       MigrationsQueryer:
@@ -58,6 +74,14 @@ packages:
       OutboxConnQueryer:
       OutboxQueryer:
       OutboxTxQueryer:
+      PaymentAttempt:
+      PaymentAttemptConnQueryer:
+      PaymentAttemptQueryer:
+      PaymentAttemptTxQueryer:
+      PolicyAssignment:
+      PolicyAssignmentConnQueryer:
+      PolicyAssignmentQueryer:
+      PolicyAssignmentTxQueryer:
       Pool:
       Queryer:
       Rows:
@@ -67,6 +91,10 @@ packages:
       SchemaQueryer:
       SchemaSettings:
       SchemaTxQueryer:
+      Saga:
+      SagaConnQueryer:
+      SagaQueryer:
+      SagaTxQueryer:
       Tx:
 
   github.com/parstis/bnpl-backend/pkg/adapter/db/postgres:
@@ -95,12 +123,144 @@ packages:
 
   github.com/parstis/bnpl-backend/pkg/core/messaging:
     interfaces:
+      ConsumerRuntimeState:
       Decoder:
       Health:
         config:
           structname: MessagingHealth
       Publisher:
       Subscriber:
+
+  github.com/parstis/bnpl-backend/pkg/core/objectstorage:
+    interfaces:
+      Store:
+        config:
+          structname: ObjectStore
+
+  github.com/parstis/bnpl-backend/pkg/core/fingerprint:
+    interfaces:
+      Hasher:
+        config:
+          structname: FingerprintHasher
+
+  github.com/parstis/bnpl-backend/pkg/core/identifier:
+    interfaces:
+      Generator:
+        config:
+          structname: IdentifierGenerator
+
+  github.com/parstis/bnpl-backend/pkg/core/external/creditassessment:
+    interfaces:
+      Client:
+        config:
+          structname: CreditAssessmentClient
+
+  github.com/parstis/bnpl-backend/pkg/core/external/checkoutpayment:
+    interfaces:
+      Client:
+        config:
+          structname: CheckoutPaymentClient
+
+  github.com/parstis/bnpl-backend/pkg/core/external/installmentpayment:
+    interfaces:
+      Client:
+        config:
+          structname: InstallmentPaymentClient
+
+  github.com/parstis/bnpl-backend/pkg/core/external/contractcancellation:
+    interfaces:
+      Client:
+        config:
+          structname: ContractCancellationClient
+
+  github.com/parstis/bnpl-backend/pkg/core/external/customer:
+    interfaces:
+      Resolver:
+        config:
+          structname: CustomerResolver
+
+  github.com/parstis/bnpl-backend/pkg/core/external/notification:
+    interfaces:
+      Submitter:
+        config:
+          structname: NotificationSubmitter
+
+  github.com/parstis/bnpl-backend/pkg/core/canonicalizer/phonenumber:
+    interfaces:
+      Canonicalizer:
+        config:
+          structname: PhoneCanonicalizer
+
+  github.com/parstis/bnpl-backend/pkg/core/domaincapability:
+    interfaces:
+      OriginationJurisdictions:
+        config:
+          structname: OriginationJurisdictions
+
+  github.com/parstis/bnpl-backend/pkg/core/secretbox:
+    interfaces:
+      Box:
+        config:
+          structname: SecretBox
+
+  github.com/parstis/bnpl-backend/pkg/core/webhook:
+    interfaces:
+      Deliverer:
+        config:
+          structname: WebhookDeliverer
+
+  github.com/parstis/bnpl-backend/pkg/core/external/botmessage:
+    interfaces:
+      BatchSender:
+        config:
+          structname: BotMessageBatchSender
+      IncomingMessageHandler:
+        config:
+          structname: BotMessageHandler
+      Sender:
+        config:
+          structname: BotMessageSender
+
+  github.com/parstis/bnpl-backend/pkg/core/errorreporting:
+    interfaces:
+      Reporter:
+        config:
+          structname: ErrorReporter
+
+  github.com/parstis/bnpl-backend/pkg/core/httpclient:
+    interfaces:
+      Client:
+        config:
+          structname: HTTPClient
+
+  github.com/parstis/bnpl-backend/pkg/core/metrics:
+    interfaces:
+      BusinessMetrics:
+      OutboundHTTPMetrics:
+      RuntimeMetrics:
+
+  github.com/parstis/bnpl-backend/pkg/core/policy/checkout:
+    interfaces:
+      Policy:
+        config:
+          structname: CheckoutPolicy
+
+  github.com/parstis/bnpl-backend/pkg/core/policy/initialcreditlimit:
+    interfaces:
+      Policy:
+        config:
+          structname: InitialCreditLimitPolicy
+
+  github.com/parstis/bnpl-backend/pkg/core/saga:
+    interfaces:
+      Definition:
+      Executor:
+      DefinitionResolver:
+      ExternalCompensatableStep:
+      ExternalStep:
+      Step:
+      TransactionalCompensatableStep:
+      TransactionalStep:
 
   github.com/parstis/bnpl-backend/pkg/core/task:
     interfaces:
@@ -114,5 +274,7 @@ packages:
 
   github.com/parstis/bnpl-backend/pkg/core/health:
     interfaces:
+      ConsumerHealth:
+      ConsumerStateWriter:
       DependencyChecker:
       LifecycleState:

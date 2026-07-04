@@ -6,8 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/parstis/bnpl-backend/pkg/core/circuitbreaker"
 	"github.com/sony/gobreaker/v2"
+
+	"github.com/parstis/bnpl-backend/pkg/core/circuitbreaker"
 )
 
 // Config contains runtime settings for the gobreaker adapter.

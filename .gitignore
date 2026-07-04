@@ -54,3 +54,13 @@ fabric.properties
 dist
 *.env
 doc/collections/http-client.env.json
+
+# Ignore Cursor local state, but keep the always-on test-verification rule.
+.cursor/
+
+.codex/
+.claude/
+graphify-out/
+AGENTS.md
+assets/csv/trusted-subjects/*.csv
+.gocache

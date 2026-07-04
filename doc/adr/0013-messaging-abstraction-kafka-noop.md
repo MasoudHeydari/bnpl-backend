@@ -27,7 +27,7 @@ Provider selection: `infrastructure.messaging.provider` (`MESSAGING_PROVIDER`).
 
 Kafka settings under `infrastructure.messaging.kafka` map to `.env.example` `KAFKA_*` variables. Logical topic names (for example `payment_results`) are centralized in config; outbox publisher uses the per-row `destination` string as the publish topic.
 
-Bootstrap constructs both publisher and subscriber at startup. The subscriber **is started** in `bootstrap.startBackgroundWorkers` with a placeholder handler that logs and acknowledges messages until domain handlers are registered.
+Bootstrap constructs both publisher and subscriber at startup. The subscriber **is started** in `bootstrap.startBackgroundWorkers` and routes Financial Core payment-result messages to `financialcorepaymentresultuc.Process`.
 
 ### Amendment (2026-06-30)
 
