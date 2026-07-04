@@ -1,0 +1,23 @@
+.git
+.env
+.env.*
+!.env.example
+.pgpass
+**/.pgpass
+**/*.key
+**/*private*.pem
+**/*credentials*.json
+.codex
+.agents
+build/bin
+coverage.out
+node_modules
+**/*http-client.env.json
+
+# Local-only Envoy configuration and operational customer import data.
+assets/local-development/
+assets/csv/trusted-customers/*.csv
+assets/csv/trusted-subjects/*.csv
+# mkcert output must never enter the Docker build context.
+doc/local-development/mkcert/certs/
+**/*-key.pem

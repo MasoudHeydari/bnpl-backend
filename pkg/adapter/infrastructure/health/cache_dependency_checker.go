@@ -33,12 +33,14 @@ func NewRedisDependencyChecker(cache cache.Cache) *RedisDependencyChecker {
 // Check verifies that Redis is reachable and able to serve lightweight
 // operations.
 func (c *RedisDependencyChecker) Check(ctx context.Context) error {
+	const op = "health.RedisDependencyChecker.Check"
+
 	if c.cache == nil {
 		return nil
 	}
 
 	if err := c.cache.Ping(ctx); err != nil {
-		return cerr.ServiceUnavailable(fmt.Errorf("redis: %w", err))
+		return cerr.ServiceUnavailable(fmt.Errorf("%s: redis: %w", op, err))
 	}
 
 	return nil

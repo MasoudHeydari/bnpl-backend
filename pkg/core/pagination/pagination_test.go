@@ -9,9 +9,10 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/parstis/bnpl-backend/pkg/core/pagination"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/parstis/bnpl-backend/pkg/core/pagination"
 )
 
 func TestOrder_IsValid(t *testing.T) {
@@ -461,7 +462,9 @@ func TestKeysetRequest_HasAfter(t *testing.T) {
 	assert.False(t, (pagination.KeysetRequest{}).HasAfter())
 	assert.False(t, (pagination.KeysetRequest{AfterID: "id"}).HasAfter())
 	assert.False(t, (pagination.KeysetRequest{AfterCreatedAt: "ts"}).HasAfter())
+	assert.False(t, (pagination.KeysetRequest{AfterDueAt: "ts"}).HasAfter())
 	assert.True(t, (pagination.KeysetRequest{AfterID: "id", AfterCreatedAt: "ts"}).HasAfter())
+	assert.True(t, (pagination.KeysetRequest{AfterID: "id", AfterDueAt: "ts"}).HasAfter())
 }
 
 func TestKeysetRequest_Validate(t *testing.T) {
@@ -479,10 +482,18 @@ func TestKeysetRequest_Validate(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "valid after pair",
+			name: "valid after created_at pair",
 			req: pagination.KeysetRequest{
 				AfterID:        validID,
 				AfterCreatedAt: validTS,
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid after due_at pair",
+			req: pagination.KeysetRequest{
+				AfterID:    validID,
+				AfterDueAt: validTS,
 			},
 			wantErr: false,
 		},
@@ -497,6 +508,15 @@ func TestKeysetRequest_Validate(t *testing.T) {
 			name: "missing id",
 			req: pagination.KeysetRequest{
 				AfterCreatedAt: validTS,
+			},
+			wantErr: true,
+		},
+		{
+			name: "both timestamps rejected",
+			req: pagination.KeysetRequest{
+				AfterID:        validID,
+				AfterCreatedAt: validTS,
+				AfterDueAt:     validTS,
 			},
 			wantErr: true,
 		},

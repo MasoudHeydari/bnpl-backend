@@ -3,8 +3,9 @@ package noop_test
 import (
 	"testing"
 
-	lognoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/noop"
 	"github.com/stretchr/testify/require"
+
+	lognoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/noop"
 )
 
 func TestWithReturnsSameLogger(t *testing.T) {

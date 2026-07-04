@@ -1,10 +1,212 @@
 package model
 
 import (
+	"database/sql/driver"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+// ExternalBranchID is the external merchant branch identity.
+type ExternalBranchID uuid.UUID
+
+// ParseExternalBranchID parses a ExternalBranchID from its canonical string form.
+func ParseExternalBranchID(value string) (ExternalBranchID, error) {
+	id, err := uuid.Parse(value)
+	if err != nil {
+		return ExternalBranchID{}, fmt.Errorf("parse branch id: %w", err)
+	}
+
+	return ExternalBranchID(id), nil
+}
+
+func (id ExternalBranchID) UUID() uuid.UUID { return uuid.UUID(id) }
+
+func (id ExternalBranchID) String() string { return uuid.UUID(id).String() }
+
+func (id ExternalBranchID) IsZero() bool { return uuid.UUID(id) == uuid.Nil }
+
+func (id ExternalBranchID) MarshalText() ([]byte, error) { return uuid.UUID(id).MarshalText() }
+
+func (id *ExternalBranchID) UnmarshalText(data []byte) error {
+	var u uuid.UUID
+	if err := u.UnmarshalText(data); err != nil {
+		return err
+	}
+
+	*id = ExternalBranchID(u)
+
+	return nil
+}
+
+func (id *ExternalBranchID) Scan(src any) error {
+	var u uuid.UUID
+	if err := u.Scan(src); err != nil {
+		return err
+	}
+
+	*id = ExternalBranchID(u)
+
+	return nil
+}
+
+func (id ExternalBranchID) Value() (driver.Value, error) { return uuid.UUID(id).Value() }
+
+// MerchantBranchProfileID is the internal BNPL primary key for a branch profile.
+type MerchantBranchProfileID uuid.UUID
+
+// ParseMerchantBranchProfileID parses a MerchantBranchProfileID from its canonical string form.
+func ParseMerchantBranchProfileID(value string) (MerchantBranchProfileID, error) {
+	id, err := uuid.Parse(value)
+	if err != nil {
+		return MerchantBranchProfileID{}, fmt.Errorf("parse merchant branch profile id: %w", err)
+	}
+
+	return MerchantBranchProfileID(id), nil
+}
+
+func (id MerchantBranchProfileID) UUID() uuid.UUID { return uuid.UUID(id) }
+
+func (id MerchantBranchProfileID) String() string { return uuid.UUID(id).String() }
+
+func (id MerchantBranchProfileID) IsZero() bool { return uuid.UUID(id) == uuid.Nil }
+
+func (id MerchantBranchProfileID) MarshalText() ([]byte, error) {
+	return uuid.UUID(id).MarshalText()
+}
+
+func (id *MerchantBranchProfileID) UnmarshalText(data []byte) error {
+	var u uuid.UUID
+	if err := u.UnmarshalText(data); err != nil {
+		return err
+	}
+
+	*id = MerchantBranchProfileID(u)
+
+	return nil
+}
+
+func (id *MerchantBranchProfileID) Scan(src any) error {
+	var u uuid.UUID
+	if err := u.Scan(src); err != nil {
+		return err
+	}
+
+	*id = MerchantBranchProfileID(u)
+
+	return nil
+}
+
+func (id MerchantBranchProfileID) Value() (driver.Value, error) { return uuid.UUID(id).Value() }
+
+// ExternalPosGpsID is the external POS/GPS device identity used at checkout.
+type ExternalPosGpsID uuid.UUID
+
+// ParseExternalPosGpsID parses a ExternalPosGpsID from its canonical string form.
+func ParseExternalPosGpsID(value string) (ExternalPosGpsID, error) {
+	id, err := uuid.Parse(value)
+	if err != nil {
+		return ExternalPosGpsID{}, fmt.Errorf("parse pos gps id: %w", err)
+	}
+
+	return ExternalPosGpsID(id), nil
+}
+
+func (id ExternalPosGpsID) UUID() uuid.UUID { return uuid.UUID(id) }
+
+func (id ExternalPosGpsID) String() string { return uuid.UUID(id).String() }
+
+func (id ExternalPosGpsID) IsZero() bool { return uuid.UUID(id) == uuid.Nil }
+
+func (id ExternalPosGpsID) MarshalText() ([]byte, error) { return uuid.UUID(id).MarshalText() }
+
+func (id *ExternalPosGpsID) UnmarshalText(data []byte) error {
+	var u uuid.UUID
+	if err := u.UnmarshalText(data); err != nil {
+		return err
+	}
+
+	*id = ExternalPosGpsID(u)
+
+	return nil
+}
+
+func (id *ExternalPosGpsID) Scan(src any) error {
+	var u uuid.UUID
+	if err := u.Scan(src); err != nil {
+		return err
+	}
+
+	*id = ExternalPosGpsID(u)
+
+	return nil
+}
+
+func (id ExternalPosGpsID) Value() (driver.Value, error) { return uuid.UUID(id).Value() }
+
+// ExternalOnlineStoreID is the external identity of an online merchant storefront.
+type ExternalOnlineStoreID uuid.UUID
+
+// ParseExternalOnlineStoreID parses an ExternalOnlineStoreID from its canonical UUID string form.
+func ParseExternalOnlineStoreID(value string) (ExternalOnlineStoreID, error) {
+	id, err := uuid.Parse(value)
+	if err != nil {
+		return ExternalOnlineStoreID{}, fmt.Errorf("parse online store id: %w", err)
+	}
+
+	return ExternalOnlineStoreID(id), nil
+}
+
+func (id ExternalOnlineStoreID) UUID() uuid.UUID { return uuid.UUID(id) }
+
+func (id ExternalOnlineStoreID) String() string { return uuid.UUID(id).String() }
+
+func (id ExternalOnlineStoreID) IsZero() bool { return uuid.UUID(id) == uuid.Nil }
+
+func (id ExternalOnlineStoreID) MarshalText() ([]byte, error) { return uuid.UUID(id).MarshalText() }
+
+func (id *ExternalOnlineStoreID) UnmarshalText(data []byte) error {
+	var u uuid.UUID
+	if err := u.UnmarshalText(data); err != nil {
+		return err
+	}
+
+	*id = ExternalOnlineStoreID(u)
+
+	return nil
+}
+
+func (id *ExternalOnlineStoreID) Scan(src any) error {
+	var u uuid.UUID
+	if err := u.Scan(src); err != nil {
+		return err
+	}
+
+	*id = ExternalOnlineStoreID(u)
+
+	return nil
+}
+
+func (id ExternalOnlineStoreID) Value() (driver.Value, error) { return uuid.UUID(id).Value() }
+
+// MerchantBranchType identifies the sales-surface kind represented by a
+// MerchantBranchProfile. A branch profile is a merchant selling point and does
+// not have to represent a physical location.
+type MerchantBranchType string
+
+const (
+	// PhysicalMerchantBranchType represents a physical selling point that may own one or more POS terminals.
+	PhysicalMerchantBranchType MerchantBranchType = "physical"
+
+	// OnlineMerchantBranchType represents a virtual selling point addressed through an online store.
+	OnlineMerchantBranchType MerchantBranchType = "online"
+)
+
+// IsValid reports whether the merchant branch type is supported by the domain.
+func (t MerchantBranchType) IsValid() bool {
+	return t == PhysicalMerchantBranchType || t == OnlineMerchantBranchType
+}
 
 // BranchStatus identifies the lifecycle state of a merchant branch's BNPL
 // participation.
@@ -32,22 +234,80 @@ const (
 	TerminatedMerchantBranchStatus BranchStatus = "terminated"
 )
 
-// MerchantBranchProfile represents a per-branch override of a merchant's
-// BNPL configuration.
+var branchStatusTransitions = newStatusTransitionTable(
+	"merchant branch status",
+	map[BranchStatus][]BranchStatus{
+		PendingReviewMerchantBranchStatus: {
+			ActiveMerchantBranchStatus,
+			DeactivatedMerchantBranchStatus,
+			SuspendedMerchantBranchStatus,
+			TerminatedMerchantBranchStatus,
+		},
+		ActiveMerchantBranchStatus: {
+			DeactivatedMerchantBranchStatus,
+			SuspendedMerchantBranchStatus,
+			TerminatedMerchantBranchStatus,
+		},
+		DeactivatedMerchantBranchStatus: {
+			ActiveMerchantBranchStatus,
+			SuspendedMerchantBranchStatus,
+			TerminatedMerchantBranchStatus,
+		},
+		SuspendedMerchantBranchStatus: {
+			ActiveMerchantBranchStatus,
+			DeactivatedMerchantBranchStatus,
+			TerminatedMerchantBranchStatus,
+		},
+	},
+	[]BranchStatus{
+		TerminatedMerchantBranchStatus,
+	},
+)
+
+// IsValid reports whether the branch status is known by the domain.
+func (s BranchStatus) IsValid() bool {
+	return branchStatusTransitions.isValid(s)
+}
+
+// CanTransitionTo reports whether the branch status may change to next.
+func (s BranchStatus) CanTransitionTo(next BranchStatus) bool {
+	return branchStatusTransitions.canTransitionTo(s, next)
+}
+
+// ValidateTransitionTo returns an error when the branch status may not change to next.
+func (s BranchStatus) ValidateTransitionTo(next BranchStatus) error {
+	return branchStatusTransitions.validateTransitionTo(s, next)
+}
+
+// IsTerminal reports whether the branch status is terminal.
+func (s BranchStatus) IsTerminal() bool {
+	return branchStatusTransitions.isTerminal(s)
+}
+
+// IsActive reports whether the branch may offer BNPL.
+func (s BranchStatus) IsActive() bool {
+	return s == ActiveMerchantBranchStatus
+}
+
+// MerchantBranchProfile represents a merchant selling point with optional
+// per-selling-point overrides of the parent merchant BNPL configuration.
 //
-// It applies when the parent MerchantProfile.RequiresBranchMode is true,
-// letting individual branches customize funding, settlement, currency, and
-// exposure limits within the parent merchant's configuration. Pointer override
-// fields use nil to fall back to the corresponding MerchantProfile setting.
+// A selling point may be physical or online. Physical points are addressed at
+// checkout through merchant_pos_terminals, while online points are addressed
+// through merchant_online_stores. Pointer override fields use nil to fall back
+// to the corresponding MerchantProfile setting.
 type MerchantBranchProfile struct {
 	// ID uniquely identifies this branch profile record.
-	ID uuid.UUID `db:"id" json:"id,omitempty"`
+	ID MerchantBranchProfileID `db:"id" json:"id,omitempty"`
 
-	// MerchantID references the parent merchant's identity record.
-	MerchantID uuid.UUID `db:"merchant_id" json:"merchant_id,omitempty"`
+	// ExternalMerchantID references the parent merchant's identity record.
+	ExternalMerchantID ExternalMerchantID `db:"external_merchant_id" json:"external_merchant_id,omitempty"`
 
-	// BranchID references the branch's identity record.
-	BranchID uuid.UUID `db:"branch_id" json:"branch_id,omitempty"`
+	// ExternalBranchID references the branch's identity record.
+	ExternalBranchID ExternalBranchID `db:"external_branch_id" json:"external_branch_id,omitempty"`
+
+	// Type identifies whether this selling point is physical or online.
+	Type MerchantBranchType `db:"branch_type" json:"branch_type,omitempty"`
 
 	// Status is the current lifecycle state of the branch's BNPL
 	// participation.
@@ -68,9 +328,13 @@ type MerchantBranchProfile struct {
 	// RiskTier for this branch.
 	RiskTierOverride *RiskTier `db:"risk_tier_override" json:"risk_tier_override,omitempty"`
 
-	// MaxAmountOverride, when set, replaces the parent MerchantProfile's
-	// MaxAmount for this branch.
-	MaxAmountOverride *Money `db:"max_amount_override" json:"max_amount_override,omitempty"`
+	// MaxAmountOverrideMinor, when set, replaces the parent MerchantProfile's
+	// MaxAmountMinor for this branch.
+	MaxAmountOverrideMinor *uint64 `db:"max_amount_override_minor" json:"max_amount_override_minor,omitempty"`
+
+	// MaxAmountOverrideCurrency, when set, replaces the parent MerchantProfile's
+	// MaxAmountCurrency for this branch.
+	MaxAmountOverrideCurrency *Currency `db:"max_amount_override_currency" json:"max_amount_override_currency,omitempty"`
 
 	// MaxTenureMonthsOverride, when set, replaces the parent
 	// MerchantProfile's MaxTenureMonths for this branch.
@@ -80,9 +344,27 @@ type MerchantBranchProfile struct {
 	// BNPL activity.
 	Jurisdiction Jurisdiction `db:"jurisdiction" json:"jurisdiction,omitempty"`
 
+	// OfferPreparationMode controls when Partner Create prepares the financing
+	// offer for checkouts at this online/physical selling point.
+	//
+	// Trusted provisioning sets this value. Merchants cannot select it through
+	// Checkout Create input or terminal credentials. CheckoutSession snapshots
+	// the effective mode at create time.
+	OfferPreparationMode OfferPreparationMode `db:"offer_preparation_mode" json:"-"`
+
 	// CreatedAt is when the profile was created.
 	CreatedAt time.Time `db:"created_at" json:"created_at,omitempty"`
 
 	// UpdatedAt is when the profile was last modified.
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at,omitempty"`
+}
+
+// EffectiveOfferPreparationMode returns the branch preparation mode, defaulting
+// to on_start when unset or invalid.
+func (p MerchantBranchProfile) EffectiveOfferPreparationMode() OfferPreparationMode {
+	if p.OfferPreparationMode.IsValid() {
+		return p.OfferPreparationMode
+	}
+
+	return DefaultOfferPreparationMode
 }

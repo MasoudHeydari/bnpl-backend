@@ -1,0 +1,182 @@
+package config
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"strings"
+	"time"
+
+	customerext "github.com/parstis/bnpl-backend/pkg/adapter/external/customer"
+	customergrpc "github.com/parstis/bnpl-backend/pkg/adapter/external/customer/grpc"
+	customernoop "github.com/parstis/bnpl-backend/pkg/adapter/external/customer/noop"
+	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/grpcclient"
+	"github.com/parstis/bnpl-backend/pkg/core/circuitbreaker"
+	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"
+	"github.com/parstis/bnpl-backend/pkg/core/model"
+)
+
+// ExternalCustomer configures the Customer Reference Service integration used
+// by Partner checkout for mobile → external customer_id resolution.
+type ExternalCustomer struct {
+	// Provider selects the Customer Reference Service client implementation.
+	Provider string `yaml:"provider"`
+
+	// Noop contains configuration for the noop Customer Reference provider.
+	Noop ExternalCustomerNoop `yaml:"noop"`
+
+	// GRPC configures the Customer Reference Service gRPC client.
+	GRPC ExternalCustomerGRPC `yaml:"grpc"`
+}
+
+// ExternalCustomerNoop holds noop provider settings.
+type ExternalCustomerNoop struct{}
+
+// ExternalCustomerGRPC configures the Customer Reference Service gRPC client.
+type ExternalCustomerGRPC struct {
+	// Address is the Customer Reference Service gRPC server address.
+	Address string `yaml:"address"`
+
+	// Timeout configures the per-RPC timeout for Customer Reference gRPC calls.
+	Timeout time.Duration `yaml:"timeout"`
+
+	// ConnectionTimeout is the startup budget for verifying the gRPC transport
+	// reaches READY after dial (before business RPCs).
+	ConnectionTimeout time.Duration `yaml:"connection_timeout"`
+
+	// Insecure disables TLS for the Customer Reference gRPC connection.
+	// Local plaintext only; production must keep this false.
+	Insecure bool `yaml:"insecure"`
+
+	// TLS configures server verification and optional mTLS when Insecure is false.
+	TLS ExternalCustomerGRPCTLS `yaml:"tls"`
+}
+
+// ExternalCustomerGRPCTLS configures TLS materials for Customer Reference gRPC.
+type ExternalCustomerGRPCTLS struct {
+	// CAFile is a PEM bundle used to verify the server certificate.
+	CAFile string `yaml:"ca_file"`
+
+	// CertFile is the optional client certificate PEM for mTLS.
+	CertFile string `yaml:"cert_file"`
+
+	// KeyFile is the optional client private key PEM for mTLS.
+	KeyFile string `yaml:"key_file"`
+
+	// ServerName overrides TLS hostname verification (SNI / cert name).
+	ServerName string `yaml:"server_name"`
+}
+
+// NewExternalCustomerClient constructs the configured Customer Reference
+// Service resolver. The optional closer owns the gRPC connection.
+func (c *Config) NewExternalCustomerClient(
+	breaker circuitbreaker.CircuitBreaker,
+) (extcustomer.Resolver, io.Closer, error) {
+	return c.External.Customer.newClient(breaker)
+}
+
+func (e ExternalCustomer) newClient(
+	breaker circuitbreaker.CircuitBreaker,
+) (extcustomer.Resolver, io.Closer, error) {
+	const op = "config.ExternalCustomer.newClient"
+
+	provider := customerext.Provider(e.Provider)
+
+	switch provider {
+	case customerext.GRPCProvider:
+		return e.newGRPCClient(breaker)
+
+	case customerext.NoopProvider:
+		return customernoop.New(), nil, nil
+
+	default:
+		return nil, nil, fmt.Errorf("%s: unsupported external customer provider: %q", op, e.Provider)
+	}
+}
+
+func (e ExternalCustomer) newGRPCClient(
+	breaker circuitbreaker.CircuitBreaker,
+) (extcustomer.Resolver, io.Closer, error) {
+	const op = "config.ExternalCustomer.newGRPCClient"
+
+	if strings.TrimSpace(e.GRPC.Address) == "" {
+		return nil, nil, fmt.Errorf("%s: invalid external.customer.grpc.address: empty", op)
+	}
+
+	conn, err := customergrpc.Dial(e.GRPC.Address, e.GRPC.Insecure, customergrpc.TLSConfig{
+		CAFile:     e.GRPC.TLS.CAFile,
+		CertFile:   e.GRPC.TLS.CertFile,
+		KeyFile:    e.GRPC.TLS.KeyFile,
+		ServerName: e.GRPC.TLS.ServerName,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("%s: initialize external customer grpc client: %w", op, err)
+	}
+
+	pingCtx, cancel := context.WithTimeout(context.Background(), e.GRPC.ConnectionTimeout)
+	defer cancel()
+
+	if err := grpcclient.Ping(pingCtx, conn); err != nil {
+		return nil, nil, errors.Join(
+			fmt.Errorf("%s: customer grpc service %q unavailable: %w", op, e.GRPC.Address, err),
+			conn.Close(),
+		)
+	}
+
+	client, err := customergrpc.New(conn, e.GRPC.Timeout, breaker)
+	if err != nil {
+		return nil, nil, errors.Join(
+			fmt.Errorf("%s: construct external customer grpc client: %w", op, err),
+			conn.Close(),
+		)
+	}
+
+	return client, conn, nil
+}
+
+func (e ExternalCustomer) validate(env model.RuntimeEnvironment) error {
+	const op = "config.ExternalCustomer.validate"
+
+	provider := customerext.Provider(e.Provider)
+
+	switch provider {
+	case customerext.NoopProvider:
+		if isProductionMode(env) {
+			return fmt.Errorf("%s: external customer provider \"noop\" is not allowed in production", op)
+		}
+
+	case customerext.GRPCProvider:
+		if strings.TrimSpace(e.GRPC.Address) == "" {
+			return fmt.Errorf("%s: invalid external.customer.grpc.address: value is required", op)
+		}
+
+		if e.GRPC.Timeout <= 0 {
+			return fmt.Errorf("%s: invalid external.customer.grpc.timeout: must be positive", op)
+		}
+
+		if e.GRPC.ConnectionTimeout <= 0 {
+			return fmt.Errorf("%s: invalid external.customer.grpc.connection_timeout: must be positive", op)
+		}
+
+		if isProductionMode(env) && e.GRPC.Insecure {
+			return fmt.Errorf("%s: external.customer.grpc.insecure must be false in production", op)
+		}
+
+		if !e.GRPC.Insecure {
+			certFile := strings.TrimSpace(e.GRPC.TLS.CertFile)
+			keyFile := strings.TrimSpace(e.GRPC.TLS.KeyFile)
+			if (certFile == "") != (keyFile == "") {
+				return fmt.Errorf(
+					"%s: invalid external.customer.grpc.tls: cert_file and key_file must both be set or both empty",
+					op,
+				)
+			}
+		}
+
+	default:
+		return fmt.Errorf("%s: invalid external.customer.provider: unsupported value %q", op, e.Provider)
+	}
+
+	return nil
+}

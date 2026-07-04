@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
+	testifymock "github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+
 	tasknoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task/noop"
 	"github.com/parstis/bnpl-backend/pkg/core/mock"
 	"github.com/parstis/bnpl-backend/pkg/core/task"
-	testifymock "github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 )
 
 func TestRegister(t *testing.T) {
@@ -17,8 +18,10 @@ func TestRegister(t *testing.T) {
 
 	expectWith(
 		logger,
-		"task_name", "test_task",
-		"task_handler", "test_handler",
+		"task_name",
+		"test_task",
+		"task_handler",
+		"test_handler",
 	).Return(logger).Once()
 
 	logger.
@@ -41,8 +44,10 @@ func TestDispatch(t *testing.T) {
 
 	expectWith(
 		logger,
-		"command_id", "command-1",
-		"task_handler", "test_handler",
+		"command_id",
+		"command-1",
+		"task_handler",
+		"test_handler",
 	).Return(logger).Once()
 
 	logger.

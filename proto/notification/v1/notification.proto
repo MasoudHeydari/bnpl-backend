@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package parstis.notification.submission.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/parstis/bnpl-backend/gen/proto/notification/v1;notificationv1";
+option java_multiple_files = true;
+option java_package = "ir.parstis.notification.submission.v1";
+
+// Caller identity comes from the mTLS client certificate (SPIFFE ID),
+// never from request fields or metadata. BNPL's client transport for mTLS is
+// configured separately from this wire contract.
+service NotificationSubmission {
+  // Durably submits a notification. OK + ACCEPTED means it is stored in
+  // Notification PostgreSQL, not that the SMS was delivered.
+  //
+  // Errors:
+  //   INVALID_ARGUMENT   bad template variables, recipient or expiry
+  //   UNAUTHENTICATED    missing or invalid client certificate
+  //   PERMISSION_DENIED  caller not granted this template
+  //   ALREADY_EXISTS     same idempotency_key with a different payload
+  //   RESOURCE_EXHAUSTED rate limit exceeded
+  //   UNAVAILABLE        transient; safe to retry with the same key
+  //   INTERNAL           unexpected server error
+  rpc SubmitNotification(SubmitNotificationRequest)
+      returns (SubmitNotificationResponse);
+}
+
+message SubmitNotificationRequest {
+  // Logical template, e.g. "bnpl.external_checkout_otp.v1".
+  string template_id = 1;
+  // Recipient address, e.g. phone number in canonical form.
+  string recipient = 2;
+  // Business variables by logical name, e.g. {"code": "123456"}.
+  // Never provider token names. Values may contain secrets; never log.
+  map<string, string> variables = 3;
+  // Caller-owned replay identity, scoped to the authenticated caller.
+  string idempotency_key = 4;
+  // Tracing / correlation only; not part of idempotency.
+  string correlation_id = 5;
+  // Authoritative expiry owned by the caller; required for OTP templates.
+  // Must satisfy now < expires_at <= now + template max TTL.
+  google.protobuf.Timestamp expires_at = 6;
+}
+
+message SubmitNotificationResponse {
+  string request_id = 1;
+  SubmissionStatus status = 2;
+  // True when this was a replay of an already accepted request.
+  bool duplicate = 3;
+}
+
+enum SubmissionStatus {
+  SUBMISSION_STATUS_UNSPECIFIED = 0;
+  SUBMISSION_STATUS_ACCEPTED = 1;
+}

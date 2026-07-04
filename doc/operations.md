@@ -36,10 +36,12 @@ MESSAGING_PROVIDER=noop
 make up
 ```
 
-Starts via `docker-compose.local.yml`:
+Starts the full local stack via `docker-compose.local.yml` (creates the Grafana
+password secret and Promtail log dirs when missing):
 
-- PostgreSQL — `127.0.0.1:5432`
-- Kafka — `127.0.0.1:9092` (only required when `MESSAGING_PROVIDER=kafka`)
+- PostgreSQL / Kafka / Temporal / Redpanda / Loki / Promtail / Grafana published on
+  `COMPOSE_PUBLISH_HOST` from `.env` (default in `.env.example`: `192.168.1.104`)
+- Envoy uses host networking (see envoy config); BNPL itself still binds via `GIN_HOST`
 
 Redis is **not** included in Compose. Start Redis separately or use `CACHE_PROVIDER=noop` (default).
 
@@ -50,15 +52,21 @@ make build
 # Output: build/bin/bnpl
 ```
 
-### 4. Database bootstrap (destructive)
+### 4. Database bootstrap
+
+Schema initialization is handled by the **separate DB Admin binary**, not
+the Runtime server. Use the corresponding development or production Make
+targets, for example:
 
 ```bash
-make init-dev    # development seed path (seed SQL empty today)
-# or
-make init-prod   # production-style seed path (same effect today)
+make db-init-development
+# production on an empty schema only, through a separately authorized DB Admin job:
+make db-init-production
 ```
 
-Both drop and recreate schema `bnpl`. See [database.md](database.md).
+Development initialization is destructive. Production initialization refuses
+an existing managed schema. See
+[database deployment](architecture/database-deployment.md).
 
 ### 5. Run application
 
@@ -66,71 +74,70 @@ Both drop and recreate schema `bnpl`. See [database.md](database.md).
 make run
 ```
 
-Runs `scripts/docker-entrypoint.sh`, which:
-
-1. Runs `bnpl db ${DB_INIT_COMMAND}` when `DB_INIT_COMMAND` is non-empty (**destructive** with default `init-dev`)
-2. Retries failed init up to `DB_INIT_MAX_ATTEMPTS` (default 10) with `DB_INIT_RETRY_INTERVAL_SECONDS` (default 3) between attempts
-3. `exec bnpl` — starts HTTP server and background tasks
-
-For repeated local runs without re-init:
-
-```bash
-DB_INIT_COMMAND= ./build/bin/bnpl
-# or invoke the binary directly after a one-time init:
-./build/bin/bnpl
-```
+The development Runtime starts with its application configuration and does
+not initialize or migrate the database. `cmd/bnpl-dbadmin` owns those
+operations.
 
 ## Makefile Targets
 
-### Build / run
+Key targets (verify exact optional flags in the repository Makefile):
 
 | Target | Action |
 | --- | --- |
-| `build` | Compile to `build/bin/bnpl` |
-| `run` | `build` + `up` + `docker-entrypoint.sh` |
-| `init-dev` | `bnpl db init-dev` |
-| `init-prod` | `bnpl db init-prod` |
-| `clean` | Remove binary and `coverage.out` |
+| `make build-development` / `make build-production` | Build Runtime with matching build profile |
+| `make build-dbadmin-development` / `make build-dbadmin-production` | Build privileged DB Admin separately |
+| `make run` | Run local development Runtime |
+| `make db-init-development` / `make db-init-production` | Initialize the managed schema with DB Admin |
+| `make db-migrate-development` / `make db-migrate-production` | Apply forward migrations through DB Admin |
+| `make test` | Unit tests with development tags |
+| `make test-integration` | Isolated PostgreSQL integration tests |
+| `make test-all` | Unit and integration tests |
+| `make test-e2e` | Separate end-to-end suite, not part of `test-all` |
+| `make db-invariants-verify-production` | Verify DB financial invariants against deployment |
+| `make db-privileges-verify-production` | Verify restricted DB privileges |
 
-### Test / quality
+Runtime serves HTTP and business background work. Database administrative
+operations must run with separate credentials and their own deployment
+permissions.
 
-| Target | Action |
-| --- | --- |
-| `test` | `go test ./...` |
-| `test-integration` | Integration tests with `integration` tag |
-| `test-coverage` | Coverage report |
-| `lint` | golangci-lint |
-| `staticcheck` | staticcheck |
-| `revive` | revive |
-| `tidy-imports` | goimports |
+### Trusted customer policy import
 
-### Docker / infrastructure
+`policy-assignment import-trusted` is an operational bulk command for assigning
+the code-owned trusted customer policy bundle (`checkout/v2` and
+`initial-credit-limit/v2`). Checkout v2 is full-financing with **3** installments
+due at one, two, and three Jalali months after purchase. Being trusted means the
+customer is later eligible for the special initial credit limit and deferred
+first installment under those policies. Import itself does **not** grant credit
+or create contracts.
 
-| Target | Action |
-| --- | --- |
-| `up` / `down` | Compose start/stop |
-| `build-image` | `docker build -t bnpl-backend:v0.1.0 .` |
-| `run-image` | Run container with default entrypoint |
-| `list-images` | List local `bnpl-backend` images |
-| `publish-image-to-hamravesh` | Tag and push to Hamravesh registry |
-| `clean-db` | Stop DB container and remove volume |
+Shortcut: `make policy-assignment-import-trusted` (defaults:
+`POLICY_ASSIGNMENT_FILE=assets/csv/trusted-customers/trusted-customers.csv`,
+`POLICY_ASSIGNMENT_ACTOR=ops@example`).
 
-### Setup
+The CSV format is intentionally strict and contains exactly one column of
+Iranian mobiles (`mobile_e164`, either `+989…` or `09…`):
 
-| Target | Action |
-| --- | --- |
-| `mkdir-pgpass` | Create `dist/.db/.pgpass` (not used by Go app) |
-| `env` | Print exportable `.env` lines |
-| `install-tools` | Install lint and codegen tools |
-
-## CLI Commands
-
-```bash
-./build/bin/bnpl [--config path]              # HTTP server + infrastructure
-./build/bin/bnpl db init-dev                  # destructive bootstrap
-./build/bin/bnpl db init-prod                 # destructive bootstrap
-./build/bin/bnpl db migrate                   # filesystem migrations
+```csv
+mobile_e164
++989121234567
++989351234567
++989191234567
 ```
+
+Each row is canonicalized, resolved through Customer Reference Service
+(`ResolveCustomerByMobile`) **outside** any database transaction, and — only
+when status is `ACTIVE` — receives the trusted policy bundle atomically under
+the returned `ExternalCustomerID`. The import is **additive and idempotent**:
+customers omitted from a later CSV remain trusted; already-trusted customers are
+counted as `already_exists`. Row-level failures (invalid mobile, not found,
+non-ACTIVE status, Customer Service errors, persistence errors) are logged and
+recorded without stopping the file. A peppered HMAC of each canonical mobile is
+stored on `policy_assignment_import_items.mobile_hash` for audit; raw mobiles are
+never persisted. Import batches and row outcomes live in
+`policy_assignment_imports` and `policy_assignment_import_items`.
+
+Requires `EXTERNAL_CUSTOMER_PROVIDER=grpc` (noop is rejected) and
+`POLICY_ASSIGNMENT_MOBILE_HASH_PEPPER_KEYS`.
 
 The default HTTP server handles `SIGINT` and `SIGTERM` with graceful shutdown (see below).
 
@@ -139,14 +146,14 @@ The default HTTP server handles `SIGINT` and `SIGTERM` with graceful shutdown (s
 On `SIGINT` or `SIGTERM`:
 
 1. Readiness fails immediately (`LifecycleState.StartDraining`)
-2. Bounded shutdown runs (`SHUTDOWN_TIMEOUT`, default 30s)
-3. HTTP server stops accepting new connections
-4. Task scheduler and message consumer stop (root context canceled)
-5. Short in-flight drain window (100ms hardcoded today)
-6. Publisher, subscriber, cache, and database pool close
+2. Bounded shutdown runs under one budget (`SHUTDOWN_TIMEOUT`, default 30s)
+3. `SHUTDOWN_DRAIN_DELAY` waits for load-balancer / kube-proxy propagation
+4. HTTP (then metrics) servers stop accepting and finish in-flight work
+5. Task scheduler and message consumer stop (runtime context canceled)
+6. Outbound HTTP client, publisher, subscriber, messaging health, cache, external clients, and database pool close (database last)
 7. If shutdown exceeds timeout, liveness fails (`MarkShutdownTimedOut`)
 
-`SHUTDOWN_DRAIN_DELAY` is configured (default 5s) but **not yet applied** before HTTP shutdown — readiness still fails on signal via draining state.
+HTTP listen bind happens before background workers start so a busy port fails without leaving workers running.
 
 ## Kubernetes Health Probes
 
@@ -176,51 +183,17 @@ readinessProbe:
 
 Readiness includes checks listed in `infrastructure.health.checks` (default: database, cache, messaging). With `CACHE_PROVIDER=noop` and `MESSAGING_PROVIDER=noop`, cache and messaging checks still run but succeed against noop adapters.
 
-## Docker Image
+## Docker Images and Runtime Entrypoint
 
-Built from multi-stage `Dockerfile`:
+Runtime and DB Admin are built as distinct development/production images.
+Runtime contains the business binary and `configs/runtime.yaml`, not DB
+administrator credentials or DDL commands. DB Admin contains only the
+administrative entrypoint and `configs/dbadmin.yaml`.
 
-1. **Builder:** Go 1.26.2 Alpine, static binary
-2. **Runtime:** Alpine, non-root user `bnpluser`, timezone Asia/Tehran
-
-Copied artifacts:
-
-- Binary as `./bnpl`
-- `configs/` directory
-- `scripts/docker-entrypoint.sh`
-
-Environment:
-
-- `CONFIG_FILE=configs/config.yaml`
-- `APP_EXECUTABLE` and `DB_INIT_COMMAND` expected at runtime (see entrypoint)
-
-### Entrypoint behavior
-
-`scripts/docker-entrypoint.sh`:
-
-| Step | Behavior | Notes |
-| --- | --- | --- |
-| 1 | DB init when `DB_INIT_COMMAND` is set | Skipped when empty |
-| 1a | Retry loop | `DB_INIT_MAX_ATTEMPTS` (default 10), `DB_INIT_RETRY_INTERVAL_SECONDS` (default 3) |
-| 2 | `exec bnpl` | HTTP server + tasks as PID 1 |
-
-Supported `DB_INIT_COMMAND` values: `init-dev`, `init-prod`. Leave unset or empty to skip initialization:
-
-```bash
-docker run -e DB_INIT_COMMAND= ...
-# or
-docker run -e DB_INIT_COMMAND="" ...
-```
-
-Override for production experiments:
-
-```bash
-docker run -e DB_INIT_COMMAND=init-prod -e APP_EXECUTABLE=./bnpl ...
-```
-
-**Warning:** `init-dev` and `init-prod` are destructive. Steady-state production should use empty `DB_INIT_COMMAND` and external migration jobs.
-
-See ADR [0006](adr/0006-docker-entrypoint-startup-flow.md).
+The Runtime entrypoint starts `bnpl` as PID 1. It does not create, migrate,
+drop or reset the database. See
+[database deployment](architecture/database-deployment.md) for documented
+build targets, release images, and production initialization steps.
 
 ## Provider Requirements by Environment
 
@@ -231,14 +204,45 @@ See ADR [0006](adr/0006-docker-entrypoint-startup-flow.md).
 | `MESSAGING_PROVIDER=noop` | None | Default local setup |
 | `MESSAGING_PROVIDER=kafka` | Kafka at `KAFKA_BROKER_1` | Lazy connect; publish/consume fails without broker |
 | `TASK_PROVIDER=noop` | None | Disables scheduled jobs |
-| `TASK_PROVIDER=inprocess` | None | Runs goroutine metrics and outbox publisher when enabled |
+| `TASK_PROVIDER=inprocess` | None | Runs goroutine metrics, outbox publisher, contract/installment jobs when enabled |
+
+## Financial Core payment results
+
+When `MESSAGING_PROVIDER=kafka`, the consumer on `KAFKA_TOPIC_PAYMENT_RESULTS` decodes Financial Core payment-result events and delegates to `financialcorepaymentresultuc.Process` (all routing, purpose resolution, and unsupported-purpose handling occur inside the use case — the Kafka handler only decodes and maps transport fields).
+
+Processing semantics:
+
+1. Kafka adapter maps known external payment statuses to typed values; unknown raw statuses are preserved (`RawPaymentStatus`) and durably fail inbox **after acquisition** (`unsupported_payment_result_status`) — never `already_applied`, no outbound acknowledgement
+2. Inbox fingerprint uses **normalized canonical business fields** including raw payment status for unknown values; same trimmed `(source_service, event_id)` with different fingerprint → conflict row
+3. Same `(source_service, event_id)` with different fingerprint → `integration_inbox_conflicts` row; original terminal inbox row unchanged (no infinite retry loop)
+4. Acquire `integration_inbox` row via `AcquireForProcessing` in the same transaction as domain updates (`financialcorepaymentresultuc`)
+5. **Process results:** `payment_applied`, `already_applied`, `reconciliation_required`, `failure_recorded`, `cancellation_recorded`, `event_already_processed`, `terminal_result_unmatched`, `payload_conflict_recorded`, `permanently_rejected`
+
+Kafka adapter validates only the minimum trusted envelope before calling `financialcorepaymentresultuc`. Payment business fields are validated after inbox acquisition.
+6. Failed/canceled results mark inbox processed and local attempt terminal state — **no** `applied` outbox acknowledgement
+7. Reconciliation-required outcomes are persisted (inbox + local `PaymentAttempt` when present + outbox acknowledgement where applicable) — **not** dropped as non-retryable before commit
+8. Financial Core **`financial_payment_intent_id`** is primary correlation; provider attempt ID is recorded for audit but mismatch alone is not rejection
+9. Duplicate success requires matching intent + attempt + amount + currency + installment — amount equality alone is not payment identity
+10. Kafka offset is acknowledged only after successful commit (applied, duplicate processed, reconciliation persisted, conflict recorded, or durable permanent invalid event)
+11. Infrastructure/transaction failures remain retryable (DB, serialization, outbox insert, lock timeout). Business reconciliation outcomes (`reconciliation_required`, `permanently_rejected`, `payload_conflict_recorded`, missing contract/installment on succeeded payment) commit durably and acknowledge Kafka — not retried indefinitely.
+12. Installment `already_applied` is determined before current exposure/principal validation; equivalent replays do not fail because exposure was already reduced.
+13. Checkout reconciliation uses `persistCheckoutPaymentReconciliation` (no payment-attempt repository); installment reconciliation uses `persistInstallmentPaymentReconciliation` (requires payment-attempt repository).
+14. Optional Financial Core provider-attempt IDs persist as SQL `NULL`, not empty strings.
+
+Outbox publisher task delivers business acknowledgements to `KAFKA_TOPIC_PAYMENT_APPLICATION_RESULTS` using `financial_payment_intent_id` as the Kafka message key.
+
+**Monetary truth vs application truth:** Financial Core inbound events report whether money succeeded/failed/canceled. Outbound `bnpl.payment_application_result.v1` reports whether BNPL applied that successful payment to its obligation (`applied`, `already_applied`, `reconciliation_required`). Kafka offset commit is transport-level and distinct from the business acknowledgement.
+
+**Exact replay vs new duplicate success:** `event_already_processed` is returned when the same inbox event is replayed. `already_applied` is returned only when a new inbound success is proven to match the same financial identity as an already-applied payment.
+
+See ADR [0016](adr/0016-bnpl-payment-attempt-ownership.md).
 
 ## Graceful Shutdown Configuration
 
 | Key | Default | Purpose |
 | --- | --- | --- |
 | `SHUTDOWN_TIMEOUT` | `30s` | Maximum time for full shutdown sequence |
-| `SHUTDOWN_DRAIN_DELAY` | `5s` | Intended delay before HTTP shutdown (not wired in bootstrap yet) |
+| `SHUTDOWN_DRAIN_DELAY` | `5s` | Delay after readiness fails and before HTTP shutdown (LB propagation) |
 
 ## Docker Compose
 
@@ -250,41 +254,38 @@ File: `docker-compose.local.yml`
 
 ## Deployment Workflow
 
-### GitHub Actions
+The repository contains CI/CD configuration; do not assume it proves the
+actual deployed gateway, Kubernetes network policies, or Financial Core
+integration contracts.
 
-| Workflow | Purpose |
-| --- | --- |
-| `.github/workflows/ci.yml` | fmt, vet, lint, tests, gosec, Trivy, Docker build |
-| `.github/workflows/cd.yml` | Push images to GHCR and Hamravesh; deploy job via SSH |
+For the first production release, require:
 
-CD deploy job:
+1. A **trusted-Gateway negative test**: direct untrusted access to BNPL must
+   be denied. Envoy must validate JWTs, strip incoming `X-Auth-*` headers,
+   and inject authenticated values. Confirm gateway-to-service source
+   restrictions and transport protection.
+2. An empty-schema install through the separate DB Admin Production job,
+   followed by DB invariant and privilege verification. No Runtime admin
+   secrets.
+3. Kafka subscription validation: payment results and payment
+   reconciliation results only. There is no installment
+   payment-session-created consumer. Confirm task jobs are enabled where
+   required for outbox publishing, expiry, reconciliation, and collections.
+4. `make test-all` **and** `make test-e2e` with disposable infrastructure,
+   plus controlled FC idempotency/expiry/result-replay integration tests.
+5. A rollback/restore plan for the chosen deployment and verifiable health
+   and alerting controls. Do not claim release readiness based solely on
+   local test success.
 
-- Checks out `scripts/deploy.sh` and runs on production host
-- **`scripts/deploy.sh` is not in this repository** — deploy automation is incomplete
-
-Images tagged with immutable git SHA; `latest` is for reference only.
-
-### GitLab CI
-
-`.gitlab-ci.yml`: test, build, docker push on `main`. Helm and deploy stages commented out.
-
-### Hamravesh registry
-
-```bash
-make publish-image-to-hamravesh
-```
-
-Uses `HAMRAVESH_CONTAINER_REGISTRY` and `HAMRAVESH_REGISTRY_NAMESPACE` from Makefile.
+Follow [security](security.md) and
+[database deployment](architecture/database-deployment.md) for details.
 
 ## Limitations
 
-- Default `.env.example` still sets `DB_INIT_COMMAND=init-dev`; container entrypoint destroys schema on every start unless overridden
-- No `deploy.sh` in repo despite CD reference
-- `assets/db/migrations` directory may be missing until first migration is added
-- `SHUTDOWN_DRAIN_DELAY` configured but not applied in bootstrap shutdown timing
-- Kafka subscriber runs with placeholder handler only (no domain message processing)
-- No automated rollback documented
-- **Not production-ready** — infrastructure is foundational only
+The repository does not itself prove deployment-specific Envoy strip/JWT,
+NetworkPolicy, workload identity, live Financial Core behavior, or external
+payment-event delivery. These must be verified in the target environment.
+Outbox is deliberately at-least-once and requires consumer idempotency.
 
 ## Troubleshooting
 
@@ -309,28 +310,26 @@ Uses `HAMRAVESH_CONTAINER_REGISTRY` and `HAMRAVESH_REGISTRY_NAMESPACE` from Make
 ### `db migrate` fails
 
 - Ensure `MIGRATIONS_FILES_DIR` exists and contains SQL files
-- Use `init-dev` for greenfield schema only
+- Use DB Admin development init for disposable reset only and DB Admin production init for a new empty managed schema
 
-### HTTP server starts but no API routes
+### HTTP server starts but business APIs are inaccessible
 
-- Expected — see [api.md](api.md)
+- Check Gateway access, route registration and `AuthContext.Attach`; the `/api/v1` business routes are implemented. See [api.md](api.md)
 
 ### Container wipes database on restart
 
-- Default `DB_INIT_COMMAND=init-dev` in `.env.example`
-- Set `DB_INIT_COMMAND=` (empty) for steady-state deployments
+- Entrypoint no longer runs DB init; if schema disappears, look for an external Job/`make init-dev` or volume loss
+- Prefer `make init-dev` only when you intentionally want a local reset
 
 ### Outbox publisher logs errors with noop messaging
 
 - Expected when rows exist and `MESSAGING_PROVIDER=noop` — messages are accepted locally but not delivered to a broker
 
-## TODO
+## Remaining Operational Work
 
-- [ ] Add `scripts/deploy.sh` or remove CD deploy step
-- [ ] Document production entrypoint with empty `DB_INIT_COMMAND`
-- [ ] Wire `SHUTDOWN_DRAIN_DELAY` into bootstrap shutdown sequence
-- [ ] Document PostgreSQL and backup procedures for production
-- [ ] Add Redis to local Compose when cache integration tests are needed
+- Confirm the actual CD deploy implementation against the chosen production environment.
+- Document backup and rollback procedures for the production database and first deployment.
+- Record evidence for trusted Gateway/NetworkPolicy, FC integration and consumer/topic wiring.
 
 ## Related documentation
 

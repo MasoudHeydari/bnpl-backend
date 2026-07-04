@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/parstis/bnpl-backend/cmd/bnpl/bootstrap"
 	"github.com/spf13/cobra"
+
+	"github.com/parstis/bnpl-backend/cmd/bnpl/bootstrap"
 )
 
 var (
@@ -19,7 +20,12 @@ database and Gin settings.
 When run without a subcommand, bnpl loads the configuration file, opens a
 normal-role PostgreSQL connection pool, registers the HTTP routes, and starts
 listening on the configured Gin address.`,
-		RunE: startWebServer,
+		// SilenceUsage/SilenceErrors keep operational failures to a single
+		// stderr line from Execute; usage belongs to --help, not error paths.
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE:          startWebServer,
+		Args:          cobra.NoArgs,
 	}
 )
 
@@ -41,7 +47,17 @@ func init() {
 	cobra.OnInitialize(func() {
 		bootstrap.FixConfigPath(cfgPath)
 	})
+	// Apply silence flags to the leaf command that actually runs; cobra does
+	// not inherit SilenceUsage/SilenceErrors from the root command.
+	rootCmd.PersistentPreRun = func(cmd *cobra.Command, _ []string) {
+		cmd.SilenceUsage = true
+		cmd.SilenceErrors = true
+	}
 	rootCmd.PersistentFlags().StringVarP(
-		&cfgPath, "config", "c", "", "config file path",
+		&cfgPath,
+		"config",
+		"c",
+		"",
+		"config file path",
 	)
 }

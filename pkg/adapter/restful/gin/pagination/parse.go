@@ -5,7 +5,9 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/serdser"
+	resti18n "github.com/parstis/bnpl-backend/pkg/adapter/restful/i18n"
 	corepagination "github.com/parstis/bnpl-backend/pkg/core/pagination"
 )
 
@@ -27,6 +29,7 @@ func ParseOffset(c *gin.Context) (corepagination.OffsetRequest, bool) {
 	if !ok {
 		return corepagination.OffsetRequest{}, false
 	}
+
 	if page != nil {
 		req.Page = *page
 	}
@@ -35,6 +38,7 @@ func ParseOffset(c *gin.Context) (corepagination.OffsetRequest, bool) {
 	if !ok {
 		return corepagination.OffsetRequest{}, false
 	}
+
 	if limit != nil {
 		req.Limit = *limit
 	}
@@ -68,6 +72,7 @@ func ParseCursor(c *gin.Context) (corepagination.CursorRequest, bool) {
 	if !ok {
 		return corepagination.CursorRequest{}, false
 	}
+
 	if limit != nil {
 		req.Limit = *limit
 	}
@@ -78,7 +83,7 @@ func ParseCursor(c *gin.Context) (corepagination.CursorRequest, bool) {
 
 	if cursor != "" {
 		if _, err := corepagination.DecodeCursor(cursor); err != nil {
-			serdser.SerValidationErr(c, "cursor", "cursor is invalid")
+			serdser.SerValidationErr(c, "cursor", "validation.cursor_invalid")
 			return corepagination.CursorRequest{}, false
 		}
 	}
@@ -106,6 +111,7 @@ func ParseKeyset(c *gin.Context) (corepagination.KeysetRequest, bool) {
 	if !ok {
 		return corepagination.KeysetRequest{}, false
 	}
+
 	if limit != nil {
 		req.Limit = *limit
 	}
@@ -117,7 +123,45 @@ func ParseKeyset(c *gin.Context) (corepagination.KeysetRequest, bool) {
 	req.Normalize()
 
 	if err := req.Validate(); err != nil {
-		serdser.SerValidationErr(c, "after", "after_id and after_created_at must form a valid keyset cursor")
+		serdser.SerValidationErr(c, "after", "validation.keyset_after_created_at_invalid")
+		return corepagination.KeysetRequest{}, false
+	}
+
+	return req, true
+}
+
+// ParseKeysetByDueAt reads keyset pagination query parameters ordered by due_at.
+//
+// Query params:
+//
+//   - after_id
+//   - after_due_at
+//   - limit
+//   - order
+func ParseKeysetByDueAt(c *gin.Context) (corepagination.KeysetRequest, bool) {
+	req := corepagination.KeysetRequest{
+		AfterID:    strings.TrimSpace(c.Query("after_id")),
+		AfterDueAt: strings.TrimSpace(c.Query("after_due_at")),
+		Order:      corepagination.Order(strings.TrimSpace(c.Query("order"))),
+	}
+
+	limit, ok := parsePositiveIntParam(c, "limit")
+	if !ok {
+		return corepagination.KeysetRequest{}, false
+	}
+
+	if limit != nil {
+		req.Limit = *limit
+	}
+
+	if !parseOrder(c, req.Order) {
+		return corepagination.KeysetRequest{}, false
+	}
+
+	req.Normalize()
+
+	if err := req.Validate(); err != nil {
+		serdser.SerValidationErr(c, "after", "validation.keyset_after_due_at_invalid")
 		return corepagination.KeysetRequest{}, false
 	}
 
@@ -135,7 +179,7 @@ func parsePositiveIntParam(c *gin.Context, name string) (*int, bool) {
 
 	n, err := strconv.Atoi(raw)
 	if err != nil || n < 1 {
-		serdser.SerValidationErr(c, name, name+" must be a positive integer")
+		serdser.SerValidationErr(c, name, "validation.positive_integer", resti18n.Params{"field": name})
 		return nil, false
 	}
 
@@ -150,6 +194,6 @@ func parseOrder(c *gin.Context, order corepagination.Order) bool {
 		return true
 	}
 
-	serdser.SerValidationErr(c, "order", "order must be either asc or desc")
+	serdser.SerValidationErr(c, "order", "validation.order_invalid")
 	return false
 }

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 )
@@ -45,7 +46,7 @@ func Create[Q postgres.Queryer](
 	jurisdiction model.Jurisdiction,
 	actorType model.DecisionActorType,
 	actorID *uuid.UUID,
-	priorDecisionID *uuid.UUID,
+	priorDecisionID *model.DecisionID,
 	reviewableUntil *time.Time,
 	expiresAt *time.Time,
 	decidedAt time.Time,
@@ -100,10 +101,10 @@ RETURNING` + decisionColumns
 		policyVersion,
 		jurisdiction,
 		actorType,
-		actorID,
-		priorDecisionID,
-		reviewableUntil,
-		expiresAt,
+		postgres.Nullable(actorID),
+		postgres.Nullable(priorDecisionID),
+		postgres.Nullable(reviewableUntil),
+		postgres.Nullable(expiresAt),
 		decidedAt,
 		createdAt,
 		idempotencyKey,
@@ -112,17 +113,58 @@ RETURNING` + decisionColumns
 }
 
 // GetByID returns a decision by id.
-func GetByID[Q postgres.Queryer](ctx context.Context, q Q, id uuid.UUID) (model.Decision, error) {
+func GetByID[Q postgres.Queryer](ctx context.Context, q Q, id model.DecisionID) (model.Decision, error) {
 	const query = `SELECT` + decisionColumns + `FROM decisions WHERE id = $1`
 
-	return postgres.QueryOne[model.Decision](ctx, q, "get decision by id", query, id)
+	return postgres.QueryOne[model.Decision](
+		ctx,
+		q,
+		"get decision by id",
+		query,
+		id,
+	)
 }
 
 // GetByIdempotencyKey returns a decision by idempotency key.
 func GetByIdempotencyKey[Q postgres.Queryer](ctx context.Context, q Q, idempotencyKey string) (model.Decision, error) {
 	const query = `SELECT` + decisionColumns + `FROM decisions WHERE idempotency_key = $1`
 
-	return postgres.QueryOne[model.Decision](ctx, q, "get decision by idempotency key", query, idempotencyKey)
+	return postgres.QueryOne[model.Decision](
+		ctx,
+		q,
+		"get decision by idempotency key",
+		query,
+		idempotencyKey,
+	)
+}
+
+// LockLiveCheckoutDecisionByID locks an approved or conditional checkout decision
+// that has not expired.
+func LockLiveCheckoutDecisionByID[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	id model.DecisionID,
+	now time.Time,
+) (model.Decision, error) {
+	const query = `SELECT` + decisionColumns + `
+FROM decisions
+WHERE id = $1
+  AND outcome IN ($2, $3)
+  AND expires_at IS NOT NULL
+  AND expires_at > $4
+FOR UPDATE
+`
+
+	return postgres.QueryOne[model.Decision](
+		ctx,
+		q,
+		"lock live checkout decision by id",
+		query,
+		id,
+		model.ApprovedDecisionOutcome,
+		model.ConditionalDecisionOutcome,
+		now,
+	)
 }
 
 // ListByTarget returns decisions recorded for targetType and targetID.
@@ -134,11 +176,23 @@ WHERE target_type = $1
 ORDER BY decided_at DESC, created_at DESC
 `
 
-	return getMany(ctx, q, query, []any{targetType, targetID}, "list decisions by target")
+	return getMany(
+		ctx,
+		q,
+		query,
+		[]any{targetType, targetID},
+		"list decisions by target",
+	)
 }
 
 // GetLatestByTargetAndType returns the newest decision of decisionType for a target.
-func GetLatestByTargetAndType[Q postgres.Queryer](ctx context.Context, q Q, targetType model.DecisionTargetType, targetID uuid.UUID, decisionType model.DecisionType) (model.Decision, error) {
+func GetLatestByTargetAndType[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	targetType model.DecisionTargetType,
+	targetID uuid.UUID,
+	decisionType model.DecisionType,
+) (model.Decision, error) {
 	const query = `SELECT` + decisionColumns + `
 FROM decisions
 WHERE target_type = $1
@@ -148,28 +202,49 @@ ORDER BY decided_at DESC, created_at DESC
 LIMIT 1
 `
 
-	return postgres.QueryOne[model.Decision](ctx, q, "get latest decision by target and type", query, targetType, targetID, decisionType)
+	return postgres.QueryOne[model.Decision](
+		ctx,
+		q,
+		"get latest decision by target and type",
+		query,
+		targetType,
+		targetID,
+		decisionType,
+	)
 }
 
 // ListByPriorDecisionID returns decisions that reference a prior decision.
-func ListByPriorDecisionID[Q postgres.Queryer](ctx context.Context, q Q, priorDecisionID uuid.UUID) ([]model.Decision, error) {
+func ListByPriorDecisionID[Q postgres.Queryer](ctx context.Context, q Q, priorDecisionID model.DecisionID) ([]model.Decision, error) {
 	const query = `SELECT` + decisionColumns + `
 FROM decisions
 WHERE prior_decision_id = $1
 ORDER BY decided_at DESC, created_at DESC
 `
 
-	return getMany(ctx, q, query, []any{priorDecisionID}, "list decisions by prior decision id")
+	return getMany(
+		ctx,
+		q,
+		query,
+		[]any{priorDecisionID},
+		"list decisions by prior decision id",
+	)
 }
 
-func getMany[Q postgres.Queryer](ctx context.Context, q Q, query string, args []any, operation string) ([]model.Decision, error) {
+func getMany[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	query string,
+	args []any,
+	operation string,
+) ([]model.Decision, error) {
 	rows, err := q.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", operation, postgres.MapError(err))
 	}
+
 	defer rows.Close()
 
-	decisions, err := postgres.ValuesInto[model.Decision](rows.(postgres.Rows))
+	decisions, err := postgres.ValuesInto[model.Decision](postgres.MustRows(rows))
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", operation, err)
 	}

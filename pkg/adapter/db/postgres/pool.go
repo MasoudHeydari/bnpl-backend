@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
@@ -22,16 +23,20 @@ type Pool struct {
 // The function performs an initial connection lease to fail fast on invalid
 // configuration or unreachable databases.
 func NewPool(ctx context.Context, pgConfig *pgxpool.Config) (*Pool, error) {
+	const op = "postgres.NewPool"
+
 	pgPool, err := pgxpool.NewWithConfig(ctx, pgConfig)
 	if err != nil {
-		return nil, fmt.Errorf("pgxpool.NewWithConfig: %w", err)
+		return nil, fmt.Errorf("%s: pgxpool.NewWithConfig: %w", op, err)
 	}
+
 	pool := &Pool{Pool: pgPool}
 	err = pool.Conn(ctx, NoOpConnHandler)
 	if err != nil {
 		_ = pool.Close()
-		return nil, fmt.Errorf("testing connection: %w", err)
+		return nil, fmt.Errorf("%s: testing connection: %w", op, err)
 	}
+
 	return pool, nil
 }
 
@@ -43,11 +48,16 @@ func NoOpConnHandler(context.Context, repo.Conn) error {
 
 // Conn acquires a pooled connection, wraps it in the repository adapter, and
 // releases it after f returns.
+//
+// Acquire failures that wrap pgconn.ConnectError are masked so DSN identity
+// fields (user/database) are never returned to callers or API clients.
 func (p *Pool) Conn(ctx context.Context, f repo.ConnHandler) error {
-	return p.AcquireFunc(ctx, func(c *pgxpool.Conn) error {
+	err := p.AcquireFunc(ctx, func(c *pgxpool.Conn) error {
 		cc := &Conn{Conn: c}
 		return f(ctx, cc)
 	})
+
+	return MapError(err)
 }
 
 // Close closes all connections in the pool and rejects future Acquire calls.

@@ -9,7 +9,7 @@ import (
 // Config file schema version supported by this binary.
 const (
 	Major = 0
-	Minor = 2
+	Minor = 3
 	Patch = 0
 )
 
@@ -33,8 +33,11 @@ var DatabaseVersion = model.SemVer{DatabaseMajor, DatabaseMinor, DatabasePatch}
 // versions, each binary only supports the versions defined by Version
 // and DatabaseVersion for normal runtime operations.
 type Versions struct {
+	// Database is the declared database schema semantic version.
 	Database model.SemVer `yaml:"database"`
-	Config   model.SemVer `yaml:"config"`
+
+	// Config is the declared configuration file schema semantic version.
+	Config model.SemVer `yaml:"config"`
 }
 
 // Validate checks that declared configuration and database schema versions
@@ -64,6 +67,7 @@ func validateSemVer(field string, declared, supported model.SemVer) error {
 	if declared == (model.SemVer{}) {
 		return fmt.Errorf("%s: required", field)
 	}
+
 	if declared[0] != supported[0] {
 		return fmt.Errorf(
 			"%s: incompatible major version: %d",
@@ -71,6 +75,7 @@ func validateSemVer(field string, declared, supported model.SemVer) error {
 			declared[0],
 		)
 	}
+
 	if declared[1] > supported[1] {
 		return fmt.Errorf(
 			"%s: unsupported minor version: %d",
@@ -78,5 +83,6 @@ func validateSemVer(field string, declared, supported model.SemVer) error {
 			declared[1],
 		)
 	}
+
 	return nil
 }

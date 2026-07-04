@@ -41,7 +41,7 @@ func (_m *DecisionTxQueryer) EXPECT() *DecisionTxQueryer_Expecter {
 }
 
 // Create provides a mock function for the type DecisionTxQueryer
-func (_mock *DecisionTxQueryer) Create(ctx context.Context, decisionType model.DecisionType, targetType model.DecisionTargetType, targetID uuid.UUID, outcome model.DecisionOutcome, reasonCodes []string, policyID string, policyVersion string, jurisdiction model.Jurisdiction, actorType model.DecisionActorType, actorID *uuid.UUID, priorDecisionID *uuid.UUID, reviewableUntil *time.Time, expiresAt *time.Time, decidedAt time.Time, createdAt time.Time, idempotencyKey string, idempotencyFingerprint string) (model.Decision, error) {
+func (_mock *DecisionTxQueryer) Create(ctx context.Context, decisionType model.DecisionType, targetType model.DecisionTargetType, targetID uuid.UUID, outcome model.DecisionOutcome, reasonCodes []string, policyID string, policyVersion string, jurisdiction model.Jurisdiction, actorType model.DecisionActorType, actorID *uuid.UUID, priorDecisionID *model.DecisionID, reviewableUntil *time.Time, expiresAt *time.Time, decidedAt time.Time, createdAt time.Time, idempotencyKey string, idempotencyFingerprint string) (model.Decision, error) {
 	ret := _mock.Called(ctx, decisionType, targetType, targetID, outcome, reasonCodes, policyID, policyVersion, jurisdiction, actorType, actorID, priorDecisionID, reviewableUntil, expiresAt, decidedAt, createdAt, idempotencyKey, idempotencyFingerprint)
 
 	if len(ret) == 0 {
@@ -50,15 +50,15 @@ func (_mock *DecisionTxQueryer) Create(ctx context.Context, decisionType model.D
 
 	var r0 model.Decision
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.DecisionType, model.DecisionTargetType, uuid.UUID, model.DecisionOutcome, []string, string, string, model.Jurisdiction, model.DecisionActorType, *uuid.UUID, *uuid.UUID, *time.Time, *time.Time, time.Time, time.Time, string, string) (model.Decision, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.DecisionType, model.DecisionTargetType, uuid.UUID, model.DecisionOutcome, []string, string, string, model.Jurisdiction, model.DecisionActorType, *uuid.UUID, *model.DecisionID, *time.Time, *time.Time, time.Time, time.Time, string, string) (model.Decision, error)); ok {
 		return returnFunc(ctx, decisionType, targetType, targetID, outcome, reasonCodes, policyID, policyVersion, jurisdiction, actorType, actorID, priorDecisionID, reviewableUntil, expiresAt, decidedAt, createdAt, idempotencyKey, idempotencyFingerprint)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.DecisionType, model.DecisionTargetType, uuid.UUID, model.DecisionOutcome, []string, string, string, model.Jurisdiction, model.DecisionActorType, *uuid.UUID, *uuid.UUID, *time.Time, *time.Time, time.Time, time.Time, string, string) model.Decision); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.DecisionType, model.DecisionTargetType, uuid.UUID, model.DecisionOutcome, []string, string, string, model.Jurisdiction, model.DecisionActorType, *uuid.UUID, *model.DecisionID, *time.Time, *time.Time, time.Time, time.Time, string, string) model.Decision); ok {
 		r0 = returnFunc(ctx, decisionType, targetType, targetID, outcome, reasonCodes, policyID, policyVersion, jurisdiction, actorType, actorID, priorDecisionID, reviewableUntil, expiresAt, decidedAt, createdAt, idempotencyKey, idempotencyFingerprint)
 	} else {
 		r0 = ret.Get(0).(model.Decision)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, model.DecisionType, model.DecisionTargetType, uuid.UUID, model.DecisionOutcome, []string, string, string, model.Jurisdiction, model.DecisionActorType, *uuid.UUID, *uuid.UUID, *time.Time, *time.Time, time.Time, time.Time, string, string) error); ok {
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.DecisionType, model.DecisionTargetType, uuid.UUID, model.DecisionOutcome, []string, string, string, model.Jurisdiction, model.DecisionActorType, *uuid.UUID, *model.DecisionID, *time.Time, *time.Time, time.Time, time.Time, string, string) error); ok {
 		r1 = returnFunc(ctx, decisionType, targetType, targetID, outcome, reasonCodes, policyID, policyVersion, jurisdiction, actorType, actorID, priorDecisionID, reviewableUntil, expiresAt, decidedAt, createdAt, idempotencyKey, idempotencyFingerprint)
 	} else {
 		r1 = ret.Error(1)
@@ -83,7 +83,7 @@ type DecisionTxQueryer_Create_Call struct {
 //   - jurisdiction model.Jurisdiction
 //   - actorType model.DecisionActorType
 //   - actorID *uuid.UUID
-//   - priorDecisionID *uuid.UUID
+//   - priorDecisionID *model.DecisionID
 //   - reviewableUntil *time.Time
 //   - expiresAt *time.Time
 //   - decidedAt time.Time
@@ -94,7 +94,7 @@ func (_e *DecisionTxQueryer_Expecter) Create(ctx any, decisionType any, targetTy
 	return &DecisionTxQueryer_Create_Call{Call: _e.mock.On("Create", ctx, decisionType, targetType, targetID, outcome, reasonCodes, policyID, policyVersion, jurisdiction, actorType, actorID, priorDecisionID, reviewableUntil, expiresAt, decidedAt, createdAt, idempotencyKey, idempotencyFingerprint)}
 }
 
-func (_c *DecisionTxQueryer_Create_Call) Run(run func(ctx context.Context, decisionType model.DecisionType, targetType model.DecisionTargetType, targetID uuid.UUID, outcome model.DecisionOutcome, reasonCodes []string, policyID string, policyVersion string, jurisdiction model.Jurisdiction, actorType model.DecisionActorType, actorID *uuid.UUID, priorDecisionID *uuid.UUID, reviewableUntil *time.Time, expiresAt *time.Time, decidedAt time.Time, createdAt time.Time, idempotencyKey string, idempotencyFingerprint string)) *DecisionTxQueryer_Create_Call {
+func (_c *DecisionTxQueryer_Create_Call) Run(run func(ctx context.Context, decisionType model.DecisionType, targetType model.DecisionTargetType, targetID uuid.UUID, outcome model.DecisionOutcome, reasonCodes []string, policyID string, policyVersion string, jurisdiction model.Jurisdiction, actorType model.DecisionActorType, actorID *uuid.UUID, priorDecisionID *model.DecisionID, reviewableUntil *time.Time, expiresAt *time.Time, decidedAt time.Time, createdAt time.Time, idempotencyKey string, idempotencyFingerprint string)) *DecisionTxQueryer_Create_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -140,9 +140,9 @@ func (_c *DecisionTxQueryer_Create_Call) Run(run func(ctx context.Context, decis
 		if args[10] != nil {
 			arg10 = args[10].(*uuid.UUID)
 		}
-		var arg11 *uuid.UUID
+		var arg11 *model.DecisionID
 		if args[11] != nil {
-			arg11 = args[11].(*uuid.UUID)
+			arg11 = args[11].(*model.DecisionID)
 		}
 		var arg12 *time.Time
 		if args[12] != nil {
@@ -197,13 +197,13 @@ func (_c *DecisionTxQueryer_Create_Call) Return(decision model.Decision, err err
 	return _c
 }
 
-func (_c *DecisionTxQueryer_Create_Call) RunAndReturn(run func(ctx context.Context, decisionType model.DecisionType, targetType model.DecisionTargetType, targetID uuid.UUID, outcome model.DecisionOutcome, reasonCodes []string, policyID string, policyVersion string, jurisdiction model.Jurisdiction, actorType model.DecisionActorType, actorID *uuid.UUID, priorDecisionID *uuid.UUID, reviewableUntil *time.Time, expiresAt *time.Time, decidedAt time.Time, createdAt time.Time, idempotencyKey string, idempotencyFingerprint string) (model.Decision, error)) *DecisionTxQueryer_Create_Call {
+func (_c *DecisionTxQueryer_Create_Call) RunAndReturn(run func(ctx context.Context, decisionType model.DecisionType, targetType model.DecisionTargetType, targetID uuid.UUID, outcome model.DecisionOutcome, reasonCodes []string, policyID string, policyVersion string, jurisdiction model.Jurisdiction, actorType model.DecisionActorType, actorID *uuid.UUID, priorDecisionID *model.DecisionID, reviewableUntil *time.Time, expiresAt *time.Time, decidedAt time.Time, createdAt time.Time, idempotencyKey string, idempotencyFingerprint string) (model.Decision, error)) *DecisionTxQueryer_Create_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetByID provides a mock function for the type DecisionTxQueryer
-func (_mock *DecisionTxQueryer) GetByID(ctx context.Context, id uuid.UUID) (model.Decision, error) {
+func (_mock *DecisionTxQueryer) GetByID(ctx context.Context, id model.DecisionID) (model.Decision, error) {
 	ret := _mock.Called(ctx, id)
 
 	if len(ret) == 0 {
@@ -212,15 +212,15 @@ func (_mock *DecisionTxQueryer) GetByID(ctx context.Context, id uuid.UUID) (mode
 
 	var r0 model.Decision
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) (model.Decision, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.DecisionID) (model.Decision, error)); ok {
 		return returnFunc(ctx, id)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) model.Decision); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.DecisionID) model.Decision); ok {
 		r0 = returnFunc(ctx, id)
 	} else {
 		r0 = ret.Get(0).(model.Decision)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.DecisionID) error); ok {
 		r1 = returnFunc(ctx, id)
 	} else {
 		r1 = ret.Error(1)
@@ -235,20 +235,20 @@ type DecisionTxQueryer_GetByID_Call struct {
 
 // GetByID is a helper method to define mock.On call
 //   - ctx context.Context
-//   - id uuid.UUID
+//   - id model.DecisionID
 func (_e *DecisionTxQueryer_Expecter) GetByID(ctx any, id any) *DecisionTxQueryer_GetByID_Call {
 	return &DecisionTxQueryer_GetByID_Call{Call: _e.mock.On("GetByID", ctx, id)}
 }
 
-func (_c *DecisionTxQueryer_GetByID_Call) Run(run func(ctx context.Context, id uuid.UUID)) *DecisionTxQueryer_GetByID_Call {
+func (_c *DecisionTxQueryer_GetByID_Call) Run(run func(ctx context.Context, id model.DecisionID)) *DecisionTxQueryer_GetByID_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 uuid.UUID
+		var arg1 model.DecisionID
 		if args[1] != nil {
-			arg1 = args[1].(uuid.UUID)
+			arg1 = args[1].(model.DecisionID)
 		}
 		run(
 			arg0,
@@ -263,7 +263,7 @@ func (_c *DecisionTxQueryer_GetByID_Call) Return(decision model.Decision, err er
 	return _c
 }
 
-func (_c *DecisionTxQueryer_GetByID_Call) RunAndReturn(run func(ctx context.Context, id uuid.UUID) (model.Decision, error)) *DecisionTxQueryer_GetByID_Call {
+func (_c *DecisionTxQueryer_GetByID_Call) RunAndReturn(run func(ctx context.Context, id model.DecisionID) (model.Decision, error)) *DecisionTxQueryer_GetByID_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -413,7 +413,7 @@ func (_c *DecisionTxQueryer_GetLatestByTargetAndType_Call) RunAndReturn(run func
 }
 
 // ListByPriorDecisionID provides a mock function for the type DecisionTxQueryer
-func (_mock *DecisionTxQueryer) ListByPriorDecisionID(ctx context.Context, priorDecisionID uuid.UUID) ([]model.Decision, error) {
+func (_mock *DecisionTxQueryer) ListByPriorDecisionID(ctx context.Context, priorDecisionID model.DecisionID) ([]model.Decision, error) {
 	ret := _mock.Called(ctx, priorDecisionID)
 
 	if len(ret) == 0 {
@@ -422,17 +422,17 @@ func (_mock *DecisionTxQueryer) ListByPriorDecisionID(ctx context.Context, prior
 
 	var r0 []model.Decision
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) ([]model.Decision, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.DecisionID) ([]model.Decision, error)); ok {
 		return returnFunc(ctx, priorDecisionID)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) []model.Decision); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.DecisionID) []model.Decision); ok {
 		r0 = returnFunc(ctx, priorDecisionID)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]model.Decision)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.DecisionID) error); ok {
 		r1 = returnFunc(ctx, priorDecisionID)
 	} else {
 		r1 = ret.Error(1)
@@ -447,20 +447,20 @@ type DecisionTxQueryer_ListByPriorDecisionID_Call struct {
 
 // ListByPriorDecisionID is a helper method to define mock.On call
 //   - ctx context.Context
-//   - priorDecisionID uuid.UUID
+//   - priorDecisionID model.DecisionID
 func (_e *DecisionTxQueryer_Expecter) ListByPriorDecisionID(ctx any, priorDecisionID any) *DecisionTxQueryer_ListByPriorDecisionID_Call {
 	return &DecisionTxQueryer_ListByPriorDecisionID_Call{Call: _e.mock.On("ListByPriorDecisionID", ctx, priorDecisionID)}
 }
 
-func (_c *DecisionTxQueryer_ListByPriorDecisionID_Call) Run(run func(ctx context.Context, priorDecisionID uuid.UUID)) *DecisionTxQueryer_ListByPriorDecisionID_Call {
+func (_c *DecisionTxQueryer_ListByPriorDecisionID_Call) Run(run func(ctx context.Context, priorDecisionID model.DecisionID)) *DecisionTxQueryer_ListByPriorDecisionID_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 uuid.UUID
+		var arg1 model.DecisionID
 		if args[1] != nil {
-			arg1 = args[1].(uuid.UUID)
+			arg1 = args[1].(model.DecisionID)
 		}
 		run(
 			arg0,
@@ -475,7 +475,7 @@ func (_c *DecisionTxQueryer_ListByPriorDecisionID_Call) Return(decisions []model
 	return _c
 }
 
-func (_c *DecisionTxQueryer_ListByPriorDecisionID_Call) RunAndReturn(run func(ctx context.Context, priorDecisionID uuid.UUID) ([]model.Decision, error)) *DecisionTxQueryer_ListByPriorDecisionID_Call {
+func (_c *DecisionTxQueryer_ListByPriorDecisionID_Call) RunAndReturn(run func(ctx context.Context, priorDecisionID model.DecisionID) ([]model.Decision, error)) *DecisionTxQueryer_ListByPriorDecisionID_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -550,6 +550,78 @@ func (_c *DecisionTxQueryer_ListByTarget_Call) Return(decisions []model.Decision
 }
 
 func (_c *DecisionTxQueryer_ListByTarget_Call) RunAndReturn(run func(ctx context.Context, targetType model.DecisionTargetType, targetID uuid.UUID) ([]model.Decision, error)) *DecisionTxQueryer_ListByTarget_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// LockLiveCheckoutDecisionByID provides a mock function for the type DecisionTxQueryer
+func (_mock *DecisionTxQueryer) LockLiveCheckoutDecisionByID(ctx context.Context, id model.DecisionID, now time.Time) (model.Decision, error) {
+	ret := _mock.Called(ctx, id, now)
+
+	if len(ret) == 0 {
+		panic("no return value specified for LockLiveCheckoutDecisionByID")
+	}
+
+	var r0 model.Decision
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.DecisionID, time.Time) (model.Decision, error)); ok {
+		return returnFunc(ctx, id, now)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.DecisionID, time.Time) model.Decision); ok {
+		r0 = returnFunc(ctx, id, now)
+	} else {
+		r0 = ret.Get(0).(model.Decision)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.DecisionID, time.Time) error); ok {
+		r1 = returnFunc(ctx, id, now)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// DecisionTxQueryer_LockLiveCheckoutDecisionByID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'LockLiveCheckoutDecisionByID'
+type DecisionTxQueryer_LockLiveCheckoutDecisionByID_Call struct {
+	*mock.Call
+}
+
+// LockLiveCheckoutDecisionByID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id model.DecisionID
+//   - now time.Time
+func (_e *DecisionTxQueryer_Expecter) LockLiveCheckoutDecisionByID(ctx any, id any, now any) *DecisionTxQueryer_LockLiveCheckoutDecisionByID_Call {
+	return &DecisionTxQueryer_LockLiveCheckoutDecisionByID_Call{Call: _e.mock.On("LockLiveCheckoutDecisionByID", ctx, id, now)}
+}
+
+func (_c *DecisionTxQueryer_LockLiveCheckoutDecisionByID_Call) Run(run func(ctx context.Context, id model.DecisionID, now time.Time)) *DecisionTxQueryer_LockLiveCheckoutDecisionByID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.DecisionID
+		if args[1] != nil {
+			arg1 = args[1].(model.DecisionID)
+		}
+		var arg2 time.Time
+		if args[2] != nil {
+			arg2 = args[2].(time.Time)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *DecisionTxQueryer_LockLiveCheckoutDecisionByID_Call) Return(decision model.Decision, err error) *DecisionTxQueryer_LockLiveCheckoutDecisionByID_Call {
+	_c.Call.Return(decision, err)
+	return _c
+}
+
+func (_c *DecisionTxQueryer_LockLiveCheckoutDecisionByID_Call) RunAndReturn(run func(ctx context.Context, id model.DecisionID, now time.Time) (model.Decision, error)) *DecisionTxQueryer_LockLiveCheckoutDecisionByID_Call {
 	_c.Call.Return(run)
 	return _c
 }

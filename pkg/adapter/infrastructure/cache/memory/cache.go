@@ -52,13 +52,15 @@ func (c *Cache) Get(ctx context.Context, key string) ([]byte, error) {
 		c.mu.RUnlock()
 		return nil, cache.ErrMiss
 	}
+
 	it, ok := c.items[key]
 	c.mu.RUnlock()
 
 	if !ok || it.expired() {
 		if ok {
-			_ = c.Delete(ctx, key)
+			c.remove(key)
 		}
+
 		return nil, cache.ErrMiss
 	}
 
@@ -151,13 +153,15 @@ func (c *Cache) Exists(ctx context.Context, key string) (bool, error) {
 		c.mu.RUnlock()
 		return false, nil
 	}
+
 	it, ok := c.items[key]
 	c.mu.RUnlock()
 
 	if !ok || it.expired() {
 		if ok {
-			_ = c.Delete(ctx, key)
+			c.remove(key)
 		}
+
 		return false, nil
 	}
 
@@ -178,13 +182,15 @@ func (c *Cache) TTL(ctx context.Context, key string) (time.Duration, error) {
 		c.mu.RUnlock()
 		return 0, cache.ErrMiss
 	}
+
 	it, ok := c.items[key]
 	c.mu.RUnlock()
 
 	if !ok || it.expired() {
 		if ok {
-			_ = c.Delete(ctx, key)
+			c.remove(key)
 		}
+
 		return 0, cache.ErrMiss
 	}
 
@@ -255,6 +261,21 @@ func (c *Cache) Close() error {
 
 func (i item) expired() bool {
 	return !i.expiresAt.IsZero() && time.Now().After(i.expiresAt)
+}
+
+// remove deletes keys without consulting ctx. It is used for lazy expiry cleanup
+// where context cancellation must not prevent removing stale entries.
+func (c *Cache) remove(keys ...string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.closed {
+		return
+	}
+
+	for _, key := range keys {
+		delete(c.items, key)
+	}
 }
 
 func expiresAt(ttl time.Duration) time.Time {

@@ -1,91 +1,60 @@
-# ADR 0008: Destructive Database Initialization Strategy
+# ADR 0008: Environment-Gated Database Initialization
 
 ## Status
 
-Accepted
+Accepted (amended)
 
 ## Context
 
-Greenfield environments need a reliable way to create the managed PostgreSQL schema, application role, and base tables. The `InitDBUseCase` (`pkg/core/usecase/migrationsuc/initdb.go`) implements a **reset-style** bootstrap:
-
-**Admin phase** (single transaction):
-
-1. `DropIfExists` on schema `bnpl` — **CASCADE deletes all objects**
-2. `CreateSchema`
-3. `CreateRoleIfNotExists` for role `bnpl`
-4. `GrantPrivileges` and `SetSearchPath`
-
-**Application phase** (single transaction):
-
-1. Execute embedded `000_schema.sql`
-2. Execute `000_dev.sql` or `000_prod.sql`
-
-Both `bnpl db init-dev` and `bnpl db init-prod` invoke this same destructive admin phase; only the seed SQL file differs (both empty today).
+Greenfield environments need a reliable way to create the managed PostgreSQL schema, application role, and base tables. Operators also need a hard guard so production data cannot be wiped by bootstrap commands.
 
 ## Decision
 
-Provide explicit CLI commands for destructive initialization:
+Gate bootstrap by `runtime.environment` (`APP_ENVIRONMENT`) and split behavior:
 
-- `init-dev` — calls `InitDBUseCase.InitDev`
-- `init-prod` — calls `InitDBUseCase.InitProd`
+### `init-dev` (`InitDBUseCase.InitDev`)
 
-Name `init-prod` refers to **production-style seed SQL**, not **production-safe operation**. Both commands destroy existing data in schema `bnpl`.
+- Requires `APP_ENVIRONMENT=development`.
+- Always **drops and recreates** schema `bnpl` (`DropIfExists` CASCADE), whether empty or populated.
+- Applies embedded `000_schema.sql` + `000_dev.sql`.
 
-Do not run these commands against live production databases holding borrower or merchant data.
+### `init-prod` (`InitDBUseCase.InitProd`)
 
-Separate incremental evolution is intended for `db migrate` (filesystem SQL, migration table tracking), which is not yet fully wired.
+- Requires `APP_ENVIRONMENT=production`.
+- If schema `bnpl` **exists** → conflict error; no drop/mutation; operators must use `db migrate`.
+- If schema `bnpl` is **missing** → create schema, role, privileges, then apply embedded `000_schema.sql` + `000_prod.sql`.
+
+Incremental evolution uses `db migrate` (filesystem SQL + `migrations` table checksum tracking).
 
 ## Consequences
 
 **Positive**
 
-- Predictable greenfield setup for developers and CI.
-- Admin and app phases each wrapped in transactions; partial bootstrap failures roll back.
-- Clear operator intent: command names signal reset, not patch.
+- Development resets remain predictable and complete.
+- Production bootstrap cannot wipe an existing managed schema.
+- Environment mismatch fails fast before DDL.
 
 **Negative**
 
-- **Total data loss** in schema `bnpl` on every run.
-- Docker entrypoint defaults to `init-dev` on every container start (ADR 0006).
-- No confirmation prompt or `--dry-run` guard.
-- `init-prod` naming misleads operators into assuming safety; documentation must emphasize destructiveness.
-- Admin credentials required for routine dev resets — broad privilege exposure during bootstrap.
+- `init-dev` still destroys all objects in schema `bnpl` on every successful run.
+- Empty or partially created schema `bnpl` blocks `init-prod` and requires migrate/manual repair.
 
 **Operational impact**
 
-- Production deployments using this entrypoint will **wipe BNPL data** on pod restart until entrypoint and init strategy change.
-- Backups and point-in-time recovery are the only recovery path after accidental `init-*`.
-- Role `bnpl` is recreated if missing but existing role password is set only on first creation (`CreateRoleIfNotExists`); password rotation requires manual DDL.
+- Steady-state production: run `bnpl db migrate` (or an init Job); do not bootstrap from the HTTP entrypoint.
+- One-time production greenfield: `APP_ENVIRONMENT=production` + `init-prod` once.
+- Local/CI: `APP_ENVIRONMENT=development` + `init-dev`.
 
 ## Alternatives Considered
 
-**Non-destructive `CREATE IF NOT EXISTS` bootstrap only**
+**Make both commands non-destructive `CREATE IF NOT EXISTS`**
 
-- Rejected for current phase: does not handle schema drift or clean dev resets; planned via migration tooling instead.
+- Rejected for development: prevents clean resets and hides schema drift.
 
-**Separate admin tool outside the application binary**
+**Keep destructive `init-prod`**
 
-- Rejected: duplicates config and connection logic; single binary preferred (ADR 0005).
-
-**Flyway baseline + migrate without drop**
-
-- Target state for production; not implemented. Would replace destructive init for evolved environments.
+- Rejected: naming encouraged accidental production wipes.
 
 ## Relationship To Future BNPL Domains
 
-BNPL data (contracts, installments, payment history, audit logs) is **legally and financially sensitive**. Destructive init must be confined to:
-
-- Local developer machines
-- Ephemeral CI databases
-- One-time greenfield staging setup
-
-Production schema evolution must transition to:
-
-1. Versioned forward migrations (`db migrate`)
-2. Backward-compatible DDL with expand-contract patterns
-3. Admin role usage limited to migration jobs, not runtime pods
-4. Audit records preserved across upgrades
-
-Future domains requiring strong auditability (Audit, LegalCase, CollectionsCase) cannot coexist with routine `DROP SCHEMA CASCADE` in production.
-
-**Open gap:** No implemented production-safe migration path yet. Until then, treat `init-dev` and `init-prod` as **development reset tools only**.
+BNPL data is legally and financially sensitive. Destructive recreate remains confined to development. Production evolution stays on versioned forward migrations with expand/contract DDL.

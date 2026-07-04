@@ -54,3 +54,27 @@ fabric.properties
 dist
 *.env
 doc/collections/http-client.env.json
+
+# Ignore Cursor local state, but keep the always-on test-verification rule.
+.cursor/
+
+.codex/
+.claude/
+graphify-out/
+AGENTS.md
+# Retain the legacy ignore rule to avoid accidentally committing local historical CSV files.
+assets/csv/trusted-subjects/*.csv
+assets/csv/trusted-customers/*.csv
+# Development-only TLS keys and local overrides.
+assets/local-development/**/*.key
+assets/local-development/**/*-key.pem
+assets/local-development/**/.env
+# Outbound mTLS PEMs for FC/customer/notification (keep README tracked).
+assets/local-development/certs/*
+!assets/local-development/certs/README.md
+# Grafana admin Docker secret for local Loki stack.
+assets/local-development/secrets/bnpl_loki_grafana_password
+# Local host log files collected by Promtail (keep directory .gitkeep files).
+assets/local-development/logs/**/*.log
+assets/local-development/logs/**/*.json
+.gocache

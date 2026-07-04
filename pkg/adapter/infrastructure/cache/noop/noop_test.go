@@ -5,9 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	cachenoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/cache/noop"
 	"github.com/parstis/bnpl-backend/pkg/core/cache"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGetAlwaysMisses(t *testing.T) {

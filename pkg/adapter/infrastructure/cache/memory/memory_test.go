@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/parstis/bnpl-backend/pkg/core/cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/parstis/bnpl-backend/pkg/core/cache"
 )
 
 func TestGet_MissingKey_ReturnsMiss(t *testing.T) {

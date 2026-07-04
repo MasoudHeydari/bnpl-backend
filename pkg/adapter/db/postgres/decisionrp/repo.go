@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
@@ -24,12 +25,12 @@ func New() *Repo {
 
 // Conn binds the repository to a non-transactional connection scope.
 func (r *Repo) Conn(c repo.Conn) repo.DecisionConnQueryer {
-	return connQueryer{Conn: c.(*postgres.Conn)}
+	return connQueryer{Conn: postgres.MustConn(c)}
 }
 
 // Tx binds the repository to a transaction scope.
 func (r *Repo) Tx(tx repo.Tx) repo.DecisionTxQueryer {
-	return txQueryer{Tx: tx.(*postgres.Tx)}
+	return txQueryer{Tx: postgres.MustTx(tx)}
 }
 
 type connQueryer struct {
@@ -40,7 +41,7 @@ type connQueryer struct {
 var _ repo.DecisionConnQueryer = (*connQueryer)(nil)
 
 // GetByID returns the decision identified by id.
-func (q connQueryer) GetByID(ctx context.Context, id uuid.UUID) (model.Decision, error) {
+func (q connQueryer) GetByID(ctx context.Context, id model.DecisionID) (model.Decision, error) {
 	return GetByID(ctx, q.Conn, id)
 }
 
@@ -51,11 +52,17 @@ func (q connQueryer) ListByTarget(ctx context.Context, targetType model.Decision
 
 // GetLatestByTargetAndType returns the newest decision of type decisionType for a target.
 func (q connQueryer) GetLatestByTargetAndType(ctx context.Context, targetType model.DecisionTargetType, targetID uuid.UUID, decisionType model.DecisionType) (model.Decision, error) {
-	return GetLatestByTargetAndType(ctx, q.Conn, targetType, targetID, decisionType)
+	return GetLatestByTargetAndType(
+		ctx,
+		q.Conn,
+		targetType,
+		targetID,
+		decisionType,
+	)
 }
 
 // ListByPriorDecisionID returns decisions that override, renew, or correct a prior decision.
-func (q connQueryer) ListByPriorDecisionID(ctx context.Context, priorDecisionID uuid.UUID) ([]model.Decision, error) {
+func (q connQueryer) ListByPriorDecisionID(ctx context.Context, priorDecisionID model.DecisionID) ([]model.Decision, error) {
 	return ListByPriorDecisionID(ctx, q.Conn, priorDecisionID)
 }
 
@@ -72,7 +79,7 @@ type txQueryer struct {
 var _ repo.DecisionTxQueryer = (*txQueryer)(nil)
 
 // GetByID returns the decision identified by id.
-func (q txQueryer) GetByID(ctx context.Context, id uuid.UUID) (model.Decision, error) {
+func (q txQueryer) GetByID(ctx context.Context, id model.DecisionID) (model.Decision, error) {
 	return GetByID(ctx, q.Tx, id)
 }
 
@@ -83,17 +90,31 @@ func (q txQueryer) ListByTarget(ctx context.Context, targetType model.DecisionTa
 
 // GetLatestByTargetAndType returns the newest decision of type decisionType for a target.
 func (q txQueryer) GetLatestByTargetAndType(ctx context.Context, targetType model.DecisionTargetType, targetID uuid.UUID, decisionType model.DecisionType) (model.Decision, error) {
-	return GetLatestByTargetAndType(ctx, q.Tx, targetType, targetID, decisionType)
+	return GetLatestByTargetAndType(
+		ctx,
+		q.Tx,
+		targetType,
+		targetID,
+		decisionType,
+	)
 }
 
 // ListByPriorDecisionID returns decisions that override, renew, or correct a prior decision.
-func (q txQueryer) ListByPriorDecisionID(ctx context.Context, priorDecisionID uuid.UUID) ([]model.Decision, error) {
+func (q txQueryer) ListByPriorDecisionID(ctx context.Context, priorDecisionID model.DecisionID) ([]model.Decision, error) {
 	return ListByPriorDecisionID(ctx, q.Tx, priorDecisionID)
 }
 
 // GetByIdempotencyKey returns the decision recorded for idempotencyKey.
 func (q txQueryer) GetByIdempotencyKey(ctx context.Context, idempotencyKey string) (model.Decision, error) {
 	return GetByIdempotencyKey(ctx, q.Tx, idempotencyKey)
+}
+
+func (q txQueryer) LockLiveCheckoutDecisionByID(
+	ctx context.Context,
+	id model.DecisionID,
+	now time.Time,
+) (model.Decision, error) {
+	return LockLiveCheckoutDecisionByID(ctx, q.Tx, id, now)
 }
 
 // Create stores a new decision audit envelope inside the current transaction.
@@ -109,7 +130,7 @@ func (q txQueryer) Create(
 	jurisdiction model.Jurisdiction,
 	actorType model.DecisionActorType,
 	actorID *uuid.UUID,
-	priorDecisionID *uuid.UUID,
+	priorDecisionID *model.DecisionID,
 	reviewableUntil *time.Time,
 	expiresAt *time.Time,
 	decidedAt time.Time,

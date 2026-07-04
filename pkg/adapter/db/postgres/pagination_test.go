@@ -6,10 +6,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
-	"github.com/parstis/bnpl-backend/pkg/core/pagination"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
+	"github.com/parstis/bnpl-backend/pkg/core/pagination"
 )
 
 func TestSortMap_Column(t *testing.T) {
@@ -246,11 +247,25 @@ func TestCursorWhereRejectsNilID(t *testing.T) {
 func TestCursorWhereRejectsUnsafeColumns(t *testing.T) {
 	id := uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
 
-	_, _, err := postgres.CursorWhere("created_at;DROP", "id", "x", id, pagination.OrderDesc, 1)
+	_, _, err := postgres.CursorWhere(
+		"created_at;DROP",
+		"id",
+		"x",
+		id,
+		pagination.OrderDesc,
+		1,
+	)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, postgres.ErrUnsafeSQLColumn))
 
-	_, _, err = postgres.CursorWhere("created_at", "id;DROP", "x", id, pagination.OrderDesc, 1)
+	_, _, err = postgres.CursorWhere(
+		"created_at",
+		"id;DROP",
+		"x",
+		id,
+		pagination.OrderDesc,
+		1,
+	)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, postgres.ErrUnsafeSQLColumn))
 }

@@ -6,10 +6,9 @@ package mock
 
 import (
 	"context"
-	"encoding/json"
-	"time"
 
 	"github.com/parstis/bnpl-backend/pkg/core/model"
+	"github.com/parstis/bnpl-backend/pkg/core/repo"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -41,8 +40,8 @@ func (_m *OutboxTxQueryer) EXPECT() *OutboxTxQueryer_Expecter {
 }
 
 // Create provides a mock function for the type OutboxTxQueryer
-func (_mock *OutboxTxQueryer) Create(ctx context.Context, destination string, eventType string, aggregateType *string, payload json.RawMessage, status model.OutboxStatus, attemptCount int, maxAttempts int, nextAttemptAt time.Time, lockedAt *time.Time, lockedBy *string, lastError *string, createdAt time.Time, publishedAt *time.Time) (model.OutboxMessage, error) {
-	ret := _mock.Called(ctx, destination, eventType, aggregateType, payload, status, attemptCount, maxAttempts, nextAttemptAt, lockedAt, lockedBy, lastError, createdAt, publishedAt)
+func (_mock *OutboxTxQueryer) Create(ctx context.Context, message repo.CreateOutboxMessage) (model.OutboxMessage, error) {
+	ret := _mock.Called(ctx, message)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Create")
@@ -50,16 +49,16 @@ func (_mock *OutboxTxQueryer) Create(ctx context.Context, destination string, ev
 
 	var r0 model.OutboxMessage
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string, *string, json.RawMessage, model.OutboxStatus, int, int, time.Time, *time.Time, *string, *string, time.Time, *time.Time) (model.OutboxMessage, error)); ok {
-		return returnFunc(ctx, destination, eventType, aggregateType, payload, status, attemptCount, maxAttempts, nextAttemptAt, lockedAt, lockedBy, lastError, createdAt, publishedAt)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, repo.CreateOutboxMessage) (model.OutboxMessage, error)); ok {
+		return returnFunc(ctx, message)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string, *string, json.RawMessage, model.OutboxStatus, int, int, time.Time, *time.Time, *string, *string, time.Time, *time.Time) model.OutboxMessage); ok {
-		r0 = returnFunc(ctx, destination, eventType, aggregateType, payload, status, attemptCount, maxAttempts, nextAttemptAt, lockedAt, lockedBy, lastError, createdAt, publishedAt)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, repo.CreateOutboxMessage) model.OutboxMessage); ok {
+		r0 = returnFunc(ctx, message)
 	} else {
 		r0 = ret.Get(0).(model.OutboxMessage)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, string, string, *string, json.RawMessage, model.OutboxStatus, int, int, time.Time, *time.Time, *string, *string, time.Time, *time.Time) error); ok {
-		r1 = returnFunc(ctx, destination, eventType, aggregateType, payload, status, attemptCount, maxAttempts, nextAttemptAt, lockedAt, lockedBy, lastError, createdAt, publishedAt)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, repo.CreateOutboxMessage) error); ok {
+		r1 = returnFunc(ctx, message)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -73,96 +72,24 @@ type OutboxTxQueryer_Create_Call struct {
 
 // Create is a helper method to define mock.On call
 //   - ctx context.Context
-//   - destination string
-//   - eventType string
-//   - aggregateType *string
-//   - payload json.RawMessage
-//   - status model.OutboxStatus
-//   - attemptCount int
-//   - maxAttempts int
-//   - nextAttemptAt time.Time
-//   - lockedAt *time.Time
-//   - lockedBy *string
-//   - lastError *string
-//   - createdAt time.Time
-//   - publishedAt *time.Time
-func (_e *OutboxTxQueryer_Expecter) Create(ctx any, destination any, eventType any, aggregateType any, payload any, status any, attemptCount any, maxAttempts any, nextAttemptAt any, lockedAt any, lockedBy any, lastError any, createdAt any, publishedAt any) *OutboxTxQueryer_Create_Call {
-	return &OutboxTxQueryer_Create_Call{Call: _e.mock.On("Create", ctx, destination, eventType, aggregateType, payload, status, attemptCount, maxAttempts, nextAttemptAt, lockedAt, lockedBy, lastError, createdAt, publishedAt)}
+//   - message repo.CreateOutboxMessage
+func (_e *OutboxTxQueryer_Expecter) Create(ctx any, message any) *OutboxTxQueryer_Create_Call {
+	return &OutboxTxQueryer_Create_Call{Call: _e.mock.On("Create", ctx, message)}
 }
 
-func (_c *OutboxTxQueryer_Create_Call) Run(run func(ctx context.Context, destination string, eventType string, aggregateType *string, payload json.RawMessage, status model.OutboxStatus, attemptCount int, maxAttempts int, nextAttemptAt time.Time, lockedAt *time.Time, lockedBy *string, lastError *string, createdAt time.Time, publishedAt *time.Time)) *OutboxTxQueryer_Create_Call {
+func (_c *OutboxTxQueryer_Create_Call) Run(run func(ctx context.Context, message repo.CreateOutboxMessage)) *OutboxTxQueryer_Create_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 string
+		var arg1 repo.CreateOutboxMessage
 		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
-		var arg2 string
-		if args[2] != nil {
-			arg2 = args[2].(string)
-		}
-		var arg3 *string
-		if args[3] != nil {
-			arg3 = args[3].(*string)
-		}
-		var arg4 json.RawMessage
-		if args[4] != nil {
-			arg4 = args[4].(json.RawMessage)
-		}
-		var arg5 model.OutboxStatus
-		if args[5] != nil {
-			arg5 = args[5].(model.OutboxStatus)
-		}
-		var arg6 int
-		if args[6] != nil {
-			arg6 = args[6].(int)
-		}
-		var arg7 int
-		if args[7] != nil {
-			arg7 = args[7].(int)
-		}
-		var arg8 time.Time
-		if args[8] != nil {
-			arg8 = args[8].(time.Time)
-		}
-		var arg9 *time.Time
-		if args[9] != nil {
-			arg9 = args[9].(*time.Time)
-		}
-		var arg10 *string
-		if args[10] != nil {
-			arg10 = args[10].(*string)
-		}
-		var arg11 *string
-		if args[11] != nil {
-			arg11 = args[11].(*string)
-		}
-		var arg12 time.Time
-		if args[12] != nil {
-			arg12 = args[12].(time.Time)
-		}
-		var arg13 *time.Time
-		if args[13] != nil {
-			arg13 = args[13].(*time.Time)
+			arg1 = args[1].(repo.CreateOutboxMessage)
 		}
 		run(
 			arg0,
 			arg1,
-			arg2,
-			arg3,
-			arg4,
-			arg5,
-			arg6,
-			arg7,
-			arg8,
-			arg9,
-			arg10,
-			arg11,
-			arg12,
-			arg13,
 		)
 	})
 	return _c
@@ -173,7 +100,7 @@ func (_c *OutboxTxQueryer_Create_Call) Return(outboxMessage model.OutboxMessage,
 	return _c
 }
 
-func (_c *OutboxTxQueryer_Create_Call) RunAndReturn(run func(ctx context.Context, destination string, eventType string, aggregateType *string, payload json.RawMessage, status model.OutboxStatus, attemptCount int, maxAttempts int, nextAttemptAt time.Time, lockedAt *time.Time, lockedBy *string, lastError *string, createdAt time.Time, publishedAt *time.Time) (model.OutboxMessage, error)) *OutboxTxQueryer_Create_Call {
+func (_c *OutboxTxQueryer_Create_Call) RunAndReturn(run func(ctx context.Context, message repo.CreateOutboxMessage) (model.OutboxMessage, error)) *OutboxTxQueryer_Create_Call {
 	_c.Call.Return(run)
 	return _c
 }

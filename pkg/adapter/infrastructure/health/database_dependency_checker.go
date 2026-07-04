@@ -27,25 +27,34 @@ type DatabaseDependencyChecker struct {
 // NewDatabaseDependencyChecker constructs a database dependency checker.
 func NewDatabaseDependencyChecker(
 	pool repo.Pool,
-	health repo.Health,
-) *DatabaseDependencyChecker {
+	healthRepo repo.Health,
+) (*DatabaseDependencyChecker, error) {
+	const op = "health.NewDatabaseDependencyChecker"
+
+	if pool == nil {
+		return nil, fmt.Errorf("%s: database dependency checker pool is nil", op)
+	}
+
+	if healthRepo == nil {
+		return nil, fmt.Errorf("%s: database dependency checker health repository is nil", op)
+	}
+
 	return &DatabaseDependencyChecker{
 		pool:   pool,
-		health: health,
-	}
+		health: healthRepo,
+	}, nil
 }
 
 // Check verifies that the database is reachable and able to serve requests.
 func (c *DatabaseDependencyChecker) Check(ctx context.Context) error {
-	if c.pool == nil || c.health == nil {
-		return nil
-	}
+	const op = "health.DatabaseDependencyChecker.Check"
 
 	if err := c.pool.Conn(
 		ctx,
 		func(ctx context.Context, conn repo.Conn) error {
-			if err := c.health.Conn(conn).Ping(ctx); err != nil {
-				return fmt.Errorf("database: %w", err)
+			healthQ := c.health.Conn(conn)
+			if err := healthQ.Ping(ctx); err != nil {
+				return fmt.Errorf("%s: database: %w", op, err)
 			}
 
 			return nil

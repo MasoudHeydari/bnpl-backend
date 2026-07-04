@@ -2,9 +2,40 @@
 
 This document describes how sensitive data is handled in the current codebase, what protections exist, what does **not** exist, and how operators should manage secrets. It does not overstate security guarantees.
 
-## Scope
+## Scope and trust boundaries
 
-The repository is in a **bootstrap phase**. Security measures today focus on configuration redaction and PostgreSQL role separation. Authentication, authorization, encryption at rest, and PCI/regulatory controls for BNPL business data are **not implemented**.
+This codebase implements three distinct authentication surfaces:
+
+1. **Trusted Gateway**: ordinary `/api/v1` customer/merchant/admin routes
+   use `AuthContext.Attach` and permission checks. BNPL reads
+   `X-Auth-Subject-Id`, `X-Auth-Tenant-Id`, `X-Auth-Context-Id` and
+   `X-Auth-Permissions`; it does **not** independently parse or validate JWTs.
+2. **Partner checkout**: `/api/v1/partner` authenticates
+   `X-Terminal-Id`/`X-API-Key`, independently of Gateway identity headers.
+3. **Hosted checkout**: `/api/v1/checkout-sessions/:token` uses its
+   public session token and OTP as appropriate. This surface is intentionally
+   outside the Gateway-authenticated route group.
+
+### Required production deployment boundary
+
+**Do not release** unless all the following have been independently verified
+with the actual deployed Gateway/network configuration:
+
+- Only the trusted Envoy/Gateway can access the BNPL business listener;
+  untrusted clients, sibling workloads and public networks cannot bypass it.
+- Gateway validates inbound JWTs, **removes client-supplied `X-Auth-*` headers**,
+  and injects authenticated subject/tenant/context/permissions values.
+- Traffic from Gateway to BNPL cannot be impersonated by another workload;
+  enforce network restrictions and an appropriate workload identity mechanism
+  as required by the deployment topology.
+- Test negative requests directly against the application endpoint from an
+  untrusted source and confirm denial at the network trust boundary.
+- Do not mistake valid UUID header syntax for authenticated identity.
+
+Kubernetes NetworkPolicy/Cilium, firewall/service exposure and Envoy filter
+configuration are **external deployment controls**; their correct installation
+cannot be proved from the Go source alone. TLS to Gateway clients and safe
+Gateway-to-BNPL transport must be verified separately.
 
 ## model.Secret
 
@@ -86,48 +117,45 @@ Note: the Makefile historically wrote admin line with port `5452` (typo); correc
 | `.env` gitignored | Expected — verify locally |
 | `.env.example` | Placeholder credentials only |
 | `.prod.env` | Untracked; **do not commit** production secrets |
-| `configs/config.yaml` | No literal secrets; uses `${VAR}` expansion |
-| `CONFIG_FILE` in Docker | Default `configs/config.yaml` baked into image |
+| `configs/runtime.yaml` / `configs/dbadmin.yaml` | Separate Runtime and DB Admin config files with `${VAR}` expansion |
+| Runtime and DB Admin images | Separate least-privilege binaries and config artifacts |
 
-### Wiring gaps with security impact
+### Security configuration
 
-- `fmt.Printf("configs: %v\n", c)` in CLI commands prints configuration structure at startup (secrets redacted, but metadata visible).
-- `config.Config.String()` uses JSON marshal; secrets redacted via `Secret.MarshalJSON`.
-- Missing env vars expand to empty strings — can produce confusing auth failures rather than explicit "secret missing" errors.
+Runtime config validation rejects unsafe production provider choices
+(including insecure external gRPC transports and development-only HTTP debug
+logging). Never expose admin/DB provisioning secrets to Runtime. Environment
+expansion is not a secret store; use controlled injection and access policies.
 
 ## PostgreSQL Role Separation
 
-| Role | Constant | Used for |
-| --- | --- | --- |
-| `admin` | `repo.AdminRole` | Schema drop/create, role DDL, grants |
-| `bnpl` | `repo.NormalRole` | Runtime pool, bootstrap SQL, migrations |
+Production uses separate `bnpl_owner`, `bnpl_migrator`, and restricted
+Runtime roles. Schema and privileged DDL belong to `cmd/bnpl-dbadmin`
+and its separately deployed administration job; business Runtime must not
+have schema modification privileges or DB administration credentials.
+Startup database invariant and privilege verification are part of the
+first-release checklist. See
+[database roles](architecture/database-roles.md) and
+[database privileges](architecture/database-privileges.md).
 
-**Intent:** Routine HTTP and migration traffic should use `bnpl`, not `admin`.
+## Logging and Sensitive Data
 
-**Current gap:** Destructive init commands require admin credentials. Production runtime should not need admin access once schema exists.
-
-## Logging Concerns
-
-| Source | Issue |
-| --- | --- |
-| Gin logger middleware | Logs HTTP requests when `GIN_LOGGER=true`; no handlers yet, but future APIs must exclude sensitive headers and bodies |
-| `log.Printf` on pool close failure | May leak connection errors with host details |
-| PostgreSQL `log_statement` | `CreateRoleIfNotExists` embeds password in DDL; may appear in DB logs if statement logging is enabled |
-| Structured `LOG_LEVEL` in `.env.example` | **Not wired** in Go code |
-
-### TODO: Logging hardening
-
-- Structured logging with field redaction
-- Correlation IDs for audit trails
-- Explicit policy for PII in logs (national ID, mobile, account numbers)
+- The development-only HTTP debug logger is unredacted and must never be
+  enabled against real customer data or production services.
+- Production response logging uses an allowlist; raw response bodies and
+  authentication secrets must not be included.
+- Do not log terminal API keys, OTP values, tokenized checkout URLs,
+  database passwords or Financial Core authentication credentials.
+- Audit records use transactional outbox messages and stable trace /
+  correlation identities. Logging is not an authoritative payment ledger.
 
 ## Docker and Deployment Risks
 
 | Risk | Detail |
 | --- | --- |
-| Destructive default entrypoint | `DB_INIT_COMMAND` defaults to `init-dev` — drops schema on every container start |
+| Destructive `init-dev` | Separate DB Admin development build only; production init refuses existing schema |
 | Secrets in env vars | Standard for containers but visible to anyone with `docker inspect` or pod exec access |
-| No TLS termination in app | Gin listens plain HTTP; TLS expected at ingress (not documented in repo) |
+| Trusted gateway and transport | Gin relies on ingress TLS and trusted Gateway controls; verify actual network exposure and inter-service protection before release |
 | Missing `scripts/deploy.sh` | CD workflow references deploy script not in repository |
 
 ## Operational Checklist
@@ -142,20 +170,30 @@ Note: the Makefile historically wrote admin line with port `5452` (typo); correc
 
 **Do not**
 
-- Run `init-dev` or `init-prod` against databases containing real customer data
+- Run `init-dev` against databases containing real customer data
+- Run `init-prod` when schema `bnpl` already holds customer data (it refuses, but migrate is the correct path)
 - Commit pgpass lines with production passwords
 - Assume `model.Secret` encrypts data at rest or in transit
-- Rely on Kafka or Redis settings in `.env.example` for security boundaries (unused in Go code)
+- Assume application-layer UUID header validation authenticates the Gateway or prevents direct-to-app spoofing
 
-## Future BNPL Security Requirements
+## Merchant terminal API keys (show-once)
 
-Not implemented; planned as domains are added:
+Partner runtime credentials (`X-Terminal-Id` / `X-API-Key`) follow a **show-once** secret model:
 
-- Authentication and authorization for merchant and admin APIs
-- Audit log for sensitive state changes (credit limits, manual payment marks)
-- Field-level encryption for PII where required
-- Webhook signature verification for payment callbacks
-- Rate limiting and fraud controls on checkout decision endpoints
-- Regulatory data retention and right-to-erasure workflows
+- Plaintext `api_key` is returned only from Merchant Admin Panel **Provision** and **Rotate** responses (`Cache-Control: no-store`), and from an idempotent replay of that same issuance request within the configured replay window.
+- Persistent storage keeps only an irreversible keyed HMAC verifier (`api_key_hash`). Plaintext is never written for long-term retrieval outside the short-lived encrypted issuance delivery used for idempotent replay.
+- `GET /api/v1/merchant/terminal` returns terminal and credential **metadata only** — never the secret.
+- Merchants must copy the issued key into their own secure store. Outside the issuance replay window a lost key cannot be recovered from BNPL; use **Rotate** (optionally `grace_period_seconds=0` for immediate retirement of the previous key).
+- API keys must not appear in logs, traces, metrics, or error messages.
 
-Track implementation gaps in [doc/architecture.md](architecture.md#open-gaps).
+See [doc/api.md](api.md#partner-terminal-authentication) for the HTTP surface.
+
+## Future Security Requirements
+
+Additional compliance controls such as field-level encryption, regulatory
+retention, abuse analytics and incident-response workflows depend on the
+deployment and regulatory scope. They are not substitutes for the required
+Gateway trust boundary, permissions, terminal auth and PostgreSQL financial
+invariants already implemented.
+
+See [architecture](architecture.md) and [operations](operations.md) for release validation.

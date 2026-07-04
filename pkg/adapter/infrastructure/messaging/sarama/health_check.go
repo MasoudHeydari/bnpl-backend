@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/IBM/sarama"
+
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 )
 
@@ -22,9 +23,11 @@ func NewHealthChecker(client sarama.Client) *HealthChecker {
 
 // Ping verifies that the Kafka cluster is reachable.
 func (h *HealthChecker) Ping(context.Context) error {
+	const op = "sarama.HealthChecker.Ping"
+
 	_, err := h.client.Controller()
 	if err != nil {
-		return cerr.ServiceUnavailable(fmt.Errorf("kafka: %w", err))
+		return cerr.ServiceUnavailable(fmt.Errorf("%s: kafka: %w", op, err))
 	}
 
 	return nil

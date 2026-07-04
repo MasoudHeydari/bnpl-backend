@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
@@ -36,11 +37,12 @@ var _ repo.Rows = (*rowsAdapter)(nil)
 // result column count and scans the current row into them.
 func (ra rowsAdapter) Values() ([]any, error) {
 	var err error
+	const op = "postgres.rowsAdapter.Values"
 
 	names := ra.FieldDescriptions()
 
 	if err = ra.Err(); err != nil {
-		return nil, fmt.Errorf("column names: %w", err)
+		return nil, fmt.Errorf("%s: column names: %w", op, err)
 	}
 
 	if len(names) == 0 {
