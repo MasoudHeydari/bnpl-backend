@@ -12,8 +12,10 @@ import (
 // Repository adapters must not generate timestamps. Callers at the use-case
 // layer are responsible for providing business time values.
 func RequiredTime(field string, t time.Time) error {
+	const op = "postgres.RequiredTime"
+
 	if t.IsZero() {
-		return cerr.InvalidArgument(fmt.Errorf("%s is required", field))
+		return cerr.InvalidArgument(fmt.Errorf("%s: %s is required", op, field))
 	}
 
 	return nil
@@ -28,12 +30,4 @@ func RequiredTimes(fields map[string]time.Time) error {
 	}
 
 	return nil
-}
-
-func NullIfEmpty(value string) any {
-	if value == "" {
-		return nil
-	}
-
-	return value
 }

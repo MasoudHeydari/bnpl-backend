@@ -2,28 +2,28 @@
 
 ## Purpose
 
-This document describes the **current** Go backend structure and how it is intended to support a future Buy Now Pay Later (BNPL) platform. The repository today provides platform infrastructure, database bootstrap, and HTTP scaffolding — not a complete BNPL engine.
+This document describes the **current** Go backend structure and how it supports the Buy Now Pay Later (BNPL) platform. The repository provides platform infrastructure, database bootstrap, HTTP APIs, and core BNPL domain use cases.
 
 ## Current State vs Intended Direction
 
 | Area | Current state | Intended direction |
 | --- | --- | --- |
-| HTTP API | Gin server, trace middleware, `/healthz/live` and `/healthz/ready`, empty `/api/v1` group | REST APIs for checkout, contracts, repayments, admin |
-| Database | `migrations` + `integration_outbox` tables; destructive init | Full BNPL schema with forward migrations |
-| Use cases | `migrationsuc`, `outboxpublisheruc`, `healthcheckuc` | Credit, installment, payment, collections use cases |
-| Events | Kafka adapter + noop; outbox publisher job; subscriber started (placeholder handler) | Domain events for audit and integrations |
+| HTTP API | Gin server, trace middleware, `/healthz/live` and `/healthz/ready`, `/api/v1` business handlers (credit limit, checkout decision, contract, installment payment) | REST APIs for checkout, contracts, repayments, admin |
+| Database | `migrations` + BNPL schema (`contracts`, `installments`, `payment_attempts`, `integration_inbox`, `integration_outbox`, etc.) | Full BNPL schema with forward migrations |
+| Use cases | `migrationsuc`, `outboxpublisheruc`, `healthcheckuc`, `customercreditlimituc`, `getcustomercreditsummaryuc`, `decisionuc`, `contractuc`, `contractinstallmentsuc`, `listactivecontractsuc`, `installmentlifecycleuc`, `installmentrepaymentuc`, `listinstallmentpaymentsuc`, `financialcorepaymentresultuc`, `financialcorepaymentsessionuc`, `financialcorepaymentreconciliationuc`, `paymentattemptreconciliationuc` | Collections use cases |
+| Events | Kafka adapter + noop; outbox publisher job; Financial Core payment-result consumer; payment-application outbox producer | Domain events for audit and integrations |
 | Cache | Redis / noop adapters wired | Idempotency, rate limits, session state |
 | Auth | None | Role-based access for admin and merchant APIs |
 | Observability | slog/noop logger, trace headers, health probes, goroutine metrics task | Metrics, distributed tracing, audit persistence |
 | Shutdown | SIGINT/SIGTERM graceful shutdown with lifecycle probes | Production orchestration with wired drain delay |
 
-**Do not assume business aggregates (Contract, Installment, MerchantProfile, etc.) exist in code.** They are planned domains listed for architectural alignment only.
+**BNPL aggregates (Contract, Installment, PaymentAttempt, etc.) exist in code** and are managed by dedicated use cases under `pkg/core/usecase/`.
 
 ## BNPL Platform Vision
 
 The long-term system will handle:
 
-- Borrower credit evaluation and credit limit management
+- Customer credit evaluation and credit limit management
 - Installment plan generation and contract lifecycle
 - Checkout financing decisions
 - Payment tracking and delinquency handling
@@ -35,6 +35,32 @@ Planned domain names (not yet implemented):
 
 Contract · Decision · RepaymentPlan · Installment · PaymentAttempt · CreditLimit · CollectionsCase · LegalCase · MerchantProfile · MerchantBranchProfile · Restriction · Block · Audit
 
+**Implemented payment ownership (ADR [0016](adr/0016-bnpl-payment-attempt-ownership.md)):**
+
+- Financial Core owns payment intents, provider attempts, and monetary truth
+- BNPL `PaymentAttempt` is local orchestration/idempotency for installments 2+ (not provider auth/capture/settlement)
+- `Inbox` provides durable at-least-once event idempotency
+- `integration_outbox` publishes `bnpl.payment_application_result.v1` business acknowledgements (`applied`, `already_applied`, `reconciliation_required`) — only for inbound **succeeded** Financial Core payments
+- Pure business-event contracts live in `pkg/core/event/paymentapplication` (envelope + `EventData`; event type/version/producer constants)
+- Fingerprint hashing is a Core port (`pkg/core/fingerprint`) with minimal `Generate` interface; SHA-256 implementation lives in `pkg/adapter/infrastructure/fingerprint/sha256`. Use cases validate `Value` before persistence — no panic-based fingerprint helpers in Core.
+- Known payment statuses are canonicalized to typed values (`succeeded`/`failed`/`canceled`) before fingerprinting; unknown statuses remain distinct after trim/lowercase normalization
+- Succeeded payments without `financial_payment_intent_id` are permanently rejected after inbox acquisition (`missing_payment_intent`); no payment-application outbox is created
+- Installment `already_applied` requires proof from paid installment and compatible contract state, not only succeeded `PaymentAttempt`
+- First-installment checkout activation marks only snapshotted customer debit charges paid (not discounts, waivers, or merchant/platform-paid charges)
+- Outbox Kafka partition key = `financial_payment_intent_id` (`message_key` column); delivery is at-least-once — Financial Core deduplicates by outbound `event_id`
+- Inbox/outbox orchestration lives in `financialcorepaymentresultuc` — not in generic core packages
+- Kafka adapter validates minimum trusted envelope (`source_service`, `event_id`, `event_type`, `event_version`); temporary compatibility defaults live in one adapter mapper; payment business validation occurs **after** inbox acquisition
+- Integration identity fields are normalized once (trim whitespace) before inbox persistence, fingerprinting, and outbound acknowledgements
+- Raw Financial Core payment status is preserved for unknown values and included in canonical fingerprints (distinct unknown statuses cannot collapse to the same hash)
+- Checkout and installment unsupported statuses durably fail inbox after acquisition — no payment-application acknowledgement
+- Successful payments referencing missing BNPL contract/installment become `reconciliation_required` (not infinite retry)
+- `contractuc.ReconciliationError` carries typed reconciliation reasons — no error-message substring classification
+- Exact first-installment amount is enforced in `contractuc` (`paid == payable`, not `>=`)
+- Fingerprint values are validated before persistence; development databases with legacy raw digests must be reset or rewritten before replay
+- Installment concerns split: `decisionuc` (checkout installment offer creation), `installmentlifecycleuc`, `installmentrepaymentuc`
+- `PaymentAttemptItem` is a child of `PaymentAttempt` (aggregate repository only — no separate port)
+- Installment Financial Core payment client remains **noop** until official gRPC contract exists
+
 Product context (non-English): [pintoday.md](pintoday.md), [base_doc.md](base_doc.md).
 
 ## Runtime Entrypoints
@@ -44,8 +70,8 @@ Single binary `bnpl` (Cobra):
 | Command | Behavior |
 | --- | --- |
 | `bnpl` (default) | HTTP server + infrastructure bootstrap + scheduled tasks |
-| `bnpl db init-dev` | Destructive bootstrap + dev seed SQL |
-| `bnpl db init-prod` | Destructive bootstrap + prod seed SQL |
+| `bnpl db init-dev` | Destructive recreate + dev seed SQL (`APP_ENVIRONMENT=development`) |
+| `bnpl db init-prod` | Create-if-missing + prod seed SQL (`APP_ENVIRONMENT=production`) |
 | `bnpl db migrate` | Filesystem SQL migrations |
 
 See ADR [0005](adr/0005-single-binary-cobra-commands.md).
@@ -59,12 +85,27 @@ See ADR [0005](adr/0005-single-binary-cobra-commands.md).
 | `model` | `Secret`, `Migration`, `OutboxMessage` — no BNPL business models yet |
 | `repo` | Port interfaces: Pool, Conn, Tx, Schema, Migrations, Outbox, Health |
 | `health` | `LifecycleState`, `DependencyChecker` contracts for probes |
-| `cache`, `clock`, `log`, `messaging`, `task`, `trace`, `circuitbreaker` | Infrastructure port interfaces |
+| `cache`, `clock`, `log`, `messaging`, `task`, `trace`, `circuitbreaker`, `httpclient`, `webhook`, `secretbox`, `fingerprint` | Infrastructure port interfaces / contracts (no concrete transport, SSRF, HMAC, or router implementations) |
 | `pagination` | Cursor/page pagination models and helpers |
 | `cerr` | Application error codes and HTTP status mapping |
+| `event/paymentapplication` | Pure payment-application business-event contract (no repo/outbox orchestration) |
+| `fingerprint` | Core fingerprint port and self-describing `algorithm:digest` value |
 | `usecase/migrationsuc` | Schema bootstrap and migration orchestration |
+| `usecase/contractuc` | Checkout contract creation, activation helpers, payment-pending expiry |
+| `usecase/financialcorepaymentresultuc` | Financial Core payment-result inbox/outbox orchestration and domain application |
+| `usecase/financialcorepaymentsessionuc` | Financial Core installment payment-session inbox orchestration |
+| `usecase/financialcorepaymentreconciliationuc` | Financial Core inbound reconciliation-result processing |
+| `usecase/decisionuc` | Checkout decision evaluation; approved/partial outcomes atomically persist the installment offer |
+| `usecase/installmentlifecycleuc` | Offered-installment expiry and scheduled/due/overdue installment lifecycle batch jobs |
+| `usecase/installmentrepaymentuc` | Installment repayment initiation (`PaymentAttempt` aggregate with item snapshots via `CreateWithItems`) |
+| `usecase/paymentattemptreconciliationuc` | Outbound payment-attempt reconciliation request batch job |
 | `usecase/outboxpublisheruc` | Claim and publish integration outbox rows |
 | `usecase/healthcheckuc` | Liveness and readiness evaluation |
+| `usecase/customercreditlimituc` | Customer initial/updated credit limit decisioning |
+| `usecase/getcustomercreditsummaryuc` | Read-only customer credit summary projection |
+| `usecase/contractinstallmentsuc` | Read-only contract installment listing |
+| `usecase/listactivecontractsuc` | Read-only active contract listing |
+| `usecase/listinstallmentpaymentsuc` | Read-only installment payment listing |
 
 **Boundary:** No imports of `pgx`, `gin`, `cobra`, `redis`, `sarama`, or YAML.
 
@@ -75,7 +116,7 @@ See ADR [0005](adr/0005-single-binary-cobra-commands.md).
 | `bootstrap` | Loads config, wires repos, infrastructure, use cases, tasks, routes; graceful shutdown |
 | `bootstrap/infrastructure.go` | Trace, clock, logger, cache, messaging, task, circuit breaker, lifecycle, dependency checker |
 | `bootstrap/shutdown.go` | Ordered shutdown on SIGINT/SIGTERM |
-| `bootstrap/usecase.go` | Builds migration, outbox publisher, and health check use cases |
+| `bootstrap/usecase.go` | Builds all application use cases (checkout, installment, financial-core integration, credit limit, migration, outbox publisher, and health check) |
 | `bootstrap/repo.go` | PostgreSQL repository adapters (migrations, outbox, health) |
 
 ### Adapter (`pkg/adapter`, `cmd/bnpl/command`)
@@ -83,6 +124,7 @@ See ADR [0005](adr/0005-single-binary-cobra-commands.md).
 | Package | Role |
 | --- | --- |
 | `config` | YAML load, env expansion, provider factories |
+| `infrastructure/httpclient` | `noop` / `standard` implementations of the Core outbound HTTP client port; bounded concurrency, queueing, transport reuse, logging, metrics |
 | `restful/gin` | Gin wrapper, trace middleware, pagination helpers |
 | `restful/gin/routes` | Route registration (`/healthz/*`, `/api/v1` group) |
 | `restful/gin/healthrs` | Kubernetes-style liveness and readiness HTTP handlers |
@@ -91,8 +133,73 @@ See ADR [0005](adr/0005-single-binary-cobra-commands.md).
 | `db/postgres` | `pgx` pool, connection, transaction, pagination adapters |
 | `db/postgres/outboxrp` | Integration outbox repository |
 | `infrastructure/health` | Lifecycle state and composite dependency checkers |
-| `infrastructure/*` | Cache, clock, log, messaging, task, trace, circuit breaker adapters |
+| `infrastructure/*` | Cache, clock, log, messaging (incl. destination router), task, trace, fingerprint, circuit breaker, secretbox adapters |
+| `external/merchantwebhook` | Provider root (`http` / `noop` identifiers). Concrete HTTP delivery lives in `merchantwebhook/http`; noop in `merchantwebhook/noop`. Pure destination rules live in `pkg/core/policy/webhook`. |
 | `cmd/bnpl/command` | CLI wiring |
+
+## Merchant checkout context
+
+Merchant identity is independent of sales channel. `MerchantProfile` represents the business, while `MerchantBranchProfile` is a policy-bearing selling point that may be `physical` or `online`. This supports physical-only, online-only, and omnichannel merchants without introducing separate checkout APIs.
+
+Checkout accepts one explicit purchase-context discriminator:
+
+```text
+purchase_context.type=pos
+    pos_gps_id -> merchant_pos_terminals -> physical MerchantBranchProfile -> MerchantProfile
+
+purchase_context.type=online
+    online_store_id -> merchant_online_stores -> online MerchantBranchProfile -> MerchantProfile
+```
+
+The resolved merchant and branch are authoritative BNPL context; clients do not submit them directly. Purchase channel is orthogonal to checkout policy, so POS/online purchases may independently resolve to checkout policy v1, v2, or future versions. The Decision allocation snapshots both the resolved merchant context and original purchase-source identity for audit/idempotency.
+
+For approved offers, `decisionuc` also derives a semantic `checkout_action` from the selected policy's contract plan. Clients render confirmation/payment UX from that action instead of knowing policy versions.
+
+## Policy Conventions
+
+Policies under `pkg/core/policy` fall into two families. Pick the family by **semantics**, not by folder shape.
+
+### Versioned Business Policies
+
+Examples: `checkout`, `initialcreditlimit`.
+
+Characteristics:
+
+- Encode business decisions (eligibility, financing, credit terms)
+- Versioned (`v1` / `v2` / …) with registry + catalog
+- May expose a `PolicyRef` that is snapshotted / persisted for historical replay
+- Selected per customer / decision / assignment — not only at process startup
+
+Keep the existing `contract.go` / `registry.go` / `catalog/` / `vN/` pattern. Do not flatten these into a Strict/Development factory.
+
+### Runtime / Boundary Policies
+
+Examples: `checkoutorigin`, `returndestination`, `webhook`.
+
+Characteristics:
+
+- Pure deterministic validation / security boundary rules
+- Selected once at startup by Config/Bootstrap from the runtime environment
+- Not persisted on business entities; no historical policy replay
+- No registry, catalog, or `v1`/`v2` folders
+
+Preferred public shape:
+
+```go
+policy := checkoutorigin.Strict(allowedHosts) // or Development(...)
+origin, err := policy.Parse(raw)
+
+policy := returndestination.Strict() // or Development()
+err := policy.ValidateName(name)
+err := policy.ValidateURL(raw)
+
+policy := webhook.Strict() // or Development()
+parsed, err := policy.ValidateURL(raw)
+```
+
+Config/Bootstrap maps `production`/`staging` → `Strict`, and `development`/`test` → `Development`. Core packages must not call `os.Getenv` or branch on environment names.
+
+Related URL construction (`pkg/core/checkouturl`) is **not** a policy: it builds hosted checkout URLs from an already-validated `checkoutorigin.PublicOrigin`.
 
 ## Infrastructure Layer
 
@@ -101,6 +208,7 @@ Provider-based infrastructure is configured under `infrastructure:` in YAML. Onl
 | Concern | Core port | Providers | Default (.env.example) |
 | --- | --- | --- | --- |
 | Trace IDs | `trace.Provider` | ULID (`trace` package) | Always ULID |
+| Event IDs (payment application outbox) | `identifier.Generator` | ULID adapter (`trace.Provider` also implements this) | Same ULID provider |
 | Clock | `clock.Clock` | System (dual timezone) | UTC + Asia/Tehran |
 | Logger | `log.Logger` | `noop`, `slog` | `slog` / `info` / `json` |
 | Cache | `cache.Cache` | `noop`, `redis` | `noop` |
@@ -134,18 +242,18 @@ No reverse dependencies from core into adapters.
 
 ## Request Flow (HTTP)
 
-Current flow — no business handlers:
+Current flow:
 
 1. `bootstrap.Boot` loads config (`config.Load`) and validates `versions`
 2. Opens normal-role pool
 3. Wires repositories, infrastructure (including dependency checker and lifecycle state), use cases
 4. Registers configured scheduled tasks and starts task runtime and message subscriber in background
 5. Builds Gin engine with trace-ID middleware (first), optional recovery and logger
-6. `routes.Register` attaches `/healthz/live` and `/healthz/ready` when enabled, plus `/api/v1` group (no business handlers)
+6. `routes.Register` attaches `/healthz/live` and `/healthz/ready` when enabled, plus `/api/v1` business handlers (credit limit, checkout decision, contract, installment payment)
 7. Gin listens on `gin.host:gin.port`
 8. On SIGINT/SIGTERM: readiness fails (`StartDraining`), bounded graceful shutdown, optional liveness failure on timeout
 
-The pool is used by readiness dependency checks and background jobs. `/api/v1` has no business handlers yet.
+The pool is used by readiness dependency checks, HTTP handlers, and background jobs.
 
 ## Database Flow
 
@@ -157,10 +265,13 @@ The pool is used by readiness dependency checks and background jobs. `/api/v1` h
 
 ### Bootstrap (`init-dev` / `init-prod`)
 
-1. Admin pool → transaction → drop/create schema, role, privileges
-2. Normal pool → transaction → embedded DDL + seed SQL
+1. Validate `runtime.environment` (`APP_ENVIRONMENT`)
+2. Admin pool → transaction:
+   - `init-dev`: drop/create schema, role, privileges
+   - `init-prod`: refuse if schema exists; otherwise create schema, role, privileges
+3. Normal pool → transaction → embedded DDL + seed SQL
 
-Both paths are **destructive**. See [database.md](database.md) and ADR [0008](adr/0008-destructive-database-initialization-strategy.md).
+See [database.md](database.md) and ADR [0008](adr/0008-destructive-database-initialization-strategy.md).
 
 ### Migrations (`db migrate`)
 
@@ -172,8 +283,10 @@ Bootstrap and migrations are separate mechanisms.
 ### Outbox publishing
 
 1. `outboxpublisheruc.PublishDue` claims pending rows (`SKIP LOCKED`)
-2. Publishes to configured messaging publisher (topic = `destination` column)
+2. Publishes to configured messaging publisher (topic = `destination`; Kafka key = `message_key`)
 3. Marks rows published or schedules retry with exponential backoff
+
+Payment-application outbox rows are inserted by `financialcorepaymentresultuc` in the same transaction as inbox and domain mutations. The publisher never regenerates event IDs or payloads on retry.
 
 Triggered by the `outbox_publisher` scheduled task when `TASK_OUTBOX_PUBLISHER_ENABLED=true`.
 
@@ -188,7 +301,6 @@ Known wiring gaps:
 
 - No post-load validation for empty required env-expanded fields
 - `bootstrap.InitDev` / `InitProd` still print loaded config via `fmt.Printf`
-- `SHUTDOWN_DRAIN_DELAY` decoded but not applied in bootstrap shutdown timing
 - Circuit breaker constructed but unused by call sites
 
 Details: [configuration.md](configuration.md)
@@ -234,12 +346,13 @@ Details: [configuration.md](configuration.md)
 
 - [ ] Post-load validation for required fields
 - [ ] Remove or gate config debug printing in CLI init commands
-- [ ] Wire `SHUTDOWN_DRAIN_DELAY` into bootstrap shutdown sequence
 - [ ] Use circuit breaker at external dependency call sites
 
 ### Integrations
 
-- [ ] Domain Kafka consumer handlers (subscriber runs with placeholder handler today)
+- [x] Financial Core payment-result Kafka consumer (`financialcorepaymentresultuc`)
+- [x] Payment-application outbox producer (`bnpl.payment_application_result.v1`)
+- [ ] Real Financial Core installment-payment gRPC adapter (not implemented)
 - [ ] Redis connectivity check skipped when provider is noop (by design)
 - [ ] `memory` cache as optional provider for single-node dev
 
@@ -295,6 +408,7 @@ See [security.md](security.md) for current secret handling limits.
 | `pkg/adapter/infrastructure/task/` | In-process scheduler and noop runtime |
 | `pkg/adapter/infrastructure/task/jobs/` | Scheduled job registry (outbox, metrics) |
 | `pkg/adapter/infrastructure/trace/` | ULID trace provider |
+| `pkg/adapter/infrastructure/fingerprint/sha256/` | SHA-256 fingerprint generator |
 | `pkg/adapter/restful/gin/` | Gin adapter and middleware |
 | `pkg/adapter/restful/gin/pagination/` | HTTP pagination query parsing |
 | `pkg/adapter/restful/gin/serdser/` | Request/response envelopes |
@@ -306,7 +420,7 @@ See [security.md](security.md) for current secret handling limits.
 | `pkg/adapter/restful/gin/healthrs/` | Health probe HTTP handlers |
 | `pkg/adapter/db/postgres/healthrp/` | Health repository (database ping) |
 | `pkg/core/health/` | Lifecycle and dependency-check ports |
-| `pkg/core/cache/`, `clock/`, `log/`, `messaging/`, `task/`, `trace/` | Infrastructure ports |
+| `pkg/core/cache/`, `clock/`, `log/`, `messaging/`, `task/`, `trace/`, `fingerprint/` | Infrastructure ports |
 | `pkg/core/circuitbreaker/` | Circuit breaker port |
 | `pkg/core/pagination/` | Pagination models |
 | `pkg/core/usecase/outboxpublisheruc/` | Outbox publish orchestration |

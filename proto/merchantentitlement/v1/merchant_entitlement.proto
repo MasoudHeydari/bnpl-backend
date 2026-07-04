@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package parstis.financial.merchantentitlement.v1;
+
+option go_package = "github.com/parstis/bnpl-backend/gen/proto/merchantentitlement/v1;merchantentitlementv1";
+
+import "common/v1/common.proto";
+
+// Generic Merchant Entitlement financial boundary.
+//
+// The request carries economic facts and opaque upstream provenance only.
+// Authenticated source_service, FinancialScope, Financial idempotency keys,
+// fingerprints, ledger/wallet ids, pricing rates, and business-line policy are
+// deliberately absent from the public body.
+service MerchantEntitlementService {
+  rpc RecordMerchantEntitlement(RecordMerchantEntitlementRequest)
+      returns (RecordMerchantEntitlementResponse);
+
+  rpc ReverseMerchantEntitlement(ReverseMerchantEntitlementRequest)
+      returns (ReverseMerchantEntitlementResponse);
+}
+
+// Capability-specific economics. All components share one currency.
+message MerchantEntitlementEconomics {
+  string currency = 1;
+  int64 collected_cash_amount_minor = 2;
+  int64 receivable_amount_minor = 3;
+  int64 merchant_payable_amount_minor = 4;
+  int64 merchant_transaction_fee_amount_minor = 5;
+}
+
+message RecordMerchantEntitlementRequest {
+  // Field 3 carried the Identity subject id until customer-id contracts.
+  reserved 3;
+  reserved "customer_subject_id";
+
+  common.v1.BusinessSourceReference source = 1;
+  string merchant_id = 2;
+  // customer-service customer_id (UUID); Financial resolves the subject itself.
+  string customer_id = 6;
+  MerchantEntitlementEconomics economics = 4;
+  optional string collected_cash_payment_intent_id = 5;
+}
+
+message RecordMerchantEntitlementResponse {
+  string merchant_entitlement_id = 1;
+  bool reused_idempotent_result = 2;
+}
+
+// Capability-specific reversal economics. This intentionally remains separate
+// from MerchantEntitlementEconomics because reversal is a distinct operation.
+message MerchantEntitlementReversalEconomics {
+  string currency = 1;
+  int64 reversed_collected_cash_amount_minor = 2;
+  int64 reversed_receivable_amount_minor = 3;
+  int64 reversed_merchant_payable_amount_minor = 4;
+  int64 reversed_merchant_transaction_fee_amount_minor = 5;
+}
+
+message ReverseMerchantEntitlementRequest {
+  string merchant_entitlement_id = 1;
+  common.v1.BusinessSourceReference source = 2;
+  MerchantEntitlementReversalEconomics economics = 3;
+}
+
+message ReverseMerchantEntitlementResponse {
+  string merchant_entitlement_reversal_id = 1;
+  string merchant_entitlement_id = 2;
+  bool reused_idempotent_result = 3;
+}

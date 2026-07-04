@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package parstis.financial.collectionobligation.v1;
+
+option go_package = "github.com/parstis/bnpl-backend/gen/proto/collectionobligation/v1;collectionobligationv1";
+
+import "google/protobuf/timestamp.proto";
+import "common/v1/common.proto";
+
+// Generic collection-obligation command boundary.
+//
+// Prepare creates a Financial collection instrument. It does not execute
+// payment, post accounting, or make product/business lifecycle decisions.
+// Authenticated source_service and FinancialScope remain Financial/trusted
+// transport authority and are deliberately absent from this request body.
+service CollectionObligationService {
+  rpc PrepareCollectionObligation(PrepareCollectionObligationRequest)
+      returns (PrepareCollectionObligationResponse);
+}
+
+message PreRecognitionCashCollection {}
+
+message ExistingReceivableCollection {
+  // Explicit Financial-owned target. Financial never infers a receivable from
+  // merchant/customer/source ordering or FIFO policy.
+  string merchant_entitlement_id = 1;
+}
+
+// Type-safe financial cash-application target. A request cannot represent
+// EXISTING_RECEIVABLE without its target or PRE_RECOGNITION_CASH with one.
+message CollectionApplication {
+  oneof kind {
+    PreRecognitionCashCollection pre_recognition_cash = 1;
+    ExistingReceivableCollection existing_receivable = 2;
+  }
+}
+
+message PrepareCollectionObligationRequest {
+  // Field 3 carried the Identity subject id until customer-id contracts; it is
+  // retired so a stale caller fails validation instead of being misread.
+  reserved 3;
+  reserved "customer_subject_id";
+
+  common.v1.BusinessSourceReference source = 1;
+  string merchant_id = 2;
+  // customer-service customer_id (UUID). Resolve a mobile number once with
+  // customer-service ResolveCustomerByMobile and store this id. Financial maps
+  // it to the Identity subject internally; subject ids are never exchanged.
+  string customer_id = 8;
+  common.v1.Money amount = 4;
+  CollectionApplication application = 5;
+  optional string description = 6;
+  optional google.protobuf.Timestamp due_at = 7;
+}
+
+message PrepareCollectionObligationResponse {
+  string collection_obligation_id = 1;
+  common.v1.Money outstanding_amount = 2;
+  bool reused_idempotent_result = 3;
+}

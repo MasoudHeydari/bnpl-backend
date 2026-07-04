@@ -125,7 +125,7 @@ Note: the Makefile historically wrote admin line with port `5452` (typo); correc
 
 | Risk | Detail |
 | --- | --- |
-| Destructive default entrypoint | `DB_INIT_COMMAND` defaults to `init-dev` — drops schema on every container start |
+| Destructive `init-dev` / `init-prod` | Explicit CLI/Make only — entrypoint never mutates schema |
 | Secrets in env vars | Standard for containers but visible to anyone with `docker inspect` or pod exec access |
 | No TLS termination in app | Gin listens plain HTTP; TLS expected at ingress (not documented in repo) |
 | Missing `scripts/deploy.sh` | CD workflow references deploy script not in repository |
@@ -142,10 +142,23 @@ Note: the Makefile historically wrote admin line with port `5452` (typo); correc
 
 **Do not**
 
-- Run `init-dev` or `init-prod` against databases containing real customer data
+- Run `init-dev` against databases containing real customer data
+- Run `init-prod` when schema `bnpl` already holds customer data (it refuses, but migrate is the correct path)
 - Commit pgpass lines with production passwords
 - Assume `model.Secret` encrypts data at rest or in transit
 - Rely on Kafka or Redis settings in `.env.example` for security boundaries (unused in Go code)
+
+## Merchant terminal API keys (show-once)
+
+Partner runtime credentials (`X-Terminal-Id` / `X-API-Key`) follow a **show-once** secret model:
+
+- Plaintext `api_key` is returned only from Merchant Admin Panel **Provision** and **Rotate** responses (`Cache-Control: no-store`), and from an idempotent replay of that same issuance request within the configured replay window.
+- Persistent storage keeps only an irreversible keyed HMAC verifier (`api_key_hash`). Plaintext is never written for long-term retrieval outside the short-lived encrypted issuance delivery used for idempotent replay.
+- `GET /api/v1/merchant/terminal` returns terminal and credential **metadata only** — never the secret.
+- Merchants must copy the issued key into their own secure store. Outside the issuance replay window a lost key cannot be recovered from BNPL; use **Rotate** (optionally `grace_period_seconds=0` for immediate retirement of the previous key).
+- API keys must not appear in logs, traces, metrics, or error messages.
+
+See [doc/api.md](api.md#partner-terminal-authentication) for the HTTP surface.
 
 ## Future BNPL Security Requirements
 

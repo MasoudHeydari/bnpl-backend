@@ -72,15 +72,32 @@ func SetSearchPath[Q postgres.Queryer](
 	return err
 }
 
-// DropIfExists drops schema and all contained objects when it exists.
-// This operation is destructive and is used by init-dev and init-prod.
-func DropIfExists[Q postgres.Queryer](
+// Exists reports whether schema is present in pg_namespace.
+func Exists[Q postgres.Queryer](
 	ctx context.Context, q Q, schema string,
-) error {
-	// Schema name is a trusted application constant (bnpl).
-	_, err := q.Exec(
+) (bool, error) {
+	const query = `
+SELECT EXISTS (
+	SELECT 1
+	FROM pg_catalog.pg_namespace
+	WHERE nspname = $1
+) AS exists
+`
+
+	type result struct {
+		Exists bool `db:"exists"`
+	}
+
+	value, err := postgres.QueryOne[result](
 		ctx,
-		fmt.Sprintf(`DROP SCHEMA IF EXISTS %s CASCADE`, schema),
+		q,
+		"check schema exists",
+		query,
+		schema,
 	)
-	return err
+	if err != nil {
+		return false, err
+	}
+
+	return value.Exists, nil
 }

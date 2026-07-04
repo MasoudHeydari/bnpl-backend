@@ -26,21 +26,26 @@ type SemVer [3]uint
 // three dot-separated numbers and fills the sv SemVer instance. In case
 // of errors, sv will be left unchanged.
 func (sv *SemVer) UnmarshalText(text []byte) (err error) {
+	const op = "model.SemVer.UnmarshalText"
+
 	p := strings.Split(string(text), ".")
 	l := len(p)
 	if l == 0 || l > 3 {
-		return fmt.Errorf("the %q has wrong number of components", text)
+		return fmt.Errorf("%s: the %q has wrong number of components", op, text)
 	}
+
 	var v [3]int
 	for i := 0; i < l; i++ {
 		v[i], err = strconv.Atoi(p[i])
 		if err != nil {
-			return fmt.Errorf("the %q component is not numeric", p[i])
+			return fmt.Errorf("%s: the %q component is not numeric", op, p[i])
 		}
+
 		if v[i] < 0 {
-			return fmt.Errorf("the %q component is negative", p[i])
+			return fmt.Errorf("%s: the %q component is negative", op, p[i])
 		}
 	}
+
 	(*sv)[0] = uint(v[0])
 	(*sv)[1] = uint(v[1])
 	(*sv)[2] = uint(v[2])

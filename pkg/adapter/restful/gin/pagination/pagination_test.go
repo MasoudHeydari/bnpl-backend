@@ -9,13 +9,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	adapterpagination "github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/pagination"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/serdser"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	corepagination "github.com/parstis/bnpl-backend/pkg/core/pagination"
 	"github.com/parstis/bnpl-backend/pkg/core/trace"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestParseOffset_Defaults(t *testing.T) {
@@ -406,7 +407,7 @@ func validCursorToken(t *testing.T) string {
 func assertValidationResponse(t *testing.T, w *httptest.ResponseRecorder, field string) {
 	t.Helper()
 
-	assert.Equal(t, cerr.CodeValidationFailed.HTTPStatusCode(), w.Code)
+	assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
 
 	var resp serdser.ErrorResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))

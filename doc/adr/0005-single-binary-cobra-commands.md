@@ -15,8 +15,8 @@ Operators need multiple runtime modes from one deployable artifact:
 | Mode | Command | Current behavior |
 | --- | --- | --- |
 | HTTP server | `bnpl` (default) | Loads config, opens normal-role pool, starts Gin |
-| Dev bootstrap | `bnpl db init-dev` | Destructive schema reset + embedded dev SQL |
-| Prod bootstrap | `bnpl db init-prod` | Destructive schema reset + embedded prod SQL |
+| Dev bootstrap | `bnpl db init-dev` | Destructive schema reset + embedded dev SQL (`development` only) |
+| Prod bootstrap | `bnpl db init-prod` | Create schema when missing + embedded prod SQL (`production` only; refuses if exists) |
 | Migrations | `bnpl db migrate` | Applies filesystem SQL files sequentially |
 
 All modes share configuration loading (`config.Load`), PostgreSQL adapter wiring, and the same binary produced by `cmd/bnpl/main.go` → `command.Execute()`.
@@ -53,7 +53,7 @@ The default command starts the HTTP server without requiring an explicit `serve`
 **Operational impact**
 
 - `Makefile` targets (`run`, `init-dev`, `init-prod`) wrap CLI subcommands.
-- Docker `CMD` runs `docker-entrypoint.sh`, which calls `bnpl db init-*` then `exec bnpl`.
+- Docker `CMD` runs `entrypoint.sh`, which `exec`s `bnpl` (HTTP only; no DB init).
 - Exit code 1 on any command failure via `command.Execute()` → `os.Exit(1)`.
 
 ## Alternatives Considered
@@ -78,6 +78,6 @@ Additional subcommands will likely appear as operational needs grow:
 - `bnpl jobs run-collections` — batch delinquency processing
 - `bnpl admin recompute-limits` — maintenance tasks
 
-Business HTTP APIs remain separate from CLI; Cobra commands are for bootstrap, migrations, and batch operations, not merchant or borrower-facing traffic.
+Business HTTP APIs remain separate from CLI; Cobra commands are for bootstrap, migrations, and batch operations, not merchant or customer-facing traffic.
 
 Future BNPL domains should expose use cases to **both** HTTP handlers and CLI/job entrypoints through shared constructors in `pkg/adapter/config`, preserving one wiring path.

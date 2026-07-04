@@ -20,6 +20,21 @@ import (
 // and how jobs are executed.
 type Job func(ctx context.Context) error
 
+// ExecutionMode identifies the runtime that should execute a task when a
+// composite task runtime is selected.
+//
+// Standalone runtimes may ignore this field because the configured provider
+// already determines where every task executes.
+type ExecutionMode string
+
+const (
+	// ExecutionModeInProcess routes a task to the in-process runtime.
+	ExecutionModeInProcess ExecutionMode = "inprocess"
+
+	// ExecutionModeTemporal routes a task to the Temporal runtime.
+	ExecutionModeTemporal ExecutionMode = "temporal"
+)
+
 // TriggerType identifies how a scheduled task is triggered.
 type TriggerType string
 
@@ -114,8 +129,14 @@ type Task struct {
 	//   - operational debugging
 	Name string
 
-	// Enabled determines whether the task should be registered.
+	// Enabled determines whether the task is active for execution. Runtimes may
+	// still receive disabled definitions for durable-state cleanup or reconciliation.
 	Enabled bool
+
+	// ExecutionMode selects the concrete runtime when a composite runtime is
+	// configured. It is intentionally provider-specific routing metadata and
+	// must remain empty for standalone runtimes.
+	ExecutionMode ExecutionMode
 
 	// Trigger defines when the task should execute.
 	Trigger Trigger
@@ -230,7 +251,24 @@ type Dispatcher interface {
 //   - Temporal
 //   - distributed worker systems
 //   - noop implementations
+//
+// Lifecycle:
+//
+//   - Register tasks before Start
+//   - Start blocks until the context is canceled (or a fatal error occurs)
+//   - Close releases durable provider resources after Start has returned
+//     (for example a Temporal client connection). Providers with no durable
+//     resources may implement Close as a no-op.
 type Runtime interface {
+	// Scheduler registers and manages background task schedules.
 	Scheduler
+
+	// Dispatcher executes task commands.
 	Dispatcher
+
+	// Close releases durable resources owned by the runtime.
+	//
+	// Close must not be used as the primary stop signal for running workers;
+	// cancel the Start context first and wait for Start to return, then Close.
+	Close() error
 }

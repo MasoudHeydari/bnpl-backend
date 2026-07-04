@@ -25,6 +25,7 @@ func (c Currency) IsValid() bool {
 	switch c {
 	case IRRCurrency, EURCurrency, USDCurrency:
 		return true
+
 	default:
 		return false
 	}

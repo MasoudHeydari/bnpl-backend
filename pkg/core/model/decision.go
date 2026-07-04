@@ -1,11 +1,58 @@
 package model
 
 import (
+	"database/sql/driver"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+// DecisionID uniquely identifies a Decision.
+type DecisionID uuid.UUID
+
+// ParseDecisionID parses a DecisionID from its canonical string form.
+func ParseDecisionID(value string) (DecisionID, error) {
+	id, err := uuid.Parse(value)
+	if err != nil {
+		return DecisionID{}, fmt.Errorf("parse decision id: %w", err)
+	}
+
+	return DecisionID(id), nil
+}
+
+func (id DecisionID) UUID() uuid.UUID { return uuid.UUID(id) }
+
+func (id DecisionID) String() string { return uuid.UUID(id).String() }
+
+func (id DecisionID) IsZero() bool { return uuid.UUID(id) == uuid.Nil }
+
+func (id DecisionID) MarshalText() ([]byte, error) { return uuid.UUID(id).MarshalText() }
+
+func (id *DecisionID) UnmarshalText(data []byte) error {
+	var u uuid.UUID
+	if err := u.UnmarshalText(data); err != nil {
+		return err
+	}
+
+	*id = DecisionID(u)
+
+	return nil
+}
+
+func (id *DecisionID) Scan(src any) error {
+	var u uuid.UUID
+	if err := u.Scan(src); err != nil {
+		return err
+	}
+
+	*id = DecisionID(u)
+
+	return nil
+}
+
+func (id DecisionID) Value() (driver.Value, error) { return uuid.UUID(id).Value() }
 
 var (
 	// ErrInvalidDecisionID is returned when the decision ID is empty.
@@ -37,7 +84,7 @@ var (
 //
 // A decision type describes what kind of business question was answered.
 // It does not describe the target entity. For example, EligibilityDecisionType
-// may apply to a borrower profile, merchant profile, or merchant branch profile.
+// may apply to a customer profile, merchant profile, or merchant branch profile.
 type DecisionType string
 
 const (
@@ -49,7 +96,7 @@ const (
 	// allowed for a target.
 	//
 	// The approved amount itself must be stored in a specialized model such as
-	// BorrowerCreditLimit, MerchantCreditLimit, or BranchCreditLimit.
+	// CreditAccount, MerchantCreditLimit, or BranchCreditLimit.
 	CreditLimitDecisionType DecisionType = "credit_limit"
 
 	// RestrictionDecisionType applies, changes, or removes a BNPL restriction
@@ -74,6 +121,7 @@ func (t DecisionType) IsValid() bool {
 		ContractApprovalDecisionType,
 		ManualOverrideDecisionType:
 		return true
+
 	default:
 		return false
 	}
@@ -88,29 +136,38 @@ func (t DecisionType) allowsOutcome(o DecisionOutcome) bool {
 			DeniedDecisionOutcome,
 			ConditionalDecisionOutcome:
 			return true
+
 		default:
 			return false
 		}
+
 	case CreditLimitDecisionType:
 		switch o {
+
 		case LimitSetDecisionOutcome,
 			DeniedDecisionOutcome,
 			ConditionalDecisionOutcome:
 			return true
+
 		default:
 			return false
 		}
+
 	case RestrictionDecisionType:
 		switch o {
+
 		case RestrictedDecisionOutcome,
 			UnrestrictedDecisionOutcome:
 			return true
+
 		default:
 			return false
 		}
+
 	case ManualOverrideDecisionType:
 		// A governed manual override may produce any valid outcome.
 		return o.IsValid()
+
 	default:
 		return false
 	}
@@ -120,9 +177,9 @@ func (t DecisionType) allowsOutcome(o DecisionOutcome) bool {
 type DecisionTargetType string
 
 const (
-	// BorrowerProfileDecisionTargetType indicates the decision applies to a
-	// borrower's BNPL profile.
-	BorrowerProfileDecisionTargetType DecisionTargetType = "borrower_profile"
+	// CustomerProfileDecisionTargetType indicates the decision applies to a
+	// customer's BNPL profile.
+	CustomerProfileDecisionTargetType DecisionTargetType = "customer_profile"
 
 	// MerchantProfileDecisionTargetType indicates the decision applies to a
 	// merchant's BNPL profile.
@@ -136,20 +193,21 @@ const (
 	// contract.
 	ContractDecisionTargetType DecisionTargetType = "contract"
 
-	// CheckoutIntentDecisionTargetType indicates the decision applies to a
-	// checkout intent before contract creation.
-	CheckoutIntentDecisionTargetType DecisionTargetType = "checkout_intent"
+	// CheckoutKeyDecisionTargetType indicates the decision applies to a checkout
+	// identified by the canonical checkout key.
+	CheckoutKeyDecisionTargetType DecisionTargetType = "checkout_key"
 )
 
 // IsValid reports whether the decision target type is known by the domain.
 func (t DecisionTargetType) IsValid() bool {
 	switch t {
-	case BorrowerProfileDecisionTargetType,
+	case CustomerProfileDecisionTargetType,
 		MerchantProfileDecisionTargetType,
 		MerchantBranchProfileDecisionTargetType,
 		ContractDecisionTargetType,
-		CheckoutIntentDecisionTargetType:
+		CheckoutKeyDecisionTargetType:
 		return true
+
 	default:
 		return false
 	}
@@ -190,6 +248,7 @@ func (o DecisionOutcome) IsValid() bool {
 		RestrictedDecisionOutcome,
 		UnrestrictedDecisionOutcome:
 		return true
+
 	default:
 		return false
 	}
@@ -214,6 +273,7 @@ func (a DecisionActorType) IsValid() bool {
 	case SystemDecisionActorType,
 		AdminDecisionActorType:
 		return true
+
 	default:
 		return false
 	}
@@ -228,12 +288,12 @@ func (a DecisionActorType) IsValid() bool {
 // be stored in their own models and reference this record by DecisionID.
 //
 // Examples:
-//   - BorrowerCreditLimit stores the approved amount and references DecisionID.
-//   - BorrowerRestriction stores the applied restriction and references DecisionID.
+//   - CreditAccount stores the current customer limit and references the governing DecisionID.
+//   - CustomerRestriction stores the applied restriction and references DecisionID.
 //   - Contract stores or references the approval decision used for activation.
 type Decision struct {
 	// ID uniquely identifies this decision.
-	ID uuid.UUID `db:"id" json:"id"`
+	ID DecisionID `db:"id" json:"id"`
 
 	// Type identifies the business question answered by this decision.
 	Type DecisionType `db:"type" json:"type,omitempty"`
@@ -279,7 +339,7 @@ type Decision struct {
 	//
 	// The previous decision must not be mutated. A new decision must be created
 	// instead.
-	PriorDecisionID *uuid.UUID `db:"prior_decision_id" json:"prior_decision_id,omitempty"`
+	PriorDecisionID *DecisionID `db:"prior_decision_id" json:"prior_decision_id,omitempty"`
 
 	// ReviewableUntil indicates the latest time this decision can be reviewed or
 	// challenged, when applicable.
@@ -307,7 +367,7 @@ type Decision struct {
 
 // Validate verifies that the decision envelope is internally consistent.
 func (d *Decision) Validate() error {
-	if d.ID == uuid.Nil {
+	if d.ID.IsZero() {
 		return ErrInvalidDecisionID
 	}
 

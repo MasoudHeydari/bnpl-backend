@@ -7,6 +7,7 @@ package mock
 import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -396,6 +397,52 @@ func (_c *PostgresRows_Scan_Call) Return(err error) *PostgresRows_Scan_Call {
 }
 
 func (_c *PostgresRows_Scan_Call) RunAndReturn(run func(dest ...any) error) *PostgresRows_Scan_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// TypeMap provides a mock function for the type PostgresRows
+func (_mock *PostgresRows) TypeMap() *pgtype.Map {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for TypeMap")
+	}
+
+	var r0 *pgtype.Map
+	if returnFunc, ok := ret.Get(0).(func() *pgtype.Map); ok {
+		r0 = returnFunc()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*pgtype.Map)
+		}
+	}
+	return r0
+}
+
+// PostgresRows_TypeMap_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'TypeMap'
+type PostgresRows_TypeMap_Call struct {
+	*mock.Call
+}
+
+// TypeMap is a helper method to define mock.On call
+func (_e *PostgresRows_Expecter) TypeMap() *PostgresRows_TypeMap_Call {
+	return &PostgresRows_TypeMap_Call{Call: _e.mock.On("TypeMap")}
+}
+
+func (_c *PostgresRows_TypeMap_Call) Run(run func()) *PostgresRows_TypeMap_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *PostgresRows_TypeMap_Call) Return(mapParam *pgtype.Map) *PostgresRows_TypeMap_Call {
+	_c.Call.Return(mapParam)
+	return _c
+}
+
+func (_c *PostgresRows_TypeMap_Call) RunAndReturn(run func() *pgtype.Map) *PostgresRows_TypeMap_Call {
 	_c.Call.Return(run)
 	return _c
 }

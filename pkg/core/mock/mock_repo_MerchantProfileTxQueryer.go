@@ -8,7 +8,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -41,8 +40,8 @@ func (_m *MerchantProfileTxQueryer) EXPECT() *MerchantProfileTxQueryer_Expecter 
 }
 
 // Create provides a mock function for the type MerchantProfileTxQueryer
-func (_mock *MerchantProfileTxQueryer) Create(ctx context.Context, merchantID uuid.UUID, status model.MerchantStatus, fundingModels []model.FundingModel, settlementModels []model.SettlementModel, currencies []model.Currency, riskTier model.RiskTier, maxAmount model.Money, maxTenureMonths uint, requiresBranchMode bool, jurisdiction model.Jurisdiction, createdAt time.Time, updatedAt time.Time) (model.MerchantProfile, error) {
-	ret := _mock.Called(ctx, merchantID, status, fundingModels, settlementModels, currencies, riskTier, maxAmount, maxTenureMonths, requiresBranchMode, jurisdiction, createdAt, updatedAt)
+func (_mock *MerchantProfileTxQueryer) Create(ctx context.Context, merchantID model.MerchantID, displayName string, legalName string, logoURL string, supportPhone string, supportEmail string, status model.MerchantStatus, fundingModels []model.FundingModel, settlementModels []model.SettlementModel, currencies []model.Currency, riskTier model.RiskTier, maxAmountMinor uint64, maxAmountCurrency model.Currency, maxTenureMonths uint, requiresBranchMode bool, jurisdiction model.Jurisdiction, createdAt time.Time, updatedAt time.Time) (model.MerchantProfile, error) {
+	ret := _mock.Called(ctx, merchantID, displayName, legalName, logoURL, supportPhone, supportEmail, status, fundingModels, settlementModels, currencies, riskTier, maxAmountMinor, maxAmountCurrency, maxTenureMonths, requiresBranchMode, jurisdiction, createdAt, updatedAt)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Create")
@@ -50,16 +49,16 @@ func (_mock *MerchantProfileTxQueryer) Create(ctx context.Context, merchantID uu
 
 	var r0 model.MerchantProfile
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, model.MerchantStatus, []model.FundingModel, []model.SettlementModel, []model.Currency, model.RiskTier, model.Money, uint, bool, model.Jurisdiction, time.Time, time.Time) (model.MerchantProfile, error)); ok {
-		return returnFunc(ctx, merchantID, status, fundingModels, settlementModels, currencies, riskTier, maxAmount, maxTenureMonths, requiresBranchMode, jurisdiction, createdAt, updatedAt)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantID, string, string, string, string, string, model.MerchantStatus, []model.FundingModel, []model.SettlementModel, []model.Currency, model.RiskTier, uint64, model.Currency, uint, bool, model.Jurisdiction, time.Time, time.Time) (model.MerchantProfile, error)); ok {
+		return returnFunc(ctx, merchantID, displayName, legalName, logoURL, supportPhone, supportEmail, status, fundingModels, settlementModels, currencies, riskTier, maxAmountMinor, maxAmountCurrency, maxTenureMonths, requiresBranchMode, jurisdiction, createdAt, updatedAt)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, model.MerchantStatus, []model.FundingModel, []model.SettlementModel, []model.Currency, model.RiskTier, model.Money, uint, bool, model.Jurisdiction, time.Time, time.Time) model.MerchantProfile); ok {
-		r0 = returnFunc(ctx, merchantID, status, fundingModels, settlementModels, currencies, riskTier, maxAmount, maxTenureMonths, requiresBranchMode, jurisdiction, createdAt, updatedAt)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantID, string, string, string, string, string, model.MerchantStatus, []model.FundingModel, []model.SettlementModel, []model.Currency, model.RiskTier, uint64, model.Currency, uint, bool, model.Jurisdiction, time.Time, time.Time) model.MerchantProfile); ok {
+		r0 = returnFunc(ctx, merchantID, displayName, legalName, logoURL, supportPhone, supportEmail, status, fundingModels, settlementModels, currencies, riskTier, maxAmountMinor, maxAmountCurrency, maxTenureMonths, requiresBranchMode, jurisdiction, createdAt, updatedAt)
 	} else {
 		r0 = ret.Get(0).(model.MerchantProfile)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID, model.MerchantStatus, []model.FundingModel, []model.SettlementModel, []model.Currency, model.RiskTier, model.Money, uint, bool, model.Jurisdiction, time.Time, time.Time) error); ok {
-		r1 = returnFunc(ctx, merchantID, status, fundingModels, settlementModels, currencies, riskTier, maxAmount, maxTenureMonths, requiresBranchMode, jurisdiction, createdAt, updatedAt)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.MerchantID, string, string, string, string, string, model.MerchantStatus, []model.FundingModel, []model.SettlementModel, []model.Currency, model.RiskTier, uint64, model.Currency, uint, bool, model.Jurisdiction, time.Time, time.Time) error); ok {
+		r1 = returnFunc(ctx, merchantID, displayName, legalName, logoURL, supportPhone, supportEmail, status, fundingModels, settlementModels, currencies, riskTier, maxAmountMinor, maxAmountCurrency, maxTenureMonths, requiresBranchMode, jurisdiction, createdAt, updatedAt)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -73,75 +72,105 @@ type MerchantProfileTxQueryer_Create_Call struct {
 
 // Create is a helper method to define mock.On call
 //   - ctx context.Context
-//   - merchantID uuid.UUID
+//   - merchantID model.MerchantID
+//   - displayName string
+//   - legalName string
+//   - logoURL string
+//   - supportPhone string
+//   - supportEmail string
 //   - status model.MerchantStatus
 //   - fundingModels []model.FundingModel
 //   - settlementModels []model.SettlementModel
 //   - currencies []model.Currency
 //   - riskTier model.RiskTier
-//   - maxAmount model.Money
+//   - maxAmountMinor uint64
+//   - maxAmountCurrency model.Currency
 //   - maxTenureMonths uint
 //   - requiresBranchMode bool
 //   - jurisdiction model.Jurisdiction
 //   - createdAt time.Time
 //   - updatedAt time.Time
-func (_e *MerchantProfileTxQueryer_Expecter) Create(ctx any, merchantID any, status any, fundingModels any, settlementModels any, currencies any, riskTier any, maxAmount any, maxTenureMonths any, requiresBranchMode any, jurisdiction any, createdAt any, updatedAt any) *MerchantProfileTxQueryer_Create_Call {
-	return &MerchantProfileTxQueryer_Create_Call{Call: _e.mock.On("Create", ctx, merchantID, status, fundingModels, settlementModels, currencies, riskTier, maxAmount, maxTenureMonths, requiresBranchMode, jurisdiction, createdAt, updatedAt)}
+func (_e *MerchantProfileTxQueryer_Expecter) Create(ctx any, merchantID any, displayName any, legalName any, logoURL any, supportPhone any, supportEmail any, status any, fundingModels any, settlementModels any, currencies any, riskTier any, maxAmountMinor any, maxAmountCurrency any, maxTenureMonths any, requiresBranchMode any, jurisdiction any, createdAt any, updatedAt any) *MerchantProfileTxQueryer_Create_Call {
+	return &MerchantProfileTxQueryer_Create_Call{Call: _e.mock.On("Create", ctx, merchantID, displayName, legalName, logoURL, supportPhone, supportEmail, status, fundingModels, settlementModels, currencies, riskTier, maxAmountMinor, maxAmountCurrency, maxTenureMonths, requiresBranchMode, jurisdiction, createdAt, updatedAt)}
 }
 
-func (_c *MerchantProfileTxQueryer_Create_Call) Run(run func(ctx context.Context, merchantID uuid.UUID, status model.MerchantStatus, fundingModels []model.FundingModel, settlementModels []model.SettlementModel, currencies []model.Currency, riskTier model.RiskTier, maxAmount model.Money, maxTenureMonths uint, requiresBranchMode bool, jurisdiction model.Jurisdiction, createdAt time.Time, updatedAt time.Time)) *MerchantProfileTxQueryer_Create_Call {
+func (_c *MerchantProfileTxQueryer_Create_Call) Run(run func(ctx context.Context, merchantID model.MerchantID, displayName string, legalName string, logoURL string, supportPhone string, supportEmail string, status model.MerchantStatus, fundingModels []model.FundingModel, settlementModels []model.SettlementModel, currencies []model.Currency, riskTier model.RiskTier, maxAmountMinor uint64, maxAmountCurrency model.Currency, maxTenureMonths uint, requiresBranchMode bool, jurisdiction model.Jurisdiction, createdAt time.Time, updatedAt time.Time)) *MerchantProfileTxQueryer_Create_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 uuid.UUID
+		var arg1 model.MerchantID
 		if args[1] != nil {
-			arg1 = args[1].(uuid.UUID)
+			arg1 = args[1].(model.MerchantID)
 		}
-		var arg2 model.MerchantStatus
+		var arg2 string
 		if args[2] != nil {
-			arg2 = args[2].(model.MerchantStatus)
+			arg2 = args[2].(string)
 		}
-		var arg3 []model.FundingModel
+		var arg3 string
 		if args[3] != nil {
-			arg3 = args[3].([]model.FundingModel)
+			arg3 = args[3].(string)
 		}
-		var arg4 []model.SettlementModel
+		var arg4 string
 		if args[4] != nil {
-			arg4 = args[4].([]model.SettlementModel)
+			arg4 = args[4].(string)
 		}
-		var arg5 []model.Currency
+		var arg5 string
 		if args[5] != nil {
-			arg5 = args[5].([]model.Currency)
+			arg5 = args[5].(string)
 		}
-		var arg6 model.RiskTier
+		var arg6 string
 		if args[6] != nil {
-			arg6 = args[6].(model.RiskTier)
+			arg6 = args[6].(string)
 		}
-		var arg7 model.Money
+		var arg7 model.MerchantStatus
 		if args[7] != nil {
-			arg7 = args[7].(model.Money)
+			arg7 = args[7].(model.MerchantStatus)
 		}
-		var arg8 uint
+		var arg8 []model.FundingModel
 		if args[8] != nil {
-			arg8 = args[8].(uint)
+			arg8 = args[8].([]model.FundingModel)
 		}
-		var arg9 bool
+		var arg9 []model.SettlementModel
 		if args[9] != nil {
-			arg9 = args[9].(bool)
+			arg9 = args[9].([]model.SettlementModel)
 		}
-		var arg10 model.Jurisdiction
+		var arg10 []model.Currency
 		if args[10] != nil {
-			arg10 = args[10].(model.Jurisdiction)
+			arg10 = args[10].([]model.Currency)
 		}
-		var arg11 time.Time
+		var arg11 model.RiskTier
 		if args[11] != nil {
-			arg11 = args[11].(time.Time)
+			arg11 = args[11].(model.RiskTier)
 		}
-		var arg12 time.Time
+		var arg12 uint64
 		if args[12] != nil {
-			arg12 = args[12].(time.Time)
+			arg12 = args[12].(uint64)
+		}
+		var arg13 model.Currency
+		if args[13] != nil {
+			arg13 = args[13].(model.Currency)
+		}
+		var arg14 uint
+		if args[14] != nil {
+			arg14 = args[14].(uint)
+		}
+		var arg15 bool
+		if args[15] != nil {
+			arg15 = args[15].(bool)
+		}
+		var arg16 model.Jurisdiction
+		if args[16] != nil {
+			arg16 = args[16].(model.Jurisdiction)
+		}
+		var arg17 time.Time
+		if args[17] != nil {
+			arg17 = args[17].(time.Time)
+		}
+		var arg18 time.Time
+		if args[18] != nil {
+			arg18 = args[18].(time.Time)
 		}
 		run(
 			arg0,
@@ -157,6 +186,12 @@ func (_c *MerchantProfileTxQueryer_Create_Call) Run(run func(ctx context.Context
 			arg10,
 			arg11,
 			arg12,
+			arg13,
+			arg14,
+			arg15,
+			arg16,
+			arg17,
+			arg18,
 		)
 	})
 	return _c
@@ -167,13 +202,13 @@ func (_c *MerchantProfileTxQueryer_Create_Call) Return(merchantProfile model.Mer
 	return _c
 }
 
-func (_c *MerchantProfileTxQueryer_Create_Call) RunAndReturn(run func(ctx context.Context, merchantID uuid.UUID, status model.MerchantStatus, fundingModels []model.FundingModel, settlementModels []model.SettlementModel, currencies []model.Currency, riskTier model.RiskTier, maxAmount model.Money, maxTenureMonths uint, requiresBranchMode bool, jurisdiction model.Jurisdiction, createdAt time.Time, updatedAt time.Time) (model.MerchantProfile, error)) *MerchantProfileTxQueryer_Create_Call {
+func (_c *MerchantProfileTxQueryer_Create_Call) RunAndReturn(run func(ctx context.Context, merchantID model.MerchantID, displayName string, legalName string, logoURL string, supportPhone string, supportEmail string, status model.MerchantStatus, fundingModels []model.FundingModel, settlementModels []model.SettlementModel, currencies []model.Currency, riskTier model.RiskTier, maxAmountMinor uint64, maxAmountCurrency model.Currency, maxTenureMonths uint, requiresBranchMode bool, jurisdiction model.Jurisdiction, createdAt time.Time, updatedAt time.Time) (model.MerchantProfile, error)) *MerchantProfileTxQueryer_Create_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetByID provides a mock function for the type MerchantProfileTxQueryer
-func (_mock *MerchantProfileTxQueryer) GetByID(ctx context.Context, id uuid.UUID) (model.MerchantProfile, error) {
+func (_mock *MerchantProfileTxQueryer) GetByID(ctx context.Context, id model.MerchantProfileID) (model.MerchantProfile, error) {
 	ret := _mock.Called(ctx, id)
 
 	if len(ret) == 0 {
@@ -182,15 +217,15 @@ func (_mock *MerchantProfileTxQueryer) GetByID(ctx context.Context, id uuid.UUID
 
 	var r0 model.MerchantProfile
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) (model.MerchantProfile, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantProfileID) (model.MerchantProfile, error)); ok {
 		return returnFunc(ctx, id)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) model.MerchantProfile); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantProfileID) model.MerchantProfile); ok {
 		r0 = returnFunc(ctx, id)
 	} else {
 		r0 = ret.Get(0).(model.MerchantProfile)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.MerchantProfileID) error); ok {
 		r1 = returnFunc(ctx, id)
 	} else {
 		r1 = ret.Error(1)
@@ -205,20 +240,20 @@ type MerchantProfileTxQueryer_GetByID_Call struct {
 
 // GetByID is a helper method to define mock.On call
 //   - ctx context.Context
-//   - id uuid.UUID
+//   - id model.MerchantProfileID
 func (_e *MerchantProfileTxQueryer_Expecter) GetByID(ctx any, id any) *MerchantProfileTxQueryer_GetByID_Call {
 	return &MerchantProfileTxQueryer_GetByID_Call{Call: _e.mock.On("GetByID", ctx, id)}
 }
 
-func (_c *MerchantProfileTxQueryer_GetByID_Call) Run(run func(ctx context.Context, id uuid.UUID)) *MerchantProfileTxQueryer_GetByID_Call {
+func (_c *MerchantProfileTxQueryer_GetByID_Call) Run(run func(ctx context.Context, id model.MerchantProfileID)) *MerchantProfileTxQueryer_GetByID_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 uuid.UUID
+		var arg1 model.MerchantProfileID
 		if args[1] != nil {
-			arg1 = args[1].(uuid.UUID)
+			arg1 = args[1].(model.MerchantProfileID)
 		}
 		run(
 			arg0,
@@ -233,13 +268,13 @@ func (_c *MerchantProfileTxQueryer_GetByID_Call) Return(merchantProfile model.Me
 	return _c
 }
 
-func (_c *MerchantProfileTxQueryer_GetByID_Call) RunAndReturn(run func(ctx context.Context, id uuid.UUID) (model.MerchantProfile, error)) *MerchantProfileTxQueryer_GetByID_Call {
+func (_c *MerchantProfileTxQueryer_GetByID_Call) RunAndReturn(run func(ctx context.Context, id model.MerchantProfileID) (model.MerchantProfile, error)) *MerchantProfileTxQueryer_GetByID_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetByMerchantID provides a mock function for the type MerchantProfileTxQueryer
-func (_mock *MerchantProfileTxQueryer) GetByMerchantID(ctx context.Context, merchantID uuid.UUID) (model.MerchantProfile, error) {
+func (_mock *MerchantProfileTxQueryer) GetByMerchantID(ctx context.Context, merchantID model.MerchantID) (model.MerchantProfile, error) {
 	ret := _mock.Called(ctx, merchantID)
 
 	if len(ret) == 0 {
@@ -248,15 +283,15 @@ func (_mock *MerchantProfileTxQueryer) GetByMerchantID(ctx context.Context, merc
 
 	var r0 model.MerchantProfile
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) (model.MerchantProfile, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantID) (model.MerchantProfile, error)); ok {
 		return returnFunc(ctx, merchantID)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) model.MerchantProfile); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantID) model.MerchantProfile); ok {
 		r0 = returnFunc(ctx, merchantID)
 	} else {
 		r0 = ret.Get(0).(model.MerchantProfile)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.MerchantID) error); ok {
 		r1 = returnFunc(ctx, merchantID)
 	} else {
 		r1 = ret.Error(1)
@@ -271,20 +306,20 @@ type MerchantProfileTxQueryer_GetByMerchantID_Call struct {
 
 // GetByMerchantID is a helper method to define mock.On call
 //   - ctx context.Context
-//   - merchantID uuid.UUID
+//   - merchantID model.MerchantID
 func (_e *MerchantProfileTxQueryer_Expecter) GetByMerchantID(ctx any, merchantID any) *MerchantProfileTxQueryer_GetByMerchantID_Call {
 	return &MerchantProfileTxQueryer_GetByMerchantID_Call{Call: _e.mock.On("GetByMerchantID", ctx, merchantID)}
 }
 
-func (_c *MerchantProfileTxQueryer_GetByMerchantID_Call) Run(run func(ctx context.Context, merchantID uuid.UUID)) *MerchantProfileTxQueryer_GetByMerchantID_Call {
+func (_c *MerchantProfileTxQueryer_GetByMerchantID_Call) Run(run func(ctx context.Context, merchantID model.MerchantID)) *MerchantProfileTxQueryer_GetByMerchantID_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 uuid.UUID
+		var arg1 model.MerchantID
 		if args[1] != nil {
-			arg1 = args[1].(uuid.UUID)
+			arg1 = args[1].(model.MerchantID)
 		}
 		run(
 			arg0,
@@ -299,13 +334,13 @@ func (_c *MerchantProfileTxQueryer_GetByMerchantID_Call) Return(merchantProfile 
 	return _c
 }
 
-func (_c *MerchantProfileTxQueryer_GetByMerchantID_Call) RunAndReturn(run func(ctx context.Context, merchantID uuid.UUID) (model.MerchantProfile, error)) *MerchantProfileTxQueryer_GetByMerchantID_Call {
+func (_c *MerchantProfileTxQueryer_GetByMerchantID_Call) RunAndReturn(run func(ctx context.Context, merchantID model.MerchantID) (model.MerchantProfile, error)) *MerchantProfileTxQueryer_GetByMerchantID_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // LockByID provides a mock function for the type MerchantProfileTxQueryer
-func (_mock *MerchantProfileTxQueryer) LockByID(ctx context.Context, id uuid.UUID) (model.MerchantProfile, error) {
+func (_mock *MerchantProfileTxQueryer) LockByID(ctx context.Context, id model.MerchantProfileID) (model.MerchantProfile, error) {
 	ret := _mock.Called(ctx, id)
 
 	if len(ret) == 0 {
@@ -314,15 +349,15 @@ func (_mock *MerchantProfileTxQueryer) LockByID(ctx context.Context, id uuid.UUI
 
 	var r0 model.MerchantProfile
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) (model.MerchantProfile, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantProfileID) (model.MerchantProfile, error)); ok {
 		return returnFunc(ctx, id)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) model.MerchantProfile); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantProfileID) model.MerchantProfile); ok {
 		r0 = returnFunc(ctx, id)
 	} else {
 		r0 = ret.Get(0).(model.MerchantProfile)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.MerchantProfileID) error); ok {
 		r1 = returnFunc(ctx, id)
 	} else {
 		r1 = ret.Error(1)
@@ -337,20 +372,20 @@ type MerchantProfileTxQueryer_LockByID_Call struct {
 
 // LockByID is a helper method to define mock.On call
 //   - ctx context.Context
-//   - id uuid.UUID
+//   - id model.MerchantProfileID
 func (_e *MerchantProfileTxQueryer_Expecter) LockByID(ctx any, id any) *MerchantProfileTxQueryer_LockByID_Call {
 	return &MerchantProfileTxQueryer_LockByID_Call{Call: _e.mock.On("LockByID", ctx, id)}
 }
 
-func (_c *MerchantProfileTxQueryer_LockByID_Call) Run(run func(ctx context.Context, id uuid.UUID)) *MerchantProfileTxQueryer_LockByID_Call {
+func (_c *MerchantProfileTxQueryer_LockByID_Call) Run(run func(ctx context.Context, id model.MerchantProfileID)) *MerchantProfileTxQueryer_LockByID_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 uuid.UUID
+		var arg1 model.MerchantProfileID
 		if args[1] != nil {
-			arg1 = args[1].(uuid.UUID)
+			arg1 = args[1].(model.MerchantProfileID)
 		}
 		run(
 			arg0,
@@ -365,13 +400,13 @@ func (_c *MerchantProfileTxQueryer_LockByID_Call) Return(merchantProfile model.M
 	return _c
 }
 
-func (_c *MerchantProfileTxQueryer_LockByID_Call) RunAndReturn(run func(ctx context.Context, id uuid.UUID) (model.MerchantProfile, error)) *MerchantProfileTxQueryer_LockByID_Call {
+func (_c *MerchantProfileTxQueryer_LockByID_Call) RunAndReturn(run func(ctx context.Context, id model.MerchantProfileID) (model.MerchantProfile, error)) *MerchantProfileTxQueryer_LockByID_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // LockByMerchantID provides a mock function for the type MerchantProfileTxQueryer
-func (_mock *MerchantProfileTxQueryer) LockByMerchantID(ctx context.Context, merchantID uuid.UUID) (model.MerchantProfile, error) {
+func (_mock *MerchantProfileTxQueryer) LockByMerchantID(ctx context.Context, merchantID model.MerchantID) (model.MerchantProfile, error) {
 	ret := _mock.Called(ctx, merchantID)
 
 	if len(ret) == 0 {
@@ -380,15 +415,15 @@ func (_mock *MerchantProfileTxQueryer) LockByMerchantID(ctx context.Context, mer
 
 	var r0 model.MerchantProfile
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) (model.MerchantProfile, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantID) (model.MerchantProfile, error)); ok {
 		return returnFunc(ctx, merchantID)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) model.MerchantProfile); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantID) model.MerchantProfile); ok {
 		r0 = returnFunc(ctx, merchantID)
 	} else {
 		r0 = ret.Get(0).(model.MerchantProfile)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.MerchantID) error); ok {
 		r1 = returnFunc(ctx, merchantID)
 	} else {
 		r1 = ret.Error(1)
@@ -403,20 +438,20 @@ type MerchantProfileTxQueryer_LockByMerchantID_Call struct {
 
 // LockByMerchantID is a helper method to define mock.On call
 //   - ctx context.Context
-//   - merchantID uuid.UUID
+//   - merchantID model.MerchantID
 func (_e *MerchantProfileTxQueryer_Expecter) LockByMerchantID(ctx any, merchantID any) *MerchantProfileTxQueryer_LockByMerchantID_Call {
 	return &MerchantProfileTxQueryer_LockByMerchantID_Call{Call: _e.mock.On("LockByMerchantID", ctx, merchantID)}
 }
 
-func (_c *MerchantProfileTxQueryer_LockByMerchantID_Call) Run(run func(ctx context.Context, merchantID uuid.UUID)) *MerchantProfileTxQueryer_LockByMerchantID_Call {
+func (_c *MerchantProfileTxQueryer_LockByMerchantID_Call) Run(run func(ctx context.Context, merchantID model.MerchantID)) *MerchantProfileTxQueryer_LockByMerchantID_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 uuid.UUID
+		var arg1 model.MerchantID
 		if args[1] != nil {
-			arg1 = args[1].(uuid.UUID)
+			arg1 = args[1].(model.MerchantID)
 		}
 		run(
 			arg0,
@@ -431,7 +466,7 @@ func (_c *MerchantProfileTxQueryer_LockByMerchantID_Call) Return(merchantProfile
 	return _c
 }
 
-func (_c *MerchantProfileTxQueryer_LockByMerchantID_Call) RunAndReturn(run func(ctx context.Context, merchantID uuid.UUID) (model.MerchantProfile, error)) *MerchantProfileTxQueryer_LockByMerchantID_Call {
+func (_c *MerchantProfileTxQueryer_LockByMerchantID_Call) RunAndReturn(run func(ctx context.Context, merchantID model.MerchantID) (model.MerchantProfile, error)) *MerchantProfileTxQueryer_LockByMerchantID_Call {
 	_c.Call.Return(run)
 	return _c
 }

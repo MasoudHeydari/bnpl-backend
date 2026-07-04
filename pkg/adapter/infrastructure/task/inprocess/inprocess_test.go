@@ -9,13 +9,24 @@ import (
 	"testing"
 	"time"
 
-	taskinprocess "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task/inprocess"
-	"github.com/parstis/bnpl-backend/pkg/core/mock"
-	"github.com/parstis/bnpl-backend/pkg/core/task"
 	"github.com/stretchr/testify/assert"
 	testifymock "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	errorreportingnoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/errorreporting/noop"
+	taskinprocess "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task/inprocess"
+	"github.com/parstis/bnpl-backend/pkg/core/mock"
+	"github.com/parstis/bnpl-backend/pkg/core/task"
 )
+
+func mustNewRuntime(t *testing.T, cfg taskinprocess.Config, logger *mock.Logger) *taskinprocess.Runtime {
+	t.Helper()
+
+	runtime, err := taskinprocess.New(cfg, logger, errorreportingnoop.New())
+	require.NoError(t, err)
+
+	return runtime
+}
 
 func TestRegister_ValidationErrors(t *testing.T) {
 	tests := []struct {
@@ -91,7 +102,7 @@ func TestRegister_ValidationErrors(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			logger := mock.NewLogger(t)
-			runtime := taskinprocess.New(taskinprocess.Config{}, logger)
+			runtime := mustNewRuntime(t, taskinprocess.Config{}, logger)
 
 			err := runtime.Register(tc.task)
 
@@ -104,12 +115,18 @@ func TestRegister_ValidationErrors(t *testing.T) {
 func TestRegister_DisabledTaskIsSkipped(t *testing.T) {
 	logger := mock.NewLogger(t)
 
-	expectWith(logger, "task_name", "disabled_task", "task_handler", "disabled_handler").
+	expectWith(
+		logger,
+		"task_name",
+		"disabled_task",
+		"task_handler",
+		"disabled_handler",
+	).
 		Return(logger).
 		Once()
 	logger.EXPECT().Info("task registration skipped because task is disabled").Once()
 
-	runtime := taskinprocess.New(taskinprocess.Config{}, logger)
+	runtime := mustNewRuntime(t, taskinprocess.Config{}, logger)
 
 	err := runtime.Register(task.Task{
 		Enabled: false,
@@ -124,7 +141,7 @@ func TestRegister_DisabledTaskIsSkipped(t *testing.T) {
 
 func TestDispatch_ValidationErrors(t *testing.T) {
 	logger := mock.NewLogger(t)
-	runtime := taskinprocess.New(taskinprocess.Config{}, logger)
+	runtime := mustNewRuntime(t, taskinprocess.Config{}, logger)
 
 	err := runtime.Dispatch(context.Background(), task.Command{})
 	require.Error(t, err)
@@ -143,7 +160,7 @@ func TestDispatch_RegisteredHandlerExecutesJob(t *testing.T) {
 
 	var runs atomic.Int64
 
-	runtime := taskinprocess.New(taskinprocess.Config{}, logger)
+	runtime := mustNewRuntime(t, taskinprocess.Config{}, logger)
 
 	err := runtime.Register(task.Task{
 		Enabled: true,
@@ -179,19 +196,23 @@ func TestDispatch_ConcurrentDispatchesDoNotRace(t *testing.T) {
 
 	var runs atomic.Int64
 
-	runtime := taskinprocess.New(taskinprocess.Config{}, logger)
+	runtime := mustNewRuntime(t, taskinprocess.Config{
+		MaxConcurrentRuns: dispatchCount,
+	}, logger)
 
-	err := runtime.Register(task.Task{
-		Enabled: true,
-		Name:    "concurrent_task",
-		Handler: "concurrent_handler",
-		Trigger: task.Trigger{Type: task.TriggerManual},
-		Job: func(context.Context) error {
-			runs.Add(1)
-			return nil
-		},
-	})
-	require.NoError(t, err)
+	for i := 0; i < dispatchCount; i++ {
+		err := runtime.Register(task.Task{
+			Enabled: true,
+			Name:    fmt.Sprintf("concurrent_task_%d", i),
+			Handler: fmt.Sprintf("concurrent_handler_%d", i),
+			Trigger: task.Trigger{Type: task.TriggerManual},
+			Job: func(context.Context) error {
+				runs.Add(1)
+				return nil
+			},
+		})
+		require.NoError(t, err)
+	}
 
 	var wg sync.WaitGroup
 	wg.Add(dispatchCount)
@@ -202,7 +223,7 @@ func TestDispatch_ConcurrentDispatchesDoNotRace(t *testing.T) {
 
 			dispatchErr := runtime.Dispatch(context.Background(), task.Command{
 				ID:      fmt.Sprintf("command-%d", commandID),
-				Handler: "concurrent_handler",
+				Handler: fmt.Sprintf("concurrent_handler_%d", commandID),
 			})
 			require.NoError(t, dispatchErr)
 		}(i)
@@ -215,13 +236,52 @@ func TestDispatch_ConcurrentDispatchesDoNotRace(t *testing.T) {
 	}, time.Second, 10*time.Millisecond)
 }
 
+func TestDispatch_SameHandlerRejectsOverlap(t *testing.T) {
+	logger := mock.NewLogger(t)
+	allowLifecycleLogs(logger)
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	done := make(chan struct{})
+
+	runtime := mustNewRuntime(t, taskinprocess.Config{}, logger)
+	err := runtime.Register(task.Task{
+		Enabled: true,
+		Name:    "exclusive_task",
+		Handler: "exclusive_handler",
+		Trigger: task.Trigger{Type: task.TriggerManual},
+		Job: func(context.Context) error {
+			close(started)
+			<-release
+			close(done)
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, runtime.Dispatch(context.Background(), task.Command{
+		ID:      "command-1",
+		Handler: "exclusive_handler",
+	}))
+	<-started
+
+	overlapErr := runtime.Dispatch(context.Background(), task.Command{
+		ID:      "command-2",
+		Handler: "exclusive_handler",
+	})
+	require.ErrorIs(t, overlapErr, taskinprocess.ErrRuntimeBusy)
+
+	close(release)
+	<-done
+}
+
 func TestStart_IntervalRunOnStartExecutesJob(t *testing.T) {
 	logger := mock.NewLogger(t)
 	allowLifecycleLogs(logger)
 
 	var runs atomic.Int64
 
-	runtime := taskinprocess.New(taskinprocess.Config{}, logger)
+	runtime := mustNewRuntime(t, taskinprocess.Config{}, logger)
 
 	err := runtime.Register(task.Task{
 		Enabled: true,
@@ -255,6 +315,7 @@ func TestStart_IntervalRunOnStartExecutesJob(t *testing.T) {
 	select {
 	case err := <-done:
 		require.NoError(t, err)
+
 	case <-time.After(time.Second):
 		t.Fatal("runtime did not stop after context cancellation")
 	}
@@ -266,7 +327,7 @@ func TestStart_IntervalDoesNotRunImmediatelyWhenRunOnStartFalse(t *testing.T) {
 
 	var runs atomic.Int64
 
-	runtime := taskinprocess.New(taskinprocess.Config{}, logger)
+	runtime := mustNewRuntime(t, taskinprocess.Config{}, logger)
 
 	err := runtime.Register(task.Task{
 		Enabled: true,
@@ -299,6 +360,7 @@ func TestStart_IntervalDoesNotRunImmediatelyWhenRunOnStartFalse(t *testing.T) {
 	select {
 	case err := <-done:
 		require.NoError(t, err)
+
 	case <-time.After(time.Second):
 		t.Fatal("runtime did not stop after context cancellation")
 	}
@@ -310,7 +372,7 @@ func TestStart_IntervalRepeats(t *testing.T) {
 
 	var runs atomic.Int64
 
-	runtime := taskinprocess.New(taskinprocess.Config{}, logger)
+	runtime := mustNewRuntime(t, taskinprocess.Config{}, logger)
 
 	err := runtime.Register(task.Task{
 		Enabled: true,
@@ -343,6 +405,7 @@ func TestStart_IntervalRepeats(t *testing.T) {
 	select {
 	case err := <-done:
 		require.NoError(t, err)
+
 	case <-time.After(time.Second):
 		t.Fatal("runtime did not stop after context cancellation")
 	}
@@ -354,7 +417,7 @@ func TestStart_ManualTaskDoesNotExecuteAutomatically(t *testing.T) {
 
 	var runs atomic.Int64
 
-	runtime := taskinprocess.New(taskinprocess.Config{}, logger)
+	runtime := mustNewRuntime(t, taskinprocess.Config{}, logger)
 
 	err := runtime.Register(task.Task{
 		Enabled: true,
@@ -383,6 +446,7 @@ func TestStart_ManualTaskDoesNotExecuteAutomatically(t *testing.T) {
 	select {
 	case err := <-done:
 		require.NoError(t, err)
+
 	case <-time.After(time.Second):
 		t.Fatal("runtime did not stop after context cancellation")
 	}
@@ -392,7 +456,7 @@ func TestStart_CronInvalidTimezoneReturnsError(t *testing.T) {
 	logger := mock.NewLogger(t)
 	allowLifecycleLogs(logger)
 
-	runtime := taskinprocess.New(taskinprocess.Config{
+	runtime := mustNewRuntime(t, taskinprocess.Config{
 		DefaultTimezone: "Invalid/Timezone",
 	}, logger)
 
@@ -418,7 +482,7 @@ func TestStart_CronInvalidExpressionReturnsError(t *testing.T) {
 	logger := mock.NewLogger(t)
 	allowLifecycleLogs(logger)
 
-	runtime := taskinprocess.New(taskinprocess.Config{}, logger)
+	runtime := mustNewRuntime(t, taskinprocess.Config{}, logger)
 
 	err := runtime.Register(task.Task{
 		Enabled: true,
@@ -442,7 +506,7 @@ func TestStart_CronTaskStartsAndStops(t *testing.T) {
 	logger := mock.NewLogger(t)
 	allowLifecycleLogs(logger)
 
-	runtime := taskinprocess.New(taskinprocess.Config{
+	runtime := mustNewRuntime(t, taskinprocess.Config{
 		DefaultTimezone: "Asia/Tehran",
 	}, logger)
 
@@ -470,6 +534,7 @@ func TestStart_CronTaskStartsAndStops(t *testing.T) {
 	select {
 	case err := <-done:
 		require.NoError(t, err)
+
 	case <-time.After(time.Second):
 		t.Fatal("runtime did not stop after context cancellation")
 	}
@@ -481,7 +546,7 @@ func TestExecute_JobErrorDoesNotStopRuntime(t *testing.T) {
 
 	var runs atomic.Int64
 
-	runtime := taskinprocess.New(taskinprocess.Config{}, logger)
+	runtime := mustNewRuntime(t, taskinprocess.Config{}, logger)
 
 	err := runtime.Register(task.Task{
 		Enabled: true,
@@ -515,6 +580,7 @@ func TestExecute_JobErrorDoesNotStopRuntime(t *testing.T) {
 	select {
 	case err := <-done:
 		require.NoError(t, err)
+
 	case <-time.After(time.Second):
 		t.Fatal("runtime did not stop after context cancellation")
 	}

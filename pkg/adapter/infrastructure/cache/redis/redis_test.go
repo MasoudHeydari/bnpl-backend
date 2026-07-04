@@ -6,10 +6,11 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	redisadapter "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/cache/redis"
-	"github.com/parstis/bnpl-backend/pkg/core/cache"
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
+
+	redisadapter "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/cache/redis"
+	"github.com/parstis/bnpl-backend/pkg/core/cache"
 )
 
 func newTestCache(t *testing.T) (*redisadapter.Cache, *miniredis.Miniredis) {

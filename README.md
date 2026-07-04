@@ -9,21 +9,21 @@ Go backend for a Buy Now Pay Later (BNPL) financial platform. The repository is 
 What exists today:
 
 - Single-binary CLI (`bnpl`) with Cobra subcommands
-- YAML configuration with `${ENV}` expansion, semver version validation (0.2.0), and provider-based `infrastructure:` section
+- YAML configuration with `${ENV}` expansion, semver version validation (config 0.3.0 / database 0.2.0), and provider-based `infrastructure:` section
 - PostgreSQL connection pooling, outbox and health repositories, and transaction adapters (`pgx`)
-- Destructive schema bootstrap (`db init-dev`, `db init-prod`) including `integration_outbox` table
+- Schema bootstrap (`db init-dev` destructive recreate; `db init-prod` one-time create-if-missing) including `integration_outbox` table
 - Filesystem migration runner (`db migrate`) — wired; migration directory may be empty
 - Gin HTTP server with trace-ID middleware, Kubernetes-style `/healthz/live` and `/healthz/ready` probes, and an empty `/api/v1` route group
 - Graceful shutdown on `SIGINT` / `SIGTERM` with lifecycle-aware health probes
-- Infrastructure adapters: slog/noop logging, noop/redis cache, noop/kafka messaging, noop/gobreaker circuit breaker, in-process task runtime
+- Infrastructure adapters: slog/noop logging, noop/redis cache, noop/kafka messaging, noop/gobreaker circuit breaker, in-process/Temporal/composite task runtimes
 - Transactional outbox publisher use case and scheduled publishing task
-- Docker image build and local Compose infrastructure (PostgreSQL, Kafka)
+- Docker image build and local Compose infrastructure (PostgreSQL, Kafka, Temporal development server)
 - GitHub Actions CI/CD and GitLab CI pipelines
 - Unit and integration tests across bootstrap, config, infrastructure, HTTP, and core packages
 
 What is **not** implemented:
 
-- Borrower credit evaluation, installment plans, credit limits, checkout decisions
+- Customer credit evaluation, installment plans, credit limits, checkout decisions
 - Contract, repayment, payment, collections, or legal-case domains
 - Concrete HTTP business API handlers or business aggregates
 - Production-safe, non-destructive schema evolution as default deploy path
@@ -43,9 +43,9 @@ The intended platform will support:
 | Decision | Credit and checkout financing decisions |
 | RepaymentPlan / Installment | Schedule generation and tracking |
 | PaymentAttempt | Payment initiation and reconciliation |
-| CreditLimit | Borrower exposure management |
+| CreditLimit | Customer exposure management |
 | CollectionsCase / LegalCase | Delinquency and escalation workflows |
-| MerchantProfile / MerchantBranchProfile | Merchant onboarding and branches |
+| MerchantProfile / MerchantBranchProfile | Channel-neutral merchants and physical/online selling points |
 | Restriction / Block | Risk controls |
 | Audit | Regulatory and operational traceability |
 
@@ -54,11 +54,11 @@ These domains are **planned**, not present in the current codebase.
 ## Architecture Summary
 
 ```
-cmd/bnpl          CLI entrypoint (default: HTTP server; subcommands: db *)
+cmd/bnpl          CLI entrypoint (default: HTTP server; operational db/policy-assignment subcommands)
 cmd/bnpl/bootstrap Application wiring (repos, infrastructure, tasks, routes, shutdown)
 pkg/core          Domain models, repository ports, use cases, infrastructure ports
 pkg/adapter       Config, Gin HTTP, PostgreSQL, infrastructure implementations
-configs/          Environment-expanded YAML configuration (versions 0.2.0)
+configs/          Environment-expanded YAML configuration (config 0.3.0 / database 0.2.0)
 ```
 
 Dependency flow is inward: adapters and CLI depend on use cases; use cases depend on `pkg/core` ports; PostgreSQL and infrastructure adapters implement those ports.
@@ -82,12 +82,12 @@ Details: [doc/architecture.md](doc/architecture.md) · ADRs: [doc/adr/](doc/adr/
 | `pkg/adapter/restful/gin/` | Gin wrapper, middleware, healthrs, serdser, pagination |
 | `pkg/core/mock/` | Mockery-generated test doubles |
 | `configs/config.yaml` | Canonical configuration shape |
-| `scripts/docker-entrypoint.sh` | Container startup: optional DB init then HTTP server |
+| `scripts/entrypoint.sh` | Container startup: optional DB init then HTTP server |
 | `doc/` | Architecture, operations, security, and ADR documentation |
 
 ## Configuration Overview
 
-Configuration is loaded from YAML with `${VAR}` placeholders expanded from the process environment. `versions.config` and `versions.database` must match binary-supported semver **0.2.0**.
+Configuration is loaded from YAML with `${VAR}` placeholders expanded from the process environment. `versions.config` must be compatible with **0.3.0** and `versions.database` with **0.2.0**.
 
 Resolution order for the config file path:
 
@@ -114,24 +114,27 @@ PostgreSQL is still required for the HTTP server. Redis is only required when `C
 cp .env.example .env          # adjust values for your workstation
 make up                       # start PostgreSQL (and Kafka)
 make build                    # build build/bin/bnpl
-make init-dev                 # destructive schema bootstrap (development)
-DB_INIT_COMMAND= make run     # skip re-init on subsequent runs
+make init-dev                 # one-time (or reset): recreates schema bnpl
+make run                      # start app; does not re-init the database
 # or: ./build/bin/bnpl
 ```
 
 Direct CLI usage:
 
 ```bash
-./build/bin/bnpl              # start HTTP server (default command)
-./build/bin/bnpl db init-dev  # reset schema and apply embedded bootstrap SQL
-./build/bin/bnpl db migrate   # apply filesystem migrations
+./build/bin/bnpl                                            # start HTTP server (default command)
+./build/bin/bnpl db init-dev                                # reset schema and apply embedded bootstrap SQL
+./build/bin/bnpl db migrate                                 # apply filesystem migrations
+./build/bin/bnpl policy-assignment import-trusted \
+  --file assets/csv/trusted-subjects/trusted-subjects.csv --actor ops@example          # bulk-assign the trusted policy bundle
 ```
 
 Full operational guide: [doc/operations.md](doc/operations.md)
 
 ## Database Bootstrap
 
-Schema initialization is **destructive**: both `init-dev` and `init-prod` drop and recreate the managed `bnpl` schema.
+`init-dev` is **destructive** and requires `APP_ENVIRONMENT=development`: it drops and recreates managed schema `bnpl`.
+`init-prod` requires `APP_ENVIRONMENT=production`: it creates schema `bnpl` only when missing and refuses when it already exists (use `db migrate` instead).
 
 Flow (see [doc/database.md](doc/database.md)):
 
@@ -140,7 +143,7 @@ Flow (see [doc/database.md](doc/database.md)):
 
 Embedded SQL lives in `pkg/adapter/db/postgres/migrationsrp/` and is compiled into the binary via `go:embed`.
 
-**Warning:** `init-prod` is not safe for live production databases.
+**Note:** Prefer `db migrate` for evolving an existing production schema. Use `init-prod` only for first-time creation when `bnpl` is absent.
 
 ## Migrations
 
@@ -156,28 +159,27 @@ make build-image              # docker build -t bnpl-backend:v0.2.0 .
 make run-image                # runs container with default entrypoint
 ```
 
-Container startup (`scripts/docker-entrypoint.sh`):
+Container startup (`scripts/entrypoint.sh`):
 
-1. Runs `bnpl db ${DB_INIT_COMMAND}` when `DB_INIT_COMMAND` is set (retries on failure)
-2. Skips DB init when `DB_INIT_COMMAND` is empty
-3. `exec bnpl` to start the HTTP server as PID 1
+1. Logs a short startup banner
+2. `exec bnpl` to start the HTTP server as PID 1
+
+Database bootstrap is separate: `make init-dev`, `make init-prod`, or `bnpl db migrate`.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `CONFIG_FILE` | `configs/config.yaml` | Application configuration path |
 | `APP_EXECUTABLE` | `./bnpl` | Binary path inside the container |
-| `DB_INIT_COMMAND` | `init-dev` in `.env.example` | Bootstrap subcommand; empty skips init |
-| `DB_INIT_MAX_ATTEMPTS` | `10` | Init retry count |
-| `DB_INIT_RETRY_INTERVAL_SECONDS` | `3` | Seconds between retries |
 
 ## Makefile Usage
 
 | Target | Description |
 | --- | --- |
 | `make build` | Compile static binary to `build/bin/bnpl` |
-| `make run` | Build, start Compose, run entrypoint |
+| `make run` | Build, start Compose, run entrypoint (starts app only) |
 | `make up` / `make down` | Start/stop local Compose services |
-| `make init-dev` / `make init-prod` | Destructive database bootstrap |
+| `make init-dev` | Destructive development schema recreate (`APP_ENVIRONMENT=development`) |
+| `make init-prod` | One-time production schema create (`APP_ENVIRONMENT=production`; refuses if exists) |
 | `make test` | Run unit tests |
 | `make test-coverage` | Generate coverage report |
 | `make lint` | Run golangci-lint |
@@ -186,13 +188,12 @@ Container startup (`scripts/docker-entrypoint.sh`):
 ## Known Limitations
 
 - No business API endpoints or domain aggregates
-- `init-dev` and `init-prod` are destructive; unsuitable for evolving production schemas
+- `init-dev` is destructive (development only); `init-prod` refuses an existing schema — use `db migrate` for production evolution
 - Development and production seed SQL files are empty
 - `assets/db/migrations` may not exist until first migration is added
 - No domain use case inserts outbox rows yet
-- Kafka subscriber runs with placeholder handler only
+- Kafka subscriber processes Financial Core payment results; payment-application acknowledgements publish via transactional outbox
 - Circuit breaker constructed but not used by call sites
-- `SHUTDOWN_DRAIN_DELAY` configured but not applied in bootstrap shutdown
 - `scripts/deploy.sh` referenced by CD workflow is missing
 - **Not production-ready** — platform foundations only
 
@@ -201,13 +202,12 @@ Container startup (`scripts/docker-entrypoint.sh`):
 Near-term platform work:
 
 1. Add initial filesystem migration files
-2. Wire `SHUTDOWN_DRAIN_DELAY` into bootstrap shutdown sequence
-3. Implement domain Kafka consumer handlers for payment results
-4. Use circuit breaker at external dependency call sites
-5. Introduce first BNPL domain aggregates (Contract, Decision, CreditLimit)
-6. Non-destructive production migration workflow
-7. Metrics, tracing export, and audit persistence
-8. Reduce admin credential exposure during routine operations
+2. Implement domain Kafka consumer handlers for payment results
+3. Use circuit breaker at external dependency call sites
+4. Introduce first BNPL domain aggregates (Contract, Decision, CreditLimit)
+5. Non-destructive production migration workflow
+6. Metrics, tracing export, and audit persistence
+7. Reduce admin credential exposure during routine operations
 
 ## Documentation Index
 

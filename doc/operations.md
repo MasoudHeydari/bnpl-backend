@@ -50,15 +50,15 @@ make build
 # Output: build/bin/bnpl
 ```
 
-### 4. Database bootstrap (destructive)
+### 4. Database bootstrap
 
 ```bash
-make init-dev    # development seed path (seed SQL empty today)
+make init-dev    # requires APP_ENVIRONMENT=development; always recreates schema bnpl
 # or
-make init-prod   # production-style seed path (same effect today)
+make init-prod   # requires APP_ENVIRONMENT=production; creates only if schema bnpl is missing
 ```
 
-Both drop and recreate schema `bnpl`. See [database.md](database.md).
+`init-dev` drops and recreates schema `bnpl`. `init-prod` refuses when `bnpl` already exists (use `make migrate`). See [database.md](database.md).
 
 ### 5. Run application
 
@@ -66,30 +66,20 @@ Both drop and recreate schema `bnpl`. See [database.md](database.md).
 make run
 ```
 
-Runs `scripts/docker-entrypoint.sh`, which:
-
-1. Runs `bnpl db ${DB_INIT_COMMAND}` when `DB_INIT_COMMAND` is non-empty (**destructive** with default `init-dev`)
-2. Retries failed init up to `DB_INIT_MAX_ATTEMPTS` (default 10) with `DB_INIT_RETRY_INTERVAL_SECONDS` (default 3) between attempts
-3. `exec bnpl` — starts HTTP server and background tasks
-
-For repeated local runs without re-init:
-
-```bash
-DB_INIT_COMMAND= ./build/bin/bnpl
-# or invoke the binary directly after a one-time init:
-./build/bin/bnpl
-```
+Runs `scripts/entrypoint.sh`, which starts the BNPL process (`exec bnpl`).
+It does **not** touch the database. Bootstrap/reset is only via `make init-dev`
+(or `make init-prod` / `bnpl db migrate`).
 
 ## Makefile Targets
 
 ### Build / run
 
-| Target | Action |
-| --- | --- |
-| `build` | Compile to `build/bin/bnpl` |
-| `run` | `build` + `up` + `docker-entrypoint.sh` |
-| `init-dev` | `bnpl db init-dev` |
-| `init-prod` | `bnpl db init-prod` |
+| Target | Action                           |
+| --- |----------------------------------|
+| `build` | Compile to `build/bin/bnpl`      |
+| `run` | `build` + `up` + `entrypoint.sh` (starts app only) |
+| `init-dev` | `bnpl db init-dev`               |
+| `init-prod` | `bnpl db init-prod`              |
 | `clean` | Remove binary and `coverage.out` |
 
 ### Test / quality
@@ -127,10 +117,43 @@ DB_INIT_COMMAND= ./build/bin/bnpl
 
 ```bash
 ./build/bin/bnpl [--config path]              # HTTP server + infrastructure
-./build/bin/bnpl db init-dev                  # destructive bootstrap
-./build/bin/bnpl db init-prod                 # destructive bootstrap
+./build/bin/bnpl db init-dev                  # destructive development recreate
+./build/bin/bnpl db init-prod                 # one-time production create (refuses if exists)
 ./build/bin/bnpl db migrate                   # filesystem migrations
+./build/bin/bnpl policy-assignment import-trusted \
+  --file assets/csv/trusted-subjects/trusted-subjects.csv --actor ops@example
+# or: make policy-assignment-import-trusted
+# optional overrides: POLICY_ASSIGNMENT_FILE=... POLICY_ASSIGNMENT_ACTOR=...
 ```
+
+### Trusted customer policy import
+
+`policy-assignment import-trusted` is an operational bulk command for assigning
+the code-owned trusted customer policy bundle (`checkout/v2` and
+`initial-credit-limit/v2`). Checkout v2 is full-financing with **3** installments
+due at one, two, and three Jalali months after purchase. The CSV contains stable
+**subject IDs** and is the source of truth for trusted membership. BNPL does not
+require or persist national IDs for this workflow.
+
+Shortcut: `make policy-assignment-import-trusted` (defaults:
+`POLICY_ASSIGNMENT_FILE=assets/csv/trusted-subjects/trusted-subjects.csv`,
+`POLICY_ASSIGNMENT_ACTOR=ops@example`).
+
+The CSV format is intentionally strict and contains exactly one column:
+
+```csv
+subject_id
+550e8400-e29b-41d4-a716-446655440000
+92d2c7b2-6f8b-4f25-8bb2-4deab49af151
+```
+
+The CSV is the authoritative source of trusted membership. BNPL does **not**
+call Identity Service during this import. Each structurally valid `subject_id`
+is processed independently and receives the whole trusted policy bundle
+atomically. A persistence failure for one subject is recorded as a durable
+failed import item and does **not** roll back successful subjects from the same
+file. Import batches and row outcomes are persisted in
+`policy_assignment_imports` and `policy_assignment_import_items`.
 
 The default HTTP server handles `SIGINT` and `SIGTERM` with graceful shutdown (see below).
 
@@ -139,14 +162,14 @@ The default HTTP server handles `SIGINT` and `SIGTERM` with graceful shutdown (s
 On `SIGINT` or `SIGTERM`:
 
 1. Readiness fails immediately (`LifecycleState.StartDraining`)
-2. Bounded shutdown runs (`SHUTDOWN_TIMEOUT`, default 30s)
-3. HTTP server stops accepting new connections
-4. Task scheduler and message consumer stop (root context canceled)
-5. Short in-flight drain window (100ms hardcoded today)
-6. Publisher, subscriber, cache, and database pool close
+2. Bounded shutdown runs under one budget (`SHUTDOWN_TIMEOUT`, default 30s)
+3. `SHUTDOWN_DRAIN_DELAY` waits for load-balancer / kube-proxy propagation
+4. HTTP (then metrics) servers stop accepting and finish in-flight work
+5. Task scheduler and message consumer stop (runtime context canceled)
+6. Outbound HTTP client, publisher, subscriber, messaging health, cache, external clients, and database pool close (database last)
 7. If shutdown exceeds timeout, liveness fails (`MarkShutdownTimedOut`)
 
-`SHUTDOWN_DRAIN_DELAY` is configured (default 5s) but **not yet applied** before HTTP shutdown — readiness still fails on signal via draining state.
+HTTP listen bind happens before background workers start so a busy port fails without leaving workers running.
 
 ## Kubernetes Health Probes
 
@@ -187,38 +210,29 @@ Copied artifacts:
 
 - Binary as `./bnpl`
 - `configs/` directory
-- `scripts/docker-entrypoint.sh`
+- `scripts/entrypoint.sh`
 
 Environment:
 
 - `CONFIG_FILE=configs/config.yaml`
-- `APP_EXECUTABLE` and `DB_INIT_COMMAND` expected at runtime (see entrypoint)
+- `APP_EXECUTABLE` (path to binary; see entrypoint)
 
 ### Entrypoint behavior
 
-`scripts/docker-entrypoint.sh`:
+`scripts/entrypoint.sh` only starts the BNPL process:
 
-| Step | Behavior | Notes |
-| --- | --- | --- |
-| 1 | DB init when `DB_INIT_COMMAND` is set | Skipped when empty |
-| 1a | Retry loop | `DB_INIT_MAX_ATTEMPTS` (default 10), `DB_INIT_RETRY_INTERVAL_SECONDS` (default 3) |
-| 2 | `exec bnpl` | HTTP server + tasks as PID 1 |
+| Step | Behavior |
+| --- | --- |
+| 1 | Log startup banner |
+| 2 | `exec bnpl` — HTTP server + tasks as PID 1 |
 
-Supported `DB_INIT_COMMAND` values: `init-dev`, `init-prod`. Leave unset or empty to skip initialization:
-
-```bash
-docker run -e DB_INIT_COMMAND= ...
-# or
-docker run -e DB_INIT_COMMAND="" ...
-```
-
-Override for production experiments:
+Database bootstrap is **not** part of the entrypoint. Use explicit commands:
 
 ```bash
-docker run -e DB_INIT_COMMAND=init-prod -e APP_EXECUTABLE=./bnpl ...
+make init-dev     # development reset
+make init-prod    # production create-if-missing
+bnpl db migrate   # incremental migrations
 ```
-
-**Warning:** `init-dev` and `init-prod` are destructive. Steady-state production should use empty `DB_INIT_COMMAND` and external migration jobs.
 
 See ADR [0006](adr/0006-docker-entrypoint-startup-flow.md).
 
@@ -231,14 +245,45 @@ See ADR [0006](adr/0006-docker-entrypoint-startup-flow.md).
 | `MESSAGING_PROVIDER=noop` | None | Default local setup |
 | `MESSAGING_PROVIDER=kafka` | Kafka at `KAFKA_BROKER_1` | Lazy connect; publish/consume fails without broker |
 | `TASK_PROVIDER=noop` | None | Disables scheduled jobs |
-| `TASK_PROVIDER=inprocess` | None | Runs goroutine metrics and outbox publisher when enabled |
+| `TASK_PROVIDER=inprocess` | None | Runs goroutine metrics, outbox publisher, contract/installment jobs when enabled |
+
+## Financial Core payment results
+
+When `MESSAGING_PROVIDER=kafka`, the consumer on `KAFKA_TOPIC_PAYMENT_RESULTS` decodes Financial Core payment-result events and delegates to `financialcorepaymentresultuc.Process` (all routing, purpose resolution, and unsupported-purpose handling occur inside the use case — the Kafka handler only decodes and maps transport fields).
+
+Processing semantics:
+
+1. Kafka adapter maps known external payment statuses to typed values; unknown raw statuses are preserved (`RawPaymentStatus`) and durably fail inbox **after acquisition** (`unsupported_payment_result_status`) — never `already_applied`, no outbound acknowledgement
+2. Inbox fingerprint uses **normalized canonical business fields** including raw payment status for unknown values; same trimmed `(source_service, event_id)` with different fingerprint → conflict row
+3. Same `(source_service, event_id)` with different fingerprint → `integration_inbox_conflicts` row; original terminal inbox row unchanged (no infinite retry loop)
+4. Acquire `integration_inbox` row via `AcquireForProcessing` in the same transaction as domain updates (`financialcorepaymentresultuc`)
+5. **Process results:** `payment_applied`, `already_applied`, `reconciliation_required`, `failure_recorded`, `cancellation_recorded`, `event_already_processed`, `terminal_result_unmatched`, `payload_conflict_recorded`, `permanently_rejected`
+
+Kafka adapter validates only the minimum trusted envelope before calling `financialcorepaymentresultuc`. Payment business fields are validated after inbox acquisition.
+6. Failed/canceled results mark inbox processed and local attempt terminal state — **no** `applied` outbox acknowledgement
+7. Reconciliation-required outcomes are persisted (inbox + local `PaymentAttempt` when present + outbox acknowledgement where applicable) — **not** dropped as non-retryable before commit
+8. Financial Core **`financial_payment_intent_id`** is primary correlation; provider attempt ID is recorded for audit but mismatch alone is not rejection
+9. Duplicate success requires matching intent + attempt + amount + currency + installment — amount equality alone is not payment identity
+10. Kafka offset is acknowledged only after successful commit (applied, duplicate processed, reconciliation persisted, conflict recorded, or durable permanent invalid event)
+11. Infrastructure/transaction failures remain retryable (DB, serialization, outbox insert, lock timeout). Business reconciliation outcomes (`reconciliation_required`, `permanently_rejected`, `payload_conflict_recorded`, missing contract/installment on succeeded payment) commit durably and acknowledge Kafka — not retried indefinitely.
+12. Installment `already_applied` is determined before current exposure/principal validation; equivalent replays do not fail because exposure was already reduced.
+13. Checkout reconciliation uses `persistCheckoutPaymentReconciliation` (no payment-attempt repository); installment reconciliation uses `persistInstallmentPaymentReconciliation` (requires payment-attempt repository).
+14. Optional Financial Core provider-attempt IDs persist as SQL `NULL`, not empty strings.
+
+Outbox publisher task delivers business acknowledgements to `KAFKA_TOPIC_PAYMENT_APPLICATION_RESULTS` using `financial_payment_intent_id` as the Kafka message key.
+
+**Monetary truth vs application truth:** Financial Core inbound events report whether money succeeded/failed/canceled. Outbound `bnpl.payment_application_result.v1` reports whether BNPL applied that successful payment to its obligation (`applied`, `already_applied`, `reconciliation_required`). Kafka offset commit is transport-level and distinct from the business acknowledgement.
+
+**Exact replay vs new duplicate success:** `event_already_processed` is returned when the same inbox event is replayed. `already_applied` is returned only when a new inbound success is proven to match the same financial identity as an already-applied payment.
+
+See ADR [0016](adr/0016-bnpl-payment-attempt-ownership.md).
 
 ## Graceful Shutdown Configuration
 
 | Key | Default | Purpose |
 | --- | --- | --- |
 | `SHUTDOWN_TIMEOUT` | `30s` | Maximum time for full shutdown sequence |
-| `SHUTDOWN_DRAIN_DELAY` | `5s` | Intended delay before HTTP shutdown (not wired in bootstrap yet) |
+| `SHUTDOWN_DRAIN_DELAY` | `5s` | Delay after readiness fails and before HTTP shutdown (LB propagation) |
 
 ## Docker Compose
 
@@ -278,11 +323,10 @@ Uses `HAMRAVESH_CONTAINER_REGISTRY` and `HAMRAVESH_REGISTRY_NAMESPACE` from Make
 
 ## Limitations
 
-- Default `.env.example` still sets `DB_INIT_COMMAND=init-dev`; container entrypoint destroys schema on every start unless overridden
+- Schema bootstrap is explicit (`make init-dev` / `make init-prod` / `bnpl db migrate`); entrypoint never mutates the database
 - No `deploy.sh` in repo despite CD reference
 - `assets/db/migrations` directory may be missing until first migration is added
-- `SHUTDOWN_DRAIN_DELAY` configured but not applied in bootstrap shutdown timing
-- Kafka subscriber runs with placeholder handler only (no domain message processing)
+- Kafka subscriber processes Financial Core payment results via `financialcorepaymentresultuc`; payment-application results are published through transactional outbox
 - No automated rollback documented
 - **Not production-ready** — infrastructure is foundational only
 
@@ -309,7 +353,7 @@ Uses `HAMRAVESH_CONTAINER_REGISTRY` and `HAMRAVESH_REGISTRY_NAMESPACE` from Make
 ### `db migrate` fails
 
 - Ensure `MIGRATIONS_FILES_DIR` exists and contains SQL files
-- Use `init-dev` for greenfield schema only
+- Use `init-dev` for development greenfield/reset only; use `init-prod` once for missing production schema
 
 ### HTTP server starts but no API routes
 
@@ -317,8 +361,8 @@ Uses `HAMRAVESH_CONTAINER_REGISTRY` and `HAMRAVESH_REGISTRY_NAMESPACE` from Make
 
 ### Container wipes database on restart
 
-- Default `DB_INIT_COMMAND=init-dev` in `.env.example`
-- Set `DB_INIT_COMMAND=` (empty) for steady-state deployments
+- Entrypoint no longer runs DB init; if schema disappears, look for an external Job/`make init-dev` or volume loss
+- Prefer `make init-dev` only when you intentionally want a local reset
 
 ### Outbox publisher logs errors with noop messaging
 
@@ -327,8 +371,6 @@ Uses `HAMRAVESH_CONTAINER_REGISTRY` and `HAMRAVESH_REGISTRY_NAMESPACE` from Make
 ## TODO
 
 - [ ] Add `scripts/deploy.sh` or remove CD deploy step
-- [ ] Document production entrypoint with empty `DB_INIT_COMMAND`
-- [ ] Wire `SHUTDOWN_DRAIN_DELAY` into bootstrap shutdown sequence
 - [ ] Document PostgreSQL and backup procedures for production
 - [ ] Add Redis to local Compose when cache integration tests are needed
 
