@@ -26,19 +26,12 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// Generic collection-obligation command boundary (W2-2).
+// Generic collection-obligation command boundary.
 //
-// Prepare creates a FinancialInvoice collection instrument. It does not
-// execute payment, does not post accounting, and does not create merchant
-// entitlement.
-//
-// Authenticated source_service, FinancialScope, Financial idempotency keys,
-// fingerprints, ledger/wallet ids, journal lines, and product lifecycle
-// vocabulary are deliberately absent from the request body.
-//
-// tenant_id / context_id are omitted: Financial owns canonical merchant
-// settlement FinancialScope resolution and must not treat caller-supplied
-// scope as authority.
+// Prepare creates a Financial collection instrument. It does not execute
+// payment, post accounting, or make product/business lifecycle decisions.
+// Authenticated source_service and FinancialScope remain Financial/trusted
+// transport authority and are deliberately absent from this request body.
 type CollectionObligationServiceClient interface {
 	PrepareCollectionObligation(ctx context.Context, in *PrepareCollectionObligationRequest, opts ...grpc.CallOption) (*PrepareCollectionObligationResponse, error)
 }
@@ -65,19 +58,12 @@ func (c *collectionObligationServiceClient) PrepareCollectionObligation(ctx cont
 // All implementations must embed UnimplementedCollectionObligationServiceServer
 // for forward compatibility.
 //
-// Generic collection-obligation command boundary (W2-2).
+// Generic collection-obligation command boundary.
 //
-// Prepare creates a FinancialInvoice collection instrument. It does not
-// execute payment, does not post accounting, and does not create merchant
-// entitlement.
-//
-// Authenticated source_service, FinancialScope, Financial idempotency keys,
-// fingerprints, ledger/wallet ids, journal lines, and product lifecycle
-// vocabulary are deliberately absent from the request body.
-//
-// tenant_id / context_id are omitted: Financial owns canonical merchant
-// settlement FinancialScope resolution and must not treat caller-supplied
-// scope as authority.
+// Prepare creates a Financial collection instrument. It does not execute
+// payment, post accounting, or make product/business lifecycle decisions.
+// Authenticated source_service and FinancialScope remain Financial/trusted
+// transport authority and are deliberately absent from this request body.
 type CollectionObligationServiceServer interface {
 	PrepareCollectionObligation(context.Context, *PrepareCollectionObligationRequest) (*PrepareCollectionObligationResponse, error)
 	mustEmbedUnimplementedCollectionObligationServiceServer()

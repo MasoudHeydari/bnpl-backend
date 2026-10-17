@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package common.v1;
+
+option go_package = "github.com/parstis/bnpl-backend/gen/proto/common/v1;commonv1";
+
+
+// Stable public Financial wire primitives only.
+// FinancialScope, operation statuses, request envelopes, and economics stay
+// capability-specific and must not be added here.
+message Money {
+  int64 amount_minor = 1;
+  string currency = 2;
+}
+
+// Opaque upstream business provenance. source_service is transport-authenticated
+// and intentionally absent from the public message.
+message BusinessSourceReference {
+  string type = 1;
+  string id = 2;
+  optional int64 version = 3;
+}
+
+message PaymentReturnUrls {
+  string success_url = 1;
+  string failure_url = 2;
+  string cancel_url = 3;
+}

@@ -27,19 +27,14 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// Generic Merchant Entitlement command boundary (G5 / G3-3 / G6E).
+// Generic Merchant Entitlement financial boundary.
 //
-// Economic facts only. Authenticated source_service, FinancialScope, Financial
-// idempotency keys, fingerprints, ledger/wallet ids, fee rates/percentages,
-// accounting classification enums, and business-line pricing fields are
-// deliberately absent from the request body.
-//
-// tenant_id / context_id are omitted: Financial owns canonical merchant
-// settlement FinancialScope resolution and must not treat caller-supplied
-// scope as authority.
+// The request carries economic facts and opaque upstream provenance only.
+// Authenticated source_service, FinancialScope, Financial idempotency keys,
+// fingerprints, ledger/wallet ids, pricing rates, and business-line policy are
+// deliberately absent from the public body.
 type MerchantEntitlementServiceClient interface {
 	RecordMerchantEntitlement(ctx context.Context, in *RecordMerchantEntitlementRequest, opts ...grpc.CallOption) (*RecordMerchantEntitlementResponse, error)
-	// Additive G6E public reversal command. 1.1.0 clients ignore this RPC.
 	ReverseMerchantEntitlement(ctx context.Context, in *ReverseMerchantEntitlementRequest, opts ...grpc.CallOption) (*ReverseMerchantEntitlementResponse, error)
 }
 
@@ -75,19 +70,14 @@ func (c *merchantEntitlementServiceClient) ReverseMerchantEntitlement(ctx contex
 // All implementations must embed UnimplementedMerchantEntitlementServiceServer
 // for forward compatibility.
 //
-// Generic Merchant Entitlement command boundary (G5 / G3-3 / G6E).
+// Generic Merchant Entitlement financial boundary.
 //
-// Economic facts only. Authenticated source_service, FinancialScope, Financial
-// idempotency keys, fingerprints, ledger/wallet ids, fee rates/percentages,
-// accounting classification enums, and business-line pricing fields are
-// deliberately absent from the request body.
-//
-// tenant_id / context_id are omitted: Financial owns canonical merchant
-// settlement FinancialScope resolution and must not treat caller-supplied
-// scope as authority.
+// The request carries economic facts and opaque upstream provenance only.
+// Authenticated source_service, FinancialScope, Financial idempotency keys,
+// fingerprints, ledger/wallet ids, pricing rates, and business-line policy are
+// deliberately absent from the public body.
 type MerchantEntitlementServiceServer interface {
 	RecordMerchantEntitlement(context.Context, *RecordMerchantEntitlementRequest) (*RecordMerchantEntitlementResponse, error)
-	// Additive G6E public reversal command. 1.1.0 clients ignore this RPC.
 	ReverseMerchantEntitlement(context.Context, *ReverseMerchantEntitlementRequest) (*ReverseMerchantEntitlementResponse, error)
 	mustEmbedUnimplementedMerchantEntitlementServiceServer()
 }

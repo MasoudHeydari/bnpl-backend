@@ -7,6 +7,7 @@
 package merchantentitlementv1
 
 import (
+	v1 "github.com/parstis/bnpl-backend/gen/proto/common/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -21,35 +22,98 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type RecordMerchantEntitlementRequest struct {
-	state                        protoimpl.MessageState `protogen:"open.v1"`
-	SourceType                   string                 `protobuf:"bytes,1,opt,name=source_type,json=sourceType,proto3" json:"source_type,omitempty"`
-	SourceId                     string                 `protobuf:"bytes,2,opt,name=source_id,json=sourceId,proto3" json:"source_id,omitempty"`
-	SourceVersion                int64                  `protobuf:"varint,3,opt,name=source_version,json=sourceVersion,proto3" json:"source_version,omitempty"`
-	MerchantId                   string                 `protobuf:"bytes,4,opt,name=merchant_id,json=merchantId,proto3" json:"merchant_id,omitempty"`
-	CustomerSubjectId            string                 `protobuf:"bytes,5,opt,name=customer_subject_id,json=customerSubjectId,proto3" json:"customer_subject_id,omitempty"`
-	Currency                     string                 `protobuf:"bytes,6,opt,name=currency,proto3" json:"currency,omitempty"`
-	CollectedCashAmountMinor     int64                  `protobuf:"varint,7,opt,name=collected_cash_amount_minor,json=collectedCashAmountMinor,proto3" json:"collected_cash_amount_minor,omitempty"`
-	ReceivableAmountMinor        int64                  `protobuf:"varint,8,opt,name=receivable_amount_minor,json=receivableAmountMinor,proto3" json:"receivable_amount_minor,omitempty"`
-	MerchantPayableAmountMinor   int64                  `protobuf:"varint,9,opt,name=merchant_payable_amount_minor,json=merchantPayableAmountMinor,proto3" json:"merchant_payable_amount_minor,omitempty"`
-	CollectedCashPaymentIntentId *string                `protobuf:"bytes,10,opt,name=collected_cash_payment_intent_id,json=collectedCashPaymentIntentId,proto3,oneof" json:"collected_cash_payment_intent_id,omitempty"`
-	// Final authorized merchant transaction service fee amount in the same
-	// currency / minor units as the other request monetary amounts.
-	// Calculated and authorized by the upstream service/app. Financial does
-	// not calculate the fee, store a fee rate, or branch on BusinessLine
-	// pricing. Use 0 when no transaction fee applies.
-	//
-	// Proto3 scalar default: omitted (v1.0.0 clients) decodes as 0.
-	// v1.1.0 consumers SHOULD send explicit 0 when no fee applies; the server
-	// cannot distinguish omitted vs explicit zero for this scalar field.
-	MerchantTransactionFeeAmountMinor int64 `protobuf:"varint,11,opt,name=merchant_transaction_fee_amount_minor,json=merchantTransactionFeeAmountMinor,proto3" json:"merchant_transaction_fee_amount_minor,omitempty"`
+// Capability-specific economics. All components share one currency.
+type MerchantEntitlementEconomics struct {
+	state                             protoimpl.MessageState `protogen:"open.v1"`
+	Currency                          string                 `protobuf:"bytes,1,opt,name=currency,proto3" json:"currency,omitempty"`
+	CollectedCashAmountMinor          int64                  `protobuf:"varint,2,opt,name=collected_cash_amount_minor,json=collectedCashAmountMinor,proto3" json:"collected_cash_amount_minor,omitempty"`
+	ReceivableAmountMinor             int64                  `protobuf:"varint,3,opt,name=receivable_amount_minor,json=receivableAmountMinor,proto3" json:"receivable_amount_minor,omitempty"`
+	MerchantPayableAmountMinor        int64                  `protobuf:"varint,4,opt,name=merchant_payable_amount_minor,json=merchantPayableAmountMinor,proto3" json:"merchant_payable_amount_minor,omitempty"`
+	MerchantTransactionFeeAmountMinor int64                  `protobuf:"varint,5,opt,name=merchant_transaction_fee_amount_minor,json=merchantTransactionFeeAmountMinor,proto3" json:"merchant_transaction_fee_amount_minor,omitempty"`
 	unknownFields                     protoimpl.UnknownFields
 	sizeCache                         protoimpl.SizeCache
 }
 
+func (x *MerchantEntitlementEconomics) Reset() {
+	*x = MerchantEntitlementEconomics{}
+	mi := &file_merchantentitlement_v1_merchant_entitlement_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MerchantEntitlementEconomics) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MerchantEntitlementEconomics) ProtoMessage() {}
+
+func (x *MerchantEntitlementEconomics) ProtoReflect() protoreflect.Message {
+	mi := &file_merchantentitlement_v1_merchant_entitlement_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MerchantEntitlementEconomics.ProtoReflect.Descriptor instead.
+func (*MerchantEntitlementEconomics) Descriptor() ([]byte, []int) {
+	return file_merchantentitlement_v1_merchant_entitlement_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *MerchantEntitlementEconomics) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+func (x *MerchantEntitlementEconomics) GetCollectedCashAmountMinor() int64 {
+	if x != nil {
+		return x.CollectedCashAmountMinor
+	}
+	return 0
+}
+
+func (x *MerchantEntitlementEconomics) GetReceivableAmountMinor() int64 {
+	if x != nil {
+		return x.ReceivableAmountMinor
+	}
+	return 0
+}
+
+func (x *MerchantEntitlementEconomics) GetMerchantPayableAmountMinor() int64 {
+	if x != nil {
+		return x.MerchantPayableAmountMinor
+	}
+	return 0
+}
+
+func (x *MerchantEntitlementEconomics) GetMerchantTransactionFeeAmountMinor() int64 {
+	if x != nil {
+		return x.MerchantTransactionFeeAmountMinor
+	}
+	return 0
+}
+
+type RecordMerchantEntitlementRequest struct {
+	state      protoimpl.MessageState      `protogen:"open.v1"`
+	Source     *v1.BusinessSourceReference `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
+	MerchantId string                      `protobuf:"bytes,2,opt,name=merchant_id,json=merchantId,proto3" json:"merchant_id,omitempty"`
+	// customer-service customer_id (UUID); Financial resolves the subject itself.
+	CustomerId                   string                        `protobuf:"bytes,6,opt,name=customer_id,json=customerId,proto3" json:"customer_id,omitempty"`
+	Economics                    *MerchantEntitlementEconomics `protobuf:"bytes,4,opt,name=economics,proto3" json:"economics,omitempty"`
+	CollectedCashPaymentIntentId *string                       `protobuf:"bytes,5,opt,name=collected_cash_payment_intent_id,json=collectedCashPaymentIntentId,proto3,oneof" json:"collected_cash_payment_intent_id,omitempty"`
+	unknownFields                protoimpl.UnknownFields
+	sizeCache                    protoimpl.SizeCache
+}
+
 func (x *RecordMerchantEntitlementRequest) Reset() {
 	*x = RecordMerchantEntitlementRequest{}
-	mi := &file_merchantentitlement_v1_merchant_entitlement_proto_msgTypes[0]
+	mi := &file_merchantentitlement_v1_merchant_entitlement_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -61,7 +125,7 @@ func (x *RecordMerchantEntitlementRequest) String() string {
 func (*RecordMerchantEntitlementRequest) ProtoMessage() {}
 
 func (x *RecordMerchantEntitlementRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_merchantentitlement_v1_merchant_entitlement_proto_msgTypes[0]
+	mi := &file_merchantentitlement_v1_merchant_entitlement_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -74,28 +138,14 @@ func (x *RecordMerchantEntitlementRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordMerchantEntitlementRequest.ProtoReflect.Descriptor instead.
 func (*RecordMerchantEntitlementRequest) Descriptor() ([]byte, []int) {
-	return file_merchantentitlement_v1_merchant_entitlement_proto_rawDescGZIP(), []int{0}
+	return file_merchantentitlement_v1_merchant_entitlement_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *RecordMerchantEntitlementRequest) GetSourceType() string {
+func (x *RecordMerchantEntitlementRequest) GetSource() *v1.BusinessSourceReference {
 	if x != nil {
-		return x.SourceType
+		return x.Source
 	}
-	return ""
-}
-
-func (x *RecordMerchantEntitlementRequest) GetSourceId() string {
-	if x != nil {
-		return x.SourceId
-	}
-	return ""
-}
-
-func (x *RecordMerchantEntitlementRequest) GetSourceVersion() int64 {
-	if x != nil {
-		return x.SourceVersion
-	}
-	return 0
+	return nil
 }
 
 func (x *RecordMerchantEntitlementRequest) GetMerchantId() string {
@@ -105,39 +155,18 @@ func (x *RecordMerchantEntitlementRequest) GetMerchantId() string {
 	return ""
 }
 
-func (x *RecordMerchantEntitlementRequest) GetCustomerSubjectId() string {
+func (x *RecordMerchantEntitlementRequest) GetCustomerId() string {
 	if x != nil {
-		return x.CustomerSubjectId
+		return x.CustomerId
 	}
 	return ""
 }
 
-func (x *RecordMerchantEntitlementRequest) GetCurrency() string {
+func (x *RecordMerchantEntitlementRequest) GetEconomics() *MerchantEntitlementEconomics {
 	if x != nil {
-		return x.Currency
+		return x.Economics
 	}
-	return ""
-}
-
-func (x *RecordMerchantEntitlementRequest) GetCollectedCashAmountMinor() int64 {
-	if x != nil {
-		return x.CollectedCashAmountMinor
-	}
-	return 0
-}
-
-func (x *RecordMerchantEntitlementRequest) GetReceivableAmountMinor() int64 {
-	if x != nil {
-		return x.ReceivableAmountMinor
-	}
-	return 0
-}
-
-func (x *RecordMerchantEntitlementRequest) GetMerchantPayableAmountMinor() int64 {
-	if x != nil {
-		return x.MerchantPayableAmountMinor
-	}
-	return 0
+	return nil
 }
 
 func (x *RecordMerchantEntitlementRequest) GetCollectedCashPaymentIntentId() string {
@@ -147,28 +176,17 @@ func (x *RecordMerchantEntitlementRequest) GetCollectedCashPaymentIntentId() str
 	return ""
 }
 
-func (x *RecordMerchantEntitlementRequest) GetMerchantTransactionFeeAmountMinor() int64 {
-	if x != nil {
-		return x.MerchantTransactionFeeAmountMinor
-	}
-	return 0
-}
-
 type RecordMerchantEntitlementResponse struct {
 	state                  protoimpl.MessageState `protogen:"open.v1"`
 	MerchantEntitlementId  string                 `protobuf:"bytes,1,opt,name=merchant_entitlement_id,json=merchantEntitlementId,proto3" json:"merchant_entitlement_id,omitempty"`
 	ReusedIdempotentResult bool                   `protobuf:"varint,2,opt,name=reused_idempotent_result,json=reusedIdempotentResult,proto3" json:"reused_idempotent_result,omitempty"`
-	// receivable_id identifies the customer receivable created for the financed
-	// amount. Upstream services persist it and use it for later collections with
-	// COLLECTION_APPLICATION_EXISTING_RECEIVABLE.
-	ReceivableId  string `protobuf:"bytes,3,opt,name=receivable_id,json=receivableId,proto3" json:"receivable_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *RecordMerchantEntitlementResponse) Reset() {
 	*x = RecordMerchantEntitlementResponse{}
-	mi := &file_merchantentitlement_v1_merchant_entitlement_proto_msgTypes[1]
+	mi := &file_merchantentitlement_v1_merchant_entitlement_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -180,7 +198,7 @@ func (x *RecordMerchantEntitlementResponse) String() string {
 func (*RecordMerchantEntitlementResponse) ProtoMessage() {}
 
 func (x *RecordMerchantEntitlementResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_merchantentitlement_v1_merchant_entitlement_proto_msgTypes[1]
+	mi := &file_merchantentitlement_v1_merchant_entitlement_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -193,7 +211,7 @@ func (x *RecordMerchantEntitlementResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use RecordMerchantEntitlementResponse.ProtoReflect.Descriptor instead.
 func (*RecordMerchantEntitlementResponse) Descriptor() ([]byte, []int) {
-	return file_merchantentitlement_v1_merchant_entitlement_proto_rawDescGZIP(), []int{1}
+	return file_merchantentitlement_v1_merchant_entitlement_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *RecordMerchantEntitlementResponse) GetMerchantEntitlementId() string {
@@ -210,41 +228,96 @@ func (x *RecordMerchantEntitlementResponse) GetReusedIdempotentResult() bool {
 	return false
 }
 
-func (x *RecordMerchantEntitlementResponse) GetReceivableId() string {
-	if x != nil {
-		return x.ReceivableId
-	}
-	return ""
-}
-
-// Public Merchant Entitlement reversal facts (G6E).
-//
-// Authenticated source_service is transport-derived (mTLS/SPIFFE) and must not
-// appear on this message. Financial resolves settlement FinancialScope from the
-// stored entitlement merchant binding; callers must not send tenant/context.
-//
-// G6 V1 supports reversal only while the entitlement receivable remains in the
-// currently supported Financial structurally-open state. Callers do not send
-// receivable lifecycle state. Customer refund is a separate Financial event
-// coordinated by the upstream business service when applicable.
-type ReverseMerchantEntitlementRequest struct {
+// Capability-specific reversal economics. This intentionally remains separate
+// from MerchantEntitlementEconomics because reversal is a distinct operation.
+type MerchantEntitlementReversalEconomics struct {
 	state                                     protoimpl.MessageState `protogen:"open.v1"`
-	MerchantEntitlementId                     string                 `protobuf:"bytes,1,opt,name=merchant_entitlement_id,json=merchantEntitlementId,proto3" json:"merchant_entitlement_id,omitempty"`
-	SourceType                                string                 `protobuf:"bytes,2,opt,name=source_type,json=sourceType,proto3" json:"source_type,omitempty"`
-	SourceId                                  string                 `protobuf:"bytes,3,opt,name=source_id,json=sourceId,proto3" json:"source_id,omitempty"`
-	SourceVersion                             int64                  `protobuf:"varint,4,opt,name=source_version,json=sourceVersion,proto3" json:"source_version,omitempty"`
-	Currency                                  string                 `protobuf:"bytes,5,opt,name=currency,proto3" json:"currency,omitempty"`
-	ReversedCollectedCashAmountMinor          int64                  `protobuf:"varint,6,opt,name=reversed_collected_cash_amount_minor,json=reversedCollectedCashAmountMinor,proto3" json:"reversed_collected_cash_amount_minor,omitempty"`
-	ReversedReceivableAmountMinor             int64                  `protobuf:"varint,7,opt,name=reversed_receivable_amount_minor,json=reversedReceivableAmountMinor,proto3" json:"reversed_receivable_amount_minor,omitempty"`
-	ReversedMerchantPayableAmountMinor        int64                  `protobuf:"varint,8,opt,name=reversed_merchant_payable_amount_minor,json=reversedMerchantPayableAmountMinor,proto3" json:"reversed_merchant_payable_amount_minor,omitempty"`
-	ReversedMerchantTransactionFeeAmountMinor int64                  `protobuf:"varint,9,opt,name=reversed_merchant_transaction_fee_amount_minor,json=reversedMerchantTransactionFeeAmountMinor,proto3" json:"reversed_merchant_transaction_fee_amount_minor,omitempty"`
+	Currency                                  string                 `protobuf:"bytes,1,opt,name=currency,proto3" json:"currency,omitempty"`
+	ReversedCollectedCashAmountMinor          int64                  `protobuf:"varint,2,opt,name=reversed_collected_cash_amount_minor,json=reversedCollectedCashAmountMinor,proto3" json:"reversed_collected_cash_amount_minor,omitempty"`
+	ReversedReceivableAmountMinor             int64                  `protobuf:"varint,3,opt,name=reversed_receivable_amount_minor,json=reversedReceivableAmountMinor,proto3" json:"reversed_receivable_amount_minor,omitempty"`
+	ReversedMerchantPayableAmountMinor        int64                  `protobuf:"varint,4,opt,name=reversed_merchant_payable_amount_minor,json=reversedMerchantPayableAmountMinor,proto3" json:"reversed_merchant_payable_amount_minor,omitempty"`
+	ReversedMerchantTransactionFeeAmountMinor int64                  `protobuf:"varint,5,opt,name=reversed_merchant_transaction_fee_amount_minor,json=reversedMerchantTransactionFeeAmountMinor,proto3" json:"reversed_merchant_transaction_fee_amount_minor,omitempty"`
 	unknownFields                             protoimpl.UnknownFields
 	sizeCache                                 protoimpl.SizeCache
 }
 
+func (x *MerchantEntitlementReversalEconomics) Reset() {
+	*x = MerchantEntitlementReversalEconomics{}
+	mi := &file_merchantentitlement_v1_merchant_entitlement_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MerchantEntitlementReversalEconomics) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MerchantEntitlementReversalEconomics) ProtoMessage() {}
+
+func (x *MerchantEntitlementReversalEconomics) ProtoReflect() protoreflect.Message {
+	mi := &file_merchantentitlement_v1_merchant_entitlement_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MerchantEntitlementReversalEconomics.ProtoReflect.Descriptor instead.
+func (*MerchantEntitlementReversalEconomics) Descriptor() ([]byte, []int) {
+	return file_merchantentitlement_v1_merchant_entitlement_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *MerchantEntitlementReversalEconomics) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+func (x *MerchantEntitlementReversalEconomics) GetReversedCollectedCashAmountMinor() int64 {
+	if x != nil {
+		return x.ReversedCollectedCashAmountMinor
+	}
+	return 0
+}
+
+func (x *MerchantEntitlementReversalEconomics) GetReversedReceivableAmountMinor() int64 {
+	if x != nil {
+		return x.ReversedReceivableAmountMinor
+	}
+	return 0
+}
+
+func (x *MerchantEntitlementReversalEconomics) GetReversedMerchantPayableAmountMinor() int64 {
+	if x != nil {
+		return x.ReversedMerchantPayableAmountMinor
+	}
+	return 0
+}
+
+func (x *MerchantEntitlementReversalEconomics) GetReversedMerchantTransactionFeeAmountMinor() int64 {
+	if x != nil {
+		return x.ReversedMerchantTransactionFeeAmountMinor
+	}
+	return 0
+}
+
+type ReverseMerchantEntitlementRequest struct {
+	state                 protoimpl.MessageState                `protogen:"open.v1"`
+	MerchantEntitlementId string                                `protobuf:"bytes,1,opt,name=merchant_entitlement_id,json=merchantEntitlementId,proto3" json:"merchant_entitlement_id,omitempty"`
+	Source                *v1.BusinessSourceReference           `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
+	Economics             *MerchantEntitlementReversalEconomics `protobuf:"bytes,3,opt,name=economics,proto3" json:"economics,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
 func (x *ReverseMerchantEntitlementRequest) Reset() {
 	*x = ReverseMerchantEntitlementRequest{}
-	mi := &file_merchantentitlement_v1_merchant_entitlement_proto_msgTypes[2]
+	mi := &file_merchantentitlement_v1_merchant_entitlement_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -256,7 +329,7 @@ func (x *ReverseMerchantEntitlementRequest) String() string {
 func (*ReverseMerchantEntitlementRequest) ProtoMessage() {}
 
 func (x *ReverseMerchantEntitlementRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_merchantentitlement_v1_merchant_entitlement_proto_msgTypes[2]
+	mi := &file_merchantentitlement_v1_merchant_entitlement_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -269,7 +342,7 @@ func (x *ReverseMerchantEntitlementRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use ReverseMerchantEntitlementRequest.ProtoReflect.Descriptor instead.
 func (*ReverseMerchantEntitlementRequest) Descriptor() ([]byte, []int) {
-	return file_merchantentitlement_v1_merchant_entitlement_proto_rawDescGZIP(), []int{2}
+	return file_merchantentitlement_v1_merchant_entitlement_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ReverseMerchantEntitlementRequest) GetMerchantEntitlementId() string {
@@ -279,60 +352,18 @@ func (x *ReverseMerchantEntitlementRequest) GetMerchantEntitlementId() string {
 	return ""
 }
 
-func (x *ReverseMerchantEntitlementRequest) GetSourceType() string {
+func (x *ReverseMerchantEntitlementRequest) GetSource() *v1.BusinessSourceReference {
 	if x != nil {
-		return x.SourceType
+		return x.Source
 	}
-	return ""
+	return nil
 }
 
-func (x *ReverseMerchantEntitlementRequest) GetSourceId() string {
+func (x *ReverseMerchantEntitlementRequest) GetEconomics() *MerchantEntitlementReversalEconomics {
 	if x != nil {
-		return x.SourceId
+		return x.Economics
 	}
-	return ""
-}
-
-func (x *ReverseMerchantEntitlementRequest) GetSourceVersion() int64 {
-	if x != nil {
-		return x.SourceVersion
-	}
-	return 0
-}
-
-func (x *ReverseMerchantEntitlementRequest) GetCurrency() string {
-	if x != nil {
-		return x.Currency
-	}
-	return ""
-}
-
-func (x *ReverseMerchantEntitlementRequest) GetReversedCollectedCashAmountMinor() int64 {
-	if x != nil {
-		return x.ReversedCollectedCashAmountMinor
-	}
-	return 0
-}
-
-func (x *ReverseMerchantEntitlementRequest) GetReversedReceivableAmountMinor() int64 {
-	if x != nil {
-		return x.ReversedReceivableAmountMinor
-	}
-	return 0
-}
-
-func (x *ReverseMerchantEntitlementRequest) GetReversedMerchantPayableAmountMinor() int64 {
-	if x != nil {
-		return x.ReversedMerchantPayableAmountMinor
-	}
-	return 0
-}
-
-func (x *ReverseMerchantEntitlementRequest) GetReversedMerchantTransactionFeeAmountMinor() int64 {
-	if x != nil {
-		return x.ReversedMerchantTransactionFeeAmountMinor
-	}
-	return 0
+	return nil
 }
 
 type ReverseMerchantEntitlementResponse struct {
@@ -346,7 +377,7 @@ type ReverseMerchantEntitlementResponse struct {
 
 func (x *ReverseMerchantEntitlementResponse) Reset() {
 	*x = ReverseMerchantEntitlementResponse{}
-	mi := &file_merchantentitlement_v1_merchant_entitlement_proto_msgTypes[3]
+	mi := &file_merchantentitlement_v1_merchant_entitlement_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -358,7 +389,7 @@ func (x *ReverseMerchantEntitlementResponse) String() string {
 func (*ReverseMerchantEntitlementResponse) ProtoMessage() {}
 
 func (x *ReverseMerchantEntitlementResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_merchantentitlement_v1_merchant_entitlement_proto_msgTypes[3]
+	mi := &file_merchantentitlement_v1_merchant_entitlement_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -371,7 +402,7 @@ func (x *ReverseMerchantEntitlementResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use ReverseMerchantEntitlementResponse.ProtoReflect.Descriptor instead.
 func (*ReverseMerchantEntitlementResponse) Descriptor() ([]byte, []int) {
-	return file_merchantentitlement_v1_merchant_entitlement_proto_rawDescGZIP(), []int{3}
+	return file_merchantentitlement_v1_merchant_entitlement_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ReverseMerchantEntitlementResponse) GetMerchantEntitlementReversalId() string {
@@ -399,38 +430,35 @@ var File_merchantentitlement_v1_merchant_entitlement_proto protoreflect.FileDesc
 
 const file_merchantentitlement_v1_merchant_entitlement_proto_rawDesc = "" +
 	"\n" +
-	"1merchantentitlement/v1/merchant_entitlement.proto\x12(parstis.financial.merchantentitlement.v1\"\xf2\x04\n" +
-	" RecordMerchantEntitlementRequest\x12\x1f\n" +
-	"\vsource_type\x18\x01 \x01(\tR\n" +
-	"sourceType\x12\x1b\n" +
-	"\tsource_id\x18\x02 \x01(\tR\bsourceId\x12%\n" +
-	"\x0esource_version\x18\x03 \x01(\x03R\rsourceVersion\x12\x1f\n" +
-	"\vmerchant_id\x18\x04 \x01(\tR\n" +
-	"merchantId\x12.\n" +
-	"\x13customer_subject_id\x18\x05 \x01(\tR\x11customerSubjectId\x12\x1a\n" +
-	"\bcurrency\x18\x06 \x01(\tR\bcurrency\x12=\n" +
-	"\x1bcollected_cash_amount_minor\x18\a \x01(\x03R\x18collectedCashAmountMinor\x126\n" +
-	"\x17receivable_amount_minor\x18\b \x01(\x03R\x15receivableAmountMinor\x12A\n" +
-	"\x1dmerchant_payable_amount_minor\x18\t \x01(\x03R\x1amerchantPayableAmountMinor\x12K\n" +
-	" collected_cash_payment_intent_id\x18\n" +
-	" \x01(\tH\x00R\x1ccollectedCashPaymentIntentId\x88\x01\x01\x12P\n" +
-	"%merchant_transaction_fee_amount_minor\x18\v \x01(\x03R!merchantTransactionFeeAmountMinorB#\n" +
-	"!_collected_cash_payment_intent_id\"\xba\x01\n" +
+	"1merchantentitlement/v1/merchant_entitlement.proto\x12(parstis.financial.merchantentitlement.v1\x1a\x16common/v1/common.proto\"\xc6\x02\n" +
+	"\x1cMerchantEntitlementEconomics\x12\x1a\n" +
+	"\bcurrency\x18\x01 \x01(\tR\bcurrency\x12=\n" +
+	"\x1bcollected_cash_amount_minor\x18\x02 \x01(\x03R\x18collectedCashAmountMinor\x126\n" +
+	"\x17receivable_amount_minor\x18\x03 \x01(\x03R\x15receivableAmountMinor\x12A\n" +
+	"\x1dmerchant_payable_amount_minor\x18\x04 \x01(\x03R\x1amerchantPayableAmountMinor\x12P\n" +
+	"%merchant_transaction_fee_amount_minor\x18\x05 \x01(\x03R!merchantTransactionFeeAmountMinor\"\x93\x03\n" +
+	" RecordMerchantEntitlementRequest\x12:\n" +
+	"\x06source\x18\x01 \x01(\v2\".common.v1.BusinessSourceReferenceR\x06source\x12\x1f\n" +
+	"\vmerchant_id\x18\x02 \x01(\tR\n" +
+	"merchantId\x12\x1f\n" +
+	"\vcustomer_id\x18\x06 \x01(\tR\n" +
+	"customerId\x12d\n" +
+	"\teconomics\x18\x04 \x01(\v2F.parstis.financial.merchantentitlement.v1.MerchantEntitlementEconomicsR\teconomics\x12K\n" +
+	" collected_cash_payment_intent_id\x18\x05 \x01(\tH\x00R\x1ccollectedCashPaymentIntentId\x88\x01\x01B#\n" +
+	"!_collected_cash_payment_intent_idJ\x04\b\x03\x10\x04R\x13customer_subject_id\"\x95\x01\n" +
 	"!RecordMerchantEntitlementResponse\x126\n" +
 	"\x17merchant_entitlement_id\x18\x01 \x01(\tR\x15merchantEntitlementId\x128\n" +
-	"\x18reused_idempotent_result\x18\x02 \x01(\bR\x16reusedIdempotentResult\x12#\n" +
-	"\rreceivable_id\x18\x03 \x01(\tR\freceivableId\"\xac\x04\n" +
+	"\x18reused_idempotent_result\x18\x02 \x01(\bR\x16reusedIdempotentResult\"\x92\x03\n" +
+	"$MerchantEntitlementReversalEconomics\x12\x1a\n" +
+	"\bcurrency\x18\x01 \x01(\tR\bcurrency\x12N\n" +
+	"$reversed_collected_cash_amount_minor\x18\x02 \x01(\x03R reversedCollectedCashAmountMinor\x12G\n" +
+	" reversed_receivable_amount_minor\x18\x03 \x01(\x03R\x1dreversedReceivableAmountMinor\x12R\n" +
+	"&reversed_merchant_payable_amount_minor\x18\x04 \x01(\x03R\"reversedMerchantPayableAmountMinor\x12a\n" +
+	".reversed_merchant_transaction_fee_amount_minor\x18\x05 \x01(\x03R)reversedMerchantTransactionFeeAmountMinor\"\x85\x02\n" +
 	"!ReverseMerchantEntitlementRequest\x126\n" +
-	"\x17merchant_entitlement_id\x18\x01 \x01(\tR\x15merchantEntitlementId\x12\x1f\n" +
-	"\vsource_type\x18\x02 \x01(\tR\n" +
-	"sourceType\x12\x1b\n" +
-	"\tsource_id\x18\x03 \x01(\tR\bsourceId\x12%\n" +
-	"\x0esource_version\x18\x04 \x01(\x03R\rsourceVersion\x12\x1a\n" +
-	"\bcurrency\x18\x05 \x01(\tR\bcurrency\x12N\n" +
-	"$reversed_collected_cash_amount_minor\x18\x06 \x01(\x03R reversedCollectedCashAmountMinor\x12G\n" +
-	" reversed_receivable_amount_minor\x18\a \x01(\x03R\x1dreversedReceivableAmountMinor\x12R\n" +
-	"&reversed_merchant_payable_amount_minor\x18\b \x01(\x03R\"reversedMerchantPayableAmountMinor\x12a\n" +
-	".reversed_merchant_transaction_fee_amount_minor\x18\t \x01(\x03R)reversedMerchantTransactionFeeAmountMinor\"\xdf\x01\n" +
+	"\x17merchant_entitlement_id\x18\x01 \x01(\tR\x15merchantEntitlementId\x12:\n" +
+	"\x06source\x18\x02 \x01(\v2\".common.v1.BusinessSourceReferenceR\x06source\x12l\n" +
+	"\teconomics\x18\x03 \x01(\v2N.parstis.financial.merchantentitlement.v1.MerchantEntitlementReversalEconomicsR\teconomics\"\xdf\x01\n" +
 	"\"ReverseMerchantEntitlementResponse\x12G\n" +
 	" merchant_entitlement_reversal_id\x18\x01 \x01(\tR\x1dmerchantEntitlementReversalId\x126\n" +
 	"\x17merchant_entitlement_id\x18\x02 \x01(\tR\x15merchantEntitlementId\x128\n" +
@@ -451,23 +479,30 @@ func file_merchantentitlement_v1_merchant_entitlement_proto_rawDescGZIP() []byte
 	return file_merchantentitlement_v1_merchant_entitlement_proto_rawDescData
 }
 
-var file_merchantentitlement_v1_merchant_entitlement_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_merchantentitlement_v1_merchant_entitlement_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_merchantentitlement_v1_merchant_entitlement_proto_goTypes = []any{
-	(*RecordMerchantEntitlementRequest)(nil),   // 0: parstis.financial.merchantentitlement.v1.RecordMerchantEntitlementRequest
-	(*RecordMerchantEntitlementResponse)(nil),  // 1: parstis.financial.merchantentitlement.v1.RecordMerchantEntitlementResponse
-	(*ReverseMerchantEntitlementRequest)(nil),  // 2: parstis.financial.merchantentitlement.v1.ReverseMerchantEntitlementRequest
-	(*ReverseMerchantEntitlementResponse)(nil), // 3: parstis.financial.merchantentitlement.v1.ReverseMerchantEntitlementResponse
+	(*MerchantEntitlementEconomics)(nil),         // 0: parstis.financial.merchantentitlement.v1.MerchantEntitlementEconomics
+	(*RecordMerchantEntitlementRequest)(nil),     // 1: parstis.financial.merchantentitlement.v1.RecordMerchantEntitlementRequest
+	(*RecordMerchantEntitlementResponse)(nil),    // 2: parstis.financial.merchantentitlement.v1.RecordMerchantEntitlementResponse
+	(*MerchantEntitlementReversalEconomics)(nil), // 3: parstis.financial.merchantentitlement.v1.MerchantEntitlementReversalEconomics
+	(*ReverseMerchantEntitlementRequest)(nil),    // 4: parstis.financial.merchantentitlement.v1.ReverseMerchantEntitlementRequest
+	(*ReverseMerchantEntitlementResponse)(nil),   // 5: parstis.financial.merchantentitlement.v1.ReverseMerchantEntitlementResponse
+	(*v1.BusinessSourceReference)(nil),           // 6: common.v1.BusinessSourceReference
 }
 var file_merchantentitlement_v1_merchant_entitlement_proto_depIdxs = []int32{
-	0, // 0: parstis.financial.merchantentitlement.v1.MerchantEntitlementService.RecordMerchantEntitlement:input_type -> parstis.financial.merchantentitlement.v1.RecordMerchantEntitlementRequest
-	2, // 1: parstis.financial.merchantentitlement.v1.MerchantEntitlementService.ReverseMerchantEntitlement:input_type -> parstis.financial.merchantentitlement.v1.ReverseMerchantEntitlementRequest
-	1, // 2: parstis.financial.merchantentitlement.v1.MerchantEntitlementService.RecordMerchantEntitlement:output_type -> parstis.financial.merchantentitlement.v1.RecordMerchantEntitlementResponse
-	3, // 3: parstis.financial.merchantentitlement.v1.MerchantEntitlementService.ReverseMerchantEntitlement:output_type -> parstis.financial.merchantentitlement.v1.ReverseMerchantEntitlementResponse
-	2, // [2:4] is the sub-list for method output_type
-	0, // [0:2] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	6, // 0: parstis.financial.merchantentitlement.v1.RecordMerchantEntitlementRequest.source:type_name -> common.v1.BusinessSourceReference
+	0, // 1: parstis.financial.merchantentitlement.v1.RecordMerchantEntitlementRequest.economics:type_name -> parstis.financial.merchantentitlement.v1.MerchantEntitlementEconomics
+	6, // 2: parstis.financial.merchantentitlement.v1.ReverseMerchantEntitlementRequest.source:type_name -> common.v1.BusinessSourceReference
+	3, // 3: parstis.financial.merchantentitlement.v1.ReverseMerchantEntitlementRequest.economics:type_name -> parstis.financial.merchantentitlement.v1.MerchantEntitlementReversalEconomics
+	1, // 4: parstis.financial.merchantentitlement.v1.MerchantEntitlementService.RecordMerchantEntitlement:input_type -> parstis.financial.merchantentitlement.v1.RecordMerchantEntitlementRequest
+	4, // 5: parstis.financial.merchantentitlement.v1.MerchantEntitlementService.ReverseMerchantEntitlement:input_type -> parstis.financial.merchantentitlement.v1.ReverseMerchantEntitlementRequest
+	2, // 6: parstis.financial.merchantentitlement.v1.MerchantEntitlementService.RecordMerchantEntitlement:output_type -> parstis.financial.merchantentitlement.v1.RecordMerchantEntitlementResponse
+	5, // 7: parstis.financial.merchantentitlement.v1.MerchantEntitlementService.ReverseMerchantEntitlement:output_type -> parstis.financial.merchantentitlement.v1.ReverseMerchantEntitlementResponse
+	6, // [6:8] is the sub-list for method output_type
+	4, // [4:6] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_merchantentitlement_v1_merchant_entitlement_proto_init() }
@@ -475,14 +510,14 @@ func file_merchantentitlement_v1_merchant_entitlement_proto_init() {
 	if File_merchantentitlement_v1_merchant_entitlement_proto != nil {
 		return
 	}
-	file_merchantentitlement_v1_merchant_entitlement_proto_msgTypes[0].OneofWrappers = []any{}
+	file_merchantentitlement_v1_merchant_entitlement_proto_msgTypes[1].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_merchantentitlement_v1_merchant_entitlement_proto_rawDesc), len(file_merchantentitlement_v1_merchant_entitlement_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

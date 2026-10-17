@@ -7,6 +7,7 @@
 package collectionobligationv1
 
 import (
+	v1 "github.com/parstis/bnpl-backend/gen/proto/common/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -22,80 +23,191 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// How collected cash will later be applied in Financial accounting.
-// Unspecified is invalid on Prepare. Financial classifies cash application;
-// it does not know product state.
-type CollectionApplication int32
+type PreRecognitionCashCollection struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
 
-const (
-	CollectionApplication_COLLECTION_APPLICATION_UNSPECIFIED          CollectionApplication = 0
-	CollectionApplication_COLLECTION_APPLICATION_PRE_RECOGNITION_CASH CollectionApplication = 1
-	CollectionApplication_COLLECTION_APPLICATION_EXISTING_RECEIVABLE  CollectionApplication = 2
-)
+func (x *PreRecognitionCashCollection) Reset() {
+	*x = PreRecognitionCashCollection{}
+	mi := &file_collectionobligation_v1_collection_obligation_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
 
-// Enum value maps for CollectionApplication.
-var (
-	CollectionApplication_name = map[int32]string{
-		0: "COLLECTION_APPLICATION_UNSPECIFIED",
-		1: "COLLECTION_APPLICATION_PRE_RECOGNITION_CASH",
-		2: "COLLECTION_APPLICATION_EXISTING_RECEIVABLE",
+func (x *PreRecognitionCashCollection) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PreRecognitionCashCollection) ProtoMessage() {}
+
+func (x *PreRecognitionCashCollection) ProtoReflect() protoreflect.Message {
+	mi := &file_collectionobligation_v1_collection_obligation_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
 	}
-	CollectionApplication_value = map[string]int32{
-		"COLLECTION_APPLICATION_UNSPECIFIED":          0,
-		"COLLECTION_APPLICATION_PRE_RECOGNITION_CASH": 1,
-		"COLLECTION_APPLICATION_EXISTING_RECEIVABLE":  2,
-	}
-)
-
-func (x CollectionApplication) Enum() *CollectionApplication {
-	p := new(CollectionApplication)
-	*p = x
-	return p
+	return mi.MessageOf(x)
 }
 
-func (x CollectionApplication) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (CollectionApplication) Descriptor() protoreflect.EnumDescriptor {
-	return file_collectionobligation_v1_collection_obligation_proto_enumTypes[0].Descriptor()
-}
-
-func (CollectionApplication) Type() protoreflect.EnumType {
-	return &file_collectionobligation_v1_collection_obligation_proto_enumTypes[0]
-}
-
-func (x CollectionApplication) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use CollectionApplication.Descriptor instead.
-func (CollectionApplication) EnumDescriptor() ([]byte, []int) {
+// Deprecated: Use PreRecognitionCashCollection.ProtoReflect.Descriptor instead.
+func (*PreRecognitionCashCollection) Descriptor() ([]byte, []int) {
 	return file_collectionobligation_v1_collection_obligation_proto_rawDescGZIP(), []int{0}
 }
 
+type ExistingReceivableCollection struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Explicit Financial-owned target. Financial never infers a receivable from
+	// merchant/customer/source ordering or FIFO policy.
+	MerchantEntitlementId string `protobuf:"bytes,1,opt,name=merchant_entitlement_id,json=merchantEntitlementId,proto3" json:"merchant_entitlement_id,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *ExistingReceivableCollection) Reset() {
+	*x = ExistingReceivableCollection{}
+	mi := &file_collectionobligation_v1_collection_obligation_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExistingReceivableCollection) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExistingReceivableCollection) ProtoMessage() {}
+
+func (x *ExistingReceivableCollection) ProtoReflect() protoreflect.Message {
+	mi := &file_collectionobligation_v1_collection_obligation_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExistingReceivableCollection.ProtoReflect.Descriptor instead.
+func (*ExistingReceivableCollection) Descriptor() ([]byte, []int) {
+	return file_collectionobligation_v1_collection_obligation_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *ExistingReceivableCollection) GetMerchantEntitlementId() string {
+	if x != nil {
+		return x.MerchantEntitlementId
+	}
+	return ""
+}
+
+// Type-safe financial cash-application target. A request cannot represent
+// EXISTING_RECEIVABLE without its target or PRE_RECOGNITION_CASH with one.
+type CollectionApplication struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Kind:
+	//
+	//	*CollectionApplication_PreRecognitionCash
+	//	*CollectionApplication_ExistingReceivable
+	Kind          isCollectionApplication_Kind `protobuf_oneof:"kind"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CollectionApplication) Reset() {
+	*x = CollectionApplication{}
+	mi := &file_collectionobligation_v1_collection_obligation_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CollectionApplication) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CollectionApplication) ProtoMessage() {}
+
+func (x *CollectionApplication) ProtoReflect() protoreflect.Message {
+	mi := &file_collectionobligation_v1_collection_obligation_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CollectionApplication.ProtoReflect.Descriptor instead.
+func (*CollectionApplication) Descriptor() ([]byte, []int) {
+	return file_collectionobligation_v1_collection_obligation_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *CollectionApplication) GetKind() isCollectionApplication_Kind {
+	if x != nil {
+		return x.Kind
+	}
+	return nil
+}
+
+func (x *CollectionApplication) GetPreRecognitionCash() *PreRecognitionCashCollection {
+	if x != nil {
+		if x, ok := x.Kind.(*CollectionApplication_PreRecognitionCash); ok {
+			return x.PreRecognitionCash
+		}
+	}
+	return nil
+}
+
+func (x *CollectionApplication) GetExistingReceivable() *ExistingReceivableCollection {
+	if x != nil {
+		if x, ok := x.Kind.(*CollectionApplication_ExistingReceivable); ok {
+			return x.ExistingReceivable
+		}
+	}
+	return nil
+}
+
+type isCollectionApplication_Kind interface {
+	isCollectionApplication_Kind()
+}
+
+type CollectionApplication_PreRecognitionCash struct {
+	PreRecognitionCash *PreRecognitionCashCollection `protobuf:"bytes,1,opt,name=pre_recognition_cash,json=preRecognitionCash,proto3,oneof"`
+}
+
+type CollectionApplication_ExistingReceivable struct {
+	ExistingReceivable *ExistingReceivableCollection `protobuf:"bytes,2,opt,name=existing_receivable,json=existingReceivable,proto3,oneof"`
+}
+
+func (*CollectionApplication_PreRecognitionCash) isCollectionApplication_Kind() {}
+
+func (*CollectionApplication_ExistingReceivable) isCollectionApplication_Kind() {}
+
 type PrepareCollectionObligationRequest struct {
-	state                 protoimpl.MessageState `protogen:"open.v1"`
-	SourceType            string                 `protobuf:"bytes,1,opt,name=source_type,json=sourceType,proto3" json:"source_type,omitempty"`
-	SourceId              string                 `protobuf:"bytes,2,opt,name=source_id,json=sourceId,proto3" json:"source_id,omitempty"`
-	SourceVersion         int64                  `protobuf:"varint,3,opt,name=source_version,json=sourceVersion,proto3" json:"source_version,omitempty"`
-	MerchantId            string                 `protobuf:"bytes,4,opt,name=merchant_id,json=merchantId,proto3" json:"merchant_id,omitempty"`
-	CustomerSubjectId     string                 `protobuf:"bytes,5,opt,name=customer_subject_id,json=customerSubjectId,proto3" json:"customer_subject_id,omitempty"`
-	Currency              string                 `protobuf:"bytes,6,opt,name=currency,proto3" json:"currency,omitempty"`
-	AmountMinor           int64                  `protobuf:"varint,7,opt,name=amount_minor,json=amountMinor,proto3" json:"amount_minor,omitempty"`
-	CollectionApplication CollectionApplication  `protobuf:"varint,8,opt,name=collection_application,json=collectionApplication,proto3,enum=parstis.financial.collectionobligation.v1.CollectionApplication" json:"collection_application,omitempty"`
-	Description           *string                `protobuf:"bytes,9,opt,name=description,proto3,oneof" json:"description,omitempty"`
-	DueAt                 *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=due_at,json=dueAt,proto3,oneof" json:"due_at,omitempty"`
-	// receivable_id is required when collection_application is EXISTING_RECEIVABLE.
-	// It identifies the exact Financial Core receivable that collected cash must settle.
-	ReceivableId  string `protobuf:"bytes,11,opt,name=receivable_id,json=receivableId,proto3" json:"receivable_id,omitempty"`
+	state      protoimpl.MessageState      `protogen:"open.v1"`
+	Source     *v1.BusinessSourceReference `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
+	MerchantId string                      `protobuf:"bytes,2,opt,name=merchant_id,json=merchantId,proto3" json:"merchant_id,omitempty"`
+	// customer-service customer_id (UUID). Resolve a mobile number once with
+	// customer-service ResolveCustomerByMobile and store this id. Financial maps
+	// it to the Identity subject internally; subject ids are never exchanged.
+	CustomerId    string                 `protobuf:"bytes,8,opt,name=customer_id,json=customerId,proto3" json:"customer_id,omitempty"`
+	Amount        *v1.Money              `protobuf:"bytes,4,opt,name=amount,proto3" json:"amount,omitempty"`
+	Application   *CollectionApplication `protobuf:"bytes,5,opt,name=application,proto3" json:"application,omitempty"`
+	Description   *string                `protobuf:"bytes,6,opt,name=description,proto3,oneof" json:"description,omitempty"`
+	DueAt         *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=due_at,json=dueAt,proto3,oneof" json:"due_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *PrepareCollectionObligationRequest) Reset() {
 	*x = PrepareCollectionObligationRequest{}
-	mi := &file_collectionobligation_v1_collection_obligation_proto_msgTypes[0]
+	mi := &file_collectionobligation_v1_collection_obligation_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -107,7 +219,7 @@ func (x *PrepareCollectionObligationRequest) String() string {
 func (*PrepareCollectionObligationRequest) ProtoMessage() {}
 
 func (x *PrepareCollectionObligationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_collectionobligation_v1_collection_obligation_proto_msgTypes[0]
+	mi := &file_collectionobligation_v1_collection_obligation_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -120,28 +232,14 @@ func (x *PrepareCollectionObligationRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use PrepareCollectionObligationRequest.ProtoReflect.Descriptor instead.
 func (*PrepareCollectionObligationRequest) Descriptor() ([]byte, []int) {
-	return file_collectionobligation_v1_collection_obligation_proto_rawDescGZIP(), []int{0}
+	return file_collectionobligation_v1_collection_obligation_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *PrepareCollectionObligationRequest) GetSourceType() string {
+func (x *PrepareCollectionObligationRequest) GetSource() *v1.BusinessSourceReference {
 	if x != nil {
-		return x.SourceType
+		return x.Source
 	}
-	return ""
-}
-
-func (x *PrepareCollectionObligationRequest) GetSourceId() string {
-	if x != nil {
-		return x.SourceId
-	}
-	return ""
-}
-
-func (x *PrepareCollectionObligationRequest) GetSourceVersion() int64 {
-	if x != nil {
-		return x.SourceVersion
-	}
-	return 0
+	return nil
 }
 
 func (x *PrepareCollectionObligationRequest) GetMerchantId() string {
@@ -151,32 +249,25 @@ func (x *PrepareCollectionObligationRequest) GetMerchantId() string {
 	return ""
 }
 
-func (x *PrepareCollectionObligationRequest) GetCustomerSubjectId() string {
+func (x *PrepareCollectionObligationRequest) GetCustomerId() string {
 	if x != nil {
-		return x.CustomerSubjectId
+		return x.CustomerId
 	}
 	return ""
 }
 
-func (x *PrepareCollectionObligationRequest) GetCurrency() string {
+func (x *PrepareCollectionObligationRequest) GetAmount() *v1.Money {
 	if x != nil {
-		return x.Currency
+		return x.Amount
 	}
-	return ""
+	return nil
 }
 
-func (x *PrepareCollectionObligationRequest) GetAmountMinor() int64 {
+func (x *PrepareCollectionObligationRequest) GetApplication() *CollectionApplication {
 	if x != nil {
-		return x.AmountMinor
+		return x.Application
 	}
-	return 0
-}
-
-func (x *PrepareCollectionObligationRequest) GetCollectionApplication() CollectionApplication {
-	if x != nil {
-		return x.CollectionApplication
-	}
-	return CollectionApplication_COLLECTION_APPLICATION_UNSPECIFIED
+	return nil
 }
 
 func (x *PrepareCollectionObligationRequest) GetDescription() string {
@@ -193,26 +284,18 @@ func (x *PrepareCollectionObligationRequest) GetDueAt() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *PrepareCollectionObligationRequest) GetReceivableId() string {
-	if x != nil {
-		return x.ReceivableId
-	}
-	return ""
-}
-
 type PrepareCollectionObligationResponse struct {
 	state                  protoimpl.MessageState `protogen:"open.v1"`
 	CollectionObligationId string                 `protobuf:"bytes,1,opt,name=collection_obligation_id,json=collectionObligationId,proto3" json:"collection_obligation_id,omitempty"`
-	OutstandingAmountMinor int64                  `protobuf:"varint,2,opt,name=outstanding_amount_minor,json=outstandingAmountMinor,proto3" json:"outstanding_amount_minor,omitempty"`
-	Currency               string                 `protobuf:"bytes,3,opt,name=currency,proto3" json:"currency,omitempty"`
-	ReusedIdempotentResult bool                   `protobuf:"varint,4,opt,name=reused_idempotent_result,json=reusedIdempotentResult,proto3" json:"reused_idempotent_result,omitempty"`
+	OutstandingAmount      *v1.Money              `protobuf:"bytes,2,opt,name=outstanding_amount,json=outstandingAmount,proto3" json:"outstanding_amount,omitempty"`
+	ReusedIdempotentResult bool                   `protobuf:"varint,3,opt,name=reused_idempotent_result,json=reusedIdempotentResult,proto3" json:"reused_idempotent_result,omitempty"`
 	unknownFields          protoimpl.UnknownFields
 	sizeCache              protoimpl.SizeCache
 }
 
 func (x *PrepareCollectionObligationResponse) Reset() {
 	*x = PrepareCollectionObligationResponse{}
-	mi := &file_collectionobligation_v1_collection_obligation_proto_msgTypes[1]
+	mi := &file_collectionobligation_v1_collection_obligation_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -224,7 +307,7 @@ func (x *PrepareCollectionObligationResponse) String() string {
 func (*PrepareCollectionObligationResponse) ProtoMessage() {}
 
 func (x *PrepareCollectionObligationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_collectionobligation_v1_collection_obligation_proto_msgTypes[1]
+	mi := &file_collectionobligation_v1_collection_obligation_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -237,7 +320,7 @@ func (x *PrepareCollectionObligationResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use PrepareCollectionObligationResponse.ProtoReflect.Descriptor instead.
 func (*PrepareCollectionObligationResponse) Descriptor() ([]byte, []int) {
-	return file_collectionobligation_v1_collection_obligation_proto_rawDescGZIP(), []int{1}
+	return file_collectionobligation_v1_collection_obligation_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *PrepareCollectionObligationResponse) GetCollectionObligationId() string {
@@ -247,18 +330,11 @@ func (x *PrepareCollectionObligationResponse) GetCollectionObligationId() string
 	return ""
 }
 
-func (x *PrepareCollectionObligationResponse) GetOutstandingAmountMinor() int64 {
+func (x *PrepareCollectionObligationResponse) GetOutstandingAmount() *v1.Money {
 	if x != nil {
-		return x.OutstandingAmountMinor
+		return x.OutstandingAmount
 	}
-	return 0
-}
-
-func (x *PrepareCollectionObligationResponse) GetCurrency() string {
-	if x != nil {
-		return x.Currency
-	}
-	return ""
+	return nil
 }
 
 func (x *PrepareCollectionObligationResponse) GetReusedIdempotentResult() bool {
@@ -272,33 +348,30 @@ var File_collectionobligation_v1_collection_obligation_proto protoreflect.FileDe
 
 const file_collectionobligation_v1_collection_obligation_proto_rawDesc = "" +
 	"\n" +
-	"3collectionobligation/v1/collection_obligation.proto\x12)parstis.financial.collectionobligation.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb1\x04\n" +
-	"\"PrepareCollectionObligationRequest\x12\x1f\n" +
-	"\vsource_type\x18\x01 \x01(\tR\n" +
-	"sourceType\x12\x1b\n" +
-	"\tsource_id\x18\x02 \x01(\tR\bsourceId\x12%\n" +
-	"\x0esource_version\x18\x03 \x01(\x03R\rsourceVersion\x12\x1f\n" +
-	"\vmerchant_id\x18\x04 \x01(\tR\n" +
-	"merchantId\x12.\n" +
-	"\x13customer_subject_id\x18\x05 \x01(\tR\x11customerSubjectId\x12\x1a\n" +
-	"\bcurrency\x18\x06 \x01(\tR\bcurrency\x12!\n" +
-	"\famount_minor\x18\a \x01(\x03R\vamountMinor\x12w\n" +
-	"\x16collection_application\x18\b \x01(\x0e2@.parstis.financial.collectionobligation.v1.CollectionApplicationR\x15collectionApplication\x12%\n" +
-	"\vdescription\x18\t \x01(\tH\x00R\vdescription\x88\x01\x01\x126\n" +
-	"\x06due_at\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampH\x01R\x05dueAt\x88\x01\x01\x12#\n" +
-	"\rreceivable_id\x18\v \x01(\tR\freceivableIdB\x0e\n" +
+	"3collectionobligation/v1/collection_obligation.proto\x12)parstis.financial.collectionobligation.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x16common/v1/common.proto\"\x1e\n" +
+	"\x1cPreRecognitionCashCollection\"V\n" +
+	"\x1cExistingReceivableCollection\x126\n" +
+	"\x17merchant_entitlement_id\x18\x01 \x01(\tR\x15merchantEntitlementId\"\x98\x02\n" +
+	"\x15CollectionApplication\x12{\n" +
+	"\x14pre_recognition_cash\x18\x01 \x01(\v2G.parstis.financial.collectionobligation.v1.PreRecognitionCashCollectionH\x00R\x12preRecognitionCash\x12z\n" +
+	"\x13existing_receivable\x18\x02 \x01(\v2G.parstis.financial.collectionobligation.v1.ExistingReceivableCollectionH\x00R\x12existingReceivableB\x06\n" +
+	"\x04kind\"\xc5\x03\n" +
+	"\"PrepareCollectionObligationRequest\x12:\n" +
+	"\x06source\x18\x01 \x01(\v2\".common.v1.BusinessSourceReferenceR\x06source\x12\x1f\n" +
+	"\vmerchant_id\x18\x02 \x01(\tR\n" +
+	"merchantId\x12\x1f\n" +
+	"\vcustomer_id\x18\b \x01(\tR\n" +
+	"customerId\x12(\n" +
+	"\x06amount\x18\x04 \x01(\v2\x10.common.v1.MoneyR\x06amount\x12b\n" +
+	"\vapplication\x18\x05 \x01(\v2@.parstis.financial.collectionobligation.v1.CollectionApplicationR\vapplication\x12%\n" +
+	"\vdescription\x18\x06 \x01(\tH\x00R\vdescription\x88\x01\x01\x126\n" +
+	"\x06due_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampH\x01R\x05dueAt\x88\x01\x01B\x0e\n" +
 	"\f_descriptionB\t\n" +
-	"\a_due_at\"\xef\x01\n" +
+	"\a_due_atJ\x04\b\x03\x10\x04R\x13customer_subject_id\"\xda\x01\n" +
 	"#PrepareCollectionObligationResponse\x128\n" +
-	"\x18collection_obligation_id\x18\x01 \x01(\tR\x16collectionObligationId\x128\n" +
-	"\x18outstanding_amount_minor\x18\x02 \x01(\x03R\x16outstandingAmountMinor\x12\x1a\n" +
-	"\bcurrency\x18\x03 \x01(\tR\bcurrency\x128\n" +
-	"\x18reused_idempotent_result\x18\x04 \x01(\bR\x16reusedIdempotentResult*\xa0\x01\n" +
-	"\x15CollectionApplication\x12&\n" +
-	"\"COLLECTION_APPLICATION_UNSPECIFIED\x10\x00\x12/\n" +
-	"+COLLECTION_APPLICATION_PRE_RECOGNITION_CASH\x10\x01\x12.\n" +
-	"*COLLECTION_APPLICATION_EXISTING_RECEIVABLE\x10\x022\xdc\x01\n" +
+	"\x18collection_obligation_id\x18\x01 \x01(\tR\x16collectionObligationId\x12?\n" +
+	"\x12outstanding_amount\x18\x02 \x01(\v2\x10.common.v1.MoneyR\x11outstandingAmount\x128\n" +
+	"\x18reused_idempotent_result\x18\x03 \x01(\bR\x16reusedIdempotentResult2\xdc\x01\n" +
 	"\x1bCollectionObligationService\x12\xbc\x01\n" +
 	"\x1bPrepareCollectionObligation\x12M.parstis.financial.collectionobligation.v1.PrepareCollectionObligationRequest\x1aN.parstis.financial.collectionobligation.v1.PrepareCollectionObligationResponseBZZXgithub.com/parstis/bnpl-backend/gen/proto/collectionobligation/v1;collectionobligationv1b\x06proto3"
 
@@ -314,24 +387,32 @@ func file_collectionobligation_v1_collection_obligation_proto_rawDescGZIP() []by
 	return file_collectionobligation_v1_collection_obligation_proto_rawDescData
 }
 
-var file_collectionobligation_v1_collection_obligation_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_collectionobligation_v1_collection_obligation_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_collectionobligation_v1_collection_obligation_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_collectionobligation_v1_collection_obligation_proto_goTypes = []any{
-	(CollectionApplication)(0),                  // 0: parstis.financial.collectionobligation.v1.CollectionApplication
-	(*PrepareCollectionObligationRequest)(nil),  // 1: parstis.financial.collectionobligation.v1.PrepareCollectionObligationRequest
-	(*PrepareCollectionObligationResponse)(nil), // 2: parstis.financial.collectionobligation.v1.PrepareCollectionObligationResponse
-	(*timestamppb.Timestamp)(nil),               // 3: google.protobuf.Timestamp
+	(*PreRecognitionCashCollection)(nil),        // 0: parstis.financial.collectionobligation.v1.PreRecognitionCashCollection
+	(*ExistingReceivableCollection)(nil),        // 1: parstis.financial.collectionobligation.v1.ExistingReceivableCollection
+	(*CollectionApplication)(nil),               // 2: parstis.financial.collectionobligation.v1.CollectionApplication
+	(*PrepareCollectionObligationRequest)(nil),  // 3: parstis.financial.collectionobligation.v1.PrepareCollectionObligationRequest
+	(*PrepareCollectionObligationResponse)(nil), // 4: parstis.financial.collectionobligation.v1.PrepareCollectionObligationResponse
+	(*v1.BusinessSourceReference)(nil),          // 5: common.v1.BusinessSourceReference
+	(*v1.Money)(nil),                            // 6: common.v1.Money
+	(*timestamppb.Timestamp)(nil),               // 7: google.protobuf.Timestamp
 }
 var file_collectionobligation_v1_collection_obligation_proto_depIdxs = []int32{
-	0, // 0: parstis.financial.collectionobligation.v1.PrepareCollectionObligationRequest.collection_application:type_name -> parstis.financial.collectionobligation.v1.CollectionApplication
-	3, // 1: parstis.financial.collectionobligation.v1.PrepareCollectionObligationRequest.due_at:type_name -> google.protobuf.Timestamp
-	1, // 2: parstis.financial.collectionobligation.v1.CollectionObligationService.PrepareCollectionObligation:input_type -> parstis.financial.collectionobligation.v1.PrepareCollectionObligationRequest
-	2, // 3: parstis.financial.collectionobligation.v1.CollectionObligationService.PrepareCollectionObligation:output_type -> parstis.financial.collectionobligation.v1.PrepareCollectionObligationResponse
-	3, // [3:4] is the sub-list for method output_type
-	2, // [2:3] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	0, // 0: parstis.financial.collectionobligation.v1.CollectionApplication.pre_recognition_cash:type_name -> parstis.financial.collectionobligation.v1.PreRecognitionCashCollection
+	1, // 1: parstis.financial.collectionobligation.v1.CollectionApplication.existing_receivable:type_name -> parstis.financial.collectionobligation.v1.ExistingReceivableCollection
+	5, // 2: parstis.financial.collectionobligation.v1.PrepareCollectionObligationRequest.source:type_name -> common.v1.BusinessSourceReference
+	6, // 3: parstis.financial.collectionobligation.v1.PrepareCollectionObligationRequest.amount:type_name -> common.v1.Money
+	2, // 4: parstis.financial.collectionobligation.v1.PrepareCollectionObligationRequest.application:type_name -> parstis.financial.collectionobligation.v1.CollectionApplication
+	7, // 5: parstis.financial.collectionobligation.v1.PrepareCollectionObligationRequest.due_at:type_name -> google.protobuf.Timestamp
+	6, // 6: parstis.financial.collectionobligation.v1.PrepareCollectionObligationResponse.outstanding_amount:type_name -> common.v1.Money
+	3, // 7: parstis.financial.collectionobligation.v1.CollectionObligationService.PrepareCollectionObligation:input_type -> parstis.financial.collectionobligation.v1.PrepareCollectionObligationRequest
+	4, // 8: parstis.financial.collectionobligation.v1.CollectionObligationService.PrepareCollectionObligation:output_type -> parstis.financial.collectionobligation.v1.PrepareCollectionObligationResponse
+	8, // [8:9] is the sub-list for method output_type
+	7, // [7:8] is the sub-list for method input_type
+	7, // [7:7] is the sub-list for extension type_name
+	7, // [7:7] is the sub-list for extension extendee
+	0, // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_collectionobligation_v1_collection_obligation_proto_init() }
@@ -339,20 +420,23 @@ func file_collectionobligation_v1_collection_obligation_proto_init() {
 	if File_collectionobligation_v1_collection_obligation_proto != nil {
 		return
 	}
-	file_collectionobligation_v1_collection_obligation_proto_msgTypes[0].OneofWrappers = []any{}
+	file_collectionobligation_v1_collection_obligation_proto_msgTypes[2].OneofWrappers = []any{
+		(*CollectionApplication_PreRecognitionCash)(nil),
+		(*CollectionApplication_ExistingReceivable)(nil),
+	}
+	file_collectionobligation_v1_collection_obligation_proto_msgTypes[3].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_collectionobligation_v1_collection_obligation_proto_rawDesc), len(file_collectionobligation_v1_collection_obligation_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   2,
+			NumEnums:      0,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_collectionobligation_v1_collection_obligation_proto_goTypes,
 		DependencyIndexes: file_collectionobligation_v1_collection_obligation_proto_depIdxs,
-		EnumInfos:         file_collectionobligation_v1_collection_obligation_proto_enumTypes,
 		MessageInfos:      file_collectionobligation_v1_collection_obligation_proto_msgTypes,
 	}.Build()
 	File_collectionobligation_v1_collection_obligation_proto = out.File
