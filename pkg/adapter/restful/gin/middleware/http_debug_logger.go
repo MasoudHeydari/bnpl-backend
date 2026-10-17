@@ -177,16 +177,30 @@ func HTTPDebugLogger(
 			responseLimit,
 		)
 		// Hijack (or equivalent skip) means we must not present Bytes() as a
-		// normal HTTP response body representation.
+		// normal HTTP response body representation. Post-hijack net.Conn writes
+		// are invisible here: zero captured bytes report body_presence=unknown,
+		// never body_present=false.
 		if reason := responseCapture.SkipReason(); reason != "" {
-			responseBody = map[string]any{
+			skipped := map[string]any{
 				"logged":        false,
 				"reason":        reason,
-				"body_present":  responseCapture.TotalWritten() > 0 || responseCapture.Truncated(),
 				"captured_size": responseCapture.CapturedSize(),
 				"limit_bytes":   responseLimit,
 				"truncated":     responseCapture.Truncated(),
 			}
+
+			switch resolveBodyPresence(reason, responseCapture.CapturedSize(), responseCapture.Truncated()) {
+			case bodyPresencePresent:
+				skipped["body_present"] = true
+
+			case bodyPresenceUnknown:
+				skipped["body_presence"] = bodyPresenceUnknownValue
+
+			default:
+				skipped["body_present"] = false
+			}
+
+			responseBody = skipped
 		}
 
 		authFields := authLogFields(request.Context())

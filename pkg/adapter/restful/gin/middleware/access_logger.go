@@ -140,9 +140,9 @@ func buildAccessResponseBodyLog(
 ) responseBodyLog {
 	if capture == nil {
 		return responseBodyLog{
-			BodyPresent: false,
-			Logged:      false,
-			Reason:      responseBodyReasonCaptureDisabled,
+			Presence: bodyPresenceAbsent,
+			Logged:   false,
+			Reason:   responseBodyReasonCaptureDisabled,
 		}
 	}
 

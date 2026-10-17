@@ -14,6 +14,15 @@ import (
 // allowlist projection only; it never truncates bytes delivered to the client.
 const defaultResponseBodyCaptureLimit = 16 * 1024
 
+// Compile-time checks: the wrapper must keep satisfying the optional HTTP
+// interfaces Gin relies on. If a future change drops Hijack or Flush, these
+// assertions fail the build instead of silently breaking WebSocket / flush
+// handlers at runtime.
+var (
+	_ http.Hijacker = (*capturingResponseWriter)(nil)
+	_ http.Flusher  = (*capturingResponseWriter)(nil)
+)
+
 // capturingResponseWriter is a bounded write-through wrapper around
 // gin.ResponseWriter used by AccessLogger (Production-safe response logging)
 // and by HTTPDebugLogger (Development diagnostics).
@@ -53,6 +62,13 @@ const defaultResponseBodyCaptureLimit = 16 * 1024
 // owned by the application protocol (e.g. WebSocket); continuing to treat
 // later writes as an HTTP response body would be incorrect, so SkipReason
 // forces callers to emit omission metadata instead of a false "complete body".
+//
+// Body presence after Hijack: bytes written to net.Conn after a successful
+// Hijack bypass this wrapper entirely. Zero CapturedSize / TotalWritten
+// therefore cannot prove that no payload was transmitted — logging must
+// report presence as unknown in that case, never as an empty ordinary body.
+// Bytes observed through Write/WriteString before Hijack remain trustworthy
+// evidence that a body (or prefix) existed.
 //
 // Flush is forwarded unchanged. Flushing alone does not disable capture:
 // subsequent Write/WriteString calls continue to be mirrored until the limit
@@ -134,7 +150,9 @@ func (w *capturingResponseWriter) WriteString(s string) (int, error) {
 
 // Hijack delegates to the underlying writer. On success, further body capture
 // is disabled via skipReason because the connection is no longer a normal
-// HTTP response stream owned by this middleware.
+// HTTP response stream owned by this middleware. Post-hijack writes on the
+// returned net.Conn are invisible to capture; see the type comment on body
+// presence after Hijack.
 func (w *capturingResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	conn, bufrw, err := w.ResponseWriter.Hijack()
 	if err == nil {
@@ -195,19 +213,23 @@ func (w *capturingResponseWriter) CapturedSize() int { return w.buf.Len() }
 // including those not retained after the capture limit.
 func (w *capturingResponseWriter) TotalWritten() int64 { return w.totalWritten }
 
-// ResetCapture drops retained bytes from buf so large captures are not held
-// longer than needed after projection / logging. It does not reset
-// truncated, skipReason, or totalWritten; those describe what already
-// happened on the wire for this request.
+// ResetCapture drops retained capture bytes so large bodies are not held
+// longer than needed after projection / logging.
+//
+// bytes.Buffer.Reset only clears the buffer length and retains Cap, which
+// would pin up to the capture limit in the heap until this writer itself
+// becomes unreachable. Replacing buf with a zero-value bytes.Buffer drops
+// this writer's reference to the previous backing array so that memory is
+// eligible for garbage collection when no other references remain.
+//
+// Eligibility for GC is not the same as immediately returning pages to the
+// operating system; the Go runtime decides when to reclaim and release heap
+// memory. This method never calls runtime.GC and does not pool buffers that
+// may have held sensitive response data.
+//
+// truncated, skipReason, and totalWritten are preserved: they describe what
+// already happened on the wire for this request and remain useful after the
+// raw bytes are dropped.
 func (w *capturingResponseWriter) ResetCapture() {
-	w.buf.Reset()
+	w.buf = bytes.Buffer{}
 }
-
-// Compile-time checks: the wrapper must keep satisfying the optional HTTP
-// interfaces Gin relies on. If a future change drops Hijack or Flush, these
-// assertions fail the build instead of silently breaking WebSocket / flush
-// handlers at runtime.
-var (
-	_ http.Hijacker = (*capturingResponseWriter)(nil)
-	_ http.Flusher  = (*capturingResponseWriter)(nil)
-)

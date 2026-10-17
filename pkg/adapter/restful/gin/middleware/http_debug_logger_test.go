@@ -336,6 +336,34 @@ func TestHTTPDebugLogger_SeesErrorHandlerSerializedStatus(t *testing.T) {
 	assert.Equal(t, "error", debugRecord.level)
 }
 
+func TestHTTPDebugLogger_HijackBodyPresenceUnknown(t *testing.T) {
+	logger := newRecordingLogger()
+	provider := mock.NewProvider(t)
+	provider.EXPECT().NewTraceID().Return("trace-1").Once()
+	provider.EXPECT().NewRequestID().Return("request-1").Once()
+	provider.EXPECT().NewCorrelationID().Return("correlation-1").Once()
+
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(TraceID(provider), HTTPDebugLogger(logger, HTTPDebugLoggerOptions{}))
+	engine.GET("/ws", func(c *gin.Context) {
+		conn, _, err := c.Writer.Hijack()
+		require.NoError(t, err)
+		require.NotNil(t, conn)
+		_ = conn.Close()
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
+	engine.ServeHTTP(&hijackableResponseRecorder{ResponseRecorder: httptest.NewRecorder()}, req)
+
+	body := attrMap(t, logger.snapshot()[0].attrs, "http.response_body")
+	assert.Equal(t, bodyPresenceUnknownValue, body["body_presence"])
+	assert.Equal(t, false, body["logged"])
+	assert.Equal(t, responseBodyReasonStreaming, body["reason"])
+	_, hasPresent := body["body_present"]
+	assert.False(t, hasPresent)
+}
+
 func newHTTPDebugEngine(
 	provider *mock.Provider,
 	logger corelog.Logger,

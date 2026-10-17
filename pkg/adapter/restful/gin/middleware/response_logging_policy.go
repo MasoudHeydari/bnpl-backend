@@ -40,7 +40,13 @@ type responseLogPolicy struct {
 	ErrorFields   []fieldPath
 }
 
-// responseLogPolicies is the initial allowlisted Production response projections.
+// responseLogPolicies is the allowlisted Production response projections.
+//
+// This table is immutable after package initialization. Concurrent readers
+// (including tests under go test -race) are safe because nothing appends to
+// or replaces this slice at runtime. Do not introduce test helpers or
+// production wiring that mutate it — adding a field or route requires a
+// source change and the same scrutiny as authentication middleware.
 //
 // Keep this list small and explicit. Adding a field or route requires a code
 // review — new API fields must never become loggable merely by appearing in a
@@ -106,18 +112,4 @@ func lookupResponseLogPolicy(method, route string) (responseLogPolicy, bool) {
 	}
 
 	return responseLogPolicy{}, false
-}
-
-// RegisterResponseLogPolicyForTest installs a temporary allowlist policy used by
-// unit tests. It must not be called from production wiring.
-//
-// The returned restore function reverts the global table. Tests that mutate
-// policy state must defer restore() so parallel packages are not poisoned.
-func RegisterResponseLogPolicyForTest(policy responseLogPolicy) (restore func()) {
-	previous := responseLogPolicies
-	responseLogPolicies = append(append([]responseLogPolicy{}, previous...), policy)
-
-	return func() {
-		responseLogPolicies = previous
-	}
 }

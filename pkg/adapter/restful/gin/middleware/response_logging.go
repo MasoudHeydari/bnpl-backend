@@ -11,10 +11,13 @@ import (
 // logging. These values are stable operational identifiers for dashboards and
 // must remain distinguishable from each other.
 //
-// Invariant: every outcome where a body existed but was not projected must set
-// body_present=true (or equivalent) with a non-empty reason. Logging
-// http.response_body as null/absent is intentionally avoided because operators
-// cannot tell "no body", "withheld", and "feature off" apart.
+// Invariant: every outcome where a body is known to have existed but was not
+// projected must set body_present=true with a non-empty reason. When capture
+// cannot determine presence (notably after Hijack with no previously observed
+// bytes), emit body_presence="unknown" instead — never body_present=false.
+// Logging http.response_body as null/absent is intentionally avoided because
+// operators cannot tell "no body", "withheld", "unknown", and "feature off"
+// apart.
 const (
 	// responseBodyReasonLogged means an allowlisted scalar projection was
 	// attached under fields. filtered=true always accompanies this outcome so
@@ -48,6 +51,8 @@ const (
 
 	// responseBodyReasonStreaming means capture was abandoned after Hijack (or
 	// an equivalent skip). The HTTP body is no longer a normal response stream.
+	// Body presence may be present (bytes observed before Hijack) or unknown
+	// (no observed bytes; post-hijack net.Conn traffic is invisible).
 	responseBodyReasonStreaming = "streaming_response"
 
 	// responseBodyReasonEncodedResponseUnsupported means Content-Encoding is
@@ -58,7 +63,45 @@ const (
 	// responseBodyReasonCaptureDisabled is a defensive internal outcome when
 	// projection is requested but no capture wrapper was installed.
 	responseBodyReasonCaptureDisabled = "capture_disabled"
+
+	// bodyPresenceUnknownValue is the structured-log token for
+	// body_presence when Hijack (or equivalent) made absence unprovable.
+	bodyPresenceUnknownValue = "unknown"
 )
+
+// bodyPresence classifies whether an HTTP response body (or protocol payload)
+// is known to exist for logging. After a successful Hijack, zero captured
+// bytes do not prove absence because the application may write directly to
+// net.Conn; that case is bodyPresenceUnknown.
+type bodyPresence int
+
+const (
+	bodyPresenceAbsent bodyPresence = iota
+	bodyPresencePresent
+	bodyPresenceUnknown
+)
+
+// resolveBodyPresence maps capture outcomes to the three-state presence model.
+//
+// When skipReason is empty, zero retained bytes and no truncation mean an
+// ordinary completed response with no body (absent). When skipReason is set
+// (Hijack / streaming), previously observed bytes or truncation mean present;
+// otherwise presence is unknown and must not be reported as body_present=false.
+func resolveBodyPresence(skipReason string, capturedLen int, truncated bool) bodyPresence {
+	if skipReason != "" {
+		if capturedLen > 0 || truncated {
+			return bodyPresencePresent
+		}
+
+		return bodyPresenceUnknown
+	}
+
+	if capturedLen == 0 && !truncated {
+		return bodyPresenceAbsent
+	}
+
+	return bodyPresencePresent
+}
 
 // ResponseLoggingOptions configures optional safe response-body enrichment of
 // AccessLogger records.
@@ -86,9 +129,9 @@ type ResponseLoggingOptions struct {
 // responseBodyLog is the structured AccessLogger attribute under
 // http.response_body. Field meanings:
 //
-//   - BodyPresent: true if the HTTP exchange produced (or attempted to produce)
-//     a response body. Distinct from Logged — a sensitive body can be present
-//     while nothing from it is recorded.
+//   - Presence: three-state body existence. asAttrs emits body_present=true/false
+//     when known, or body_presence="unknown" after Hijack when capture cannot
+//     prove absence. Never emit body_present=false for the unknown case.
 //   - Logged: true only when Fields contains an allowlisted projection.
 //   - Filtered: true when Logged and the projection is a subset of the body.
 //     Callers must not treat Fields as the full response.
@@ -97,7 +140,7 @@ type ResponseLoggingOptions struct {
 //   - ContentType / CapturedSize / LimitBytes: diagnostic context for omission.
 //   - Fields: allowlisted scalars only; never the raw JSON document.
 type responseBodyLog struct {
-	BodyPresent  bool           `json:"body_present"`
+	Presence     bodyPresence   `json:"-"`
 	Logged       bool           `json:"logged"`
 	Filtered     bool           `json:"filtered,omitempty"`
 	Reason       string         `json:"reason"`
@@ -113,9 +156,19 @@ type responseBodyLog struct {
 // small when the body was empty or logging was skipped early.
 func (r responseBodyLog) asAttrs() map[string]any {
 	out := map[string]any{
-		"body_present": r.BodyPresent,
-		"logged":       r.Logged,
-		"reason":       r.Reason,
+		"logged": r.Logged,
+		"reason": r.Reason,
+	}
+
+	switch r.Presence {
+	case bodyPresenceUnknown:
+		out["body_presence"] = bodyPresenceUnknownValue
+
+	case bodyPresencePresent:
+		out["body_present"] = true
+
+	default:
+		out["body_present"] = false
 	}
 
 	if r.Filtered {
@@ -149,6 +202,9 @@ func (r responseBodyLog) asAttrs() map[string]any {
 // decision process. Check order is load-bearing:
 //
 //  1. skipReason — transport-level capture abandonment (e.g. hijack) wins first.
+//     Presence is present if bytes were observed before abandonment; otherwise
+//     unknown (never absent). Production still fails closed: Logged stays false
+//     and no raw body or hijacked traffic is projected.
 //  2. empty body — distinguish truly empty responses from withheld bodies.
 //  3. truncated — never parse a size-capped prefix as complete JSON.
 //  4. Content-Encoding — refuse compressed/encoded bodies without decompressing.
@@ -175,7 +231,7 @@ func projectResponseBody(
 
 	if skipReason != "" {
 		return responseBodyLog{
-			BodyPresent:  len(body) > 0 || truncated,
+			Presence:     resolveBodyPresence(skipReason, len(body), truncated),
 			Logged:       false,
 			Reason:       skipReason,
 			ContentType:  contentType,
@@ -187,15 +243,15 @@ func projectResponseBody(
 
 	if len(body) == 0 && !truncated {
 		return responseBodyLog{
-			BodyPresent: false,
-			Logged:      false,
-			Reason:      responseBodyReasonEmptyBody,
+			Presence: bodyPresenceAbsent,
+			Logged:   false,
+			Reason:   responseBodyReasonEmptyBody,
 		}
 	}
 
 	if truncated {
 		return responseBodyLog{
-			BodyPresent:  true,
+			Presence:     bodyPresencePresent,
 			Logged:       false,
 			Reason:       responseBodyReasonBodyTooLarge,
 			Truncated:    true,
@@ -208,7 +264,7 @@ func projectResponseBody(
 	if encoding := strings.TrimSpace(header.Get("Content-Encoding")); encoding != "" &&
 		!strings.EqualFold(encoding, "identity") {
 		return responseBodyLog{
-			BodyPresent:  true,
+			Presence:     bodyPresencePresent,
 			Logged:       false,
 			Reason:       responseBodyReasonEncodedResponseUnsupported,
 			ContentType:  contentType,
@@ -224,7 +280,7 @@ func projectResponseBody(
 
 	if mediaType != "application/json" && !strings.HasSuffix(mediaType, "+json") {
 		return responseBodyLog{
-			BodyPresent:  true,
+			Presence:     bodyPresencePresent,
 			Logged:       false,
 			Reason:       responseBodyReasonUnsupportedContentType,
 			ContentType:  contentType,
@@ -236,7 +292,7 @@ func projectResponseBody(
 	policy, ok := lookupResponseLogPolicy(method, route)
 	if !ok {
 		return responseBodyLog{
-			BodyPresent:  true,
+			Presence:     bodyPresencePresent,
 			Logged:       false,
 			Reason:       responseBodyReasonNoAllowlistPolicy,
 			ContentType:  contentType,
@@ -248,7 +304,7 @@ func projectResponseBody(
 	var parsed any
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return responseBodyLog{
-			BodyPresent:  true,
+			Presence:     bodyPresencePresent,
 			Logged:       false,
 			Reason:       responseBodyReasonInvalidJSON,
 			ContentType:  contentType,
@@ -260,7 +316,7 @@ func projectResponseBody(
 	root, ok := parsed.(map[string]any)
 	if !ok {
 		return responseBodyLog{
-			BodyPresent:  true,
+			Presence:     bodyPresencePresent,
 			Logged:       false,
 			Reason:       responseBodyReasonUnexpectedResponseShape,
 			ContentType:  contentType,
@@ -279,7 +335,7 @@ func projectResponseBody(
 
 	if len(paths) == 0 {
 		return responseBodyLog{
-			BodyPresent:  true,
+			Presence:     bodyPresencePresent,
 			Logged:       false,
 			Reason:       responseBodyReasonNoAllowlistPolicy,
 			ContentType:  contentType,
@@ -291,7 +347,7 @@ func projectResponseBody(
 	fields, ok := extractAllowlistedFields(root, paths)
 	if !ok {
 		return responseBodyLog{
-			BodyPresent:  true,
+			Presence:     bodyPresencePresent,
 			Logged:       false,
 			Reason:       responseBodyReasonUnexpectedResponseShape,
 			ContentType:  contentType,
@@ -301,7 +357,7 @@ func projectResponseBody(
 	}
 
 	return responseBodyLog{
-		BodyPresent:  true,
+		Presence:     bodyPresencePresent,
 		Logged:       true,
 		Filtered:     true,
 		Reason:       responseBodyReasonLogged,
