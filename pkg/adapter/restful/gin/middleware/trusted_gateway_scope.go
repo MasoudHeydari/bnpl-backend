@@ -12,16 +12,17 @@ import (
 // TrustedGatewayScope attaches Gateway-injected TenantID and ContextID onto an
 // existing AuthContext without altering SubjectID or Permissions.
 //
-// Use only on routes that snapshot Financial Core request scope (primarily
-// Partner Create Checkout). PartnerTerminalAuth authenticates Merchant identity
-// from terminal credentials alone; this middleware is the second, independent
-// trust source for TenantID/ContextID.
+// Partner Create Checkout no longer uses this middleware: JWT-independent
+// Partner routes resolve Financial Core scope from MerchantProfile instead.
+// Keep this helper for any future route that truly requires Gateway-injected
+// tenant/context on top of an already-authenticated AuthContext.
 //
 // X-Auth-* values are trusted only because the Gateway strips client-supplied
 // headers and injects authoritative ones after validating the caller's token.
 // BNPL never parses JWTs and never accepts tenant/context from JSON/query/path.
 // Gateway-provided X-Auth-Subject-Id / X-Auth-Permissions are ignored here —
-// Merchant identity and permissions remain terminal-owned.
+// Merchant identity and permissions remain terminal-owned when that surface
+// uses PartnerTerminalAuth.
 func TrustedGatewayScope() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authCtx, ok := permission.FromContext(c.Request.Context())

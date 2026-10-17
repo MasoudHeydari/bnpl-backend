@@ -299,9 +299,28 @@ type MerchantProfile struct {
 	// BNPL activity.
 	Jurisdiction Jurisdiction `db:"jurisdiction" json:"jurisdiction,omitempty"`
 
+	// PaymentTenantID is the server-owned Financial Core tenant scope for this
+	// merchant's Partner/hosted checkouts. It is assigned only by trusted BNPL
+	// provisioning — never by partner request body, partner headers, or JWT
+	// Gateway headers. Partner Create snapshots this onto CheckoutSession.
+	// Nil means Partner checkout origination must fail closed.
+	PaymentTenantID *TenantID `db:"payment_tenant_id" json:"-"`
+
+	// PaymentContextID is the server-owned Financial Core business context for
+	// this merchant's Partner/hosted checkouts. Paired with PaymentTenantID;
+	// see that field for trust and provisioning rules.
+	PaymentContextID *ContextID `db:"payment_context_id" json:"-"`
+
 	// CreatedAt is when the profile was created.
 	CreatedAt time.Time `db:"created_at" json:"created_at,omitempty"`
 
 	// UpdatedAt is when the profile was last modified.
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at,omitempty"`
+}
+
+// HasPaymentScope reports whether both Financial Core payment-scope identifiers
+// are present and non-zero. Partner Create requires this for external sessions.
+func (p MerchantProfile) HasPaymentScope() bool {
+	return p.PaymentTenantID != nil && !p.PaymentTenantID.IsZero() &&
+		p.PaymentContextID != nil && !p.PaymentContextID.IsZero()
 }

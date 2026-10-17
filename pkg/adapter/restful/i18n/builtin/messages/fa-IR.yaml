@@ -209,6 +209,7 @@ error.merchant_order_id_required: "شناسه سفارش پذیرنده الزا
 error.merchant_order_id_conflicts_with_an_existing_checkout_session: "شناسه سفارش پذیرنده با یک جلسه پرداخت موجود تداخل دارد."
 error.merchant_state_too_long: "مقدار وضعیت پذیرنده بیش از حد طولانی است."
 error.merchant_is_not_active_for_bnpl: "این پذیرنده برای خرید اقساطی فعال نیست."
+error.merchant_payment_scope_is_not_configured: "پیکربندی پرداخت این پذیرنده تکمیل نشده است."
 error.checkout_customer_identity_conflict: "این پرداخت متعلق به مشتری دیگری است."
 error.checkout_otp_send_cooldown: "لطفاً پیش از درخواست کد تأیید جدید کمی صبر کنید."
 error.checkout_otp_send_limit_reached: "تعداد درخواست‌های کد تأیید برای این پرداخت بیش از حد مجاز است."

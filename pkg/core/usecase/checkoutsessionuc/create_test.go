@@ -44,19 +44,30 @@ func (h *harness) partnerRequest(mods ...func(*CheckoutSessionRequest)) CreatePa
 	return CreatePartnerInput{
 		CheckoutSessionRequest: request,
 		CustomerPhone:          "+989121234567",
-		TenantID:               model.TenantID(uuid.MustParse("11111111-1111-1111-1111-111111111111")),
-		ContextID:              model.ContextID(uuid.MustParse("22222222-2222-2222-2222-222222222222")),
 	}
 }
 
+func (h *harness) testPaymentTenantID() model.TenantID {
+	return model.TenantID(uuid.MustParse("11111111-1111-1111-1111-111111111111"))
+}
+
+func (h *harness) testPaymentContextID() model.ContextID {
+	return model.ContextID(uuid.MustParse("22222222-2222-2222-2222-222222222222"))
+}
+
 func (h *harness) expectActiveMerchant() {
+	tenantID := h.testPaymentTenantID()
+	contextID := h.testPaymentContextID()
+
 	h.merchantTx.EXPECT().
 		GetByMerchantID(h.ctx, h.merchantID).
 		Return(model.MerchantProfile{
-			ID:           h.merchantPID,
-			MerchantID:   h.merchantID,
-			Status:       model.ActiveMerchantStatus,
-			Jurisdiction: model.IRJurisdiction,
+			ID:               h.merchantPID,
+			MerchantID:       h.merchantID,
+			Status:           model.ActiveMerchantStatus,
+			Jurisdiction:     model.IRJurisdiction,
+			PaymentTenantID:  &tenantID,
+			PaymentContextID: &contextID,
 		}, nil).Once()
 }
 
@@ -315,16 +326,60 @@ func TestCreatePartner_IdempotentReplayDifferentAuthScopeConflicts(t *testing.T)
 	h.expectPool(0, 1)
 	h.expectActiveMerchant()
 
-	existing := h.session()
+	// Session snapshotted a different payment scope than the merchant's
+	// current provisioned scope — immutable scope matching must conflict.
+	existing := h.session(func(s *model.CheckoutSession) {
+		otherTenant := model.TenantID(uuid.MustParse("33333333-3333-3333-3333-333333333333"))
+		s.AuthTenantID = &otherTenant
+	})
 	h.sessionTx.EXPECT().
 		LockByMerchantIdempotencyKey(h.ctx, h.merchantPID, testAttemptKey).
 		Return(existing, nil).Once()
 
-	input := h.partnerRequest()
-	input.TenantID = model.TenantID(uuid.MustParse("33333333-3333-3333-3333-333333333333"))
-
-	_, err := h.uc.CreatePartner(h.ctx, input)
+	_, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
 	requireCerr(t, err, cerr.CodeIdempotencyConflict, merchantOrderConflict)
+}
+
+func TestCreatePartner_SnapshotsMerchantPaymentScopeOntoSession(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.expectPool(0, 3)
+	h.expectActiveMerchant()
+	h.expectNoExistingSession()
+	created := h.expectNewAttemptCreated()
+	unbound := created
+	bound := created
+	bound.CustomerID = &h.customerID
+	linked := bound
+	linked.DecisionID = &h.decisionID
+	h.expectExternalOfferPreparation(unbound, bound, linked)
+
+	output, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
+	require.NoError(t, err)
+	require.Equal(t, CreateResultCreated, output.Result)
+	require.NotNil(t, output.Session.AuthTenantID)
+	require.NotNil(t, output.Session.AuthContextID)
+	require.Equal(t, h.testPaymentTenantID(), *output.Session.AuthTenantID)
+	require.Equal(t, h.testPaymentContextID(), *output.Session.AuthContextID)
+}
+
+func TestCreatePartner_MissingMerchantPaymentScopeFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.expectPool(0, 1)
+	h.merchantTx.EXPECT().
+		GetByMerchantID(h.ctx, h.merchantID).
+		Return(model.MerchantProfile{
+			ID:           h.merchantPID,
+			MerchantID:   h.merchantID,
+			Status:       model.ActiveMerchantStatus,
+			Jurisdiction: model.IRJurisdiction,
+		}, nil).Once()
+
+	_, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
+	requireCerr(t, err, cerr.CodeForbidden, "error.merchant_payment_scope_is_not_configured")
 }
 
 func TestCreatePartner_IdentityNotFoundTerminalizesUnavailable(t *testing.T) {

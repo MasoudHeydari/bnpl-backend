@@ -34,9 +34,10 @@ type TerminalAuthenticator interface {
 //   - permission.AuthContext with SubjectID = MerchantID and Permissions from
 //     the terminal assignment. TenantID and ContextID are left zero here.
 //
-// Trusted Gateway TenantID/ContextID are NOT required by this middleware.
-// Routes that snapshot Financial Core scope (Partner Create Checkout) must
-// chain TrustedGatewayScope after this middleware.
+// JWT/Gateway X-Auth-* headers are not required and not trusted on Partner
+// routes. Financial Core payment scope for Partner Create is resolved from the
+// authenticated merchant's server-owned MerchantProfile payment scope inside
+// the checkout use case — not from this middleware and not from TrustedGatewayScope.
 //
 // X-Auth-Subject-Id and X-Auth-Permissions are never trusted for Merchant
 // identity or permissions on Partner routes — those remain terminal-owned.
@@ -106,7 +107,8 @@ func PartnerTerminalAuthWith(authenticator TerminalAuthenticator) gin.HandlerFun
 		}
 
 		// Merchant identity + permissions come solely from the terminal.
-		// TenantID/ContextID stay zero until TrustedGatewayScope (Create only).
+		// TenantID/ContextID stay zero; Partner Create resolves Financial Core
+		// scope from MerchantProfile, not from AuthContext.
 		authCtx := permission.AuthContext{
 			SubjectID:   model.SubjectID(principal.MerchantID),
 			Permissions: append([]string(nil), principal.Permissions...),

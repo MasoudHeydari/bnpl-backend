@@ -2,6 +2,7 @@ package merchantprofilerp
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
@@ -27,6 +28,8 @@ const merchantProfileColumns = `
 	max_tenure_months,
 	requires_branch_mode,
 	jurisdiction,
+	payment_tenant_id,
+	payment_context_id,
 	created_at,
 	updated_at
 `
@@ -178,5 +181,49 @@ func LockByMerchantID[Q postgres.Queryer](
 		"lock merchant profile by merchant id",
 		query,
 		merchantID,
+	)
+}
+
+// SetPaymentScope stores the trusted Financial Core payment scope for a merchant.
+func SetPaymentScope[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	merchantID model.MerchantID,
+	paymentTenantID model.TenantID,
+	paymentContextID model.ContextID,
+	updatedAt time.Time,
+) (model.MerchantProfile, error) {
+	const op = "merchantprofilerp.SetPaymentScope"
+
+	if merchantID.IsZero() {
+		return model.MerchantProfile{}, fmt.Errorf("%s: merchant id is required", op)
+	}
+
+	if paymentTenantID.IsZero() || paymentContextID.IsZero() {
+		return model.MerchantProfile{}, fmt.Errorf("%s: payment tenant and context are required", op)
+	}
+
+	if err := postgres.RequiredTime("updated_at", updatedAt); err != nil {
+		return model.MerchantProfile{}, err
+	}
+
+	const query = `
+UPDATE merchant_profiles
+SET
+	payment_tenant_id = $2,
+	payment_context_id = $3,
+	updated_at = $4
+WHERE merchant_id = $1
+RETURNING` + merchantProfileColumns
+
+	return postgres.QueryOne[model.MerchantProfile](
+		ctx,
+		q,
+		"set merchant payment scope",
+		query,
+		merchantID,
+		paymentTenantID,
+		paymentContextID,
+		updatedAt,
 	)
 }

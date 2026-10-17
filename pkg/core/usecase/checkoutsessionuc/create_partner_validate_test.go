@@ -67,7 +67,5 @@ func validCreatePartnerInput(t *testing.T) CreatePartnerInput {
 			Currency:             model.IRRCurrency,
 		},
 		CustomerPhone: "+989121234567",
-		TenantID:      model.TenantID(uuid.New()),
-		ContextID:     model.ContextID(uuid.New()),
 	}
 }

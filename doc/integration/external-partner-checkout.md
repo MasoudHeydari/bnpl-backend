@@ -9,7 +9,7 @@
 **Audience:** Merchant Backend · Merchant Frontend · Merchant QA · Cursor / AI coding agents in the merchant repo  
 **Source of truth:** Latest BNPL source (`checkoutsessionrs`, `checkoutsessionuc`, `checkoutlifecycle`, `checkoutotp`, external `identity` / `notification` ports, `merchantwebhook/http`, `merchantterminaluc`, permission catalog, return/webhook policies)  
 **Base path:** all REST paths below are under `/api/v1`  
-**Auth:** Partner APIs authenticate Merchant identity with terminal credentials — `X-Terminal-Id` + `X-API-Key` on every `/api/v1/partner/**` call; see [Partner terminal authentication](#authentication--permissions) and [api.md](../api.md#partner-terminal-authentication). Partner Create Checkout additionally consumes trusted TenantID/ContextID injected by the API Gateway (not merchant-selected; not request-body fields). Gateway-provided SubjectID/Permissions do not control Partner Merchant identity or permissions.  
+**Auth:** Partner APIs authenticate Merchant identity with terminal credentials — `X-Terminal-Id` + `X-API-Key` on every `/api/v1/partner/**` call; see [Partner terminal authentication](#authentication--permissions) and [api.md](../api.md#partner-terminal-authentication). Partner Create is JWT-independent: Financial Core TenantID/ContextID come from the merchant's server-owned payment scope (not Gateway headers; not request-body fields). Gateway-provided SubjectID/Permissions do not control Partner Merchant identity or permissions.  
 **Do not use** `POST /api/v1/internal/checkout-sessions` for this integration.
 
 ---
@@ -121,27 +121,26 @@ That value is **not** a BNPL customer id.
 
 ## Authentication & Permissions
 
-Partner runtime APIs under `/api/v1/partner/**` authenticate **Merchant identity** with terminal credentials. Partner Create Checkout additionally consumes trusted Gateway TenantID/ContextID.
+Partner runtime APIs under `/api/v1/partner/**` authenticate **Merchant identity** with terminal credentials. They are **JWT-independent**: Partner Create does **not** require `X-Auth-Tenant-Id` / `X-Auth-Context-Id`.
 
 ```text
 Merchant Backend
-        ↓ authenticated request through Gateway
-Gateway
-        ↓ validates auth context
-        ↓ strips spoofed client X-Auth-* metadata
-        ↓ injects authoritative X-Auth-Tenant-Id / X-Auth-Context-Id
-        ↓ (Partner Create only; other Partner routes do not need these)
+        ↓
+Gateway (optional edge; must strip spoofed X-Auth-* on /api/v1/partner/)
+        ↓
 BNPL Partner API
         ↓
 X-Terminal-Id + X-API-Key
         ↓
 PartnerTerminalAuth → MerchantPrincipal + terminal permissions
         ↓
-TrustedGatewayScope (Create only) → TenantID + ContextID
-        ↓
 RequireAny(permission)
         ↓
 Partner use case
+        ↓ (Create only)
+MerchantProfile.payment_tenant_id / payment_context_id
+        ↓ snapshot onto CheckoutSession.auth_*
+Hosted Confirm → Financial Core
 ```
 
 **Two independent trust sources on Partner Create:**
@@ -149,31 +148,21 @@ Partner use case
 | Concern | Source |
 | --- | --- |
 | Merchant identity + permissions | Terminal ID + API key (`PartnerTerminalAuth`) |
-| TenantID + ContextID (Financial Core scope snapshot) | Gateway-injected headers (`TrustedGatewayScope`) |
+| TenantID + ContextID (Financial Core scope snapshot) | Server-owned `merchant_profiles.payment_*` (trusted BNPL provisioning) |
 
-Gateway-provided SubjectID/Permissions do **not** control Partner Merchant identity or permissions. There is no BNPL domain mapping that validates TenantID/ContextID against a Merchant; the Gateway/identity boundary is responsible for supplying values valid for the authenticated partner request.
+Gateway-provided SubjectID/Permissions/Tenant/Context do **not** control Partner Merchant identity, permissions, or payment scope. A merchant cannot choose another merchant's scope. Missing payment-scope provisioning fails closed (`error.merchant_payment_scope_is_not_configured`) without creating a checkout.
 
 **Authentication ≠ Authorization.** The API key proves *who* the terminal is. It does **not** encode permissions. Permissions are assigned server-side to the terminal at provision time and loaded on every authenticated request.
 
 ### Gateway security prerequisite
 
-BNPL may trust `X-Auth-*` only when:
-
-1. direct public access to BNPL is blocked;
-2. Gateway strips client-supplied `X-Auth-*` headers;
-3. Gateway validates the authenticated token/context;
-4. Gateway injects authoritative `X-Auth-Tenant-Id` and `X-Auth-Context-Id` (required for Partner Create).
-
-The BNPL application code does not establish or enforce that upstream Gateway trust boundary by itself.
-
 Production infrastructure MUST:
 
 1. prevent direct public access to BNPL;
-2. strip spoofed client-supplied `X-Auth-*` headers;
-3. validate the authenticated token/context;
-4. inject authoritative `X-Auth-Tenant-Id` and `X-Auth-Context-Id` on Partner Create.
+2. strip spoofed client-supplied `X-Auth-*` headers on Partner routes;
+3. forward `X-Terminal-Id` and `X-API-Key` unchanged.
 
-BNPL trusts those headers only under that deployment invariant. BNPL does not parse JWTs.
+Partner routes do **not** require Gateway JWT injection of tenant/context. BNPL does not parse JWTs.
 
 ### Required Partner headers (every `/api/v1/partner/**` call)
 
@@ -181,15 +170,6 @@ BNPL trusts those headers only under that deployment invariant. BNPL does not pa
 | --- | --- |
 | `X-Terminal-Id` | Public numeric terminal id (decimal string, no leading zeros / whitespace tricks) |
 | `X-API-Key` | Secret API key (`bnpl_…`). Compared exactly; never logged by BNPL |
-
-### Additional headers (Partner Create Checkout only)
-
-These are **Gateway-injected**, not merchant-selected, and never accepted in the JSON body:
-
-| Header | Meaning |
-| --- | --- |
-| `X-Auth-Tenant-Id` | Trusted tenant UUID from the Gateway’s authenticated request context |
-| `X-Auth-Context-Id` | Trusted context UUID from the Gateway’s authenticated request context |
 
 Optional tracing headers (always echoed/generated): `X-Trace-Id`, `X-Request-Id`, `X-Correlation-Id`.
 
@@ -199,9 +179,9 @@ Do **not** treat as Merchant-controlled on Partner routes:
 | --- | --- |
 | `x-auth-subject-id` | **Not trusted** for Merchant identity — terminal credentials own SubjectID |
 | `x-auth-permissions` | **Not trusted** — cannot escalate Partner access |
-| `x-auth-tenant-id` / `x-auth-context-id` | Required only on Partner Create, and only as Gateway-injected values; Inquiry/Cancel/destination setup do not need them |
+| `x-auth-tenant-id` / `x-auth-context-id` | **Not required and not trusted** for Partner payment scope — server-owned merchant payment scope is authoritative |
 
-Missing, duplicate, malformed, unknown, or wrong **terminal** credentials all return the same public `401` (`error.invalid_terminal_credentials`). Callers cannot tell which part failed. Missing/malformed Gateway scope on Partner Create returns Unauthorized with field-oriented details for the tenant/context header.
+Missing, duplicate, malformed, unknown, or wrong **terminal** credentials all return the same public `401` (`error.invalid_terminal_credentials`). Callers cannot tell which part failed.
 
 ```bash
 # Reuse on every Partner curl in this guide:
@@ -1100,7 +1080,7 @@ Implement BNPL as an **external hosted payment method** using **only** Partner A
 1. Inspect the merchant repo architecture (HTTP client patterns, secrets, webhooks, order state machine).
 2. Add a BNPL Partner client module matching existing HTTP/auth patterns.
 3. Implement config: API base URL, `TERMINAL_ID`, `API_KEY` (from Merchant Panel Provision/Rotate), webhook signing secret storage.
-4. Attach `X-Terminal-Id` and `X-API-Key` on every Partner request. Do **not** send merchant-fabricated `x-auth-subject-id` / `x-auth-permissions`. Partner Create also needs Gateway-injected `X-Auth-Tenant-Id` / `X-Auth-Context-Id` (infrastructure-owned; not merchant-selected).
+4. Attach `X-Terminal-Id` and `X-API-Key` on every Partner request. Do **not** send merchant-fabricated `x-auth-*` headers. Partner Create is JWT-independent; Financial Core scope comes from BNPL merchant payment-scope provisioning.
 5. Implement one-time ops endpoints or admin jobs for:
    - `PUT /partner/return-destinations/{name}`
    - `PUT /partner/webhook-destination`
@@ -1124,7 +1104,7 @@ Implement BNPL as an **external hosted payment method** using **only** Partner A
 ### Backend checklist
 
 - [ ] Partner client sends `X-Terminal-Id` + `X-API-Key` on every `/partner/**` call
-- [ ] No merchant-fabricated `x-auth-subject-id` / `x-auth-permissions` on Partner requests; Partner Create relies on Gateway-injected tenant/context only
+- [ ] No merchant-fabricated `x-auth-*` on Partner requests; Partner Create does not require JWT tenant/context headers
 - [ ] Secrets stored only in Backend (terminal id + API key + webhook signing secret)
 - [ ] Return destination + webhook registration
 - [ ] Create with `customer_phone` + idempotency persistence

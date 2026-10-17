@@ -11,8 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/middleware"
-	"github.com/parstis/bnpl-backend/pkg/adapter/restful/header"
+	"github.com/parstis/bnpl-backend/pkg/core/merchantterminal"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/permission"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/checkoutsessionuc"
@@ -52,10 +51,21 @@ func TestToCreatePartnerInput_CustomerPhoneRejectsOverMaxLength(t *testing.T) {
 	require.False(t, ok)
 }
 
+func TestToCreatePartnerInput_IgnoresForgedGatewayAuthScopeHeaders(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+
+	input, ok := partnerCreateInputWithPhone(t, "+989121234567")
+	require.True(t, ok)
+	require.False(t, input.MerchantID.IsZero())
+	// CreatePartnerInput no longer carries tenant/context from headers.
+}
+
 func partnerCreateInputWithPhone(t *testing.T, customerPhone string) (checkoutsessionuc.CreatePartnerInput, bool) {
 	t.Helper()
 
-	merchantID := model.SubjectID(uuid.New())
+	merchantID := model.MerchantID(uuid.New())
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 
@@ -72,14 +82,23 @@ func partnerCreateInputWithPhone(t *testing.T, customerPhone string) (checkoutse
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/partner/checkout-sessions", bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set(header.AuthSubjectID, merchantID.String())
-	req.Header.Set(header.AuthTenantID, uuid.New().String())
-	req.Header.Set(header.AuthContextID, uuid.New().String())
-	req.Header.Set(header.AuthPermissions, permission.CheckoutSessionsCreateMerchant.Code)
+	// Forged JWT-style headers must not be required and must not be trusted.
+	req.Header.Set("X-Auth-Tenant-Id", uuid.New().String())
+	req.Header.Set("X-Auth-Context-Id", uuid.New().String())
 	c.Request = req
 
-	middleware.AuthContext().Attach()(c)
-	require.False(t, c.IsAborted())
+	principal := merchantterminal.MerchantPrincipal{
+		MerchantID:  merchantID,
+		TerminalID:  4242,
+		Permissions: []string{permission.CheckoutSessionsCreateMerchant.Code},
+	}
+	authCtx := permission.AuthContext{
+		SubjectID:   model.SubjectID(merchantID),
+		Permissions: principal.Permissions,
+	}
+	ctx := merchantterminal.WithMerchantPrincipal(c.Request.Context(), principal)
+	ctx = permission.WithAuthContext(ctx, authCtx)
+	c.Request = c.Request.WithContext(ctx)
 
 	return toCreatePartnerInput(c)
 }

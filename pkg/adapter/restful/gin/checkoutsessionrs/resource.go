@@ -20,13 +20,13 @@ type RegisterOptions struct{}
 // router must be the /api/v1/partner group already guarded by
 // middleware.PartnerTerminalAuth (terminal credentials only). Merchant identity
 // and permissions come from the authenticated terminal principal.
-// X-Auth-Subject-Id and X-Auth-Permissions are never used for Merchant
-// identity on these routes.
+// X-Auth-Subject-Id, X-Auth-Tenant-Id, X-Auth-Context-Id, and
+// X-Auth-Permissions are never required and never trusted for Merchant
+// identity, permissions, or Financial Core payment scope on these routes.
 //
-// Partner Create additionally chains TrustedGatewayScope so Gateway-injected
-// X-Auth-Tenant-Id / X-Auth-Context-Id are snapshotted onto the new
-// CheckoutSession for later Financial Core fulfillment. Other Partner routes
-// do not require that scope.
+// Partner Create snapshots Financial Core TenantID/ContextID from the
+// authenticated merchant's server-owned MerchantProfile payment scope
+// (trusted BNPL provisioning), not from Gateway JWT headers.
 //
 // Integration-config routes (webhook, return destinations)
 // each require their own manage permission. Those grants come from
@@ -48,7 +48,6 @@ func RegisterPartner(
 
 	router.POST(
 		"/checkout-sessions",
-		middleware.TrustedGatewayScope(),
 		authMW.RequireAny(permission.CheckoutSessionsCreateMerchant),
 		rs.CreatePartner,
 	)
@@ -83,8 +82,9 @@ func RegisterPartner(
 // of it does not authorize contract creation. External transaction
 // authorization requires successful checkout-scoped OTP verification for the
 // current evaluation_generation. Payment TenantID/ContextID come from the
-// immutable scope snapshotted at Partner Create. Internal sessions are
-// indistinguishable from missing ones on these routes.
+// immutable merchant payment scope snapshotted at Partner Create. These routes
+// are JWT-independent. Internal sessions are indistinguishable from missing
+// ones on these routes.
 //
 // Responses set Cache-Control: no-store and Referrer-Policy: no-referrer so the
 // cs_ token is not cached or leaked via Referer. The Hosted BNPL frontend HTML

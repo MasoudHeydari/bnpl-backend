@@ -5,10 +5,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/customercreditrs"
-	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/customerrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/checkoutsessionrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/contractrs"
+	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/customercreditrs"
+	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/customerrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/decisionrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/healthrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/installmentpaymentrs"
@@ -16,10 +16,10 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/merchantterminalrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/middleware"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/swaggerrs"
-	"github.com/parstis/bnpl-backend/pkg/core/usecase/customeraccountuc"
-	"github.com/parstis/bnpl-backend/pkg/core/usecase/customercredituc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/checkoutsessionuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/contractuc"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/customeraccountuc"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/customercredituc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/decisionuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/healthcheckuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/installmentrepaymentuc"
@@ -39,9 +39,9 @@ import (
 //
 // /api/v1 is split into three authentication surfaces:
 //   - /api/v1/partner authenticates Merchant identity with PartnerTerminalAuth
-//     (X-Terminal-Id and X-API-Key). Partner Create Checkout additionally
-//     consumes trusted Gateway-injected TenantID/ContextID via
-//     TrustedGatewayScope (not merchant-selected, not request-body fields).
+//     (X-Terminal-Id and X-API-Key). Financial Core TenantID/ContextID for
+//     Partner Create come from the merchant's server-owned payment scope
+//     (MerchantProfile), never from JWT Gateway headers or partner input.
 //     Gateway-provided SubjectID/Permissions never control Partner Merchant
 //     identity or permissions. The full AuthContext.Attach chain is not applied.
 //   - /api/v1/hosted is the unauthenticated hosted external checkout surface. The

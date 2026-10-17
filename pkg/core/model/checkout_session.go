@@ -341,16 +341,19 @@ type CheckoutSession struct {
 	// verification belongs to the offer being confirmed.
 	OTPEvaluationGeneration *int `db:"otp_evaluation_generation" json:"-"`
 
-	// AuthTenantID is the trusted gateway tenant scope snapshotted at External
-	// Partner Create. Hosted Confirm uses this immutable value because the
-	// browser has no JWT. Nil for internal sessions. Never client-supplied on
-	// Hosted routes.
+	// AuthTenantID is the server-owned Financial Core tenant scope snapshotted
+	// at External Partner Create from MerchantProfile.PaymentTenantID. Hosted
+	// Confirm uses this immutable value because the browser has no JWT and
+	// Partner Create is JWT-independent. Nil for internal sessions. Never
+	// client- or Gateway-header-supplied on Hosted or Partner routes.
 	AuthTenantID *TenantID `db:"auth_tenant_id" json:"-"`
 
-	// AuthContextID is the trusted gateway business context snapshotted at
-	// External Partner Create. Hosted Confirm uses this immutable value because
-	// the browser has no JWT. Nil for internal sessions. Never client-supplied
-	// on Hosted routes.
+	// AuthContextID is the server-owned Financial Core business context
+	// snapshotted at External Partner Create from
+	// MerchantProfile.PaymentContextID. Hosted Confirm uses this immutable
+	// value because the browser has no JWT and Partner Create is
+	// JWT-independent. Nil for internal sessions. Never client- or
+	// Gateway-header-supplied on Hosted or Partner routes.
 	AuthContextID *ContextID `db:"auth_context_id" json:"-"`
 
 	// CustomerID is the internal customer profile primary key, set once BNPL trusts the customer identity.

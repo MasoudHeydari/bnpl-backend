@@ -31,7 +31,7 @@ func (uc *UseCase) CreateInternal(
 
 	customerID := profile.ID
 
-	session, result, err := uc.createOrReplaySession(ctx, input.CheckoutSessionRequest, &customerID, "", nil, nil)
+	session, result, err := uc.createOrReplaySession(ctx, input.CheckoutSessionRequest, &customerID, "")
 	if err != nil {
 		return CreateInternalOutput{}, err
 	}

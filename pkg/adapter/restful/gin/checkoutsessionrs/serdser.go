@@ -195,15 +195,9 @@ func toCreatePartnerInput(c *gin.Context) (checkoutsessionuc.CreatePartnerInput,
 		return checkoutsessionuc.CreatePartnerInput{}, false
 	}
 
-	authCtx, ok := permission.FromContext(c.Request.Context())
-	if !ok || authCtx.TenantID.IsZero() || authCtx.ContextID.IsZero() {
-		serdser.SerErr(c, cerr.Unauthorized(fmt.Errorf(
-			"checkoutsessionrs.toCreatePartnerInput: trusted gateway auth scope is required",
-		)))
-
-		return checkoutsessionuc.CreatePartnerInput{}, false
-	}
-
+	// Financial Core payment scope is resolved server-side from the
+	// authenticated merchant's provisioned MerchantProfile. JWT/Gateway
+	// X-Auth-Tenant-Id / X-Auth-Context-Id are intentionally ignored here.
 	var req createPartnerRequest
 	if !serdser.Bind(c, &req, binding.JSON) {
 		return checkoutsessionuc.CreatePartnerInput{}, false
@@ -228,8 +222,6 @@ func toCreatePartnerInput(c *gin.Context) (checkoutsessionuc.CreatePartnerInput,
 		},
 		// Pass raw customer_phone unchanged — no TrimSpace, no country rules.
 		CustomerPhone: req.CustomerPhone,
-		TenantID:      authCtx.TenantID,
-		ContextID:     authCtx.ContextID,
 	}, true
 }
 

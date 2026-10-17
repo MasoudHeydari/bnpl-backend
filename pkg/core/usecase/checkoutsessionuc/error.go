@@ -188,6 +188,26 @@ func merchantNotActiveError(cause error) error {
 	)
 }
 
+// merchantPaymentScopeNotConfiguredError fails closed when trusted BNPL
+// provisioning has not assigned Financial Core tenant/context for the merchant.
+// This is an operational configuration fault, not a missing checkout and not a
+// client input error — Partner Create must not invent scope or fall back to
+// JWT/partner headers.
+func merchantPaymentScopeNotConfiguredError(cause error) error {
+	// Forbidden (not Conflict): CodeConflict is reserved for create unique-index
+	// races that trigger resolveSessionAfterConflict. Missing provisioning must
+	// fail closed without that recovery path.
+	return cerr.NewPublic(
+		cerr.CodeForbidden,
+		"error.merchant_payment_scope_is_not_configured",
+		cause,
+		cerr.Details{
+			Fields:     []string{},
+			Violations: []cerr.Violation{},
+		},
+	)
+}
+
 // checkoutSessionNotFoundError is returned for both missing sessions and
 // sessions owned by someone else, so a caller cannot probe for foreign
 // checkouts.

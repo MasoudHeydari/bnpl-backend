@@ -20,8 +20,6 @@ import (
 //	@Produce		json
 //	@Param			X-Terminal-Id		header		string						true	"Public numeric terminal identifier of the partner"
 //	@Param			X-API-Key			header		string						true	"Secret API key of the partner terminal"
-//	@Param			X-Auth-Tenant-Id	header		string						true	"Gateway-injected tenant UUID (NOT merchant-selected; NOT a request-body field). Required only on Partner Create. Production infrastructure must strip client-supplied X-Auth-* and inject authoritative values after token validation; this BNPL repository does not enforce that Gateway trust boundary."
-//	@Param			X-Auth-Context-Id	header		string						true	"Gateway-injected context UUID (NOT merchant-selected; NOT a request-body field). Required only on Partner Create. Production infrastructure must strip client-supplied X-Auth-* and inject authoritative values after token validation; this BNPL repository does not enforce that Gateway trust boundary."
 //	@Param			X-Trace-Id			header		string						false	"Optional; reused when present otherwise generated. Always returned."
 //	@Param			X-Request-Id		header		string						false	"Optional; reused when present otherwise generated. Always returned."
 //	@Param			X-Correlation-Id	header		string						false	"Optional; reused when present otherwise generated. Always returned."

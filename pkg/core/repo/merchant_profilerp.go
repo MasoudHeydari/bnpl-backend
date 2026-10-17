@@ -68,6 +68,19 @@ type MerchantProfileTxQueryer interface {
 		ctx context.Context,
 		merchantID model.MerchantID,
 	) (model.MerchantProfile, error)
+
+	// SetPaymentScope assigns the server-owned Financial Core payment scope for
+	// a merchant. Callers must be trusted BNPL administration/provisioning —
+	// never Partner HTTP handlers or merchant-controlled input. Both IDs must
+	// be non-zero. Clearing scope is intentionally unsupported here so Partner
+	// checkout cannot lose a previously provisioned scope through a half-update.
+	SetPaymentScope(
+		ctx context.Context,
+		merchantID model.MerchantID,
+		paymentTenantID model.TenantID,
+		paymentContextID model.ContextID,
+		updatedAt time.Time,
+	) (model.MerchantProfile, error)
 }
 
 // MerchantProfile persists BNPL-specific merchant profile records.

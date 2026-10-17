@@ -23,13 +23,15 @@ import (
 // (customerID nil) and must be empty for internal creates. It is canonicalized
 // using MerchantProfile.Jurisdiction before envelope encryption and idempotent
 // replay comparison.
+//
+// External Partner sessions resolve Financial Core TenantID/ContextID from the
+// authenticated merchant's server-owned MerchantProfile payment scope — never
+// from JWT Gateway headers or partner-supplied values.
 func (uc *UseCase) createOrReplaySession(
 	ctx context.Context,
 	request CheckoutSessionRequest,
 	customerID *model.CustomerID,
 	customerPhone string,
-	authTenantID *model.TenantID,
-	authContextID *model.ContextID,
 ) (model.CheckoutSession, CreateResult, error) {
 	var (
 		session model.CheckoutSession
@@ -49,8 +51,6 @@ func (uc *UseCase) createOrReplaySession(
 						request,
 						customerID,
 						customerPhone,
-						authTenantID,
-						authContextID,
 					)
 
 					return txErr
@@ -63,7 +63,7 @@ func (uc *UseCase) createOrReplaySession(
 		// unique index race. The winner's row is the authoritative session, so
 		// resolve against it instead of surfacing a storage conflict.
 		if isPlausibleCreateConflict(err) {
-			return uc.resolveSessionAfterConflict(ctx, request, customerPhone, authTenantID, authContextID)
+			return uc.resolveSessionAfterConflict(ctx, request, customerPhone)
 		}
 
 		return model.CheckoutSession{}, "", err
@@ -78,8 +78,6 @@ func (uc *UseCase) createOrReplaySessionTx(
 	request CheckoutSessionRequest,
 	customerID *model.CustomerID,
 	customerPhone string,
-	authTenantID *model.TenantID,
-	authContextID *model.ContextID,
 ) (model.CheckoutSession, CreateResult, error) {
 	const op = "checkoutsessionuc.UseCase.createOrReplaySessionTx"
 
@@ -96,6 +94,11 @@ func (uc *UseCase) createOrReplaySessionTx(
 		return model.CheckoutSession{}, "", merchantNotActiveError(
 			fmt.Errorf("%s: merchant profile status is %q", op, profile.Status),
 		)
+	}
+
+	authTenantID, authContextID, err := paymentScopeForCreate(profile, customerID)
+	if err != nil {
+		return model.CheckoutSession{}, "", err
 	}
 
 	existing, err := sessionQ.LockByMerchantIdempotencyKey(ctx, profile.ID, request.EffectiveIdempotencyKey())
@@ -247,8 +250,6 @@ func (uc *UseCase) resolveSessionAfterConflict(
 	ctx context.Context,
 	request CheckoutSessionRequest,
 	customerPhone string,
-	authTenantID *model.TenantID,
-	authContextID *model.ContextID,
 ) (model.CheckoutSession, CreateResult, error) {
 	const op = "checkoutsessionuc.UseCase.resolveSessionAfterConflict"
 
@@ -263,6 +264,14 @@ func (uc *UseCase) resolveSessionAfterConflict(
 			profile, profileErr := merchantProfileQ.GetByMerchantID(ctx, request.MerchantID)
 			if profileErr != nil {
 				return profileErr
+			}
+
+			// Conflict recovery is always an external Partner create race
+			// (internal create does not take this path with a phone). Resolve
+			// the same server-owned payment scope used for new origination.
+			authTenantID, authContextID, scopeErr := paymentScopeForCreate(profile, nil)
+			if scopeErr != nil {
+				return scopeErr
 			}
 
 			// Conflict recovery resolves an already-created winner. It is not
@@ -312,8 +321,8 @@ func (uc *UseCase) resolveSessionAfterConflict(
 				return phoneErr
 			}
 
-			if scopeErr := assertReplayAuthScope(existing, authTenantID, authContextID); scopeErr != nil {
-				return scopeErr
+			if replayScopeErr := assertReplayAuthScope(existing, authTenantID, authContextID); replayScopeErr != nil {
+				return replayScopeErr
 			}
 
 			session = existing
@@ -326,6 +335,28 @@ func (uc *UseCase) resolveSessionAfterConflict(
 	}
 
 	return session, CreateResultAlreadyExists, nil
+}
+
+// paymentScopeForCreate returns the immutable Financial Core scope to snapshot
+// onto a new or replayed checkout. External Partner creates require a
+// provisioned merchant payment scope. Internal creates must not carry one.
+func paymentScopeForCreate(
+	profile model.MerchantProfile,
+	customerID *model.CustomerID,
+) (*model.TenantID, *model.ContextID, error) {
+	const op = "checkoutsessionuc.paymentScopeForCreate"
+
+	if customerID != nil {
+		return nil, nil, nil
+	}
+
+	if !profile.HasPaymentScope() {
+		return nil, nil, merchantPaymentScopeNotConfiguredError(
+			fmt.Errorf("%s: merchant %s has no payment tenant/context", op, profile.MerchantID),
+		)
+	}
+
+	return profile.PaymentTenantID, profile.PaymentContextID, nil
 }
 
 // isPlausibleCreateConflict reports whether err is the lost unique-index race
@@ -526,9 +557,9 @@ func (uc *UseCase) decryptCustomerPhone(session model.CheckoutSession) (string, 
 	return plaintext, nil
 }
 
-// assertReplayAuthScope reports an idempotency conflict when the trusted
-// Gateway tenant/context of the replay does not match the immutable scope
-// snapshotted on the existing External Partner checkout.
+// assertReplayAuthScope reports an idempotency conflict when the
+// server-owned merchant payment scope resolved for this request does not match
+// the immutable scope snapshotted on the existing External Partner checkout.
 func assertReplayAuthScope(
 	session model.CheckoutSession,
 	authTenantID *model.TenantID,

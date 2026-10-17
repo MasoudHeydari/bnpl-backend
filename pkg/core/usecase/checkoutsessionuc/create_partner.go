@@ -21,9 +21,10 @@ import (
 // unavailable semantics without OTP. Transient dependency failures return
 // semantic errors; an idempotent retry resumes preparation on the same session.
 //
-// TenantID and ContextID are the trusted Gateway auth scope for this Partner
-// request. They are snapshotted onto the CheckoutSession so Hosted Confirm can
-// reconstruct Financial Core payment context without browser JWT headers.
+// Financial Core TenantID/ContextID are resolved from the authenticated
+// merchant's server-owned MerchantProfile payment scope and snapshotted onto
+// the CheckoutSession so Hosted Confirm can reconstruct payment context without
+// browser JWT headers or Partner Gateway identity headers.
 func (uc *UseCase) CreatePartner(
 	ctx context.Context,
 	input CreatePartnerInput,
@@ -37,8 +38,6 @@ func (uc *UseCase) CreatePartner(
 		input.CheckoutSessionRequest,
 		nil,
 		input.CustomerPhone,
-		&input.TenantID,
-		&input.ContextID,
 	)
 	if err != nil {
 		return CreatePartnerOutput{}, err

@@ -1,11 +1,9 @@
 package checkoutsessionuc
 
 import (
-	"fmt"
 	"math"
 	"time"
 
-	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/checkoutotp"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	returndestination "github.com/parstis/bnpl-backend/pkg/core/policy/returndestination"
@@ -96,16 +94,6 @@ type CreatePartnerInput struct {
 	// is loaded; this field is not yet canonical. It is canonicalized, then
 	// encrypted at rest, and later proven by OTP on the hosted page.
 	CustomerPhone string
-
-	// TenantID is the trusted Gateway tenant scope for this Partner request.
-	// It is snapshotted onto the CheckoutSession and later used by Hosted
-	// Confirm. It must never come from request JSON.
-	TenantID model.TenantID
-
-	// ContextID is the trusted Gateway business context for this Partner
-	// request. It is snapshotted onto the CheckoutSession and later used by
-	// Hosted Confirm. It must never come from request JSON.
-	ContextID model.ContextID
 }
 
 // CreatePartnerOutput returns the merchant-safe hosted handoff.
@@ -454,14 +442,7 @@ func (i CreatePartnerInput) validate() error {
 
 	// Jurisdiction-specific syntax and canonicalization run after
 	// MerchantProfile.Jurisdiction is known (createOrReplaySessionTx).
-
-	if i.TenantID.IsZero() {
-		return cerr.InternalError(fmt.Errorf("create partner: trusted tenant id is required"))
-	}
-
-	if i.ContextID.IsZero() {
-		return cerr.InternalError(fmt.Errorf("create partner: trusted context id is required"))
-	}
+	// Financial Core payment scope is resolved from the merchant profile there.
 
 	return nil
 }

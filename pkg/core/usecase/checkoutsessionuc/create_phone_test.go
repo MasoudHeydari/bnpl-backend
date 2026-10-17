@@ -118,13 +118,17 @@ func TestCreatePartner_UnsupportedMerchantJurisdictionFailsClosed(t *testing.T) 
 
 	h := newHarness(t)
 	h.expectPool(0, 1)
+	tenantID := h.testPaymentTenantID()
+	contextID := h.testPaymentContextID()
 	h.merchantTx.EXPECT().
 		GetByMerchantID(h.ctx, h.merchantID).
 		Return(model.MerchantProfile{
-			ID:           h.merchantPID,
-			MerchantID:   h.merchantID,
-			Status:       model.ActiveMerchantStatus,
-			Jurisdiction: model.Jurisdiction("TR"),
+			ID:               h.merchantPID,
+			MerchantID:       h.merchantID,
+			Status:           model.ActiveMerchantStatus,
+			Jurisdiction:     model.Jurisdiction("TR"),
+			PaymentTenantID:  &tenantID,
+			PaymentContextID: &contextID,
 		}, nil).Once()
 	h.expectNoExistingSession()
 
@@ -245,13 +249,17 @@ func TestCreatePartner_ConflictRecoveryCanonicalizesBeforePhoneCompare(t *testin
 		Return(model.CheckoutSession{}, cerr.Conflict(errors.New("unique race"))).Once()
 
 	existing := h.session(func(s *model.CheckoutSession) { s.IdempotencyKey = testAttemptKey })
+	tenantID := h.testPaymentTenantID()
+	contextID := h.testPaymentContextID()
 	h.merchantCQ.EXPECT().
 		GetByMerchantID(h.ctx, h.merchantID).
 		Return(model.MerchantProfile{
-			ID:           h.merchantPID,
-			MerchantID:   h.merchantID,
-			Status:       model.ActiveMerchantStatus,
-			Jurisdiction: model.IRJurisdiction,
+			ID:               h.merchantPID,
+			MerchantID:       h.merchantID,
+			Status:           model.ActiveMerchantStatus,
+			Jurisdiction:     model.IRJurisdiction,
+			PaymentTenantID:  &tenantID,
+			PaymentContextID: &contextID,
 		}, nil).Once()
 	h.sessionCQ.EXPECT().
 		GetByMerchantIdempotencyKey(h.ctx, h.merchantPID, testAttemptKey).
@@ -357,13 +365,17 @@ func TestCreatePartner_DisabledJurisdictionFailsBeforePhoneCanonicalize(t *testi
 
 	h := newHarness(t)
 	h.expectPool(0, 1)
+	tenantID := h.testPaymentTenantID()
+	contextID := h.testPaymentContextID()
 	h.merchantTx.EXPECT().
 		GetByMerchantID(h.ctx, h.merchantID).
 		Return(model.MerchantProfile{
-			ID:           h.merchantPID,
-			MerchantID:   h.merchantID,
-			Status:       model.ActiveMerchantStatus,
-			Jurisdiction: model.Jurisdiction("TR"),
+			ID:               h.merchantPID,
+			MerchantID:       h.merchantID,
+			Status:           model.ActiveMerchantStatus,
+			Jurisdiction:     model.Jurisdiction("TR"),
+			PaymentTenantID:  &tenantID,
+			PaymentContextID: &contextID,
 		}, nil).Once()
 	h.expectNoExistingSession()
 
@@ -561,13 +573,17 @@ func TestCreatePartner_ConflictRecoveryDoesNotRequireOriginationAdmission(t *tes
 		Once()
 
 	existing := h.session(func(s *model.CheckoutSession) { s.IdempotencyKey = testAttemptKey })
+	tenantID := h.testPaymentTenantID()
+	contextID := h.testPaymentContextID()
 	h.merchantCQ.EXPECT().
 		GetByMerchantID(h.ctx, h.merchantID).
 		Return(model.MerchantProfile{
-			ID:           h.merchantPID,
-			MerchantID:   h.merchantID,
-			Status:       model.ActiveMerchantStatus,
-			Jurisdiction: model.IRJurisdiction,
+			ID:               h.merchantPID,
+			MerchantID:       h.merchantID,
+			Status:           model.ActiveMerchantStatus,
+			Jurisdiction:     model.IRJurisdiction,
+			PaymentTenantID:  &tenantID,
+			PaymentContextID: &contextID,
 		}, nil).Once()
 	h.sessionCQ.EXPECT().
 		GetByMerchantIdempotencyKey(h.ctx, h.merchantPID, testAttemptKey).

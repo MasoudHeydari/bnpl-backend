@@ -470,3 +470,87 @@ func (_c *MerchantProfileTxQueryer_LockByMerchantID_Call) RunAndReturn(run func(
 	_c.Call.Return(run)
 	return _c
 }
+
+// SetPaymentScope provides a mock function for the type MerchantProfileTxQueryer
+func (_mock *MerchantProfileTxQueryer) SetPaymentScope(ctx context.Context, merchantID model.MerchantID, paymentTenantID model.TenantID, paymentContextID model.ContextID, updatedAt time.Time) (model.MerchantProfile, error) {
+	ret := _mock.Called(ctx, merchantID, paymentTenantID, paymentContextID, updatedAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SetPaymentScope")
+	}
+
+	var r0 model.MerchantProfile
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantID, model.TenantID, model.ContextID, time.Time) (model.MerchantProfile, error)); ok {
+		return returnFunc(ctx, merchantID, paymentTenantID, paymentContextID, updatedAt)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantID, model.TenantID, model.ContextID, time.Time) model.MerchantProfile); ok {
+		r0 = returnFunc(ctx, merchantID, paymentTenantID, paymentContextID, updatedAt)
+	} else {
+		r0 = ret.Get(0).(model.MerchantProfile)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.MerchantID, model.TenantID, model.ContextID, time.Time) error); ok {
+		r1 = returnFunc(ctx, merchantID, paymentTenantID, paymentContextID, updatedAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MerchantProfileTxQueryer_SetPaymentScope_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetPaymentScope'
+type MerchantProfileTxQueryer_SetPaymentScope_Call struct {
+	*mock.Call
+}
+
+// SetPaymentScope is a helper method to define mock.On call
+//   - ctx context.Context
+//   - merchantID model.MerchantID
+//   - paymentTenantID model.TenantID
+//   - paymentContextID model.ContextID
+//   - updatedAt time.Time
+func (_e *MerchantProfileTxQueryer_Expecter) SetPaymentScope(ctx any, merchantID any, paymentTenantID any, paymentContextID any, updatedAt any) *MerchantProfileTxQueryer_SetPaymentScope_Call {
+	return &MerchantProfileTxQueryer_SetPaymentScope_Call{Call: _e.mock.On("SetPaymentScope", ctx, merchantID, paymentTenantID, paymentContextID, updatedAt)}
+}
+
+func (_c *MerchantProfileTxQueryer_SetPaymentScope_Call) Run(run func(ctx context.Context, merchantID model.MerchantID, paymentTenantID model.TenantID, paymentContextID model.ContextID, updatedAt time.Time)) *MerchantProfileTxQueryer_SetPaymentScope_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.MerchantID
+		if args[1] != nil {
+			arg1 = args[1].(model.MerchantID)
+		}
+		var arg2 model.TenantID
+		if args[2] != nil {
+			arg2 = args[2].(model.TenantID)
+		}
+		var arg3 model.ContextID
+		if args[3] != nil {
+			arg3 = args[3].(model.ContextID)
+		}
+		var arg4 time.Time
+		if args[4] != nil {
+			arg4 = args[4].(time.Time)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+			arg4,
+		)
+	})
+	return _c
+}
+
+func (_c *MerchantProfileTxQueryer_SetPaymentScope_Call) Return(merchantProfile model.MerchantProfile, err error) *MerchantProfileTxQueryer_SetPaymentScope_Call {
+	_c.Call.Return(merchantProfile, err)
+	return _c
+}
+
+func (_c *MerchantProfileTxQueryer_SetPaymentScope_Call) RunAndReturn(run func(ctx context.Context, merchantID model.MerchantID, paymentTenantID model.TenantID, paymentContextID model.ContextID, updatedAt time.Time) (model.MerchantProfile, error)) *MerchantProfileTxQueryer_SetPaymentScope_Call {
+	_c.Call.Return(run)
+	return _c
+}

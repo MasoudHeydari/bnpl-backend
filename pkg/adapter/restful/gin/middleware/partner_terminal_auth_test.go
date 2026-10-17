@@ -429,10 +429,8 @@ func TestPartnerRoutes_WithoutGatewayScope_ReachPermissionCheck(t *testing.T) {
 	}
 }
 
-func TestPartnerCreate_TrustedGatewayScopeRequired(t *testing.T) {
+func TestPartnerCreate_DoesNotRequireGatewayAuthHeaders(t *testing.T) {
 	merchantID := model.MerchantID(uuid.New())
-	tenantID := uuid.New()
-	contextID := uuid.New()
 
 	fake := &fakeTerminalAuthenticator{
 		terminal: 4242,
@@ -451,26 +449,37 @@ func TestPartnerCreate_TrustedGatewayScopeRequired(t *testing.T) {
 	partner.Use(middleware.PartnerTerminalAuthWith(fake))
 	partner.POST(
 		"/checkout-sessions",
-		middleware.TrustedGatewayScope(),
 		authMW.RequireAny(permission.CheckoutSessionsCreateMerchant),
 		func(c *gin.Context) {
 			authCtx, ok := permission.FromContext(c.Request.Context())
 			require.True(t, ok)
 			require.Equal(t, model.SubjectID(merchantID), authCtx.SubjectID)
-			require.Equal(t, model.TenantID(tenantID), authCtx.TenantID)
-			require.Equal(t, model.ContextID(contextID), authCtx.ContextID)
+			require.True(t, authCtx.TenantID.IsZero())
+			require.True(t, authCtx.ContextID.IsZero())
 			require.Equal(t, fake.principal.Permissions, authCtx.Permissions)
 			c.Status(http.StatusCreated)
 		},
 	)
 
-	t.Run("valid terminal and scope", func(t *testing.T) {
+	t.Run("valid terminal without jwt headers", func(t *testing.T) {
 		fake.calls = 0
 		req := httptest.NewRequest(http.MethodPost, "/partner/checkout-sessions", nil)
 		req.Header.Set(header.TerminalID, "4242")
 		req.Header.Set(header.APIKey, testTerminalAPIKey)
-		req.Header.Set(header.AuthTenantID, tenantID.String())
-		req.Header.Set(header.AuthContextID, contextID.String())
+
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, req)
+		require.Equal(t, http.StatusCreated, recorder.Code)
+		require.Equal(t, 1, fake.calls)
+	})
+
+	t.Run("forged jwt headers do not alter terminal auth context", func(t *testing.T) {
+		fake.calls = 0
+		req := httptest.NewRequest(http.MethodPost, "/partner/checkout-sessions", nil)
+		req.Header.Set(header.TerminalID, "4242")
+		req.Header.Set(header.APIKey, testTerminalAPIKey)
+		req.Header.Set(header.AuthTenantID, uuid.New().String())
+		req.Header.Set(header.AuthContextID, uuid.New().String())
 		req.Header.Set(header.AuthSubjectID, uuid.New().String())
 		req.Header.Set(header.AuthPermissions, "spoofed:permission")
 
@@ -479,76 +488,4 @@ func TestPartnerCreate_TrustedGatewayScopeRequired(t *testing.T) {
 		require.Equal(t, http.StatusCreated, recorder.Code)
 		require.Equal(t, 1, fake.calls)
 	})
-
-	cases := []struct {
-		name   string
-		mutate func(*http.Request)
-		field  string
-	}{
-		{
-			name: "missing tenant",
-			mutate: func(req *http.Request) {
-				req.Header.Del(header.AuthTenantID)
-			},
-			field: header.AuthTenantID,
-		},
-		{
-			name: "missing context",
-			mutate: func(req *http.Request) {
-				req.Header.Del(header.AuthContextID)
-			},
-			field: header.AuthContextID,
-		},
-		{
-			name: "malformed tenant",
-			mutate: func(req *http.Request) {
-				req.Header.Set(header.AuthTenantID, "bad")
-			},
-			field: header.AuthTenantID,
-		},
-		{
-			name: "malformed context",
-			mutate: func(req *http.Request) {
-				req.Header.Set(header.AuthContextID, "bad")
-			},
-			field: header.AuthContextID,
-		},
-		{
-			name: "duplicate tenant",
-			mutate: func(req *http.Request) {
-				req.Header.Add(header.AuthTenantID, uuid.New().String())
-			},
-			field: header.AuthTenantID,
-		},
-		{
-			name: "duplicate context",
-			mutate: func(req *http.Request) {
-				req.Header.Add(header.AuthContextID, uuid.New().String())
-			},
-			field: header.AuthContextID,
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			fake.calls = 0
-			req := httptest.NewRequest(http.MethodPost, "/partner/checkout-sessions", nil)
-			req.Header.Set(header.TerminalID, "4242")
-			req.Header.Set(header.APIKey, testTerminalAPIKey)
-			req.Header.Set(header.AuthTenantID, tenantID.String())
-			req.Header.Set(header.AuthContextID, contextID.String())
-			tc.mutate(req)
-
-			recorder := httptest.NewRecorder()
-			engine.ServeHTTP(recorder, req)
-
-			require.Equal(t, http.StatusUnauthorized, recorder.Code)
-			require.Equal(t, 1, fake.calls)
-
-			var body serdser.ErrorResponse
-			require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
-			require.NotNil(t, body.Details)
-			require.Equal(t, []string{tc.field}, body.Details.Fields)
-		})
-	}
 }
