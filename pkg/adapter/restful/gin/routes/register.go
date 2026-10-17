@@ -40,13 +40,12 @@ import (
 // /api/v1 is split into three authentication surfaces:
 //   - /api/v1/partner authenticates Merchant identity with PartnerTerminalAuth
 //     (X-Terminal-Id and X-API-Key). Financial Core TenantID/ContextID for
-//     Partner Create come from the merchant's server-owned payment scope
-//     (MerchantProfile), never from JWT Gateway headers or partner input.
+//     Offer preparation mode comes from trusted MerchantProfile configuration.
 //     Gateway-provided SubjectID/Permissions never control Partner Merchant
 //     identity or permissions. The full AuthContext.Attach chain is not applied.
-//   - /api/v1/hosted is the unauthenticated hosted external checkout surface. The
-//     customer's browser has no gateway identity; the public checkout token and
-//     SMS OTP are the credentials. It must never run AuthContext.Attach.
+//   - /api/v1/checkout-sessions/:token is the unauthenticated customer checkout
+//     surface (sibling of AuthContext.Attach, not nested under it). The public
+//     checkout token and SMS OTP are the credentials.
 //   - every other /api/v1 route is guarded by the gateway AuthContext.Attach
 //     (subject, tenant, context, and permissions), including merchant terminal
 //     provision, rotate, and retire.
@@ -80,14 +79,12 @@ func Register(
 	partner := api.Group("/partner", middleware.PartnerTerminalAuth(merchantTerminalUseCase))
 	checkoutsessionrs.RegisterPartner(partner, checkoutSessionUseCase, opts.CheckoutSession)
 
-	hosted := api.Group("/hosted")
-	checkoutsessionrs.RegisterHostedExternal(hosted, checkoutSessionUseCase, opts.CheckoutSession)
+	checkoutsessionrs.RegisterCustomerToken(api, checkoutSessionUseCase, opts.CheckoutSession)
 
 	authContext := middleware.AuthContext()
 	v1 := api.Group("", authContext.Attach())
 
 	merchantterminalrs.RegisterMerchant(v1, merchantTerminalUseCase, opts.MerchantTerminal)
-	checkoutsessionrs.RegisterHostedInternal(v1, checkoutSessionUseCase, opts.CheckoutSession)
 	decisionrs.Register(v1, decisionUseCase, opts.Decision)
 	contractrs.Register(v1, contractUseCase, opts.Contract)
 	merchantrs.Register(v1, merchantUseCase, opts.Merchant)

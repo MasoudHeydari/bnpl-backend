@@ -107,7 +107,7 @@ external:
   financial_core:
     provider: noop
     payment_return_url: https://bnpl.example/payments/return
-  identity:
+  customer:
     provider: noop
   notification:
     provider: noop

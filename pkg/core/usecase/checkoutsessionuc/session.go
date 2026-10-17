@@ -24,9 +24,8 @@ import (
 // using MerchantProfile.Jurisdiction before envelope encryption and idempotent
 // replay comparison.
 //
-// External Partner sessions resolve Financial Core TenantID/ContextID from the
-// authenticated merchant's server-owned MerchantProfile payment scope — never
-// from JWT Gateway headers or partner-supplied values.
+// Partner Create always persists an external session with a snapshotted
+// offer_preparation_mode from the trusted merchant profile.
 func (uc *UseCase) createOrReplaySession(
 	ctx context.Context,
 	request CheckoutSessionRequest,
@@ -96,10 +95,7 @@ func (uc *UseCase) createOrReplaySessionTx(
 		)
 	}
 
-	authTenantID, authContextID, err := paymentScopeForCreate(profile, customerID)
-	if err != nil {
-		return model.CheckoutSession{}, "", err
-	}
+	offerPreparationMode := profile.EffectiveOfferPreparationMode()
 
 	existing, err := sessionQ.LockByMerchantIdempotencyKey(ctx, profile.ID, request.EffectiveIdempotencyKey())
 	if cerr.IsCode(err, cerr.CodeResourceNotFound) {
@@ -151,7 +147,7 @@ func (uc *UseCase) createOrReplaySessionTx(
 			return model.CheckoutSession{}, "", err
 		}
 
-		if err := assertReplayAuthScope(existing, authTenantID, authContextID); err != nil {
+		if err := assertReplayOfferPreparationMode(existing, offerPreparationMode); err != nil {
 			return model.CheckoutSession{}, "", err
 		}
 
@@ -226,8 +222,7 @@ func (uc *UseCase) createOrReplaySessionTx(
 		request.CustomerReference,
 		phoneCiphertext,
 		phoneKeyID,
-		authTenantID,
-		authContextID,
+		offerPreparationMode,
 		customerID,
 		request.ReturnDestination,
 		destination.ReturnURL,
@@ -266,13 +261,7 @@ func (uc *UseCase) resolveSessionAfterConflict(
 				return profileErr
 			}
 
-			// Conflict recovery is always an external Partner create race
-			// (internal create does not take this path with a phone). Resolve
-			// the same server-owned payment scope used for new origination.
-			authTenantID, authContextID, scopeErr := paymentScopeForCreate(profile, nil)
-			if scopeErr != nil {
-				return scopeErr
-			}
+			offerPreparationMode := profile.EffectiveOfferPreparationMode()
 
 			// Conflict recovery resolves an already-created winner. It is not
 			// new origination, so do not require origination admission here.
@@ -321,8 +310,8 @@ func (uc *UseCase) resolveSessionAfterConflict(
 				return phoneErr
 			}
 
-			if replayScopeErr := assertReplayAuthScope(existing, authTenantID, authContextID); replayScopeErr != nil {
-				return replayScopeErr
+			if replayModeErr := assertReplayOfferPreparationMode(existing, offerPreparationMode); replayModeErr != nil {
+				return replayModeErr
 			}
 
 			session = existing
@@ -335,28 +324,6 @@ func (uc *UseCase) resolveSessionAfterConflict(
 	}
 
 	return session, CreateResultAlreadyExists, nil
-}
-
-// paymentScopeForCreate returns the immutable Financial Core scope to snapshot
-// onto a new or replayed checkout. External Partner creates require a
-// provisioned merchant payment scope. Internal creates must not carry one.
-func paymentScopeForCreate(
-	profile model.MerchantProfile,
-	customerID *model.CustomerID,
-) (*model.TenantID, *model.ContextID, error) {
-	const op = "checkoutsessionuc.paymentScopeForCreate"
-
-	if customerID != nil {
-		return nil, nil, nil
-	}
-
-	if !profile.HasPaymentScope() {
-		return nil, nil, merchantPaymentScopeNotConfiguredError(
-			fmt.Errorf("%s: merchant %s has no payment tenant/context", op, profile.MerchantID),
-		)
-	}
-
-	return profile.PaymentTenantID, profile.PaymentContextID, nil
 }
 
 // isPlausibleCreateConflict reports whether err is the lost unique-index race
@@ -557,41 +524,24 @@ func (uc *UseCase) decryptCustomerPhone(session model.CheckoutSession) (string, 
 	return plaintext, nil
 }
 
-// assertReplayAuthScope reports an idempotency conflict when the
-// server-owned merchant payment scope resolved for this request does not match
-// the immutable scope snapshotted on the existing External Partner checkout.
-func assertReplayAuthScope(
+// assertReplayOfferPreparationMode reports an idempotency conflict when the
+// trusted merchant preparation mode changed since the session was created.
+func assertReplayOfferPreparationMode(
 	session model.CheckoutSession,
-	authTenantID *model.TenantID,
-	authContextID *model.ContextID,
+	mode model.OfferPreparationMode,
 ) error {
-	const op = "checkoutsessionuc.assertReplayAuthScope"
+	const op = "checkoutsessionuc.assertReplayOfferPreparationMode"
 
-	switch session.Origin {
-	case model.InternalCheckoutSessionOrigin:
-		if authTenantID != nil || authContextID != nil {
-			return merchantOrderConflictError(
-				fmt.Errorf("%s: internal checkout must not carry partner auth scope", op),
-			)
-		}
+	effective := session.OfferPreparationMode
+	if !effective.IsValid() {
+		effective = model.DefaultOfferPreparationMode
+	}
 
-		return nil
-
-	case model.ExternalPartnerCheckoutSessionOrigin:
-		if authTenantID == nil || authContextID == nil ||
-			session.AuthTenantID == nil || session.AuthContextID == nil ||
-			*session.AuthTenantID != *authTenantID ||
-			*session.AuthContextID != *authContextID {
-			return merchantOrderConflictError(
-				fmt.Errorf("%s: idempotent replay under a different auth scope", op),
-			)
-		}
-
-		return nil
-
-	default:
+	if effective != mode {
 		return merchantOrderConflictError(
-			fmt.Errorf("%s: unsupported checkout session origin %q", op, session.Origin),
+			fmt.Errorf("%s: idempotent replay under a different offer preparation mode", op),
 		)
 	}
+
+	return nil
 }

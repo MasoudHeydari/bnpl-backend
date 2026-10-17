@@ -48,27 +48,6 @@ type createPartnerRequest struct {
 	Currency             model.Currency `json:"currency" binding:"required"`
 }
 
-// createInternalRequest is the trusted first-party create body.
-//
-// identity_subject_id is accepted only here, behind the on-behalf capability.
-type createInternalRequest struct {
-	OnlineStoreID   model.OnlineStoreID `json:"online_store_id" binding:"required" format:"uuid"`
-	MerchantOrderID string              `json:"merchant_order_id" binding:"required,max=256" maxLength:"256"`
-	// Distinct idempotency keys allow a new attempt after a terminal checkout.
-	IdempotencyKey    string `json:"idempotency_key" binding:"max=256" maxLength:"256"`
-	CustomerReference string `json:"customer_reference" binding:"max=256" maxLength:"256"`
-	// ReturnDestination is a pre-registered lowercase kebab-case symbolic name
-	// matching ^[a-z0-9]+(-[a-z0-9]+)*$ (1..64).
-	// NOTE: swag v1.16 does not emit a machine-readable pattern field from tags;
-	// the regex is documented here and enforced by Core/UseCase/DB.
-	ReturnDestination string `json:"return_destination" binding:"required,max=64" maxLength:"64" minLength:"1"`
-	// MerchantState is optional opaque correlation; empty is valid.
-	MerchantState        string                  `json:"merchant_state" binding:"max=256" maxLength:"256"`
-	RequestedAmountMinor uint64                  `json:"requested_amount_minor" binding:"required,min=1"`
-	Currency             model.Currency          `json:"currency" binding:"required"`
-	IdentitySubjectID    model.IdentitySubjectID `json:"identity_subject_id" binding:"required" format:"uuid"`
-}
-
 type partnerCreateResponse struct {
 	// CheckoutSessionID is the public opaque token (cs_<64 hex>), not the
 	// internal UUID. The JSON field name stays checkout_session_id for partners.
@@ -76,25 +55,9 @@ type partnerCreateResponse struct {
 	Status            model.CheckoutSessionStatus `json:"status" enums:"open,confirming,processing,completed,canceled,expired,unavailable"`
 	CheckoutURL       string                      `json:"checkout_url"`
 	ExpiresAt         time.Time                   `json:"expires_at"`
-}
-
-type startResponse struct {
-	CheckoutSessionID uuid.UUID                   `json:"checkout_session_id" format:"uuid"`
-	Status            model.CheckoutSessionStatus `json:"status" enums:"open,unavailable"`
-	// EvaluationGeneration versions the offer. Send it back unchanged on Confirm.
-	EvaluationGeneration int         `json:"evaluation_generation" example:"1"`
-	Offer                OfferSchema `json:"offer"`
-}
-
-// internalCreateResponse is the trusted first-party create projection: hosted
-// redirect URL plus the authorized offer summary.
-type internalCreateResponse struct {
-	CheckoutSessionID uuid.UUID                   `json:"checkout_session_id" format:"uuid"`
-	Status            model.CheckoutSessionStatus `json:"status" enums:"open,unavailable"`
-	CheckoutURL       string                      `json:"checkout_url"`
-	// EvaluationGeneration versions the offer. Send it back unchanged on Confirm.
-	EvaluationGeneration int         `json:"evaluation_generation" example:"1"`
-	Offer                OfferSchema `json:"offer"`
+	// Offer is present only when merchant_profiles.offer_preparation_mode is
+	// on_create (snapshotted onto the session). Omitted for on_start.
+	Offer *OfferSchema `json:"offer,omitempty"`
 }
 
 // statusResponse is the authoritative merchant inquiry projection.
@@ -195,9 +158,6 @@ func toCreatePartnerInput(c *gin.Context) (checkoutsessionuc.CreatePartnerInput,
 		return checkoutsessionuc.CreatePartnerInput{}, false
 	}
 
-	// Financial Core payment scope is resolved server-side from the
-	// authenticated merchant's provisioned MerchantProfile. JWT/Gateway
-	// X-Auth-Tenant-Id / X-Auth-Context-Id are intentionally ignored here.
 	var req createPartnerRequest
 	if !serdser.Bind(c, &req, binding.JSON) {
 		return checkoutsessionuc.CreatePartnerInput{}, false
@@ -222,43 +182,6 @@ func toCreatePartnerInput(c *gin.Context) (checkoutsessionuc.CreatePartnerInput,
 		},
 		// Pass raw customer_phone unchanged — no TrimSpace, no country rules.
 		CustomerPhone: req.CustomerPhone,
-	}, true
-}
-
-func toCreateInternalInput(c *gin.Context) (checkoutsessionuc.CreateInternalInput, bool) {
-	merchantID, ok := authenticatedMerchantID(c)
-	if !ok {
-		return checkoutsessionuc.CreateInternalInput{}, false
-	}
-
-	var req createInternalRequest
-	if !serdser.Bind(c, &req, binding.JSON) {
-		return checkoutsessionuc.CreateInternalInput{}, false
-	}
-
-	if !req.Currency.IsValid() {
-		serdser.SerValidationErr(c, "currency", "validation.currency_invalid")
-		return checkoutsessionuc.CreateInternalInput{}, false
-	}
-
-	if req.IdentitySubjectID.IsZero() {
-		serdser.SerValidationErr(c, "identity_subject_id", "validation.identity_subject_id_invalid")
-		return checkoutsessionuc.CreateInternalInput{}, false
-	}
-
-	return checkoutsessionuc.CreateInternalInput{
-		CheckoutSessionRequest: checkoutsessionuc.CheckoutSessionRequest{
-			MerchantID:           merchantID,
-			OnlineStoreID:        req.OnlineStoreID,
-			MerchantOrderID:      strings.TrimSpace(req.MerchantOrderID),
-			IdempotencyKey:       strings.TrimSpace(req.IdempotencyKey),
-			CustomerReference:    strings.TrimSpace(req.CustomerReference),
-			ReturnDestination:    req.ReturnDestination,
-			MerchantState:        req.MerchantState,
-			RequestedAmountMinor: req.RequestedAmountMinor,
-			Currency:             req.Currency,
-		},
-		IdentitySubjectID: req.IdentitySubjectID,
 	}, true
 }
 
@@ -321,32 +244,31 @@ func checkoutSessionTokenParam(c *gin.Context) (model.CheckoutSessionToken, bool
 	return token, true
 }
 
+// checkoutTokenParam parses the customer-facing public token from :token.
+func checkoutTokenParam(c *gin.Context) (model.CheckoutSessionToken, bool) {
+	token, err := model.ParseCheckoutSessionToken(c.Param("token"))
+	if err != nil || token.IsZero() {
+		serdser.SerValidationErr(c, "token", "validation.checkout_session_id_invalid")
+		return "", false
+	}
+
+	return token, true
+}
+
 func toPartnerCreateResponse(output checkoutsessionuc.CreatePartnerOutput) partnerCreateResponse {
-	return partnerCreateResponse{
+	resp := partnerCreateResponse{
 		CheckoutSessionID: output.Session.PublicToken.String(),
 		Status:            output.Session.Status,
 		CheckoutURL:       output.CheckoutURL,
 		ExpiresAt:         output.Session.ExpiresAt,
 	}
-}
 
-func toStartResponse(session model.CheckoutSession, offer checkoutsessionuc.Offer) startResponse {
-	return startResponse{
-		CheckoutSessionID:    session.ID.UUID(),
-		Status:               session.Status,
-		EvaluationGeneration: session.EvaluationGeneration,
-		Offer:                toOfferResponse(offer),
+	if output.Offer != nil {
+		offer := toOfferResponse(*output.Offer)
+		resp.Offer = &offer
 	}
-}
 
-func toInternalCreateResponse(output checkoutsessionuc.CreateInternalOutput) internalCreateResponse {
-	return internalCreateResponse{
-		CheckoutSessionID:    output.Session.ID.UUID(),
-		Status:               output.Session.Status,
-		CheckoutURL:          output.CheckoutURL,
-		EvaluationGeneration: output.Session.EvaluationGeneration,
-		Offer:                toOfferResponse(output.Offer),
-	}
+	return resp
 }
 
 func toOfferResponse(offer checkoutsessionuc.Offer) OfferSchema {
@@ -410,36 +332,6 @@ func toCancelResponse(output checkoutsessionuc.CancelOutput) cancelResponse {
 	}
 }
 
-func toConfirmInput(c *gin.Context) (checkoutsessionuc.ConfirmInput, bool) {
-	const op = "checkoutsessionrs.toConfirmInput"
-
-	authCtx, ok := permission.FromContext(c.Request.Context())
-	if !ok {
-		serdser.SerErr(c, cerr.Unauthorized(
-			fmt.Errorf("%s: authentication context is missing", op),
-		))
-		return checkoutsessionuc.ConfirmInput{}, false
-	}
-
-	sessionID, ok := checkoutSessionIDParam(c)
-	if !ok {
-		return checkoutsessionuc.ConfirmInput{}, false
-	}
-
-	var req confirmRequest
-	if !serdser.Bind(c, &req, binding.JSON) {
-		return checkoutsessionuc.ConfirmInput{}, false
-	}
-
-	return checkoutsessionuc.ConfirmInput{
-		CheckoutSessionID:    sessionID,
-		IdentitySubjectID:    authCtx.SubjectID.AsIdentitySubjectID(),
-		TenantID:             authCtx.TenantID,
-		ContextID:            authCtx.ContextID,
-		EvaluationGeneration: req.EvaluationGeneration,
-	}, true
-}
-
 func toConfirmResponse(output checkoutsessionuc.ConfirmOutput) confirmResponse {
 	response := confirmResponse{
 		CheckoutSessionID:    output.Session.ID.UUID(),
@@ -467,32 +359,6 @@ func toConfirmResponse(output checkoutsessionuc.ConfirmOutput) confirmResponse {
 	}
 
 	return response
-}
-
-func toGetReturnInput(c *gin.Context) (checkoutsessionuc.GetReturnInput, bool) {
-	sessionID, ok := checkoutSessionIDParam(c)
-	if !ok {
-		return checkoutsessionuc.GetReturnInput{}, false
-	}
-
-	identitySubjectID, ok := authenticatedIdentitySubjectID(c)
-	if !ok {
-		return checkoutsessionuc.GetReturnInput{}, false
-	}
-
-	return checkoutsessionuc.GetReturnInput{
-		CheckoutSessionID: sessionID,
-		IdentitySubjectID: identitySubjectID,
-	}, true
-}
-
-func toReturnResponse(output checkoutsessionuc.GetReturnOutput) returnResponse {
-	return returnResponse{
-		CheckoutSessionID: output.Session.ID.UUID(),
-		Status:            output.Session.Status,
-		MerchantState:     output.Session.MerchantState,
-		ReturnURL:         output.ReturnURL,
-	}
 }
 
 func toUpsertReturnDestinationInput(c *gin.Context) (checkoutsessionuc.UpsertReturnDestinationInput, bool) {

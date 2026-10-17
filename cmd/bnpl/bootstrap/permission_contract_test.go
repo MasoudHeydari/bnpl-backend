@@ -61,43 +61,6 @@ func protectedRoutePermissions() []protectedRoutePermission {
 			Permission:  permission.CheckoutWebhooksManageMerchant,
 		},
 		{
-			Method:            http.MethodPost,
-			GinPath:           "/api/v1/internal/checkout-sessions",
-			SwaggerPath:       "/api/v1/internal/checkout-sessions",
-			Permission:        permission.CheckoutSessionsCreateMerchant,
-			PermissionExample: permission.CheckoutSessionsCreateMerchant.String() + "," + permission.DecisionsCreateOnBehalf.String(),
-		},
-		{
-			Method:      http.MethodGet,
-			GinPath:     "/api/v1/checkout-sessions/" + uuid.NewString(),
-			SwaggerPath: "/api/v1/checkout-sessions/{checkout_session_id}",
-			Permission:  permission.CheckoutSessionsReadSelf,
-		},
-		{
-			Method:      http.MethodPost,
-			GinPath:     "/api/v1/checkout-sessions/" + uuid.NewString() + "/start",
-			SwaggerPath: "/api/v1/checkout-sessions/{checkout_session_id}/start",
-			Permission:  permission.CheckoutSessionsStartSelf,
-		},
-		{
-			Method:      http.MethodPost,
-			GinPath:     "/api/v1/checkout-sessions/" + uuid.NewString() + "/confirm",
-			SwaggerPath: "/api/v1/checkout-sessions/{checkout_session_id}/confirm",
-			Permission:  permission.CheckoutSessionsStartSelf,
-		},
-		{
-			Method:      http.MethodGet,
-			GinPath:     "/api/v1/checkout-sessions/" + uuid.NewString() + "/return",
-			SwaggerPath: "/api/v1/checkout-sessions/{checkout_session_id}/return",
-			Permission:  permission.CheckoutSessionsReadSelf,
-		},
-		{
-			Method:      http.MethodPost,
-			GinPath:     "/api/v1/checkout-sessions/" + uuid.NewString() + "/cancel",
-			SwaggerPath: "/api/v1/checkout-sessions/{checkout_session_id}/cancel",
-			Permission:  permission.CheckoutSessionsStartSelf,
-		},
-		{
 			Method:      http.MethodPost,
 			GinPath:     "/api/v1/checkout-decisions",
 			SwaggerPath: "/api/v1/checkout-decisions",
@@ -303,34 +266,6 @@ func TestRegisterRoutes_RequiresExactEndpointPermission(t *testing.T) {
 			)
 		})
 	}
-}
-
-func TestRegisterRoutes_InternalCheckoutRequiresOnBehalfPermission(t *testing.T) {
-	t.Parallel()
-
-	cfg := noopTestConfig()
-	cfg.Usecases.Health.Enabled = false
-	cfg.Gin.Swagger.Enabled = false
-
-	app := testAppWithInfrastructure(t, cfg)
-	usecases, err := app.NewUseCases()
-	require.NoError(t, err)
-	app.UseCases = usecases
-
-	engine, err := cfg.NewGinEngine(app.Infrastructure.Trace, app.Infrastructure.Logger, app.Infrastructure.ErrorReporter)
-	require.NoError(t, err)
-	require.NoError(t, app.RegisterRoutes(engine))
-
-	permissions := permissionsExcept(permission.DecisionsCreateOnBehalf)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/internal/checkout-sessions", http.NoBody)
-	req.Header.Set(header.AuthSubjectID, uuid.NewString())
-	req.Header.Set(header.AuthTenantID, uuid.NewString())
-	req.Header.Set(header.AuthContextID, uuid.NewString())
-	req.Header.Set(header.AuthPermissions, strings.Join(permissions, ","))
-
-	recorder := httptest.NewRecorder()
-	engine.ServeHTTP(recorder, req)
-	require.Equal(t, http.StatusForbidden, recorder.Code)
 }
 
 func permissionsExcept(excluded permission.Permission) []string {

@@ -7,32 +7,34 @@ import (
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/event/checkoutlifecycle"
-	"github.com/parstis/bnpl-backend/pkg/core/external/identity"
+	"github.com/parstis/bnpl-backend/pkg/core/external/customer"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/policy"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
-// prepareExternalOffer resolves the Merchant-asserted phone through Identity
-// (when not already bound), binds the resolved customer, and creates or replays
-// the financing Decision/Offer. It never sends OTP, creates a Contract, creates
-// a PaymentAttempt, or calls Financial Core for money movement.
+// prepareExternalOffer resolves the Merchant-asserted phone through the
+// Customer Reference Service (when not already bound), binds the resolved
+// customer, and creates or replays the financing Decision/Offer. It never sends
+// OTP, creates a Contract, creates a PaymentAttempt, or calls Financial Core for
+// money movement.
 //
-// Network Identity resolution runs outside any DB transaction. An idempotent
-// CreatePartner retry resumes preparation when the session exists but the
-// Decision is still missing, and replays a durable prepared offer without
+// Network Customer Reference resolution runs outside any DB transaction. An
+// idempotent CreatePartner retry resumes preparation when the session exists but
+// the Decision is still missing, and replays a durable prepared offer without
 // duplicating Decision rows.
 //
-// Binding a customer here is Identity resolution (phone P → customer B), not
-// OTP verification or purchase authorization.
+// Binding a customer here is Customer Reference resolution
+// (phone P → external customer_id → BNPL CustomerID), not OTP verification or
+// purchase authorization.
 func (uc *UseCase) prepareExternalOffer(
 	ctx context.Context,
 	session model.CheckoutSession,
-) (model.CheckoutSession, error) {
+) (model.CheckoutSession, Offer, error) {
 	const op = "checkoutsessionuc.UseCase.prepareExternalOffer"
 
 	if session.Origin != model.ExternalPartnerCheckoutSessionOrigin {
-		return model.CheckoutSession{}, cerr.InternalError(
+		return model.CheckoutSession{}, Offer{}, cerr.InternalError(
 			fmt.Errorf("%s: expected external partner origin, got %q", op, session.Origin),
 		)
 	}
@@ -40,70 +42,86 @@ func (uc *UseCase) prepareExternalOffer(
 	// Terminal / non-continuable sessions are returned as-is for Partner Create
 	// replay (for example unavailable after a denied Decision).
 	if !session.Status.AllowsCustomerContinuation() {
-		return session, nil
+		return session, Offer{}, nil
 	}
 
 	if session.ContractID != nil {
-		return session, nil
+		return session, Offer{}, nil
 	}
 
 	now := uc.clock.Now().UTC()
 	if session.IsExpiredAt(now) {
 		expired, err := uc.persistExternalExpired(ctx, session.PublicToken)
 		if err != nil {
-			return model.CheckoutSession{}, err
+			return model.CheckoutSession{}, Offer{}, err
 		}
 
-		return expired, checkoutSessionExpiredError()
+		return expired, Offer{}, checkoutSessionExpiredError()
 	}
 
-	// Already prepared: replay without Identity / Decision recreation.
+	// Already prepared: replay without Customer Reference / Decision recreation.
 	if session.CustomerID != nil && session.DecisionID != nil && !session.DecisionID.IsZero() {
 		prepared, offer, err := uc.loadPreparedExternalOffer(ctx, session, now)
 		if err != nil {
-			return model.CheckoutSession{}, err
+			return model.CheckoutSession{}, Offer{}, err
 		}
 
-		return uc.clampExternalSessionToOffer(ctx, prepared, offer)
+		clamped, clampErr := uc.clampExternalSessionToOffer(ctx, prepared, offer)
+		if clampErr != nil {
+			return model.CheckoutSession{}, Offer{}, clampErr
+		}
+
+		return clamped, offer, nil
 	}
 
 	phone, err := uc.decryptCustomerPhone(session)
 	if err != nil {
-		return model.CheckoutSession{}, err
+		return model.CheckoutSession{}, Offer{}, err
 	}
 
 	identitySubjectID, usable, err := uc.resolveExternalIdentitySubjectID(ctx, session, phone)
 	if err != nil {
-		return model.CheckoutSession{}, err
+		return model.CheckoutSession{}, Offer{}, err
 	}
 
 	if !usable {
-		// Identity NOT_FOUND or individual+suspended/deleted is a merchant-safe
-		// financing outcome, not a retryable dependency failure. Terminalize the
+		// Customer Reference NOT_FOUND or suspended is a merchant-safe financing
+		// outcome, not a retryable dependency failure. Terminalize the
 		// already-created session so it cannot remain an orphan active attempt.
-		return uc.persistExternalUnavailable(ctx, session.PublicToken)
+		unavailable, unavailableErr := uc.persistExternalUnavailable(ctx, session.PublicToken)
+		if unavailableErr != nil {
+			return model.CheckoutSession{}, Offer{}, unavailableErr
+		}
+
+		return unavailable, Offer{}, nil
 	}
 
 	bound, err := uc.bindExternalCustomer(ctx, session.PublicToken, identitySubjectID)
 	if err != nil {
-		return model.CheckoutSession{}, err
+		return model.CheckoutSession{}, Offer{}, err
 	}
 
 	prepared, offer, err := uc.prepareOfferForBoundSession(ctx, bound, identitySubjectID)
 	if err != nil {
-		return model.CheckoutSession{}, err
+		return model.CheckoutSession{}, Offer{}, err
 	}
 
-	return uc.clampExternalSessionToOffer(ctx, prepared, offer)
+	clamped, clampErr := uc.clampExternalSessionToOffer(ctx, prepared, offer)
+	if clampErr != nil {
+		return model.CheckoutSession{}, Offer{}, clampErr
+	}
+
+	return clamped, offer, nil
 }
 
-// resolveExternalIdentitySubjectID returns the already-bound customer profile
-// id, or resolves the merchant-asserted mobile through Identity.
+// resolveExternalIdentitySubjectID returns the already-bound external customer
+// id, or resolves the merchant-asserted mobile through the Customer Reference
+// Service.
 //
 // usable=false means the checkout must become merchant-safe unavailable
-// (NOT_FOUND, suspended, or deleted). Group and unknown Identity wire values
+// (NOT_FOUND or suspended). Unknown or unspecified Customer Reference statuses
 // fail closed as integration/protocol errors and never bind a customer.
-// Identity subject status is never written into CustomerProfile.status.
+// Customer Reference status is never written into CustomerProfile.status.
 func (uc *UseCase) resolveExternalIdentitySubjectID(
 	ctx context.Context,
 	session model.CheckoutSession,
@@ -131,9 +149,9 @@ func (uc *UseCase) resolveExternalIdentitySubjectID(
 		return profileID, true, nil
 	}
 
-	resolved, err := uc.identityResolver.ResolveByMobile(
+	resolved, err := uc.customerResolver.ResolveByMobile(
 		ctx,
-		identity.ResolveByMobileInput{MobileE164: phone},
+		customer.ResolveByMobileInput{MobileE164: phone},
 	)
 	if err != nil {
 		if cerr.IsCode(err, cerr.CodeResourceNotFound) {
@@ -143,35 +161,22 @@ func (uc *UseCase) resolveExternalIdentitySubjectID(
 		return model.IdentitySubjectID{}, false, fmt.Errorf("%s: resolve customer by mobile: %w", op, err)
 	}
 
-	if resolved.IdentitySubjectID.IsZero() {
+	if resolved.ExternalCustomerID.IsZero() {
 		return model.IdentitySubjectID{}, false, cerr.InternalError(
-			fmt.Errorf("%s: identity service returned an empty customer profile id", op),
+			fmt.Errorf("%s: customer reference service returned an empty customer id", op),
 		)
 	}
 
-	switch resolved.SubjectType {
-	case identity.IndividualSubjectType:
-		switch resolved.SubjectStatus {
-		case identity.ActiveSubjectStatus:
-			return resolved.IdentitySubjectID, true, nil
+	switch resolved.Status {
+	case customer.ActiveStatus:
+		return resolved.ExternalCustomerID, true, nil
 
-		case identity.SuspendedSubjectStatus, identity.DeletedSubjectStatus:
-			return model.IdentitySubjectID{}, false, nil
-
-		default:
-			return model.IdentitySubjectID{}, false, cerr.InternalError(
-				fmt.Errorf("%s: unsupported identity subject status", op),
-			)
-		}
-
-	case identity.GroupSubjectType:
-		return model.IdentitySubjectID{}, false, cerr.InternalError(
-			fmt.Errorf("%s: identity subject type group is unsupported by BNPL checkout", op),
-		)
+	case customer.SuspendedStatus:
+		return model.IdentitySubjectID{}, false, nil
 
 	default:
 		return model.IdentitySubjectID{}, false, cerr.InternalError(
-			fmt.Errorf("%s: unsupported identity subject type", op),
+			fmt.Errorf("%s: unsupported customer reference status", op),
 		)
 	}
 }

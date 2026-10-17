@@ -17,8 +17,9 @@ func TestStartExternal_InFlightIssuanceBlocksSecondIssue(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	// begin, project offer, merchant display, issueOTP (idempotent).
-	h.expectPool(2, 2)
+	// prepare probe, begin, project offer, merchant display, issueOTP (idempotent).
+	h.expectPool(3, 2)
+	h.expectStartExternalPrepareLoad()
 
 	// OTP1 issued but not yet notification-accepted: otp_notification_accepted_at is nil.
 	inFlight := h.session(withOTPVerifier(
@@ -48,7 +49,8 @@ func TestStartExternal_SMSIdempotencyKeyUsesIssueID(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	h.expectPool(2, 3)
+	h.expectPool(3, 3)
+	h.expectStartExternalPrepareLoad()
 
 	prepared := h.session()
 	h.expectProjectApprovedOffer(prepared)
@@ -100,7 +102,8 @@ func TestStartExternal_RejectedSMSClearsMatchingIssueOnly(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	h.expectPool(2, 3)
+	h.expectPool(3, 3)
+	h.expectStartExternalPrepareLoad()
 	h.notificationErr = notification.Rejected(errors.New("provider rejected"))
 
 	prepared := h.session()

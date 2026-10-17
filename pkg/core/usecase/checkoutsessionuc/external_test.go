@@ -185,7 +185,8 @@ func TestStartExternal_ApprovedOfferIssuesAndSendsOTPOutsideTransactions(t *test
 
 	h := newHarness(t)
 	// begin OTP, project offer, merchant display, issue OTP, mark sent.
-	h.expectPool(2, 3)
+	h.expectPool(3, 3)
+	h.expectStartExternalPrepareLoad()
 
 	prepared := h.session()
 	h.expectProjectApprovedOffer(prepared)
@@ -271,7 +272,8 @@ func TestStartExternal_ActiveOTPReplaysWithoutResending(t *testing.T) {
 
 	h := newHarness(t)
 	// begin, project offer, merchant display, issue OTP guard (idempotent).
-	h.expectPool(2, 2)
+	h.expectPool(3, 2)
+	h.expectStartExternalPrepareLoad()
 
 	active := h.session(withOTPVerifier(
 		t,
@@ -301,7 +303,8 @@ func TestStartExternal_DeniedOfferNeverIssuesOTP(t *testing.T) {
 
 	h := newHarness(t)
 	// begin + project offer only.
-	h.expectPool(1, 1)
+	h.expectPool(2, 1)
+	h.expectStartExternalPrepareLoad()
 
 	prepared := h.session()
 	h.expectProjectDeniedOffer(prepared)
@@ -317,7 +320,8 @@ func TestStartExternal_UnpreparedOfferIsNotReady(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	h.expectPool(0, 1)
+	h.expectPool(1, 1)
+	h.expectStartExternalPrepareLoad()
 
 	h.sessionTx.EXPECT().
 		LockByPublicToken(h.ctx, h.publicToken).
@@ -333,7 +337,8 @@ func TestStartExternal_StaleGenerationDoesNotConsumeOTPBudget(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	h.expectPool(0, 1)
+	h.expectPool(1, 1)
+	h.expectStartExternalPrepareLoad()
 
 	current := h.session(withGeneration(2))
 	h.sessionTx.EXPECT().LockByPublicToken(h.ctx, h.publicToken).Return(current, nil).Once()
@@ -349,7 +354,8 @@ func TestStartExternal_SMSFailureLeavesOTPUnsent(t *testing.T) {
 
 	h := newHarness(t)
 	// begin, project, merchant display, issue OTP; MarkOTPNotificationAccepted never runs.
-	h.expectPool(2, 2)
+	h.expectPool(3, 2)
+	h.expectStartExternalPrepareLoad()
 
 	sendErr := errors.New("sms provider down")
 	h.notificationErr = sendErr
@@ -374,7 +380,8 @@ func TestStartExternal_InternalOriginIsNotFound(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	h.expectPool(0, 1)
+	h.expectPool(1, 1)
+	h.expectStartExternalPrepareLoad()
 
 	h.sessionTx.EXPECT().
 		LockByPublicToken(h.ctx, h.publicToken).
@@ -389,7 +396,8 @@ func TestStartExternal_ElapsedSessionIsExpiredBeforeAnyNetworkCall(t *testing.T)
 	t.Parallel()
 
 	h := newHarness(t)
-	h.expectPool(0, 1)
+	h.expectPool(1, 1)
+	h.expectStartExternalPrepareLoad()
 
 	elapsed := h.session(withoutDecision(), withExpiresAt(h.now.Add(-time.Second)))
 	expired := h.session(withStatus(model.ExpiredCheckoutSessionStatus))
@@ -582,20 +590,4 @@ func TestConfirmExternal_MalformedInputIsRejectedBeforeAnyRead(t *testing.T) {
 
 	_, err = h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 0))
 	requireCerr(t, err, cerr.CodeInvalidArgument, "error.evaluation_generation_required")
-}
-
-func TestConfirmExternal_MissingSnapshottedAuthScopeFailsClosed(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t)
-	h.expectPool(0, 1)
-
-	session := h.session()
-	session.AuthTenantID = nil
-	session.AuthContextID = nil
-
-	h.sessionTx.EXPECT().LockByPublicToken(h.ctx, h.publicToken).Return(session, nil).Once()
-
-	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
-	requireCerr(t, err, cerr.CodeInternalError, cerr.DefaultMessageKey(cerr.CodeInternalError))
 }

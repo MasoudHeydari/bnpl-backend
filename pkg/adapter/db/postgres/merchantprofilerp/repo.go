@@ -139,13 +139,3 @@ func (q txQueryer) LockByMerchantID(
 	return LockByMerchantID(ctx, q.Tx, merchantID)
 }
 
-// SetPaymentScope assigns the server-owned Financial Core payment scope.
-func (q txQueryer) SetPaymentScope(
-	ctx context.Context,
-	merchantID model.MerchantID,
-	paymentTenantID model.TenantID,
-	paymentContextID model.ContextID,
-	updatedAt time.Time,
-) (model.MerchantProfile, error) {
-	return SetPaymentScope(ctx, q.Tx, merchantID, paymentTenantID, paymentContextID, updatedAt)
-}

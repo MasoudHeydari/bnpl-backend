@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	identityext "github.com/parstis/bnpl-backend/pkg/adapter/external/identity"
+	customerext "github.com/parstis/bnpl-backend/pkg/adapter/external/customer"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 )
 
@@ -115,7 +115,7 @@ func TestCheckoutSession_ValidateOTP(t *testing.T) {
 	require.ErrorContains(t, CheckoutSession{}.validateOTP(), "otp pepper")
 }
 
-func TestExternalIdentity_Validate(t *testing.T) {
+func TestExternalCustomer_Validate(t *testing.T) {
 	t.Parallel()
 
 	dev := model.RuntimeEnvironment("development")
@@ -123,34 +123,34 @@ func TestExternalIdentity_Validate(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		cfg     ExternalIdentity
+		cfg     ExternalCustomer
 		env     model.RuntimeEnvironment
 		wantErr string
 	}{
-		{name: "noop in development", cfg: ExternalIdentity{Provider: string(identityext.NoopProvider)}, env: dev},
-		{name: "noop rejected in production", cfg: ExternalIdentity{Provider: string(identityext.NoopProvider)}, env: prod, wantErr: "not allowed in production"},
-		{name: "unsupported provider", cfg: ExternalIdentity{Provider: "smtp"}, env: dev, wantErr: "unsupported"},
-		{name: "empty provider", cfg: ExternalIdentity{}, env: dev, wantErr: "unsupported"},
+		{name: "noop in development", cfg: ExternalCustomer{Provider: string(customerext.NoopProvider)}, env: dev},
+		{name: "noop rejected in production", cfg: ExternalCustomer{Provider: string(customerext.NoopProvider)}, env: prod, wantErr: "not allowed in production"},
+		{name: "unsupported provider", cfg: ExternalCustomer{Provider: "smtp"}, env: dev, wantErr: "unsupported"},
+		{name: "empty provider", cfg: ExternalCustomer{}, env: dev, wantErr: "unsupported"},
 		{
 			name: "grpc ok",
-			cfg:  ExternalIdentity{Provider: string(identityext.GRPCProvider), GRPC: ExternalIdentityGRPC{Address: "id:50053", Timeout: time.Second, Insecure: true}},
+			cfg:  ExternalCustomer{Provider: string(customerext.GRPCProvider), GRPC: ExternalCustomerGRPC{Address: "id:50053", Timeout: time.Second, Insecure: true}},
 			env:  dev,
 		},
 		{
 			name:    "grpc requires address",
-			cfg:     ExternalIdentity{Provider: string(identityext.GRPCProvider), GRPC: ExternalIdentityGRPC{Timeout: time.Second}},
+			cfg:     ExternalCustomer{Provider: string(customerext.GRPCProvider), GRPC: ExternalCustomerGRPC{Timeout: time.Second}},
 			env:     dev,
 			wantErr: "grpc.address",
 		},
 		{
 			name:    "grpc requires timeout",
-			cfg:     ExternalIdentity{Provider: string(identityext.GRPCProvider), GRPC: ExternalIdentityGRPC{Address: "id:50053"}},
+			cfg:     ExternalCustomer{Provider: string(customerext.GRPCProvider), GRPC: ExternalCustomerGRPC{Address: "id:50053"}},
 			env:     dev,
 			wantErr: "grpc.timeout",
 		},
 		{
 			name:    "grpc insecure rejected in production",
-			cfg:     ExternalIdentity{Provider: string(identityext.GRPCProvider), GRPC: ExternalIdentityGRPC{Address: "id:50053", Timeout: time.Second, Insecure: true}},
+			cfg:     ExternalCustomer{Provider: string(customerext.GRPCProvider), GRPC: ExternalCustomerGRPC{Address: "id:50053", Timeout: time.Second, Insecure: true}},
 			env:     prod,
 			wantErr: "insecure",
 		},

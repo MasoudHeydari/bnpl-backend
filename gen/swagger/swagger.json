@@ -548,77 +548,21 @@
                 }
             }
         },
-        "/api/v1/checkout-sessions/{checkout_session_id}": {
+        "/api/v1/checkout-sessions/{token}": {
             "get": {
-                "security": [
-                    {
-                        "PermissionAuth": []
-                    }
-                ],
-                "description": "Read-only projection for the authenticated customer. Never binds a customer, creates a Decision, bumps evaluation_generation, or starts payment. Call POST .../start to prepare or refresh the offer.",
+                "description": "Unauthenticated read-only hosted page projection. Returns merchant display name, amount, evaluation_generation, the prepared privacy-safe offer (when available), and the masked verification destination. Never creates a Decision, binds a customer, sends OTP, or calls Financial Core.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Checkout Sessions"
                 ],
-                "summary": "Get hosted checkout session",
+                "summary": "Get hosted external checkout",
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Stable authenticated subject identifier",
-                        "name": "x-auth-subject-id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Authenticated tenant UUID",
-                        "name": "x-auth-tenant-id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Authenticated business-context UUID",
-                        "name": "x-auth-context-id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "example": "bnpl:checkout-sessions:read:self",
-                        "description": "Comma-separated gateway permissions",
-                        "name": "x-auth-permissions",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Optional; reused when present otherwise generated. Always returned.",
-                        "name": "X-Trace-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Optional; reused when present otherwise generated. Always returned.",
-                        "name": "X-Request-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Optional; reused when present otherwise generated. Always returned.",
-                        "name": "X-Correlation-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Checkout session UUID",
-                        "name": "checkout_session_id",
+                        "description": "Public checkout session token (cs_\u003c64 hex\u003e)",
+                        "name": "token",
                         "in": "path",
                         "required": true
                     }
@@ -627,7 +571,7 @@
                     "200": {
                         "description": "Success",
                         "schema": {
-                            "$ref": "#/definitions/checkoutsessionrs.GetSuccessSchema"
+                            "$ref": "#/definitions/checkoutsessionrs.HostedExternalGetSuccessSchema"
                         },
                         "headers": {
                             "X-Correlation-Id": {
@@ -646,46 +590,6 @@
                     },
                     "400": {
                         "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/serdser.ErrorResponse"
                         },
@@ -747,14 +651,9 @@
                 }
             }
         },
-        "/api/v1/checkout-sessions/{checkout_session_id}/cancel": {
+        "/api/v1/checkout-sessions/{token}/cancel": {
             "post": {
-                "security": [
-                    {
-                        "PermissionAuth": []
-                    }
-                ],
-                "description": "Cancels the checkout for the authenticated bound customer when no submitted or ambiguous payment prevents cancellation.\nReturns the pre-registered merchant return URL with checkout_session_id and merchant state.",
+                "description": "Cancels an open checkout when no submitted or ambiguous payment prevents cancellation.\nReturns the pre-registered merchant return URL with checkout_session_id and merchant state.",
                 "produces": [
                     "application/json"
                 ],
@@ -763,38 +662,6 @@
                 ],
                 "summary": "Cancel hosted checkout",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Stable authenticated subject identifier",
-                        "name": "x-auth-subject-id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Authenticated tenant UUID",
-                        "name": "x-auth-tenant-id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Authenticated business-context UUID",
-                        "name": "x-auth-context-id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "example": "bnpl:checkout-sessions:start:self",
-                        "description": "Comma-separated gateway permissions",
-                        "name": "x-auth-permissions",
-                        "in": "header",
-                        "required": true
-                    },
                     {
                         "type": "string",
                         "description": "Optional; reused when present otherwise generated. Always returned.",
@@ -815,9 +682,8 @@
                     },
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Checkout session UUID",
-                        "name": "checkout_session_id",
+                        "description": "Public checkout session token (cs_\u003c64 hex\u003e)",
+                        "name": "token",
                         "in": "path",
                         "required": true
                     }
@@ -845,46 +711,6 @@
                     },
                     "400": {
                         "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/serdser.ErrorResponse"
                         },
@@ -966,14 +792,9 @@
                 }
             }
         },
-        "/api/v1/checkout-sessions/{checkout_session_id}/confirm": {
+        "/api/v1/checkout-sessions/{token}/confirm": {
             "post": {
-                "security": [
-                    {
-                        "PermissionAuth": []
-                    }
-                ],
-                "description": "Confirms the currently displayed BNPL offer version (evaluation_generation) and, when customer action is required, returns the redirect URL for the next step.\nClients never supply decision_id, contract_id, or payment provider selection; Confirm reads session state and routes payment internally.\nFlow: OPEN -\u003e CONFIRMING (atomic claim) -\u003e PROCESSING (payment pending) -\u003e COMPLETED. Cancel and expiry are refused while CONFIRMING or PROCESSING.\nWhen evaluation_generation is stale the offer is re-evaluated and the response has reconfirm_required=true with the refreshed offer and evaluation_generation; no contract or payment is created. Show the new offer and call Confirm again with the new generation.\nWhen payment_required=true the response includes redirect_url and expires_at only. Direct-activation policies return payment_required=false and status=completed only after authoritative recognition.\nIdempotent: repeating Confirm for a session that already linked the same contract replays contract creation and returns the same payment continuation.",
+                "description": "Unauthenticated. Verifies the SMS code, then runs Confirm \u0026 Pay for the customer bound to the checkout. A stale evaluation_generation returns reconfirm_required with the refreshed offer.",
                 "consumes": [
                     "application/json"
                 ],
@@ -983,73 +804,22 @@
                 "tags": [
                     "Checkout Sessions"
                 ],
-                "summary": "Confirm hosted checkout and create contract",
+                "summary": "Confirm hosted external checkout",
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Stable authenticated subject identifier",
-                        "name": "x-auth-subject-id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Authenticated tenant UUID",
-                        "name": "x-auth-tenant-id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Authenticated business-context UUID",
-                        "name": "x-auth-context-id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "example": "bnpl:checkout-sessions:start:self",
-                        "description": "Comma-separated gateway permissions",
-                        "name": "x-auth-permissions",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Optional; reused when present otherwise generated. Always returned.",
-                        "name": "X-Trace-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Optional; reused when present otherwise generated. Always returned.",
-                        "name": "X-Request-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Optional; reused when present otherwise generated. Always returned.",
-                        "name": "X-Correlation-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Checkout session UUID",
-                        "name": "checkout_session_id",
+                        "description": "Public checkout session token (cs_\u003c64 hex\u003e)",
+                        "name": "token",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Offer version (evaluation_generation) seen by the customer",
+                        "description": "Offer version and SMS verification code",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/checkoutsessionrs.ConfirmRequestSchema"
+                            "$ref": "#/definitions/checkoutsessionrs.HostedExternalConfirmRequestSchema"
                         }
                     }
                 ],
@@ -1057,7 +827,7 @@
                     "200": {
                         "description": "Success",
                         "schema": {
-                            "$ref": "#/definitions/checkoutsessionrs.ConfirmSuccessSchema"
+                            "$ref": "#/definitions/checkoutsessionrs.HostedExternalConfirmSuccessSchema"
                         },
                         "headers": {
                             "X-Correlation-Id": {
@@ -1076,26 +846,6 @@
                     },
                     "400": {
                         "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/serdser.ErrorResponse"
                         },
@@ -1217,86 +967,30 @@
                 }
             }
         },
-        "/api/v1/checkout-sessions/{checkout_session_id}/return": {
+        "/api/v1/checkout-sessions/{token}/return": {
             "get": {
-                "security": [
-                    {
-                        "PermissionAuth": []
-                    }
-                ],
-                "description": "Returns the checkout status plus the pre-registered merchant return URL for the authenticated bound customer, for hosted-page polling and browser return.\nreturn_url carries only checkout_session_id and the opaque state query parameters. Neither is payment truth: merchants must confirm the outcome through the status endpoint or signed webhooks, never from the browser redirect.\nA checkout bound to a different customer is reported as not found.",
+                "description": "Unauthenticated browser navigation only. Redirects to the merchant ReturnURL persisted at checkout creation. Never accepts a destination URL from the request. Browser arrival is NOT payment or order-fulfillment authority — merchants must trust Partner Inquiry status=completed or the verified bnpl.checkout.completed.v1 webhook.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Checkout Sessions"
                 ],
-                "summary": "Get customer checkout return projection",
+                "summary": "Return from hosted external checkout",
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Stable authenticated subject identifier",
-                        "name": "x-auth-subject-id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Authenticated tenant UUID",
-                        "name": "x-auth-tenant-id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Authenticated business-context UUID",
-                        "name": "x-auth-context-id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "example": "bnpl:checkout-sessions:read:self",
-                        "description": "Comma-separated gateway permissions",
-                        "name": "x-auth-permissions",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Optional; reused when present otherwise generated. Always returned.",
-                        "name": "X-Trace-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Optional; reused when present otherwise generated. Always returned.",
-                        "name": "X-Request-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Optional; reused when present otherwise generated. Always returned.",
-                        "name": "X-Correlation-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Checkout session UUID",
-                        "name": "checkout_session_id",
+                        "description": "Public checkout session token (cs_\u003c64 hex\u003e)",
+                        "name": "token",
                         "in": "path",
                         "required": true
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "Success",
+                    "302": {
+                        "description": "Redirect to the pre-registered merchant return URL",
                         "schema": {
-                            "$ref": "#/definitions/checkoutsessionrs.ReturnSuccessSchema"
+                            "type": "string"
                         },
                         "headers": {
                             "X-Correlation-Id": {
@@ -1333,68 +1027,8 @@
                             }
                         }
                     },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
                     "404": {
                         "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/serdser.ErrorResponse"
                         },
@@ -1436,86 +1070,42 @@
                 }
             }
         },
-        "/api/v1/checkout-sessions/{checkout_session_id}/start": {
+        "/api/v1/checkout-sessions/{token}/start": {
             "post": {
-                "security": [
-                    {
-                        "PermissionAuth": []
-                    }
+                "description": "Unauthenticated token API. Prepares a deferred offer when needed (on_start), then requests SMS OTP. evaluation_generation may be omitted on the first START before an offer exists; the response returns Offer and the authoritative evaluation_generation. Idempotent while a delivered/in-flight code is still valid.",
+                "consumes": [
+                    "application/json"
                 ],
-                "description": "Verifies the authenticated BNPL customer owns the checkout session, then creates or replays the Decision and installment offer. External partner checkouts use the unauthenticated hosted OTP start instead.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Checkout Sessions"
                 ],
-                "summary": "Start hosted checkout evaluation",
+                "summary": "Start customer checkout (prepare offer if needed + OTP)",
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Stable authenticated subject identifier",
-                        "name": "x-auth-subject-id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Authenticated tenant UUID",
-                        "name": "x-auth-tenant-id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Authenticated business-context UUID",
-                        "name": "x-auth-context-id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "example": "bnpl:checkout-sessions:start:self",
-                        "description": "Comma-separated gateway permissions",
-                        "name": "x-auth-permissions",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Optional; reused when present otherwise generated. Always returned.",
-                        "name": "X-Trace-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Optional; reused when present otherwise generated. Always returned.",
-                        "name": "X-Request-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Optional; reused when present otherwise generated. Always returned.",
-                        "name": "X-Correlation-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Checkout session UUID",
-                        "name": "checkout_session_id",
+                        "description": "Public checkout session token (cs_\u003c64 hex\u003e)",
+                        "name": "token",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "Offer version from Hosted GET",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/checkoutsessionrs.HostedExternalStartRequestSchema"
+                        }
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "Success",
                         "schema": {
-                            "$ref": "#/definitions/checkoutsessionrs.StartSuccessSchema"
+                            "$ref": "#/definitions/checkoutsessionrs.HostedExternalStartSuccessSchema"
                         },
                         "headers": {
                             "X-Correlation-Id": {
@@ -1534,26 +1124,6 @@
                     },
                     "400": {
                         "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/serdser.ErrorResponse"
                         },
@@ -3062,542 +2632,6 @@
                 }
             }
         },
-        "/api/v1/hosted/checkout-sessions/{checkout_session_id}": {
-            "get": {
-                "description": "Unauthenticated read-only hosted page projection. Returns merchant display name, amount, evaluation_generation, the prepared privacy-safe offer (when available), and the masked verification destination. Never creates a Decision, binds a customer, sends OTP, or calls Financial Core.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Hosted External Checkout"
-                ],
-                "summary": "Get hosted external checkout",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Public checkout session token (cs_\u003c64 hex\u003e)",
-                        "name": "checkout_session_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Success",
-                        "schema": {
-                            "$ref": "#/definitions/checkoutsessionrs.HostedExternalGetSuccessSchema"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/hosted/checkout-sessions/{checkout_session_id}/confirm": {
-            "post": {
-                "description": "Unauthenticated. Verifies the SMS code, then runs Confirm \u0026 Pay for the customer bound to the checkout. A stale evaluation_generation returns reconfirm_required with the refreshed offer.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Hosted External Checkout"
-                ],
-                "summary": "Confirm hosted external checkout",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Public checkout session token (cs_\u003c64 hex\u003e)",
-                        "name": "checkout_session_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Offer version and SMS verification code",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/checkoutsessionrs.HostedExternalConfirmRequestSchema"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Success",
-                        "schema": {
-                            "$ref": "#/definitions/checkoutsessionrs.HostedExternalConfirmSuccessSchema"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Unprocessable Entity",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/hosted/checkout-sessions/{checkout_session_id}/return": {
-            "get": {
-                "description": "Unauthenticated browser navigation only. Redirects to the merchant ReturnURL persisted at checkout creation. Never accepts a destination URL from the request. Browser arrival is NOT payment or order-fulfillment authority — merchants must trust Partner Inquiry status=completed or the verified bnpl.checkout.completed.v1 webhook.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Hosted External Checkout"
-                ],
-                "summary": "Return from hosted external checkout",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Public checkout session token (cs_\u003c64 hex\u003e)",
-                        "name": "checkout_session_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "302": {
-                        "description": "Redirect to the pre-registered merchant return URL",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/hosted/checkout-sessions/{checkout_session_id}/start": {
-            "post": {
-                "description": "Unauthenticated. Requests an SMS OTP for the exact evaluation_generation returned by GET. Does not call Identity or create a Decision. Idempotent while a delivered/in-flight code is still valid.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Hosted External Checkout"
-                ],
-                "summary": "Request hosted external checkout OTP",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Public checkout session token (cs_\u003c64 hex\u003e)",
-                        "name": "checkout_session_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Offer version from Hosted GET",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/checkoutsessionrs.HostedExternalStartRequestSchema"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Success",
-                        "schema": {
-                            "$ref": "#/definitions/checkoutsessionrs.HostedExternalStartSuccessSchema"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/installments": {
             "get": {
                 "security": [
@@ -3759,229 +2793,6 @@
                     },
                     "403": {
                         "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/internal/checkout-sessions": {
-            "post": {
-                "security": [
-                    {
-                        "PermissionAuth": []
-                    }
-                ],
-                "description": "Creates the checkout and immediately evaluates the authenticated on-behalf customer.\nReturns checkout_url plus BNPL available credit and persisted installment-offer details to trusted first-party callers.\nFinal customer confirmation still happens on the hosted BNPL page; this response is not acceptance of terms.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Checkout Sessions"
-                ],
-                "summary": "Create trusted internal checkout session",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Stable authenticated subject identifier",
-                        "name": "x-auth-subject-id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Authenticated tenant UUID",
-                        "name": "x-auth-tenant-id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Authenticated business-context UUID",
-                        "name": "x-auth-context-id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "example": "bnpl:checkout-sessions:create:merchant,bnpl:decisions:create:on-behalf",
-                        "description": "Comma-separated gateway permissions",
-                        "name": "x-auth-permissions",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Optional; reused when present otherwise generated. Always returned.",
-                        "name": "X-Trace-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Optional; reused when present otherwise generated. Always returned.",
-                        "name": "X-Request-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Optional; reused when present otherwise generated. Always returned.",
-                        "name": "X-Correlation-Id",
-                        "in": "header"
-                    },
-                    {
-                        "description": "Internal checkout session request",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/checkoutsessionrs.CreateInternalRequestSchema"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Idempotent replay of an existing checkout session",
-                        "schema": {
-                            "$ref": "#/definitions/checkoutsessionrs.InternalCreateSuccessSchema"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "201": {
-                        "description": "Checkout session created and evaluated",
-                        "schema": {
-                            "$ref": "#/definitions/checkoutsessionrs.InternalCreateSuccessSchema"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/serdser.ErrorResponse"
                         },
@@ -5600,7 +4411,7 @@
                         "TerminalID": []
                     }
                 ],
-                "description": "Creates an idempotent merchant checkout handoff and prepares the financing offer internally.\nNo customer identity, credit balance, Decision, or installment offer is disclosed to the Merchant.\nPersonalized evaluation is prepared after BNPL resolves the Merchant-asserted phone through Identity. The offer is presented read-only in Hosted GET. OTP verification later proves phone possession and authorizes confirmation of that exact offer generation.",
+                "description": "Creates an idempotent merchant checkout handoff authenticated by terminal credentials (X-Terminal-Id, X-API-Key). Requires verified_phone_number. JWT and gateway Subject/Tenant/Context headers are not required.\nOffer preparation timing follows trusted merchant_profiles.offer_preparation_mode (on_create returns the Offer; on_start returns handoff metadata only). Every customer must complete BNPL SMS OTP on the unified token Confirm path.",
                 "consumes": [
                     "application/json"
                 ],
@@ -5610,7 +4421,7 @@
                 "tags": [
                     "Checkout Sessions"
                 ],
-                "summary": "Create external partner checkout session",
+                "summary": "Create partner checkout session",
                 "parameters": [
                     {
                         "type": "string",
@@ -5623,20 +4434,6 @@
                         "type": "string",
                         "description": "Secret API key of the partner terminal",
                         "name": "X-API-Key",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Gateway-injected tenant UUID (NOT merchant-selected; NOT a request-body field). Required only on Partner Create. Production infrastructure must strip client-supplied X-Auth-* and inject authoritative values after token validation; this BNPL repository does not enforce that Gateway trust boundary.",
-                        "name": "X-Auth-Tenant-Id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Gateway-injected context UUID (NOT merchant-selected; NOT a request-body field). Required only on Partner Create. Production infrastructure must strip client-supplied X-Auth-* and inject authoritative values after token validation; this BNPL repository does not enforce that Gateway trust boundary.",
-                        "name": "X-Auth-Context-Id",
                         "in": "header",
                         "required": true
                     },
@@ -6962,134 +5759,6 @@
                 }
             }
         },
-        "checkoutsessionrs.ConfirmRequestSchema": {
-            "type": "object",
-            "required": [
-                "evaluation_generation"
-            ],
-            "properties": {
-                "evaluation_generation": {
-                    "description": "EvaluationGeneration is the offer version returned by start (or by a\nprevious reconfirm_required response). A stale value never creates a\ncontract or payment; Confirm returns a refreshed offer instead.",
-                    "type": "integer",
-                    "minimum": 1,
-                    "example": 1
-                }
-            }
-        },
-        "checkoutsessionrs.ConfirmResponseSchema": {
-            "type": "object",
-            "properties": {
-                "checkout_session_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "contract": {
-                    "$ref": "#/definitions/checkoutsessionrs.confirmContractResponse"
-                },
-                "evaluation_generation": {
-                    "type": "integer",
-                    "example": 2
-                },
-                "expires_at": {
-                    "type": "string",
-                    "example": "2026-08-09T12:30:00Z"
-                },
-                "offer": {
-                    "$ref": "#/definitions/checkoutsessionrs.OfferSchema"
-                },
-                "payment_required": {
-                    "type": "boolean",
-                    "example": true
-                },
-                "reconfirm_required": {
-                    "type": "boolean",
-                    "example": false
-                },
-                "redirect_url": {
-                    "type": "string",
-                    "example": "https://pay.example/session/abc"
-                },
-                "status": {
-                    "enum": [
-                        "open",
-                        "confirming",
-                        "processing",
-                        "completed",
-                        "canceled",
-                        "expired",
-                        "unavailable"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/model.CheckoutSessionStatus"
-                        }
-                    ]
-                }
-            }
-        },
-        "checkoutsessionrs.ConfirmSuccessSchema": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/checkoutsessionrs.ConfirmResponseSchema"
-                },
-                "meta": {
-                    "$ref": "#/definitions/serdser.SuccessMetaNoPagination"
-                }
-            }
-        },
-        "checkoutsessionrs.CreateInternalRequestSchema": {
-            "type": "object",
-            "required": [
-                "currency",
-                "identity_subject_id",
-                "merchant_order_id",
-                "online_store_id",
-                "requested_amount_minor",
-                "return_destination"
-            ],
-            "properties": {
-                "currency": {
-                    "$ref": "#/definitions/model.Currency"
-                },
-                "customer_reference": {
-                    "type": "string",
-                    "maxLength": 256
-                },
-                "idempotency_key": {
-                    "description": "Distinct idempotency keys allow a new attempt after a terminal checkout.",
-                    "type": "string",
-                    "maxLength": 256
-                },
-                "identity_subject_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "merchant_order_id": {
-                    "type": "string",
-                    "maxLength": 256
-                },
-                "merchant_state": {
-                    "description": "MerchantState is optional opaque correlation; empty is valid.",
-                    "type": "string",
-                    "maxLength": 256
-                },
-                "online_store_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "requested_amount_minor": {
-                    "type": "integer",
-                    "minimum": 1
-                },
-                "return_destination": {
-                    "description": "ReturnDestination is a pre-registered lowercase kebab-case symbolic name\nmatching ^[a-z0-9]+(-[a-z0-9]+)*$ (1..64).\nNOTE: swag v1.16 does not emit a machine-readable pattern field from tags;\nthe regex is documented here and enforced by Core/UseCase/DB.",
-                    "type": "string",
-                    "maxLength": 64,
-                    "minLength": 1
-                }
-            }
-        },
         "checkoutsessionrs.CreatePartnerRequestSchema": {
             "type": "object",
             "required": [
@@ -7141,61 +5810,6 @@
                     "type": "string",
                     "maxLength": 64,
                     "minLength": 1
-                }
-            }
-        },
-        "checkoutsessionrs.GetResponseSchema": {
-            "type": "object",
-            "properties": {
-                "checkout_session_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "currency": {
-                    "$ref": "#/definitions/model.Currency"
-                },
-                "evaluation_generation": {
-                    "type": "integer",
-                    "example": 1
-                },
-                "expires_at": {
-                    "type": "string"
-                },
-                "merchant_order_id": {
-                    "type": "string"
-                },
-                "offer": {
-                    "$ref": "#/definitions/checkoutsessionrs.OfferSchema"
-                },
-                "requested_amount_minor": {
-                    "type": "integer"
-                },
-                "status": {
-                    "enum": [
-                        "open",
-                        "confirming",
-                        "processing",
-                        "completed",
-                        "canceled",
-                        "expired",
-                        "unavailable"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/model.CheckoutSessionStatus"
-                        }
-                    ]
-                }
-            }
-        },
-        "checkoutsessionrs.GetSuccessSchema": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/checkoutsessionrs.GetResponseSchema"
-                },
-                "meta": {
-                    "$ref": "#/definitions/serdser.SuccessMetaNoPagination"
                 }
             }
         },
@@ -7347,12 +5961,9 @@
         },
         "checkoutsessionrs.HostedExternalStartRequestSchema": {
             "type": "object",
-            "required": [
-                "evaluation_generation"
-            ],
             "properties": {
                 "evaluation_generation": {
-                    "description": "EvaluationGeneration is the offer version returned by Hosted GET.",
+                    "description": "EvaluationGeneration is the offer version returned by GET, when known.",
                     "type": "integer",
                     "minimum": 1,
                     "example": 1
@@ -7370,6 +5981,14 @@
                     "description": "EvaluationGeneration versions the offer. Send it back unchanged on Confirm.",
                     "type": "integer",
                     "example": 1
+                },
+                "offer": {
+                    "description": "Offer is the financing terms bound to evaluation_generation.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/checkoutsessionrs.hostedExternalOfferSchema"
+                        }
+                    ]
                 },
                 "otp_expires_at": {
                     "description": "OTPExpiresAt is when the active verification code stops being accepted.",
@@ -7398,48 +6017,6 @@
             "properties": {
                 "data": {
                     "$ref": "#/definitions/checkoutsessionrs.HostedExternalStartResponseSchema"
-                },
-                "meta": {
-                    "$ref": "#/definitions/serdser.SuccessMetaNoPagination"
-                }
-            }
-        },
-        "checkoutsessionrs.InternalCreateResponseSchema": {
-            "type": "object",
-            "properties": {
-                "checkout_session_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "checkout_url": {
-                    "type": "string"
-                },
-                "evaluation_generation": {
-                    "description": "EvaluationGeneration versions the offer. Send it back unchanged on Confirm.",
-                    "type": "integer",
-                    "example": 1
-                },
-                "offer": {
-                    "$ref": "#/definitions/checkoutsessionrs.OfferSchema"
-                },
-                "status": {
-                    "enum": [
-                        "open",
-                        "unavailable"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/model.CheckoutSessionStatus"
-                        }
-                    ]
-                }
-            }
-        },
-        "checkoutsessionrs.InternalCreateSuccessSchema": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/checkoutsessionrs.InternalCreateResponseSchema"
                 },
                 "meta": {
                     "$ref": "#/definitions/serdser.SuccessMetaNoPagination"
@@ -7526,6 +6103,14 @@
                 "expires_at": {
                     "type": "string"
                 },
+                "offer": {
+                    "description": "Offer is present only when merchant_profiles.offer_preparation_mode is\non_create (snapshotted onto the session). Omitted for on_start.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/checkoutsessionrs.OfferSchema"
+                        }
+                    ]
+                },
                 "status": {
                     "enum": [
                         "open",
@@ -7574,87 +6159,6 @@
             "properties": {
                 "data": {
                     "$ref": "#/definitions/checkoutsessionrs.ReturnDestinationResponseSchema"
-                },
-                "meta": {
-                    "$ref": "#/definitions/serdser.SuccessMetaNoPagination"
-                }
-            }
-        },
-        "checkoutsessionrs.ReturnResponseSchema": {
-            "type": "object",
-            "properties": {
-                "checkout_session_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "merchant_state": {
-                    "type": "string"
-                },
-                "return_url": {
-                    "type": "string"
-                },
-                "status": {
-                    "enum": [
-                        "open",
-                        "confirming",
-                        "processing",
-                        "completed",
-                        "canceled",
-                        "expired",
-                        "unavailable"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/model.CheckoutSessionStatus"
-                        }
-                    ]
-                }
-            }
-        },
-        "checkoutsessionrs.ReturnSuccessSchema": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/checkoutsessionrs.ReturnResponseSchema"
-                },
-                "meta": {
-                    "$ref": "#/definitions/serdser.SuccessMetaNoPagination"
-                }
-            }
-        },
-        "checkoutsessionrs.StartResponseSchema": {
-            "type": "object",
-            "properties": {
-                "checkout_session_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "evaluation_generation": {
-                    "description": "EvaluationGeneration versions the offer. Send it back unchanged on Confirm.",
-                    "type": "integer",
-                    "example": 1
-                },
-                "offer": {
-                    "$ref": "#/definitions/checkoutsessionrs.OfferSchema"
-                },
-                "status": {
-                    "enum": [
-                        "open",
-                        "unavailable"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/model.CheckoutSessionStatus"
-                        }
-                    ]
-                }
-            }
-        },
-        "checkoutsessionrs.StartSuccessSchema": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/checkoutsessionrs.StartResponseSchema"
                 },
                 "meta": {
                     "$ref": "#/definitions/serdser.SuccessMetaNoPagination"

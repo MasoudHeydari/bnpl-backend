@@ -118,8 +118,6 @@ func TestCreatePartner_UnsupportedMerchantJurisdictionFailsClosed(t *testing.T) 
 
 	h := newHarness(t)
 	h.expectPool(0, 1)
-	tenantID := h.testPaymentTenantID()
-	contextID := h.testPaymentContextID()
 	h.merchantTx.EXPECT().
 		GetByMerchantID(h.ctx, h.merchantID).
 		Return(model.MerchantProfile{
@@ -127,8 +125,7 @@ func TestCreatePartner_UnsupportedMerchantJurisdictionFailsClosed(t *testing.T) 
 			MerchantID:       h.merchantID,
 			Status:           model.ActiveMerchantStatus,
 			Jurisdiction:     model.Jurisdiction("TR"),
-			PaymentTenantID:  &tenantID,
-			PaymentContextID: &contextID,
+			OfferPreparationMode: model.OfferPreparationOnCreate,
 		}, nil).Once()
 	h.expectNoExistingSession()
 
@@ -233,8 +230,7 @@ func TestCreatePartner_ConflictRecoveryCanonicalizesBeforePhoneCompare(t *testin
 			testCustomerReference,
 			testifymock.AnythingOfType("*string"),
 			testifymock.AnythingOfType("*string"),
-			testifymock.AnythingOfType("*model.TenantID"),
-			testifymock.AnythingOfType("*model.ContextID"),
+			model.OfferPreparationOnCreate,
 			(*model.CustomerID)(nil),
 			testReturnDestination,
 			"https://shop.example/return",
@@ -249,8 +245,6 @@ func TestCreatePartner_ConflictRecoveryCanonicalizesBeforePhoneCompare(t *testin
 		Return(model.CheckoutSession{}, cerr.Conflict(errors.New("unique race"))).Once()
 
 	existing := h.session(func(s *model.CheckoutSession) { s.IdempotencyKey = testAttemptKey })
-	tenantID := h.testPaymentTenantID()
-	contextID := h.testPaymentContextID()
 	h.merchantCQ.EXPECT().
 		GetByMerchantID(h.ctx, h.merchantID).
 		Return(model.MerchantProfile{
@@ -258,8 +252,7 @@ func TestCreatePartner_ConflictRecoveryCanonicalizesBeforePhoneCompare(t *testin
 			MerchantID:       h.merchantID,
 			Status:           model.ActiveMerchantStatus,
 			Jurisdiction:     model.IRJurisdiction,
-			PaymentTenantID:  &tenantID,
-			PaymentContextID: &contextID,
+			OfferPreparationMode: model.OfferPreparationOnCreate,
 		}, nil).Once()
 	h.sessionCQ.EXPECT().
 		GetByMerchantIdempotencyKey(h.ctx, h.merchantPID, testAttemptKey).
@@ -365,8 +358,6 @@ func TestCreatePartner_DisabledJurisdictionFailsBeforePhoneCanonicalize(t *testi
 
 	h := newHarness(t)
 	h.expectPool(0, 1)
-	tenantID := h.testPaymentTenantID()
-	contextID := h.testPaymentContextID()
 	h.merchantTx.EXPECT().
 		GetByMerchantID(h.ctx, h.merchantID).
 		Return(model.MerchantProfile{
@@ -374,8 +365,7 @@ func TestCreatePartner_DisabledJurisdictionFailsBeforePhoneCanonicalize(t *testi
 			MerchantID:       h.merchantID,
 			Status:           model.ActiveMerchantStatus,
 			Jurisdiction:     model.Jurisdiction("TR"),
-			PaymentTenantID:  &tenantID,
-			PaymentContextID: &contextID,
+			OfferPreparationMode: model.OfferPreparationOnCreate,
 		}, nil).Once()
 	h.expectNoExistingSession()
 
@@ -386,50 +376,6 @@ func TestCreatePartner_DisabledJurisdictionFailsBeforePhoneCanonicalize(t *testi
 	require.Empty(t, h.notificationCalls)
 }
 
-func TestCreateInternal_DisabledJurisdictionFailsClosedWithoutPhone(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t)
-	h.expectPool(1, 1)
-	h.customerCQ.EXPECT().
-		GetByIdentitySubjectID(h.ctx, h.profileID).
-		Return(model.CustomerProfile{
-			ID:                h.customerID,
-			IdentitySubjectID: h.profileID,
-			Status:            model.ActiveCustomerStatus,
-			Jurisdiction:      model.IRJurisdiction,
-		}, nil).Once()
-	h.merchantTx.EXPECT().
-		GetByMerchantID(h.ctx, h.merchantID).
-		Return(model.MerchantProfile{
-			ID:           h.merchantPID,
-			MerchantID:   h.merchantID,
-			Status:       model.ActiveMerchantStatus,
-			Jurisdiction: model.Jurisdiction("TR"),
-		}, nil).Once()
-	h.expectNoExistingSession()
-
-	input := CreateInternalInput{
-		CheckoutSessionRequest: CheckoutSessionRequest{
-			MerchantID:           h.merchantID,
-			OnlineStoreID:        h.storeID,
-			MerchantOrderID:      testMerchantOrderID,
-			IdempotencyKey:       testAttemptKey,
-			CustomerReference:    testCustomerReference,
-			ReturnDestination:    testReturnDestination,
-			MerchantState:        testMerchantStateValue,
-			RequestedAmountMinor: testRequestedAmount,
-			Currency:             model.IRRCurrency,
-		},
-		IdentitySubjectID: h.profileID,
-	}
-
-	_, err := h.uc.CreateInternal(h.ctx, input)
-	require.True(t, cerr.IsCode(err, cerr.CodeInternalError))
-	require.False(t, cerr.IsCode(err, cerr.CodeInvalidArgument))
-	require.Empty(t, h.identityCalls)
-	require.Empty(t, h.notificationCalls)
-}
 
 func TestCreatePartner_IdempotentReplayAfterOriginationDisabled(t *testing.T) {
 	t.Parallel()
@@ -526,8 +472,7 @@ func TestCreatePartner_ConflictRecoveryDoesNotRequireOriginationAdmission(t *tes
 			testCustomerReference,
 			testifymock.AnythingOfType("*string"),
 			testifymock.AnythingOfType("*string"),
-			testifymock.AnythingOfType("*model.TenantID"),
-			testifymock.AnythingOfType("*model.ContextID"),
+			model.OfferPreparationOnCreate,
 			(*model.CustomerID)(nil),
 			testReturnDestination,
 			"https://shop.example/return",
@@ -551,8 +496,7 @@ func TestCreatePartner_ConflictRecoveryDoesNotRequireOriginationAdmission(t *tes
 			_ string,
 			_ *string,
 			_ *string,
-			_ *model.TenantID,
-			_ *model.ContextID,
+			_ model.OfferPreparationMode,
 			_ *model.CustomerID,
 			_ string,
 			_ string,
@@ -573,8 +517,6 @@ func TestCreatePartner_ConflictRecoveryDoesNotRequireOriginationAdmission(t *tes
 		Once()
 
 	existing := h.session(func(s *model.CheckoutSession) { s.IdempotencyKey = testAttemptKey })
-	tenantID := h.testPaymentTenantID()
-	contextID := h.testPaymentContextID()
 	h.merchantCQ.EXPECT().
 		GetByMerchantID(h.ctx, h.merchantID).
 		Return(model.MerchantProfile{
@@ -582,8 +524,7 @@ func TestCreatePartner_ConflictRecoveryDoesNotRequireOriginationAdmission(t *tes
 			MerchantID:       h.merchantID,
 			Status:           model.ActiveMerchantStatus,
 			Jurisdiction:     model.IRJurisdiction,
-			PaymentTenantID:  &tenantID,
-			PaymentContextID: &contextID,
+			OfferPreparationMode: model.OfferPreparationOnCreate,
 		}, nil).Once()
 	h.sessionCQ.EXPECT().
 		GetByMerchantIdempotencyKey(h.ctx, h.merchantPID, testAttemptKey).

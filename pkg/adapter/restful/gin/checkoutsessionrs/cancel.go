@@ -77,25 +77,19 @@ func (rs *resource) CancelByMerchant(c *gin.Context) {
 	serCancel(c, output)
 }
 
-// CancelByCustomer handles POST /api/v1/checkout-sessions/{checkout_session_id}/cancel.
+// CancelByToken handles POST /api/v1/checkout-sessions/{token}/cancel.
 //
 //	@Summary		Cancel hosted checkout
-//	@Description	Cancels the checkout for the authenticated bound customer when no submitted or ambiguous payment prevents cancellation.
+//	@Description	Cancels an open checkout when no submitted or ambiguous payment prevents cancellation.
 //	@Description	Returns the pre-registered merchant return URL with checkout_session_id and merchant state.
 //	@Tags			Checkout Sessions
 //	@Produce		json
-//	@Param			x-auth-subject-id	header		string				true	"Stable authenticated subject identifier"	format(uuid)
-//	@Param			x-auth-tenant-id	header		string				true	"Authenticated tenant UUID"					format(uuid)
-//	@Param			x-auth-context-id	header		string				true	"Authenticated business-context UUID"		format(uuid)
-//	@Param			x-auth-permissions	header		string				true	"Comma-separated gateway permissions"		example(bnpl:checkout-sessions:start:self)
 //	@Param			X-Trace-Id			header		string				false	"Optional; reused when present otherwise generated. Always returned."
 //	@Param			X-Request-Id		header		string				false	"Optional; reused when present otherwise generated. Always returned."
 //	@Param			X-Correlation-Id	header		string				false	"Optional; reused when present otherwise generated. Always returned."
-//	@Param			checkout_session_id	path		string				true	"Checkout session UUID"	format(uuid)
+//	@Param			token				path		string				true	"Public checkout session token (cs_<64 hex>)"
 //	@Success		200					{object}	CancelSuccessSchema	"Success"
 //	@Failure		400					{object}	serdser.ErrorResponse
-//	@Failure		401					{object}	serdser.ErrorResponse
-//	@Failure		403					{object}	serdser.ErrorResponse
 //	@Failure		404					{object}	serdser.ErrorResponse
 //	@Failure		409					{object}	serdser.ErrorResponse
 //	@Failure		500					{object}	serdser.ErrorResponse
@@ -105,12 +99,6 @@ func (rs *resource) CancelByMerchant(c *gin.Context) {
 //	@Header			400					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
 //	@Header			400					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
 //	@Header			400					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
-//	@Header			401					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
-//	@Header			401					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
-//	@Header			401					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
-//	@Header			403					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
-//	@Header			403					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
-//	@Header			403					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
 //	@Header			404					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
 //	@Header			404					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
 //	@Header			404					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
@@ -120,25 +108,16 @@ func (rs *resource) CancelByMerchant(c *gin.Context) {
 //	@Header			500					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
 //	@Header			500					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
 //	@Header			500					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
-//	@Security		PermissionAuth
-//	@Router			/api/v1/checkout-sessions/{checkout_session_id}/cancel [post]
-func (rs *resource) CancelByCustomer(c *gin.Context) {
-	sessionID, ok := checkoutSessionIDParam(c)
+//	@Router			/api/v1/checkout-sessions/{token}/cancel [post]
+func (rs *resource) CancelByToken(c *gin.Context) {
+	token, ok := checkoutTokenParam(c)
 	if !ok {
 		return
 	}
 
-	identitySubjectID, ok := authenticatedIdentitySubjectID(c)
-	if !ok {
-		return
-	}
-
-	output, err := rs.checkoutSession.CancelByCustomer(
+	output, err := rs.checkoutSession.CancelByToken(
 		c.Request.Context(),
-		checkoutsessionuc.CancelByCustomerInput{
-			CheckoutSessionID: sessionID,
-			IdentitySubjectID: identitySubjectID,
-		},
+		checkoutsessionuc.CancelByTokenInput{Token: token},
 	)
 	if err != nil {
 		serdser.SerErr(c, err)

@@ -43,25 +43,35 @@ func (uc *UseCase) CancelByMerchant(
 	)
 }
 
-// CancelByCustomer cancels a checkout the authenticated customer abandoned.
-func (uc *UseCase) CancelByCustomer(
+// CancelByToken cancels a checkout the customer abandoned from the hosted page.
+func (uc *UseCase) CancelByToken(
 	ctx context.Context,
-	input CancelByCustomerInput,
+	input CancelByTokenInput,
 ) (CancelOutput, error) {
-	if input.CheckoutSessionID.IsZero() {
-		return CancelOutput{}, checkoutSessionIDRequiredError()
+	if err := input.Token.Validate(); err != nil {
+		return CancelOutput{}, checkoutSessionTokenInvalidError(err)
 	}
 
-	if input.IdentitySubjectID.IsZero() {
-		return CancelOutput{}, identitySubjectIDRequiredError()
-	}
-
-	return uc.cancel(
+	return uc.cancelByPublicToken(
 		ctx,
-		input.CheckoutSessionID,
+		input.Token,
 		model.CustomerCanceledCheckoutReason,
-		uc.customerAuthorizer(input.IdentitySubjectID),
+		uc.publicTokenAuthorizer(),
 	)
+}
+
+func (uc *UseCase) publicTokenAuthorizer() sessionAuthorizer {
+	const op = "checkoutsessionuc.UseCase.publicTokenAuthorizer"
+
+	return func(_ context.Context, _ repo.Tx, session model.CheckoutSession) error {
+		if session.Origin != model.ExternalPartnerCheckoutSessionOrigin {
+			return checkoutSessionNotFoundError(
+				fmt.Errorf("%s: checkout session is not reachable by public token", op),
+			)
+		}
+
+		return nil
+	}
 }
 
 // cancelByPublicToken resolves the merchant-facing public token to the

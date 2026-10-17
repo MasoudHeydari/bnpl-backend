@@ -15,13 +15,13 @@ func TestSanitizeHTTPPathForLog_RedactsCheckoutPublicToken(t *testing.T) {
 
 	require.Equal(
 		t,
-		"/api/v1/hosted/checkout-sessions/cs_[REDACTED]/confirm",
-		middleware.SanitizeHTTPPathForLog("/api/v1/hosted/checkout-sessions/"+token+"/confirm"),
+		"/api/v1/checkout-sessions/cs_[REDACTED]/confirm",
+		middleware.SanitizeHTTPPathForLog("/api/v1/checkout-sessions/"+token+"/confirm"),
 	)
 	require.Equal(
 		t,
-		"/api/v1/hosted/checkout-sessions/cs_[REDACTED]",
-		middleware.SanitizeHTTPPathForLog("/api/v1/hosted/checkout-sessions/"+token),
+		"/api/v1/checkout-sessions/cs_[REDACTED]",
+		middleware.SanitizeHTTPPathForLog("/api/v1/checkout-sessions/"+token),
 	)
 	require.Equal(
 		t,
@@ -37,22 +37,22 @@ func TestSanitizeHTTPRefererForLog_RedactsCheckoutPublicToken(t *testing.T) {
 
 	require.Equal(
 		t,
-		"https://bnpl.example/api/v1/hosted/checkout-sessions/cs_[REDACTED]/confirm",
+		"https://bnpl.example/api/v1/checkout-sessions/cs_[REDACTED]/confirm",
 		middleware.SanitizeHTTPRefererForLog(
-			"https://bnpl.example/api/v1/hosted/checkout-sessions/"+token+"/confirm",
+			"https://bnpl.example/api/v1/checkout-sessions/"+token+"/confirm",
 		),
 	)
 	require.Equal(
 		t,
-		"https://bnpl.example/api/v1/hosted/checkout-sessions/cs_[REDACTED]",
+		"https://bnpl.example/api/v1/checkout-sessions/cs_[REDACTED]",
 		middleware.SanitizeHTTPRefererForLog(
-			"https://bnpl.example/api/v1/hosted/checkout-sessions/"+token+"?x=1#frag",
+			"https://bnpl.example/api/v1/checkout-sessions/"+token+"?x=1#frag",
 		),
 	)
 	require.NotContains(
 		t,
 		middleware.SanitizeHTTPRefererForLog(
-			"https://bnpl.example/api/v1/hosted/checkout-sessions/"+token,
+			"https://bnpl.example/api/v1/checkout-sessions/"+token,
 		),
 		token,
 	)

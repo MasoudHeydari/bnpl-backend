@@ -137,20 +137,22 @@ PartnerTerminalAuth → MerchantPrincipal + terminal permissions
 RequireAny(permission)
         ↓
 Partner use case
-        ↓ (Create only)
-MerchantProfile.payment_tenant_id / payment_context_id
-        ↓ snapshot onto CheckoutSession.auth_*
-Hosted Confirm → Financial Core
+        ↓ (Create)
+merchant_profiles.offer_preparation_mode
+        ↓ snapshot onto checkout_sessions.offer_preparation_mode
+Hosted START (on_start) or Create response (on_create) prepares offer
+        ↓
+Hosted Confirm → contract/payment (FC scope on payment_attempt only)
 ```
 
-**Two independent trust sources on Partner Create:**
+**Trust on Partner Create:**
 
 | Concern | Source |
 | --- | --- |
 | Merchant identity + permissions | Terminal ID + API key (`PartnerTerminalAuth`) |
-| TenantID + ContextID (Financial Core scope snapshot) | Server-owned `merchant_profiles.payment_*` (trusted BNPL provisioning) |
+| When the credit offer is prepared | Server-owned `merchant_profiles.offer_preparation_mode` (`on_create` \| `on_start`, default `on_start`) snapshotted on the session |
 
-Gateway-provided SubjectID/Permissions/Tenant/Context do **not** control Partner Merchant identity, permissions, or payment scope. A merchant cannot choose another merchant's scope. Missing payment-scope provisioning fails closed (`error.merchant_payment_scope_is_not_configured`) without creating a checkout.
+Gateway-provided SubjectID/Permissions/Tenant/Context do **not** control Partner Merchant identity or permissions. Financial Core tenant/context are **not** snapshotted on checkout sessions; they are stored on `payment_attempts` when payment scope is available at submission time.
 
 **Authentication ≠ Authorization.** The API key proves *who* the terminal is. It does **not** encode permissions. Permissions are assigned server-side to the terminal at provision time and loaded on every authenticated request.
 
@@ -179,7 +181,7 @@ Do **not** treat as Merchant-controlled on Partner routes:
 | --- | --- |
 | `x-auth-subject-id` | **Not trusted** for Merchant identity — terminal credentials own SubjectID |
 | `x-auth-permissions` | **Not trusted** — cannot escalate Partner access |
-| `x-auth-tenant-id` / `x-auth-context-id` | **Not required and not trusted** for Partner payment scope — server-owned merchant payment scope is authoritative |
+| `x-auth-tenant-id` / `x-auth-context-id` | **Not required and not trusted** on Partner routes |
 
 Missing, duplicate, malformed, unknown, or wrong **terminal** credentials all return the same public `401` (`error.invalid_terminal_credentials`). Callers cannot tell which part failed.
 
@@ -232,21 +234,21 @@ Notes:
 
 ### Hosted checkout routes — Merchant Backend must not use
 
-External partner integration uses **unauthenticated** hosted routes under `/api/v1/hosted/checkout-sessions/{checkout_session_id}/...` where `{checkout_session_id}` is the public token (`cs_<64 hex>`). The BNPL Hosted Checkout **frontend** calls those; Merchant Backend never does.
+External partner integration uses **unauthenticated** customer-token routes under `/api/v1/checkout-sessions/{token}/...` where `{token}` is the public checkout token (`cs_<64 hex>`). The BNPL Hosted Checkout **frontend** calls those; Merchant Backend never does.
 
-First-party / internal hosted flows use gateway customer auth on `/api/v1/checkout-sessions/...` (`x-auth-*` with `*:self` permissions). **Do not** point external merchants at those routes.
+These routes are registered **without** gateway `AuthContext.Attach` (sibling of authenticated `/api/v1` routes). OTP + public token are the customer credentials.
 
 | Audience | Base path | Auth |
 | --- | --- | --- |
-| External hosted UI | `/api/v1/hosted/checkout-sessions/...` | None (public token in path) |
-| Internal hosted UI | `/api/v1/checkout-sessions/...` | Gateway customer `x-auth-*` |
+| Hosted checkout UI (external partner) | `/api/v1/checkout-sessions/{token}/...` | None (public token + OTP) |
+| Merchant Partner API | `/api/v1/partner/checkout-sessions/...` | Terminal ID + API key |
 
-Internal-only permissions (not part of external Partner contract):
+Merchant-facing Partner permissions (not customer-token routes):
 
 | Permission | Endpoint |
 | --- | --- |
-| `bnpl:checkout-sessions:read:self` | GET session / GET return |
-| `bnpl:checkout-sessions:start:self` | POST start / confirm / customer cancel |
+| `bnpl:checkout-sessions:create:merchant` | Partner create / cancel |
+| `bnpl:checkout-sessions:read:merchant` | Partner inquiry |
 
 ---
 
@@ -528,14 +530,14 @@ Rules:
 
 ## Hosted External OTP flow (informational — Merchant Backend does not call these)
 
-These **unauthenticated** routes are called by the **BNPL Hosted Checkout frontend** for external partner sessions. Path `{checkout_session_id}` is the public token (`cs_<64 hex>`) from Create — not an internal UUID.
+These **unauthenticated** routes are called by the **BNPL Hosted Checkout frontend** for external partner sessions. Path `{token}` is the public token (`cs_<64 hex>`) from Create — not an internal UUID.
 
 | Method | Path |
 | --- | --- |
-| `GET` | `/api/v1/hosted/checkout-sessions/{checkout_session_id}` |
-| `POST` | `/api/v1/hosted/checkout-sessions/{checkout_session_id}/start` |
-| `POST` | `/api/v1/hosted/checkout-sessions/{checkout_session_id}/confirm` |
-| `GET` | `/api/v1/hosted/checkout-sessions/{checkout_session_id}/return` |
+| `GET` | `/api/v1/checkout-sessions/{token}` |
+| `POST` | `/api/v1/checkout-sessions/{token}/start` |
+| `POST` | `/api/v1/checkout-sessions/{token}/confirm` |
+| `GET` | `/api/v1/checkout-sessions/{token}/return` |
 
 Do **not** integrate external merchants against `/api/v1/checkout-sessions/...` (gateway customer auth — first-party / internal hosted only).
 
@@ -686,7 +688,7 @@ Merchant Backend must not call hosted start/confirm/return. Do not persist Finan
 ## Inquiry (authoritative)
 
 ```http
-GET /api/v1/partner/checkout-sessions/{checkout_session_id}
+GET /api/v1/partner/checkout-sessions/{token}
 Permission: bnpl:checkout-sessions:read:merchant
 Success: 200
 Success meta.code: CHECKOUT_SESSION_RETRIEVED
@@ -736,7 +738,7 @@ curl -sS "$BNPL_API_BASE/api/v1/partner/checkout-sessions/$CHECKOUT_SESSION_ID" 
 ## Cancellation
 
 ```http
-POST /api/v1/partner/checkout-sessions/{checkout_session_id}/cancel
+POST /api/v1/partner/checkout-sessions/{token}/cancel
 Permission: bnpl:checkout-sessions:create:merchant
 Success: 200
 Success meta.code: CHECKOUT_SESSION_CANCELED

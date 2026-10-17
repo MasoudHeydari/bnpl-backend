@@ -150,7 +150,7 @@ func TestHTTPDebugLogger_PreservesCheckoutTokenInPathAndReferer(t *testing.T) {
 	provider.EXPECT().NewCorrelationID().Return("correlation-1").Once()
 
 	token := "cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-	referer := "https://bnpl.example/api/v1/hosted/checkout-sessions/" + token + "/confirm"
+	referer := "https://bnpl.example/api/v1/checkout-sessions/" + token + "/confirm"
 
 	engine := newHTTPDebugEngine(
 		provider,
@@ -161,7 +161,7 @@ func TestHTTPDebugLogger_PreservesCheckoutTokenInPathAndReferer(t *testing.T) {
 		},
 	)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/hosted/checkout-sessions/"+token, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/checkout-sessions/"+token, nil)
 	req.Header.Set("Referer", referer)
 
 	rec := httptest.NewRecorder()
@@ -169,7 +169,7 @@ func TestHTTPDebugLogger_PreservesCheckoutTokenInPathAndReferer(t *testing.T) {
 
 	record := logger.snapshot()[0]
 	assert.Equal(t, referer, attrString(t, record.attrs, "http.referer"))
-	assert.Equal(t, "/api/v1/hosted/checkout-sessions/"+token, attrString(t, record.attrs, "http.path"))
+	assert.Equal(t, "/api/v1/checkout-sessions/"+token, attrString(t, record.attrs, "http.path"))
 	assert.Contains(t, attrString(t, record.attrs, "http.path"), token)
 }
 
@@ -375,7 +375,7 @@ func newHTTPDebugEngine(
 	e := gin.New()
 	e.Use(TraceID(provider), HTTPDebugLogger(logger, opts))
 	e.Any("/", handler)
-	e.GET("/api/v1/hosted/checkout-sessions/:token", handler)
+	e.GET("/api/v1/checkout-sessions/:token", handler)
 
 	return e
 }

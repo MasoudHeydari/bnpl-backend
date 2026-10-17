@@ -173,11 +173,11 @@ packages:
         config:
           structname: ContractCancellationClient
 
-  github.com/parstis/bnpl-backend/pkg/core/external/identity:
+  github.com/parstis/bnpl-backend/pkg/core/external/customer:
     interfaces:
       Resolver:
         config:
-          structname: IdentityResolver
+          structname: CustomerResolver
 
   github.com/parstis/bnpl-backend/pkg/core/external/notification:
     interfaces:

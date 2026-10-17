@@ -36,9 +36,9 @@ type External struct {
 	// FinancialCore configures Financial Core external integrations.
 	FinancialCore ExternalFinancialCore `yaml:"financial_core"`
 
-	// Identity configures the Identity Service integration used by hosted
-	// external checkout for mobile → subject resolution.
-	Identity ExternalIdentity `yaml:"identity"`
+	// Customer configures the Customer Reference Service integration used by
+	// Partner checkout for mobile → external customer_id resolution.
+	Customer ExternalCustomer `yaml:"customer"`
 
 	// Notification configures the Notification Service integration used by
 	// hosted external checkout OTP submission.

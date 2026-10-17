@@ -55,8 +55,12 @@ func (id *CustomerID) Scan(src any) error {
 
 func (id CustomerID) Value() (driver.Value, error) { return uuid.UUID(id).Value() }
 
-// IdentitySubjectID is the Identity Service subject id stored as
-// customer_profiles.identity_subject_id and received as x-auth-subject-id.
+// IdentitySubjectID is the external Customer Reference Service customer_id
+// stored as customer_profiles.identity_subject_id.
+//
+// Gateway-authenticated APIs may still receive this value as
+// x-auth-subject-id. It is never the BNPL-local customer_profiles.id
+// (CustomerID).
 type IdentitySubjectID uuid.UUID
 
 // ParseIdentitySubjectID parses an IdentitySubjectID from its canonical string form.

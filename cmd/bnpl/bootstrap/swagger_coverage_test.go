@@ -202,9 +202,9 @@ type swaggerResponseDoc struct {
 	Headers map[string]json.RawMessage `json:"headers"`
 }
 
-// hostedExternalPathPrefix prefixes the unauthenticated hosted external
-// checkout routes.
-const hostedExternalPathPrefix = "/api/v1/hosted/"
+// customerTokenCheckoutPathPrefix prefixes unauthenticated customer-token
+// checkout routes (public token in path; no gateway auth).
+const customerTokenCheckoutPathPrefix = "/api/v1/checkout-sessions/{token}"
 
 func TestSwaggerAuthContractAndInitialCreditHasNoBody(t *testing.T) {
 	t.Parallel()
@@ -245,7 +245,7 @@ func TestSwaggerAuthContractAndInitialCreditHasNoBody(t *testing.T) {
 
 			// Hosted external routes are unauthenticated: the public checkout
 			// token and SMS OTP are the credentials, so no gateway auth applies.
-			if strings.HasPrefix(path, hostedExternalPathPrefix) {
+			if strings.HasPrefix(path, customerTokenCheckoutPathPrefix) {
 				require.Falsef(
 					t,
 					hasSwaggerSecurity(op.Security, "PermissionAuth") ||

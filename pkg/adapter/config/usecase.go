@@ -11,7 +11,7 @@ import (
 	extcheckoutpayment "github.com/parstis/bnpl-backend/pkg/core/external/checkoutpayment"
 	extcontractcancellation "github.com/parstis/bnpl-backend/pkg/core/external/contractcancellation"
 	extcreditassessment "github.com/parstis/bnpl-backend/pkg/core/external/creditassessment"
-	extidentity "github.com/parstis/bnpl-backend/pkg/core/external/identity"
+	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"
 	extnotification "github.com/parstis/bnpl-backend/pkg/core/external/notification"
 	"github.com/parstis/bnpl-backend/pkg/core/fingerprint"
 	corehealth "github.com/parstis/bnpl-backend/pkg/core/health"
@@ -350,7 +350,7 @@ func (c CheckoutSession) newUseCase(
 	customerPhoneBox secretbox.Box,
 	returnURLPolicy returndestination.Policy,
 	clk clock.Clock,
-	identityResolver extidentity.Resolver,
+	customerResolver extcustomer.Resolver,
 	notificationSubmitter extnotification.Submitter,
 	jurisdictions domaincapability.OriginationJurisdictions,
 	phoneCanonicalizer corephonenumber.Canonicalizer,
@@ -394,7 +394,7 @@ func (c CheckoutSession) newUseCase(
 		c.TTL,
 		c.ExpiryBatchSize,
 		otpHasher,
-		identityResolver,
+		customerResolver,
 		notificationSubmitter,
 		jurisdictions,
 		phoneCanonicalizer,

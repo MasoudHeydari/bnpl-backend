@@ -64,12 +64,11 @@ INSERT INTO bnpl.checkout_sessions (
 	status,
 	expires_at,
 	evaluation_generation,
-	auth_tenant_id,
-	auth_context_id
+	offer_preparation_mode
 ) VALUES (
 	$1, $2, $3, $4, $5, '',
 	'cs_' || md5(random()::text) || md5(random()::text), 'external_partner',
-	$6, $7, '', 1, 'IRR', 'open', now() + interval '1 hour', 1, $8, $9
+	$6, $7, '', 1, 'IRR', 'open', now() + interval '1 hour', 1, 'on_start'
 )`,
 		merchantProfileID,
 		branchProfileID,
@@ -78,8 +77,6 @@ INSERT INTO bnpl.checkout_sessions (
 		"order-"+uuid.NewString(),
 		validName,
 		"https://merchant.example/return",
-		uuid.New(),
-		uuid.New(),
 	)
 	require.NoError(t, err, "valid return_destination must insert")
 
@@ -121,12 +118,11 @@ INSERT INTO bnpl.checkout_sessions (
 	status,
 	expires_at,
 	evaluation_generation,
-	auth_tenant_id,
-	auth_context_id
+	offer_preparation_mode
 ) VALUES (
 	$1, $2, $3, $4, $5, '',
 	'cs_' || md5(random()::text) || md5(random()::text), 'external_partner',
-	$6, $7, '', 1, 'IRR', 'open', now() + interval '1 hour', 1, $8, $9
+	$6, $7, '', 1, 'IRR', 'open', now() + interval '1 hour', 1, 'on_start'
 )`,
 				merchantProfileID,
 				branchProfileID,
@@ -135,8 +131,6 @@ INSERT INTO bnpl.checkout_sessions (
 				"order-"+uuid.NewString(),
 				name,
 				"https://merchant.example/return",
-				uuid.New(),
-				uuid.New(),
 			)
 			requireCheckViolation(t, insertErr)
 		})

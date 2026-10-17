@@ -9,18 +9,20 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
-// GetExternal returns the read-only hosted page projection of an external
-// checkout: merchant display name, amount, evaluation generation, the prepared
-// offer (when linked), and the masked phone the verification code goes to.
+// GetExternal returns the read-only hosted page projection of a customer
+// checkout token: merchant display name, amount, evaluation generation, the
+// prepared offer (when linked), and the masked phone the verification code goes
+// to.
 //
-// It is strictly read-only. It never calls Identity, creates a Decision, binds
-// a customer, increments evaluation_generation, sends OTP, creates a Contract,
-// creates a PaymentAttempt, or calls Financial Core. Open sessions past
-// expires_at are projected as expired without writing state.
+// It is strictly read-only. It never calls the Customer Reference Service,
+// creates a Decision, binds a customer, increments evaluation_generation, sends
+// OTP, creates a Contract, creates a PaymentAttempt, or calls Financial Core.
+// Open sessions past expires_at are projected as expired without writing state.
 //
-// The offer must already have been prepared during Partner Create. Offer
-// economics are purchase-specific and privacy-safe: available_credit_minor,
-// customer_reference, customer ids, and reason codes never appear.
+// When offer_preparation_mode is on_start, Offer may be absent until START
+// prepares it. Offer economics are purchase-specific and privacy-safe:
+// available_credit_minor, customer_reference, customer ids, and reason codes
+// never appear.
 func (uc *UseCase) GetExternal(ctx context.Context, input GetExternalInput) (GetExternalOutput, error) {
 	const op = "checkoutsessionuc.UseCase.GetExternal"
 

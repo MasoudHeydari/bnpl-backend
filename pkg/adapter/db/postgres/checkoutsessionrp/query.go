@@ -31,8 +31,7 @@ const checkoutSessionColumns = `
 	otp_notification_request_id,
 	otp_send_count,
 	otp_evaluation_generation,
-	auth_tenant_id,
-	auth_context_id,
+	offer_preparation_mode,
 	customer_id,
 	return_destination,
 	return_url,
@@ -86,8 +85,7 @@ func Create[Q postgres.Queryer](
 	customerReference string,
 	customerPhoneCiphertext *string,
 	customerPhoneKeyID *string,
-	authTenantID *model.TenantID,
-	authContextID *model.ContextID,
+	offerPreparationMode model.OfferPreparationMode,
 	customerID *model.CustomerID,
 	returnDestination string,
 	returnURL string,
@@ -130,29 +128,11 @@ func Create[Q postgres.Queryer](
 		)
 	}
 
-	if (authTenantID == nil) != (authContextID == nil) {
+	if !offerPreparationMode.IsValid() {
 		return model.CheckoutSession{}, cerr.InvalidArgument(
-			fmt.Errorf("%s: auth tenant id and context id must be set together", op),
+			fmt.Errorf("%s: unsupported offer preparation mode %q", op, offerPreparationMode),
 			nil,
 		)
-	}
-
-	switch origin {
-	case model.ExternalPartnerCheckoutSessionOrigin:
-		if authTenantID == nil || authTenantID.IsZero() || authContextID == nil || authContextID.IsZero() {
-			return model.CheckoutSession{}, cerr.InvalidArgument(
-				fmt.Errorf("%s: external partner checkout requires non-zero auth tenant and context", op),
-				nil,
-			)
-		}
-
-	case model.InternalCheckoutSessionOrigin:
-		if authTenantID != nil || authContextID != nil {
-			return model.CheckoutSession{}, cerr.InvalidArgument(
-				fmt.Errorf("%s: internal checkout must not snapshot partner auth scope", op),
-				nil,
-			)
-		}
 	}
 
 	const query = `
@@ -167,8 +147,7 @@ INSERT INTO checkout_sessions (
 	customer_reference,
 	customer_phone_ciphertext,
 	customer_phone_key_id,
-	auth_tenant_id,
-	auth_context_id,
+	offer_preparation_mode,
 	customer_id,
 	return_destination,
 	return_url,
@@ -180,7 +159,7 @@ INSERT INTO checkout_sessions (
 	created_at,
 	updated_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
 RETURNING` + checkoutSessionColumns
 
 	row, err := postgres.QueryOne[model.CheckoutSession](
@@ -198,8 +177,7 @@ RETURNING` + checkoutSessionColumns
 		customerReference,
 		customerPhoneCiphertext,
 		customerPhoneKeyID,
-		authTenantID,
-		authContextID,
+		offerPreparationMode,
 		customerID,
 		returnDestination,
 		returnURL,

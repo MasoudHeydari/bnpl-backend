@@ -8,7 +8,7 @@ import (
 
 	checkoutpaymentext "github.com/parstis/bnpl-backend/pkg/adapter/external/checkoutpayment"
 	creditassessmentext "github.com/parstis/bnpl-backend/pkg/adapter/external/creditassessment"
-	identityext "github.com/parstis/bnpl-backend/pkg/adapter/external/identity"
+	customerext "github.com/parstis/bnpl-backend/pkg/adapter/external/customer"
 	"github.com/parstis/bnpl-backend/pkg/adapter/external/merchantwebhook"
 	notificationext "github.com/parstis/bnpl-backend/pkg/adapter/external/notification"
 	adaptercache "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/cache"
@@ -25,9 +25,9 @@ import (
 // requireProductionIdentityAndNotification configures non-noop Identity and
 // Notification gRPC settings required for production validation fixtures.
 func requireProductionIdentityAndNotification(cfg *Config) {
-	cfg.External.Identity.Provider = string(identityext.GRPCProvider)
-	cfg.External.Identity.GRPC.Address = "127.0.0.1:50053"
-	cfg.External.Identity.GRPC.Timeout = time.Second
+	cfg.External.Customer.Provider = string(customerext.GRPCProvider)
+	cfg.External.Customer.GRPC.Address = "127.0.0.1:50053"
+	cfg.External.Customer.GRPC.Timeout = time.Second
 	cfg.External.Notification.Provider = string(notificationext.GRPCProvider)
 	cfg.External.Notification.GRPC.Address = "127.0.0.1:50054"
 	cfg.External.Notification.GRPC.Timeout = time.Second
@@ -172,8 +172,8 @@ func validConfig() *Config {
 				Provider:         string(checkoutpaymentext.NoopProvider),
 				PaymentReturnURL: "https://bnpl.example/payments/return",
 			},
-			Identity: ExternalIdentity{
-				Provider: string(identityext.NoopProvider),
+			Customer: ExternalCustomer{
+				Provider: string(customerext.NoopProvider),
 			},
 			Notification: ExternalNotification{
 				Provider: string(notificationext.NoopProvider),

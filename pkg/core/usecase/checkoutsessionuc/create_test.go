@@ -10,7 +10,7 @@ import (
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/event/checkoutlifecycle"
-	extidentity "github.com/parstis/bnpl-backend/pkg/core/external/identity"
+	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 )
 
@@ -47,27 +47,15 @@ func (h *harness) partnerRequest(mods ...func(*CheckoutSessionRequest)) CreatePa
 	}
 }
 
-func (h *harness) testPaymentTenantID() model.TenantID {
-	return model.TenantID(uuid.MustParse("11111111-1111-1111-1111-111111111111"))
-}
-
-func (h *harness) testPaymentContextID() model.ContextID {
-	return model.ContextID(uuid.MustParse("22222222-2222-2222-2222-222222222222"))
-}
-
 func (h *harness) expectActiveMerchant() {
-	tenantID := h.testPaymentTenantID()
-	contextID := h.testPaymentContextID()
-
 	h.merchantTx.EXPECT().
 		GetByMerchantID(h.ctx, h.merchantID).
 		Return(model.MerchantProfile{
-			ID:               h.merchantPID,
-			MerchantID:       h.merchantID,
-			Status:           model.ActiveMerchantStatus,
-			Jurisdiction:     model.IRJurisdiction,
-			PaymentTenantID:  &tenantID,
-			PaymentContextID: &contextID,
+			ID:                     h.merchantPID,
+			MerchantID:             h.merchantID,
+			Status:                 model.ActiveMerchantStatus,
+			Jurisdiction:           model.IRJurisdiction,
+			OfferPreparationMode:   model.OfferPreparationOnCreate,
 		}, nil).Once()
 }
 
@@ -118,10 +106,7 @@ func (h *harness) expectNewAttemptCreated() model.CheckoutSession {
 	created.Origin = model.ExternalPartnerCheckoutSessionOrigin
 	created.CustomerPhoneCiphertext = &phoneCiphertext
 	created.CustomerPhoneKeyID = &phoneKeyID
-	tenantID := model.TenantID(uuid.MustParse("11111111-1111-1111-1111-111111111111"))
-	contextID := model.ContextID(uuid.MustParse("22222222-2222-2222-2222-222222222222"))
-	created.AuthTenantID = &tenantID
-	created.AuthContextID = &contextID
+	created.OfferPreparationMode = model.OfferPreparationOnCreate
 
 	h.sessionTx.EXPECT().
 		Create(
@@ -136,8 +121,7 @@ func (h *harness) expectNewAttemptCreated() model.CheckoutSession {
 			testCustomerReference,
 			testifymock.AnythingOfType("*string"),
 			testifymock.AnythingOfType("*string"),
-			testifymock.AnythingOfType("*model.TenantID"),
-			testifymock.AnythingOfType("*model.ContextID"),
+			model.OfferPreparationOnCreate,
 			(*model.CustomerID)(nil),
 			testReturnDestination,
 			"https://shop.example/return",
@@ -329,8 +313,7 @@ func TestCreatePartner_IdempotentReplayDifferentAuthScopeConflicts(t *testing.T)
 	// Session snapshotted a different payment scope than the merchant's
 	// current provisioned scope — immutable scope matching must conflict.
 	existing := h.session(func(s *model.CheckoutSession) {
-		otherTenant := model.TenantID(uuid.MustParse("33333333-3333-3333-3333-333333333333"))
-		s.AuthTenantID = &otherTenant
+		s.OfferPreparationMode = model.OfferPreparationOnStart
 	})
 	h.sessionTx.EXPECT().
 		LockByMerchantIdempotencyKey(h.ctx, h.merchantPID, testAttemptKey).
@@ -340,7 +323,7 @@ func TestCreatePartner_IdempotentReplayDifferentAuthScopeConflicts(t *testing.T)
 	requireCerr(t, err, cerr.CodeIdempotencyConflict, merchantOrderConflict)
 }
 
-func TestCreatePartner_SnapshotsMerchantPaymentScopeOntoSession(t *testing.T) {
+func TestCreatePartner_SnapshotsOfferPreparationModeOntoSession(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
@@ -358,29 +341,9 @@ func TestCreatePartner_SnapshotsMerchantPaymentScopeOntoSession(t *testing.T) {
 	output, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
 	require.NoError(t, err)
 	require.Equal(t, CreateResultCreated, output.Result)
-	require.NotNil(t, output.Session.AuthTenantID)
-	require.NotNil(t, output.Session.AuthContextID)
-	require.Equal(t, h.testPaymentTenantID(), *output.Session.AuthTenantID)
-	require.Equal(t, h.testPaymentContextID(), *output.Session.AuthContextID)
+	require.Equal(t, model.OfferPreparationOnCreate, output.Session.EffectiveOfferPreparationMode())
 }
 
-func TestCreatePartner_MissingMerchantPaymentScopeFailsClosed(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t)
-	h.expectPool(0, 1)
-	h.merchantTx.EXPECT().
-		GetByMerchantID(h.ctx, h.merchantID).
-		Return(model.MerchantProfile{
-			ID:           h.merchantPID,
-			MerchantID:   h.merchantID,
-			Status:       model.ActiveMerchantStatus,
-			Jurisdiction: model.IRJurisdiction,
-		}, nil).Once()
-
-	_, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
-	requireCerr(t, err, cerr.CodeForbidden, "error.merchant_payment_scope_is_not_configured")
-}
 
 func TestCreatePartner_IdentityNotFoundTerminalizesUnavailable(t *testing.T) {
 	t.Parallel()
@@ -418,55 +381,45 @@ func TestCreatePartner_IdentityNotFoundTerminalizesUnavailable(t *testing.T) {
 	require.Empty(t, h.notificationCalls)
 }
 
-func TestCreatePartner_IdentitySuspendedOrDeletedTerminalizesUnavailable(t *testing.T) {
+func TestCreatePartner_CustomerSuspendedTerminalizesUnavailable(t *testing.T) {
 	t.Parallel()
 
-	for _, status := range []extidentity.SubjectStatus{
-		extidentity.SuspendedSubjectStatus,
-		extidentity.DeletedSubjectStatus,
-	} {
-		t.Run(string(status), func(t *testing.T) {
-			t.Parallel()
+	h := newHarness(t)
+	h.expectPool(0, 2)
+	h.expectActiveMerchant()
+	h.expectKeyNotFound()
 
-			h := newHarness(t)
-			h.expectPool(0, 2)
-			h.expectActiveMerchant()
-			h.expectKeyNotFound()
+	previous := h.session(
+		withStatus(model.ExpiredCheckoutSessionStatus),
+		func(s *model.CheckoutSession) { s.IdempotencyKey = "attempt-0" },
+	)
+	h.sessionTx.EXPECT().
+		LockByMerchantOrderID(h.ctx, h.merchantPID, testMerchantOrderID).
+		Return(previous, nil).Once()
 
-			previous := h.session(
-				withStatus(model.ExpiredCheckoutSessionStatus),
-				func(s *model.CheckoutSession) { s.IdempotencyKey = "attempt-0" },
-			)
-			h.sessionTx.EXPECT().
-				LockByMerchantOrderID(h.ctx, h.merchantPID, testMerchantOrderID).
-				Return(previous, nil).Once()
+	created := h.expectNewAttemptCreated()
+	unavailable := created
+	unavailable.Status = model.UnavailableCheckoutSessionStatus
 
-			created := h.expectNewAttemptCreated()
-			unavailable := created
-			unavailable.Status = model.UnavailableCheckoutSessionStatus
-
-			h.identityOutput = extidentity.ResolveByMobileOutput{
-				IdentitySubjectID: h.profileID,
-				SubjectType:       extidentity.IndividualSubjectType,
-				SubjectStatus:     status,
-			}
-			h.sessionTx.EXPECT().LockByPublicToken(h.ctx, h.publicToken).Return(created, nil).Once()
-			h.sessionTx.EXPECT().
-				UpdateStatus(h.ctx, created.ID, model.UnavailableCheckoutSessionStatus, h.now).
-				Return(unavailable, nil).Once()
-			h.expectLifecycleEvent(unavailable, checkoutlifecycle.EventTypeUnavailable)
-
-			output, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
-			require.NoError(t, err)
-			require.Equal(t, model.UnavailableCheckoutSessionStatus, output.Session.Status)
-			require.Len(t, h.identityCalls, 1)
-			require.Empty(t, h.decisions.calls)
-			require.Empty(t, h.notificationCalls)
-		})
+	h.identityOutput = extcustomer.ResolveByMobileOutput{
+		ExternalCustomerID: h.profileID,
+		Status:             extcustomer.SuspendedStatus,
 	}
+	h.sessionTx.EXPECT().LockByPublicToken(h.ctx, h.publicToken).Return(created, nil).Once()
+	h.sessionTx.EXPECT().
+		UpdateStatus(h.ctx, created.ID, model.UnavailableCheckoutSessionStatus, h.now).
+		Return(unavailable, nil).Once()
+	h.expectLifecycleEvent(unavailable, checkoutlifecycle.EventTypeUnavailable)
+
+	output, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
+	require.NoError(t, err)
+	require.Equal(t, model.UnavailableCheckoutSessionStatus, output.Session.Status)
+	require.Len(t, h.identityCalls, 1)
+	require.Empty(t, h.decisions.calls)
+	require.Empty(t, h.notificationCalls)
 }
 
-func TestCreatePartner_IdentityGroupSubjectFailsClosed(t *testing.T) {
+func TestCreatePartner_UnsupportedCustomerStatusFailsClosed(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
@@ -483,10 +436,9 @@ func TestCreatePartner_IdentityGroupSubjectFailsClosed(t *testing.T) {
 		Return(previous, nil).Once()
 
 	_ = h.expectNewAttemptCreated()
-	h.identityOutput = extidentity.ResolveByMobileOutput{
-		IdentitySubjectID: h.profileID,
-		SubjectType:       extidentity.GroupSubjectType,
-		SubjectStatus:     extidentity.ActiveSubjectStatus,
+	h.identityOutput = extcustomer.ResolveByMobileOutput{
+		ExternalCustomerID: h.profileID,
+		Status:             extcustomer.Status("unspecified"),
 	}
 
 	_, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())

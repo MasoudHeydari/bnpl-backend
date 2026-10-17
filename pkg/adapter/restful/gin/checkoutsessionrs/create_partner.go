@@ -11,10 +11,9 @@ import (
 
 // CreatePartner handles POST /api/v1/partner/checkout-sessions.
 //
-//	@Summary		Create external partner checkout session
-//	@Description	Creates an idempotent merchant checkout handoff and prepares the financing offer internally.
-//	@Description	No customer identity, credit balance, Decision, or installment offer is disclosed to the Merchant.
-//	@Description	Personalized evaluation is prepared after BNPL resolves the Merchant-asserted phone through Identity. The offer is presented read-only in Hosted GET. OTP verification later proves phone possession and authorizes confirmation of that exact offer generation.
+//	@Summary		Create partner checkout session
+//	@Description	Creates an idempotent merchant checkout handoff authenticated by terminal credentials (X-Terminal-Id, X-API-Key). Requires verified_phone_number. JWT and gateway Subject/Tenant/Context headers are not required.
+//	@Description	Offer preparation timing follows trusted merchant_profiles.offer_preparation_mode (on_create returns the Offer; on_start returns handoff metadata only). Every customer must complete BNPL SMS OTP on the unified token Confirm path.
 //	@Tags			Checkout Sessions
 //	@Accept			json
 //	@Produce		json

@@ -100,7 +100,8 @@ func TestStartExternal_MerchantDisplayNameFailureBeforeOTPBudget(t *testing.T) {
 
 	h := newHarness(t)
 	// begin, project offer, merchant display — issueOTP never opens a TX.
-	h.expectPool(2, 1)
+	h.expectPool(3, 1)
+	h.expectStartExternalPrepareLoad()
 
 	prepared := h.session()
 	h.expectProjectApprovedOffer(prepared)
@@ -121,7 +122,8 @@ func TestStartExternal_MerchantDisplayNameEmptyBeforeOTPBudget(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	h.expectPool(2, 1)
+	h.expectPool(3, 1)
+	h.expectStartExternalPrepareLoad()
 
 	prepared := h.session()
 	h.expectProjectApprovedOffer(prepared)

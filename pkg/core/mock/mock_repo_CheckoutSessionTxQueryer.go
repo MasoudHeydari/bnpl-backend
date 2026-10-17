@@ -439,8 +439,8 @@ func (_c *CheckoutSessionTxQueryer_ConsumeOTPRateLimit_Call) RunAndReturn(run fu
 }
 
 // Create provides a mock function for the type CheckoutSessionTxQueryer
-func (_mock *CheckoutSessionTxQueryer) Create(ctx context.Context, merchantProfileID model.MerchantProfileID, merchantBranchProfileID model.MerchantBranchProfileID, onlineStoreID model.OnlineStoreID, merchantOrderID string, idempotencyKey string, publicToken model.CheckoutSessionToken, origin model.CheckoutSessionOrigin, customerReference string, customerPhoneCiphertext *string, customerPhoneKeyID *string, authTenantID *model.TenantID, authContextID *model.ContextID, customerID *model.CustomerID, returnDestination string, returnURL string, merchantState string, requestedAmountMinor uint64, currency model.Currency, status model.CheckoutSessionStatus, expiresAt time.Time, createdAt time.Time, updatedAt time.Time) (model.CheckoutSession, error) {
-	ret := _mock.Called(ctx, merchantProfileID, merchantBranchProfileID, onlineStoreID, merchantOrderID, idempotencyKey, publicToken, origin, customerReference, customerPhoneCiphertext, customerPhoneKeyID, authTenantID, authContextID, customerID, returnDestination, returnURL, merchantState, requestedAmountMinor, currency, status, expiresAt, createdAt, updatedAt)
+func (_mock *CheckoutSessionTxQueryer) Create(ctx context.Context, merchantProfileID model.MerchantProfileID, merchantBranchProfileID model.MerchantBranchProfileID, onlineStoreID model.OnlineStoreID, merchantOrderID string, idempotencyKey string, publicToken model.CheckoutSessionToken, origin model.CheckoutSessionOrigin, customerReference string, customerPhoneCiphertext *string, customerPhoneKeyID *string, offerPreparationMode model.OfferPreparationMode, customerID *model.CustomerID, returnDestination string, returnURL string, merchantState string, requestedAmountMinor uint64, currency model.Currency, status model.CheckoutSessionStatus, expiresAt time.Time, createdAt time.Time, updatedAt time.Time) (model.CheckoutSession, error) {
+	ret := _mock.Called(ctx, merchantProfileID, merchantBranchProfileID, onlineStoreID, merchantOrderID, idempotencyKey, publicToken, origin, customerReference, customerPhoneCiphertext, customerPhoneKeyID, offerPreparationMode, customerID, returnDestination, returnURL, merchantState, requestedAmountMinor, currency, status, expiresAt, createdAt, updatedAt)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Create")
@@ -448,16 +448,16 @@ func (_mock *CheckoutSessionTxQueryer) Create(ctx context.Context, merchantProfi
 
 	var r0 model.CheckoutSession
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantProfileID, model.MerchantBranchProfileID, model.OnlineStoreID, string, string, model.CheckoutSessionToken, model.CheckoutSessionOrigin, string, *string, *string, *model.TenantID, *model.ContextID, *model.CustomerID, string, string, string, uint64, model.Currency, model.CheckoutSessionStatus, time.Time, time.Time, time.Time) (model.CheckoutSession, error)); ok {
-		return returnFunc(ctx, merchantProfileID, merchantBranchProfileID, onlineStoreID, merchantOrderID, idempotencyKey, publicToken, origin, customerReference, customerPhoneCiphertext, customerPhoneKeyID, authTenantID, authContextID, customerID, returnDestination, returnURL, merchantState, requestedAmountMinor, currency, status, expiresAt, createdAt, updatedAt)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantProfileID, model.MerchantBranchProfileID, model.OnlineStoreID, string, string, model.CheckoutSessionToken, model.CheckoutSessionOrigin, string, *string, *string, model.OfferPreparationMode, *model.CustomerID, string, string, string, uint64, model.Currency, model.CheckoutSessionStatus, time.Time, time.Time, time.Time) (model.CheckoutSession, error)); ok {
+		return returnFunc(ctx, merchantProfileID, merchantBranchProfileID, onlineStoreID, merchantOrderID, idempotencyKey, publicToken, origin, customerReference, customerPhoneCiphertext, customerPhoneKeyID, offerPreparationMode, customerID, returnDestination, returnURL, merchantState, requestedAmountMinor, currency, status, expiresAt, createdAt, updatedAt)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantProfileID, model.MerchantBranchProfileID, model.OnlineStoreID, string, string, model.CheckoutSessionToken, model.CheckoutSessionOrigin, string, *string, *string, *model.TenantID, *model.ContextID, *model.CustomerID, string, string, string, uint64, model.Currency, model.CheckoutSessionStatus, time.Time, time.Time, time.Time) model.CheckoutSession); ok {
-		r0 = returnFunc(ctx, merchantProfileID, merchantBranchProfileID, onlineStoreID, merchantOrderID, idempotencyKey, publicToken, origin, customerReference, customerPhoneCiphertext, customerPhoneKeyID, authTenantID, authContextID, customerID, returnDestination, returnURL, merchantState, requestedAmountMinor, currency, status, expiresAt, createdAt, updatedAt)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantProfileID, model.MerchantBranchProfileID, model.OnlineStoreID, string, string, model.CheckoutSessionToken, model.CheckoutSessionOrigin, string, *string, *string, model.OfferPreparationMode, *model.CustomerID, string, string, string, uint64, model.Currency, model.CheckoutSessionStatus, time.Time, time.Time, time.Time) model.CheckoutSession); ok {
+		r0 = returnFunc(ctx, merchantProfileID, merchantBranchProfileID, onlineStoreID, merchantOrderID, idempotencyKey, publicToken, origin, customerReference, customerPhoneCiphertext, customerPhoneKeyID, offerPreparationMode, customerID, returnDestination, returnURL, merchantState, requestedAmountMinor, currency, status, expiresAt, createdAt, updatedAt)
 	} else {
 		r0 = ret.Get(0).(model.CheckoutSession)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, model.MerchantProfileID, model.MerchantBranchProfileID, model.OnlineStoreID, string, string, model.CheckoutSessionToken, model.CheckoutSessionOrigin, string, *string, *string, *model.TenantID, *model.ContextID, *model.CustomerID, string, string, string, uint64, model.Currency, model.CheckoutSessionStatus, time.Time, time.Time, time.Time) error); ok {
-		r1 = returnFunc(ctx, merchantProfileID, merchantBranchProfileID, onlineStoreID, merchantOrderID, idempotencyKey, publicToken, origin, customerReference, customerPhoneCiphertext, customerPhoneKeyID, authTenantID, authContextID, customerID, returnDestination, returnURL, merchantState, requestedAmountMinor, currency, status, expiresAt, createdAt, updatedAt)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.MerchantProfileID, model.MerchantBranchProfileID, model.OnlineStoreID, string, string, model.CheckoutSessionToken, model.CheckoutSessionOrigin, string, *string, *string, model.OfferPreparationMode, *model.CustomerID, string, string, string, uint64, model.Currency, model.CheckoutSessionStatus, time.Time, time.Time, time.Time) error); ok {
+		r1 = returnFunc(ctx, merchantProfileID, merchantBranchProfileID, onlineStoreID, merchantOrderID, idempotencyKey, publicToken, origin, customerReference, customerPhoneCiphertext, customerPhoneKeyID, offerPreparationMode, customerID, returnDestination, returnURL, merchantState, requestedAmountMinor, currency, status, expiresAt, createdAt, updatedAt)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -481,8 +481,7 @@ type CheckoutSessionTxQueryer_Create_Call struct {
 //   - customerReference string
 //   - customerPhoneCiphertext *string
 //   - customerPhoneKeyID *string
-//   - authTenantID *model.TenantID
-//   - authContextID *model.ContextID
+//   - offerPreparationMode model.OfferPreparationMode
 //   - customerID *model.CustomerID
 //   - returnDestination string
 //   - returnURL string
@@ -493,11 +492,11 @@ type CheckoutSessionTxQueryer_Create_Call struct {
 //   - expiresAt time.Time
 //   - createdAt time.Time
 //   - updatedAt time.Time
-func (_e *CheckoutSessionTxQueryer_Expecter) Create(ctx any, merchantProfileID any, merchantBranchProfileID any, onlineStoreID any, merchantOrderID any, idempotencyKey any, publicToken any, origin any, customerReference any, customerPhoneCiphertext any, customerPhoneKeyID any, authTenantID any, authContextID any, customerID any, returnDestination any, returnURL any, merchantState any, requestedAmountMinor any, currency any, status any, expiresAt any, createdAt any, updatedAt any) *CheckoutSessionTxQueryer_Create_Call {
-	return &CheckoutSessionTxQueryer_Create_Call{Call: _e.mock.On("Create", ctx, merchantProfileID, merchantBranchProfileID, onlineStoreID, merchantOrderID, idempotencyKey, publicToken, origin, customerReference, customerPhoneCiphertext, customerPhoneKeyID, authTenantID, authContextID, customerID, returnDestination, returnURL, merchantState, requestedAmountMinor, currency, status, expiresAt, createdAt, updatedAt)}
+func (_e *CheckoutSessionTxQueryer_Expecter) Create(ctx any, merchantProfileID any, merchantBranchProfileID any, onlineStoreID any, merchantOrderID any, idempotencyKey any, publicToken any, origin any, customerReference any, customerPhoneCiphertext any, customerPhoneKeyID any, offerPreparationMode any, customerID any, returnDestination any, returnURL any, merchantState any, requestedAmountMinor any, currency any, status any, expiresAt any, createdAt any, updatedAt any) *CheckoutSessionTxQueryer_Create_Call {
+	return &CheckoutSessionTxQueryer_Create_Call{Call: _e.mock.On("Create", ctx, merchantProfileID, merchantBranchProfileID, onlineStoreID, merchantOrderID, idempotencyKey, publicToken, origin, customerReference, customerPhoneCiphertext, customerPhoneKeyID, offerPreparationMode, customerID, returnDestination, returnURL, merchantState, requestedAmountMinor, currency, status, expiresAt, createdAt, updatedAt)}
 }
 
-func (_c *CheckoutSessionTxQueryer_Create_Call) Run(run func(ctx context.Context, merchantProfileID model.MerchantProfileID, merchantBranchProfileID model.MerchantBranchProfileID, onlineStoreID model.OnlineStoreID, merchantOrderID string, idempotencyKey string, publicToken model.CheckoutSessionToken, origin model.CheckoutSessionOrigin, customerReference string, customerPhoneCiphertext *string, customerPhoneKeyID *string, authTenantID *model.TenantID, authContextID *model.ContextID, customerID *model.CustomerID, returnDestination string, returnURL string, merchantState string, requestedAmountMinor uint64, currency model.Currency, status model.CheckoutSessionStatus, expiresAt time.Time, createdAt time.Time, updatedAt time.Time)) *CheckoutSessionTxQueryer_Create_Call {
+func (_c *CheckoutSessionTxQueryer_Create_Call) Run(run func(ctx context.Context, merchantProfileID model.MerchantProfileID, merchantBranchProfileID model.MerchantBranchProfileID, onlineStoreID model.OnlineStoreID, merchantOrderID string, idempotencyKey string, publicToken model.CheckoutSessionToken, origin model.CheckoutSessionOrigin, customerReference string, customerPhoneCiphertext *string, customerPhoneKeyID *string, offerPreparationMode model.OfferPreparationMode, customerID *model.CustomerID, returnDestination string, returnURL string, merchantState string, requestedAmountMinor uint64, currency model.Currency, status model.CheckoutSessionStatus, expiresAt time.Time, createdAt time.Time, updatedAt time.Time)) *CheckoutSessionTxQueryer_Create_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -543,17 +542,17 @@ func (_c *CheckoutSessionTxQueryer_Create_Call) Run(run func(ctx context.Context
 		if args[10] != nil {
 			arg10 = args[10].(*string)
 		}
-		var arg11 *model.TenantID
+		var arg11 model.OfferPreparationMode
 		if args[11] != nil {
-			arg11 = args[11].(*model.TenantID)
+			arg11 = args[11].(model.OfferPreparationMode)
 		}
-		var arg12 *model.ContextID
+		var arg12 *model.CustomerID
 		if args[12] != nil {
-			arg12 = args[12].(*model.ContextID)
+			arg12 = args[12].(*model.CustomerID)
 		}
-		var arg13 *model.CustomerID
+		var arg13 string
 		if args[13] != nil {
-			arg13 = args[13].(*model.CustomerID)
+			arg13 = args[13].(string)
 		}
 		var arg14 string
 		if args[14] != nil {
@@ -563,21 +562,21 @@ func (_c *CheckoutSessionTxQueryer_Create_Call) Run(run func(ctx context.Context
 		if args[15] != nil {
 			arg15 = args[15].(string)
 		}
-		var arg16 string
+		var arg16 uint64
 		if args[16] != nil {
-			arg16 = args[16].(string)
+			arg16 = args[16].(uint64)
 		}
-		var arg17 uint64
+		var arg17 model.Currency
 		if args[17] != nil {
-			arg17 = args[17].(uint64)
+			arg17 = args[17].(model.Currency)
 		}
-		var arg18 model.Currency
+		var arg18 model.CheckoutSessionStatus
 		if args[18] != nil {
-			arg18 = args[18].(model.Currency)
+			arg18 = args[18].(model.CheckoutSessionStatus)
 		}
-		var arg19 model.CheckoutSessionStatus
+		var arg19 time.Time
 		if args[19] != nil {
-			arg19 = args[19].(model.CheckoutSessionStatus)
+			arg19 = args[19].(time.Time)
 		}
 		var arg20 time.Time
 		if args[20] != nil {
@@ -586,10 +585,6 @@ func (_c *CheckoutSessionTxQueryer_Create_Call) Run(run func(ctx context.Context
 		var arg21 time.Time
 		if args[21] != nil {
 			arg21 = args[21].(time.Time)
-		}
-		var arg22 time.Time
-		if args[22] != nil {
-			arg22 = args[22].(time.Time)
 		}
 		run(
 			arg0,
@@ -614,7 +609,6 @@ func (_c *CheckoutSessionTxQueryer_Create_Call) Run(run func(ctx context.Context
 			arg19,
 			arg20,
 			arg21,
-			arg22,
 		)
 	})
 	return _c
@@ -625,7 +619,7 @@ func (_c *CheckoutSessionTxQueryer_Create_Call) Return(checkoutSession model.Che
 	return _c
 }
 
-func (_c *CheckoutSessionTxQueryer_Create_Call) RunAndReturn(run func(ctx context.Context, merchantProfileID model.MerchantProfileID, merchantBranchProfileID model.MerchantBranchProfileID, onlineStoreID model.OnlineStoreID, merchantOrderID string, idempotencyKey string, publicToken model.CheckoutSessionToken, origin model.CheckoutSessionOrigin, customerReference string, customerPhoneCiphertext *string, customerPhoneKeyID *string, authTenantID *model.TenantID, authContextID *model.ContextID, customerID *model.CustomerID, returnDestination string, returnURL string, merchantState string, requestedAmountMinor uint64, currency model.Currency, status model.CheckoutSessionStatus, expiresAt time.Time, createdAt time.Time, updatedAt time.Time) (model.CheckoutSession, error)) *CheckoutSessionTxQueryer_Create_Call {
+func (_c *CheckoutSessionTxQueryer_Create_Call) RunAndReturn(run func(ctx context.Context, merchantProfileID model.MerchantProfileID, merchantBranchProfileID model.MerchantBranchProfileID, onlineStoreID model.OnlineStoreID, merchantOrderID string, idempotencyKey string, publicToken model.CheckoutSessionToken, origin model.CheckoutSessionOrigin, customerReference string, customerPhoneCiphertext *string, customerPhoneKeyID *string, offerPreparationMode model.OfferPreparationMode, customerID *model.CustomerID, returnDestination string, returnURL string, merchantState string, requestedAmountMinor uint64, currency model.Currency, status model.CheckoutSessionStatus, expiresAt time.Time, createdAt time.Time, updatedAt time.Time) (model.CheckoutSession, error)) *CheckoutSessionTxQueryer_Create_Call {
 	_c.Call.Return(run)
 	return _c
 }

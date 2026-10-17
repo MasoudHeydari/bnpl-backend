@@ -2,29 +2,29 @@ package checkoutsessionuc
 
 import (
 	"context"
+
+	"github.com/parstis/bnpl-backend/pkg/core/model"
 )
 
-// CreatePartner creates the hosted handoff an external merchant redirects to,
-// then prepares the customer-specific financing offer before returning.
+// CreatePartner creates a CheckoutSession for any merchant authenticated by
+// terminal credentials, then optionally prepares the financing offer.
 //
-// Preparation resolves the Merchant-asserted verified phone through Identity,
-// binds the resolved customer, and creates/replays the Decision/Offer. It does
-// not send OTP, create a Contract, create a PaymentAttempt, or call Financial
-// Core for money movement.
+// Offer preparation timing follows the trusted
+// merchant_profiles.offer_preparation_mode snapshotted onto the session at
+// create time:
+//   - on_create: resolve the merchant-asserted phone through the Customer
+//     Reference Service, bind the customer, prepare/replay the Decision/Offer,
+//     and return the Offer to the merchant together with the checkout URL.
+//   - on_start: persist the handoff only; offer preparation and OTP happen on
+//     the unified customer START path.
 //
-// The Partner response stays minimal: checkout id, status, hosted URL, and
-// expiry. Offer economics, customer identifiers, and credit facts never cross
-// this boundary — they belong to the customer's Hosted BNPL experience.
+// Create never sends OTP, creates a Contract, creates a PaymentAttempt, or
+// calls Financial Core for money movement. OTP remains mandatory on Confirm for
+// every merchant type.
 //
-// A successful open status means the approved offer is durably prepared so
-// Hosted GET can render it read-only. Denied/unavailable outcomes use existing
-// unavailable semantics without OTP. Transient dependency failures return
-// semantic errors; an idempotent retry resumes preparation on the same session.
-//
-// Financial Core TenantID/ContextID are resolved from the authenticated
-// merchant's server-owned MerchantProfile payment scope and snapshotted onto
-// the CheckoutSession so Hosted Confirm can reconstruct payment context without
-// browser JWT headers or Partner Gateway identity headers.
+// Denied/unavailable outcomes use existing unavailable semantics without OTP.
+// Transient dependency failures return semantic errors; an idempotent retry
+// resumes preparation on the same session when mode is on_create.
 func (uc *UseCase) CreatePartner(
 	ctx context.Context,
 	input CreatePartnerInput,
@@ -43,14 +43,26 @@ func (uc *UseCase) CreatePartner(
 		return CreatePartnerOutput{}, err
 	}
 
-	prepared, err := uc.prepareExternalOffer(ctx, session)
-	if err != nil {
-		return CreatePartnerOutput{}, err
+	output := CreatePartnerOutput{
+		Result:      result,
+		Session:     session,
+		CheckoutURL: uc.hostedCheckoutURL(session.PublicToken),
 	}
 
-	return CreatePartnerOutput{
-		Result:      result,
-		Session:     prepared,
-		CheckoutURL: uc.hostedCheckoutURL(prepared.PublicToken),
-	}, nil
+	if session.EffectiveOfferPreparationMode() != model.OfferPreparationOnCreate {
+		return output, nil
+	}
+
+	prepared, offer, prepErr := uc.prepareExternalOffer(ctx, session)
+	if prepErr != nil {
+		return CreatePartnerOutput{}, prepErr
+	}
+
+	output.Session = prepared
+
+	if offer.Outcome != "" {
+		output.Offer = &offer
+	}
+
+	return output, nil
 }

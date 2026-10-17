@@ -453,15 +453,15 @@ external:
       timeout: ${EXTERNAL_FINANCIAL_CORE_GRPC_TIMEOUT}
       insecure: ${EXTERNAL_FINANCIAL_CORE_GRPC_INSECURE}
 
-  identity:
-    provider: ${EXTERNAL_IDENTITY_PROVIDER}
+  customer:
+    provider: ${EXTERNAL_CUSTOMER_PROVIDER}
 
     noop:
 
     grpc:
-      address: ${EXTERNAL_IDENTITY_GRPC_ADDRESS}
-      timeout: ${EXTERNAL_IDENTITY_GRPC_TIMEOUT}
-      insecure: ${EXTERNAL_IDENTITY_GRPC_INSECURE}
+      address: ${EXTERNAL_CUSTOMER_GRPC_ADDRESS}
+      timeout: ${EXTERNAL_CUSTOMER_GRPC_TIMEOUT}
+      insecure: ${EXTERNAL_CUSTOMER_GRPC_INSECURE}
 
   notification:
     provider: ${EXTERNAL_NOTIFICATION_PROVIDER}

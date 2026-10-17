@@ -33,107 +33,6 @@ definitions:
         - confirm_and_pay
         - confirm_purchase
     type: object
-  checkoutsessionrs.ConfirmRequestSchema:
-    properties:
-      evaluation_generation:
-        description: |-
-          EvaluationGeneration is the offer version returned by start (or by a
-          previous reconfirm_required response). A stale value never creates a
-          contract or payment; Confirm returns a refreshed offer instead.
-        example: 1
-        minimum: 1
-        type: integer
-    required:
-    - evaluation_generation
-    type: object
-  checkoutsessionrs.ConfirmResponseSchema:
-    properties:
-      checkout_session_id:
-        format: uuid
-        type: string
-      contract:
-        $ref: '#/definitions/checkoutsessionrs.confirmContractResponse'
-      evaluation_generation:
-        example: 2
-        type: integer
-      expires_at:
-        example: "2026-08-09T12:30:00Z"
-        type: string
-      offer:
-        $ref: '#/definitions/checkoutsessionrs.OfferSchema'
-      payment_required:
-        example: true
-        type: boolean
-      reconfirm_required:
-        example: false
-        type: boolean
-      redirect_url:
-        example: https://pay.example/session/abc
-        type: string
-      status:
-        allOf:
-        - $ref: '#/definitions/model.CheckoutSessionStatus'
-        enum:
-        - open
-        - confirming
-        - processing
-        - completed
-        - canceled
-        - expired
-        - unavailable
-    type: object
-  checkoutsessionrs.ConfirmSuccessSchema:
-    properties:
-      data:
-        $ref: '#/definitions/checkoutsessionrs.ConfirmResponseSchema'
-      meta:
-        $ref: '#/definitions/serdser.SuccessMetaNoPagination'
-    type: object
-  checkoutsessionrs.CreateInternalRequestSchema:
-    properties:
-      currency:
-        $ref: '#/definitions/model.Currency'
-      customer_reference:
-        maxLength: 256
-        type: string
-      idempotency_key:
-        description: Distinct idempotency keys allow a new attempt after a terminal
-          checkout.
-        maxLength: 256
-        type: string
-      identity_subject_id:
-        format: uuid
-        type: string
-      merchant_order_id:
-        maxLength: 256
-        type: string
-      merchant_state:
-        description: MerchantState is optional opaque correlation; empty is valid.
-        maxLength: 256
-        type: string
-      online_store_id:
-        format: uuid
-        type: string
-      requested_amount_minor:
-        minimum: 1
-        type: integer
-      return_destination:
-        description: |-
-          ReturnDestination is a pre-registered lowercase kebab-case symbolic name
-          matching ^[a-z0-9]+(-[a-z0-9]+)*$ (1..64).
-          NOTE: swag v1.16 does not emit a machine-readable pattern field from tags;
-          the regex is documented here and enforced by Core/UseCase/DB.
-        maxLength: 64
-        minLength: 1
-        type: string
-    required:
-    - currency
-    - identity_subject_id
-    - merchant_order_id
-    - online_store_id
-    - requested_amount_minor
-    - return_destination
-    type: object
   checkoutsessionrs.CreatePartnerRequestSchema:
     properties:
       currency:
@@ -183,43 +82,6 @@ definitions:
     - online_store_id
     - requested_amount_minor
     - return_destination
-    type: object
-  checkoutsessionrs.GetResponseSchema:
-    properties:
-      checkout_session_id:
-        format: uuid
-        type: string
-      currency:
-        $ref: '#/definitions/model.Currency'
-      evaluation_generation:
-        example: 1
-        type: integer
-      expires_at:
-        type: string
-      merchant_order_id:
-        type: string
-      offer:
-        $ref: '#/definitions/checkoutsessionrs.OfferSchema'
-      requested_amount_minor:
-        type: integer
-      status:
-        allOf:
-        - $ref: '#/definitions/model.CheckoutSessionStatus'
-        enum:
-        - open
-        - confirming
-        - processing
-        - completed
-        - canceled
-        - expired
-        - unavailable
-    type: object
-  checkoutsessionrs.GetSuccessSchema:
-    properties:
-      data:
-        $ref: '#/definitions/checkoutsessionrs.GetResponseSchema'
-      meta:
-        $ref: '#/definitions/serdser.SuccessMetaNoPagination'
     type: object
   checkoutsessionrs.HostedExternalConfirmRequestSchema:
     properties:
@@ -326,13 +188,11 @@ definitions:
   checkoutsessionrs.HostedExternalStartRequestSchema:
     properties:
       evaluation_generation:
-        description: EvaluationGeneration is the offer version returned by Hosted
-          GET.
+        description: EvaluationGeneration is the offer version returned by GET, when
+          known.
         example: 1
         minimum: 1
         type: integer
-    required:
-    - evaluation_generation
     type: object
   checkoutsessionrs.HostedExternalStartResponseSchema:
     properties:
@@ -344,6 +204,10 @@ definitions:
           on Confirm.
         example: 1
         type: integer
+      offer:
+        allOf:
+        - $ref: '#/definitions/checkoutsessionrs.hostedExternalOfferSchema'
+        description: Offer is the financing terms bound to evaluation_generation.
       otp_expires_at:
         description: OTPExpiresAt is when the active verification code stops being
           accepted.
@@ -363,34 +227,6 @@ definitions:
     properties:
       data:
         $ref: '#/definitions/checkoutsessionrs.HostedExternalStartResponseSchema'
-      meta:
-        $ref: '#/definitions/serdser.SuccessMetaNoPagination'
-    type: object
-  checkoutsessionrs.InternalCreateResponseSchema:
-    properties:
-      checkout_session_id:
-        format: uuid
-        type: string
-      checkout_url:
-        type: string
-      evaluation_generation:
-        description: EvaluationGeneration versions the offer. Send it back unchanged
-          on Confirm.
-        example: 1
-        type: integer
-      offer:
-        $ref: '#/definitions/checkoutsessionrs.OfferSchema'
-      status:
-        allOf:
-        - $ref: '#/definitions/model.CheckoutSessionStatus'
-        enum:
-        - open
-        - unavailable
-    type: object
-  checkoutsessionrs.InternalCreateSuccessSchema:
-    properties:
-      data:
-        $ref: '#/definitions/checkoutsessionrs.InternalCreateResponseSchema'
       meta:
         $ref: '#/definitions/serdser.SuccessMetaNoPagination'
     type: object
@@ -448,6 +284,12 @@ definitions:
         type: string
       expires_at:
         type: string
+      offer:
+        allOf:
+        - $ref: '#/definitions/checkoutsessionrs.OfferSchema'
+        description: |-
+          Offer is present only when merchant_profiles.offer_preparation_mode is
+          on_create (snapshotted onto the session). Omitted for on_start.
       status:
         allOf:
         - $ref: '#/definitions/model.CheckoutSessionStatus'
@@ -480,60 +322,6 @@ definitions:
     properties:
       data:
         $ref: '#/definitions/checkoutsessionrs.ReturnDestinationResponseSchema'
-      meta:
-        $ref: '#/definitions/serdser.SuccessMetaNoPagination'
-    type: object
-  checkoutsessionrs.ReturnResponseSchema:
-    properties:
-      checkout_session_id:
-        format: uuid
-        type: string
-      merchant_state:
-        type: string
-      return_url:
-        type: string
-      status:
-        allOf:
-        - $ref: '#/definitions/model.CheckoutSessionStatus'
-        enum:
-        - open
-        - confirming
-        - processing
-        - completed
-        - canceled
-        - expired
-        - unavailable
-    type: object
-  checkoutsessionrs.ReturnSuccessSchema:
-    properties:
-      data:
-        $ref: '#/definitions/checkoutsessionrs.ReturnResponseSchema'
-      meta:
-        $ref: '#/definitions/serdser.SuccessMetaNoPagination'
-    type: object
-  checkoutsessionrs.StartResponseSchema:
-    properties:
-      checkout_session_id:
-        format: uuid
-        type: string
-      evaluation_generation:
-        description: EvaluationGeneration versions the offer. Send it back unchanged
-          on Confirm.
-        example: 1
-        type: integer
-      offer:
-        $ref: '#/definitions/checkoutsessionrs.OfferSchema'
-      status:
-        allOf:
-        - $ref: '#/definitions/model.CheckoutSessionStatus'
-        enum:
-        - open
-        - unavailable
-    type: object
-  checkoutsessionrs.StartSuccessSchema:
-    properties:
-      data:
-        $ref: '#/definitions/checkoutsessionrs.StartResponseSchema'
       meta:
         $ref: '#/definitions/serdser.SuccessMetaNoPagination'
     type: object
@@ -2566,52 +2354,16 @@ paths:
       summary: Create checkout contract
       tags:
       - Contracts
-  /api/v1/checkout-sessions/{checkout_session_id}:
+  /api/v1/checkout-sessions/{token}:
     get:
-      description: Read-only projection for the authenticated customer. Never binds
-        a customer, creates a Decision, bumps evaluation_generation, or starts payment.
-        Call POST .../start to prepare or refresh the offer.
+      description: Unauthenticated read-only hosted page projection. Returns merchant
+        display name, amount, evaluation_generation, the prepared privacy-safe offer
+        (when available), and the masked verification destination. Never creates a
+        Decision, binds a customer, sends OTP, or calls Financial Core.
       parameters:
-      - description: Stable authenticated subject identifier
-        format: uuid
-        in: header
-        name: x-auth-subject-id
-        required: true
-        type: string
-      - description: Authenticated tenant UUID
-        format: uuid
-        in: header
-        name: x-auth-tenant-id
-        required: true
-        type: string
-      - description: Authenticated business-context UUID
-        format: uuid
-        in: header
-        name: x-auth-context-id
-        required: true
-        type: string
-      - description: Comma-separated gateway permissions
-        example: bnpl:checkout-sessions:read:self
-        in: header
-        name: x-auth-permissions
-        required: true
-        type: string
-      - description: Optional; reused when present otherwise generated. Always returned.
-        in: header
-        name: X-Trace-Id
-        type: string
-      - description: Optional; reused when present otherwise generated. Always returned.
-        in: header
-        name: X-Request-Id
-        type: string
-      - description: Optional; reused when present otherwise generated. Always returned.
-        in: header
-        name: X-Correlation-Id
-        type: string
-      - description: Checkout session UUID
-        format: uuid
+      - description: Public checkout session token (cs_<64 hex>)
         in: path
-        name: checkout_session_id
+        name: token
         required: true
         type: string
       produces:
@@ -2630,37 +2382,9 @@ paths:
               description: 'Always set: reuse inbound value or generate'
               type: string
           schema:
-            $ref: '#/definitions/checkoutsessionrs.GetSuccessSchema'
+            $ref: '#/definitions/checkoutsessionrs.HostedExternalGetSuccessSchema'
         "400":
           description: Bad Request
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "401":
-          description: Unauthorized
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "403":
-          description: Forbidden
           headers:
             X-Correlation-Id:
               description: 'Always set: reuse inbound value or generate'
@@ -2701,41 +2425,15 @@ paths:
               type: string
           schema:
             $ref: '#/definitions/serdser.ErrorResponse'
-      security:
-      - PermissionAuth: []
-      summary: Get hosted checkout session
+      summary: Get hosted external checkout
       tags:
       - Checkout Sessions
-  /api/v1/checkout-sessions/{checkout_session_id}/cancel:
+  /api/v1/checkout-sessions/{token}/cancel:
     post:
       description: |-
-        Cancels the checkout for the authenticated bound customer when no submitted or ambiguous payment prevents cancellation.
+        Cancels an open checkout when no submitted or ambiguous payment prevents cancellation.
         Returns the pre-registered merchant return URL with checkout_session_id and merchant state.
       parameters:
-      - description: Stable authenticated subject identifier
-        format: uuid
-        in: header
-        name: x-auth-subject-id
-        required: true
-        type: string
-      - description: Authenticated tenant UUID
-        format: uuid
-        in: header
-        name: x-auth-tenant-id
-        required: true
-        type: string
-      - description: Authenticated business-context UUID
-        format: uuid
-        in: header
-        name: x-auth-context-id
-        required: true
-        type: string
-      - description: Comma-separated gateway permissions
-        example: bnpl:checkout-sessions:start:self
-        in: header
-        name: x-auth-permissions
-        required: true
-        type: string
       - description: Optional; reused when present otherwise generated. Always returned.
         in: header
         name: X-Trace-Id
@@ -2748,10 +2446,9 @@ paths:
         in: header
         name: X-Correlation-Id
         type: string
-      - description: Checkout session UUID
-        format: uuid
+      - description: Public checkout session token (cs_<64 hex>)
         in: path
-        name: checkout_session_id
+        name: token
         required: true
         type: string
       produces:
@@ -2773,34 +2470,6 @@ paths:
             $ref: '#/definitions/checkoutsessionrs.CancelSuccessSchema'
         "400":
           description: Bad Request
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "401":
-          description: Unauthorized
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "403":
-          description: Forbidden
           headers:
             X-Correlation-Id:
               description: 'Always set: reuse inbound value or generate'
@@ -2855,71 +2524,28 @@ paths:
               type: string
           schema:
             $ref: '#/definitions/serdser.ErrorResponse'
-      security:
-      - PermissionAuth: []
       summary: Cancel hosted checkout
       tags:
       - Checkout Sessions
-  /api/v1/checkout-sessions/{checkout_session_id}/confirm:
+  /api/v1/checkout-sessions/{token}/confirm:
     post:
       consumes:
       - application/json
-      description: |-
-        Confirms the currently displayed BNPL offer version (evaluation_generation) and, when customer action is required, returns the redirect URL for the next step.
-        Clients never supply decision_id, contract_id, or payment provider selection; Confirm reads session state and routes payment internally.
-        Flow: OPEN -> CONFIRMING (atomic claim) -> PROCESSING (payment pending) -> COMPLETED. Cancel and expiry are refused while CONFIRMING or PROCESSING.
-        When evaluation_generation is stale the offer is re-evaluated and the response has reconfirm_required=true with the refreshed offer and evaluation_generation; no contract or payment is created. Show the new offer and call Confirm again with the new generation.
-        When payment_required=true the response includes redirect_url and expires_at only. Direct-activation policies return payment_required=false and status=completed only after authoritative recognition.
-        Idempotent: repeating Confirm for a session that already linked the same contract replays contract creation and returns the same payment continuation.
+      description: Unauthenticated. Verifies the SMS code, then runs Confirm & Pay
+        for the customer bound to the checkout. A stale evaluation_generation returns
+        reconfirm_required with the refreshed offer.
       parameters:
-      - description: Stable authenticated subject identifier
-        format: uuid
-        in: header
-        name: x-auth-subject-id
-        required: true
-        type: string
-      - description: Authenticated tenant UUID
-        format: uuid
-        in: header
-        name: x-auth-tenant-id
-        required: true
-        type: string
-      - description: Authenticated business-context UUID
-        format: uuid
-        in: header
-        name: x-auth-context-id
-        required: true
-        type: string
-      - description: Comma-separated gateway permissions
-        example: bnpl:checkout-sessions:start:self
-        in: header
-        name: x-auth-permissions
-        required: true
-        type: string
-      - description: Optional; reused when present otherwise generated. Always returned.
-        in: header
-        name: X-Trace-Id
-        type: string
-      - description: Optional; reused when present otherwise generated. Always returned.
-        in: header
-        name: X-Request-Id
-        type: string
-      - description: Optional; reused when present otherwise generated. Always returned.
-        in: header
-        name: X-Correlation-Id
-        type: string
-      - description: Checkout session UUID
-        format: uuid
+      - description: Public checkout session token (cs_<64 hex>)
         in: path
-        name: checkout_session_id
+        name: token
         required: true
         type: string
-      - description: Offer version (evaluation_generation) seen by the customer
+      - description: Offer version and SMS verification code
         in: body
         name: body
         required: true
         schema:
-          $ref: '#/definitions/checkoutsessionrs.ConfirmRequestSchema'
+          $ref: '#/definitions/checkoutsessionrs.HostedExternalConfirmRequestSchema'
       produces:
       - application/json
       responses:
@@ -2936,23 +2562,9 @@ paths:
               description: 'Always set: reuse inbound value or generate'
               type: string
           schema:
-            $ref: '#/definitions/checkoutsessionrs.ConfirmSuccessSchema'
+            $ref: '#/definitions/checkoutsessionrs.HostedExternalConfirmSuccessSchema'
         "400":
           description: Bad Request
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "401":
-          description: Unauthorized
           headers:
             X-Correlation-Id:
               description: 'Always set: reuse inbound value or generate'
@@ -3035,65 +2647,27 @@ paths:
               type: string
           schema:
             $ref: '#/definitions/serdser.ErrorResponse'
-      security:
-      - PermissionAuth: []
-      summary: Confirm hosted checkout and create contract
+      summary: Confirm hosted external checkout
       tags:
       - Checkout Sessions
-  /api/v1/checkout-sessions/{checkout_session_id}/return:
+  /api/v1/checkout-sessions/{token}/return:
     get:
-      description: |-
-        Returns the checkout status plus the pre-registered merchant return URL for the authenticated bound customer, for hosted-page polling and browser return.
-        return_url carries only checkout_session_id and the opaque state query parameters. Neither is payment truth: merchants must confirm the outcome through the status endpoint or signed webhooks, never from the browser redirect.
-        A checkout bound to a different customer is reported as not found.
+      description: Unauthenticated browser navigation only. Redirects to the merchant
+        ReturnURL persisted at checkout creation. Never accepts a destination URL
+        from the request. Browser arrival is NOT payment or order-fulfillment authority
+        — merchants must trust Partner Inquiry status=completed or the verified bnpl.checkout.completed.v1
+        webhook.
       parameters:
-      - description: Stable authenticated subject identifier
-        format: uuid
-        in: header
-        name: x-auth-subject-id
-        required: true
-        type: string
-      - description: Authenticated tenant UUID
-        format: uuid
-        in: header
-        name: x-auth-tenant-id
-        required: true
-        type: string
-      - description: Authenticated business-context UUID
-        format: uuid
-        in: header
-        name: x-auth-context-id
-        required: true
-        type: string
-      - description: Comma-separated gateway permissions
-        example: bnpl:checkout-sessions:read:self
-        in: header
-        name: x-auth-permissions
-        required: true
-        type: string
-      - description: Optional; reused when present otherwise generated. Always returned.
-        in: header
-        name: X-Trace-Id
-        type: string
-      - description: Optional; reused when present otherwise generated. Always returned.
-        in: header
-        name: X-Request-Id
-        type: string
-      - description: Optional; reused when present otherwise generated. Always returned.
-        in: header
-        name: X-Correlation-Id
-        type: string
-      - description: Checkout session UUID
-        format: uuid
+      - description: Public checkout session token (cs_<64 hex>)
         in: path
-        name: checkout_session_id
+        name: token
         required: true
         type: string
       produces:
       - application/json
       responses:
-        "200":
-          description: Success
+        "302":
+          description: Redirect to the pre-registered merchant return URL
           headers:
             X-Correlation-Id:
               description: 'Always set: reuse inbound value or generate'
@@ -3105,37 +2679,9 @@ paths:
               description: 'Always set: reuse inbound value or generate'
               type: string
           schema:
-            $ref: '#/definitions/checkoutsessionrs.ReturnSuccessSchema'
+            type: string
         "400":
           description: Bad Request
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "401":
-          description: Unauthorized
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "403":
-          description: Forbidden
           headers:
             X-Correlation-Id:
               description: 'Always set: reuse inbound value or generate'
@@ -3162,20 +2708,6 @@ paths:
               type: string
           schema:
             $ref: '#/definitions/serdser.ErrorResponse'
-        "409":
-          description: Conflict
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
         "500":
           description: Internal Server Error
           headers:
@@ -3190,59 +2722,30 @@ paths:
               type: string
           schema:
             $ref: '#/definitions/serdser.ErrorResponse'
-      security:
-      - PermissionAuth: []
-      summary: Get customer checkout return projection
+      summary: Return from hosted external checkout
       tags:
       - Checkout Sessions
-  /api/v1/checkout-sessions/{checkout_session_id}/start:
+  /api/v1/checkout-sessions/{token}/start:
     post:
-      description: Verifies the authenticated BNPL customer owns the checkout session,
-        then creates or replays the Decision and installment offer. External partner
-        checkouts use the unauthenticated hosted OTP start instead.
+      consumes:
+      - application/json
+      description: Unauthenticated token API. Prepares a deferred offer when needed
+        (on_start), then requests SMS OTP. evaluation_generation may be omitted on
+        the first START before an offer exists; the response returns Offer and the
+        authoritative evaluation_generation. Idempotent while a delivered/in-flight
+        code is still valid.
       parameters:
-      - description: Stable authenticated subject identifier
-        format: uuid
-        in: header
-        name: x-auth-subject-id
-        required: true
-        type: string
-      - description: Authenticated tenant UUID
-        format: uuid
-        in: header
-        name: x-auth-tenant-id
-        required: true
-        type: string
-      - description: Authenticated business-context UUID
-        format: uuid
-        in: header
-        name: x-auth-context-id
-        required: true
-        type: string
-      - description: Comma-separated gateway permissions
-        example: bnpl:checkout-sessions:start:self
-        in: header
-        name: x-auth-permissions
-        required: true
-        type: string
-      - description: Optional; reused when present otherwise generated. Always returned.
-        in: header
-        name: X-Trace-Id
-        type: string
-      - description: Optional; reused when present otherwise generated. Always returned.
-        in: header
-        name: X-Request-Id
-        type: string
-      - description: Optional; reused when present otherwise generated. Always returned.
-        in: header
-        name: X-Correlation-Id
-        type: string
-      - description: Checkout session UUID
-        format: uuid
+      - description: Public checkout session token (cs_<64 hex>)
         in: path
-        name: checkout_session_id
+        name: token
         required: true
         type: string
+      - description: Offer version from Hosted GET
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/checkoutsessionrs.HostedExternalStartRequestSchema'
       produces:
       - application/json
       responses:
@@ -3259,23 +2762,9 @@ paths:
               description: 'Always set: reuse inbound value or generate'
               type: string
           schema:
-            $ref: '#/definitions/checkoutsessionrs.StartSuccessSchema'
+            $ref: '#/definitions/checkoutsessionrs.HostedExternalStartSuccessSchema'
         "400":
           description: Bad Request
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "401":
-          description: Unauthorized
           headers:
             X-Correlation-Id:
               description: 'Always set: reuse inbound value or generate'
@@ -3344,9 +2833,7 @@ paths:
               type: string
           schema:
             $ref: '#/definitions/serdser.ErrorResponse'
-      security:
-      - PermissionAuth: []
-      summary: Start hosted checkout evaluation
+      summary: Start customer checkout (prepare offer if needed + OTP)
       tags:
       - Checkout Sessions
   /api/v1/contracts:
@@ -4370,387 +3857,6 @@ paths:
       summary: Assign initial customer credit limit
       tags:
       - Credit Limits
-  /api/v1/hosted/checkout-sessions/{checkout_session_id}:
-    get:
-      description: Unauthenticated read-only hosted page projection. Returns merchant
-        display name, amount, evaluation_generation, the prepared privacy-safe offer
-        (when available), and the masked verification destination. Never creates a
-        Decision, binds a customer, sends OTP, or calls Financial Core.
-      parameters:
-      - description: Public checkout session token (cs_<64 hex>)
-        in: path
-        name: checkout_session_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Success
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/checkoutsessionrs.HostedExternalGetSuccessSchema'
-        "400":
-          description: Bad Request
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "404":
-          description: Not Found
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-      summary: Get hosted external checkout
-      tags:
-      - Hosted External Checkout
-  /api/v1/hosted/checkout-sessions/{checkout_session_id}/confirm:
-    post:
-      consumes:
-      - application/json
-      description: Unauthenticated. Verifies the SMS code, then runs Confirm & Pay
-        for the customer bound to the checkout. A stale evaluation_generation returns
-        reconfirm_required with the refreshed offer.
-      parameters:
-      - description: Public checkout session token (cs_<64 hex>)
-        in: path
-        name: checkout_session_id
-        required: true
-        type: string
-      - description: Offer version and SMS verification code
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/checkoutsessionrs.HostedExternalConfirmRequestSchema'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Success
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/checkoutsessionrs.HostedExternalConfirmSuccessSchema'
-        "400":
-          description: Bad Request
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "403":
-          description: Forbidden
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "404":
-          description: Not Found
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "409":
-          description: Conflict
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "422":
-          description: Unprocessable Entity
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-      summary: Confirm hosted external checkout
-      tags:
-      - Hosted External Checkout
-  /api/v1/hosted/checkout-sessions/{checkout_session_id}/return:
-    get:
-      description: Unauthenticated browser navigation only. Redirects to the merchant
-        ReturnURL persisted at checkout creation. Never accepts a destination URL
-        from the request. Browser arrival is NOT payment or order-fulfillment authority
-        — merchants must trust Partner Inquiry status=completed or the verified bnpl.checkout.completed.v1
-        webhook.
-      parameters:
-      - description: Public checkout session token (cs_<64 hex>)
-        in: path
-        name: checkout_session_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "302":
-          description: Redirect to the pre-registered merchant return URL
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            type: string
-        "400":
-          description: Bad Request
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "404":
-          description: Not Found
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-      summary: Return from hosted external checkout
-      tags:
-      - Hosted External Checkout
-  /api/v1/hosted/checkout-sessions/{checkout_session_id}/start:
-    post:
-      consumes:
-      - application/json
-      description: Unauthenticated. Requests an SMS OTP for the exact evaluation_generation
-        returned by GET. Does not call Identity or create a Decision. Idempotent while
-        a delivered/in-flight code is still valid.
-      parameters:
-      - description: Public checkout session token (cs_<64 hex>)
-        in: path
-        name: checkout_session_id
-        required: true
-        type: string
-      - description: Offer version from Hosted GET
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/checkoutsessionrs.HostedExternalStartRequestSchema'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Success
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/checkoutsessionrs.HostedExternalStartSuccessSchema'
-        "400":
-          description: Bad Request
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "403":
-          description: Forbidden
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "404":
-          description: Not Found
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "409":
-          description: Conflict
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-      summary: Request hosted external checkout OTP
-      tags:
-      - Hosted External Checkout
   /api/v1/installments:
     get:
       description: |-
@@ -4899,163 +4005,6 @@ paths:
       summary: List unpaid installments
       tags:
       - Installments
-  /api/v1/internal/checkout-sessions:
-    post:
-      consumes:
-      - application/json
-      description: |-
-        Creates the checkout and immediately evaluates the authenticated on-behalf customer.
-        Returns checkout_url plus BNPL available credit and persisted installment-offer details to trusted first-party callers.
-        Final customer confirmation still happens on the hosted BNPL page; this response is not acceptance of terms.
-      parameters:
-      - description: Stable authenticated subject identifier
-        format: uuid
-        in: header
-        name: x-auth-subject-id
-        required: true
-        type: string
-      - description: Authenticated tenant UUID
-        format: uuid
-        in: header
-        name: x-auth-tenant-id
-        required: true
-        type: string
-      - description: Authenticated business-context UUID
-        format: uuid
-        in: header
-        name: x-auth-context-id
-        required: true
-        type: string
-      - description: Comma-separated gateway permissions
-        example: bnpl:checkout-sessions:create:merchant,bnpl:decisions:create:on-behalf
-        in: header
-        name: x-auth-permissions
-        required: true
-        type: string
-      - description: Optional; reused when present otherwise generated. Always returned.
-        in: header
-        name: X-Trace-Id
-        type: string
-      - description: Optional; reused when present otherwise generated. Always returned.
-        in: header
-        name: X-Request-Id
-        type: string
-      - description: Optional; reused when present otherwise generated. Always returned.
-        in: header
-        name: X-Correlation-Id
-        type: string
-      - description: Internal checkout session request
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/checkoutsessionrs.CreateInternalRequestSchema'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Idempotent replay of an existing checkout session
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/checkoutsessionrs.InternalCreateSuccessSchema'
-        "201":
-          description: Checkout session created and evaluated
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/checkoutsessionrs.InternalCreateSuccessSchema'
-        "400":
-          description: Bad Request
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "401":
-          description: Unauthorized
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "403":
-          description: Forbidden
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "409":
-          description: Conflict
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-      security:
-      - PermissionAuth: []
-      summary: Create trusted internal checkout session
-      tags:
-      - Checkout Sessions
   /api/v1/merchant:
     get:
       description: |-
@@ -6204,9 +5153,8 @@ paths:
       consumes:
       - application/json
       description: |-
-        Creates an idempotent merchant checkout handoff and prepares the financing offer internally.
-        No customer identity, credit balance, Decision, or installment offer is disclosed to the Merchant.
-        Personalized evaluation is prepared after BNPL resolves the Merchant-asserted phone through Identity. The offer is presented read-only in Hosted GET. OTP verification later proves phone possession and authorizes confirmation of that exact offer generation.
+        Creates an idempotent merchant checkout handoff authenticated by terminal credentials (X-Terminal-Id, X-API-Key). Requires verified_phone_number. JWT and gateway Subject/Tenant/Context headers are not required.
+        Offer preparation timing follows trusted merchant_profiles.offer_preparation_mode (on_create returns the Offer; on_start returns handoff metadata only). Every customer must complete BNPL SMS OTP on the unified token Confirm path.
       parameters:
       - description: Public numeric terminal identifier of the partner
         in: header
@@ -6216,22 +5164,6 @@ paths:
       - description: Secret API key of the partner terminal
         in: header
         name: X-API-Key
-        required: true
-        type: string
-      - description: Gateway-injected tenant UUID (NOT merchant-selected; NOT a request-body
-          field). Required only on Partner Create. Production infrastructure must
-          strip client-supplied X-Auth-* and inject authoritative values after token
-          validation; this BNPL repository does not enforce that Gateway trust boundary.
-        in: header
-        name: X-Auth-Tenant-Id
-        required: true
-        type: string
-      - description: Gateway-injected context UUID (NOT merchant-selected; NOT a request-body
-          field). Required only on Partner Create. Production infrastructure must
-          strip client-supplied X-Auth-* and inject authoritative values after token
-          validation; this BNPL repository does not enforce that Gateway trust boundary.
-        in: header
-        name: X-Auth-Context-Id
         required: true
         type: string
       - description: Optional; reused when present otherwise generated. Always returned.
@@ -6356,7 +5288,7 @@ paths:
       security:
       - TerminalAPIKey: []
         TerminalID: []
-      summary: Create external partner checkout session
+      summary: Create partner checkout session
       tags:
       - Checkout Sessions
   /api/v1/partner/checkout-sessions/{checkout_session_id}:

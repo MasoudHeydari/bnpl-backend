@@ -689,11 +689,8 @@ CREATE TABLE IF NOT EXISTS merchant_profiles (
     -- Regulatory jurisdiction governing this merchant's BNPL activity.
     jurisdiction text NOT NULL,
 
-    -- Server-owned Financial Core payment scope for Partner/hosted checkouts.
-    -- Assigned only by trusted BNPL provisioning; never partner- or JWT-supplied.
-    -- Partner Create snapshots these onto checkout_sessions.auth_* at create time.
-    payment_tenant_id uuid NULL,
-    payment_context_id uuid NULL,
+    -- When Partner Create prepares the financing offer (on_create vs on_start).
+    offer_preparation_mode text NOT NULL DEFAULT 'on_start',
 
     -- Creation and update timestamps.
     created_at timestamptz NOT NULL DEFAULT now(),
@@ -723,17 +720,12 @@ CREATE TABLE IF NOT EXISTS merchant_profiles (
     CONSTRAINT chk_merchant_profiles_max_amount_currency
     CHECK (max_amount_currency = '' OR max_amount_currency IN ('IRR', 'EUR', 'USD')),
 
-    CONSTRAINT chk_merchant_profiles_payment_scope
-    CHECK (
-        (payment_tenant_id IS NULL AND payment_context_id IS NULL)
-        OR (payment_tenant_id IS NOT NULL AND payment_context_id IS NOT NULL)
-    )
+    CONSTRAINT chk_merchant_profiles_offer_preparation_mode
+    CHECK (offer_preparation_mode IN ('on_create', 'on_start'))
 );
 
-COMMENT ON COLUMN merchant_profiles.payment_tenant_id IS
-    'Server-owned Financial Core tenant UUID for Partner/hosted checkouts; assigned by trusted BNPL provisioning only.';
-COMMENT ON COLUMN merchant_profiles.payment_context_id IS
-    'Server-owned Financial Core context UUID for Partner/hosted checkouts; assigned by trusted BNPL provisioning only.';
+COMMENT ON COLUMN merchant_profiles.offer_preparation_mode IS
+    'Trusted BNPL setting: on_create prepares the offer at Partner Create; on_start defers to customer START.';
 
 -- -----------------------------------------------------------------------------
 -- Merchant Branch Profiles
@@ -1804,13 +1796,8 @@ CREATE TABLE IF NOT EXISTS checkout_sessions (
     -- evaluation_generation the issued or verified OTP is bound to.
     otp_evaluation_generation integer NULL,
 
-    -- Trusted gateway tenant scope snapshotted at Partner Create for External
-    -- Partner checkouts. Hosted Confirm uses this snapshot; browsers never supply it.
-    auth_tenant_id uuid NULL,
-
-    -- Trusted gateway business context snapshotted at Partner Create for External
-    -- Partner checkouts. Hosted Confirm uses this snapshot; browsers never supply it.
-    auth_context_id uuid NULL,
+    -- Offer preparation mode snapshotted from merchant_profiles at create time.
+    offer_preparation_mode text NOT NULL DEFAULT 'on_start',
 
     -- Internal customer profile primary key, set once BNPL trusts the identity.
     customer_id uuid NULL,
@@ -1885,19 +1872,8 @@ CREATE TABLE IF NOT EXISTS checkout_sessions (
     CONSTRAINT chk_checkout_sessions_internal_customer
     CHECK (origin <> 'internal' OR customer_id IS NOT NULL),
 
-    CONSTRAINT chk_checkout_sessions_auth_scope
-    CHECK (
-        (
-            origin = 'external_partner'
-            AND auth_tenant_id IS NOT NULL
-            AND auth_context_id IS NOT NULL
-        )
-        OR (
-            origin = 'internal'
-            AND auth_tenant_id IS NULL
-            AND auth_context_id IS NULL
-        )
-    ),
+    CONSTRAINT chk_checkout_sessions_offer_preparation_mode
+    CHECK (offer_preparation_mode IN ('on_create', 'on_start')),
 
     CONSTRAINT chk_checkout_sessions_customer_phone_pair
     CHECK ((customer_phone_ciphertext IS NULL) = (customer_phone_key_id IS NULL)),
@@ -2008,10 +1984,8 @@ COMMENT ON COLUMN checkout_sessions.public_token IS
     'Unguessable public checkout handle (cs_<64 hex>); the only identifier shared with merchants and browsers.';
 COMMENT ON COLUMN checkout_sessions.origin IS
     'Create path: external_partner (phone OTP on hosted page) or internal (pre-bound trusted customer).';
-COMMENT ON COLUMN checkout_sessions.auth_tenant_id IS
-    'Server-owned Financial Core tenant UUID snapshotted at Partner Create from merchant_profiles.payment_tenant_id; used by Hosted Confirm. Never client- or JWT-supplied.';
-COMMENT ON COLUMN checkout_sessions.auth_context_id IS
-    'Server-owned Financial Core context UUID snapshotted at Partner Create from merchant_profiles.payment_context_id; used by Hosted Confirm. Never client- or JWT-supplied.';
+COMMENT ON COLUMN checkout_sessions.offer_preparation_mode IS
+    'Immutable snapshot of merchant_profiles.offer_preparation_mode at Partner Create.';
 COMMENT ON COLUMN checkout_sessions.customer_reference IS
     'Optional merchant correlation handle; never used to resolve a customer identity.';
 COMMENT ON COLUMN checkout_sessions.customer_phone_ciphertext IS

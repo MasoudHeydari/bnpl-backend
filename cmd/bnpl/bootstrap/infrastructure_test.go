@@ -10,7 +10,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/config"
 	checkoutpaymentext "github.com/parstis/bnpl-backend/pkg/adapter/external/checkoutpayment"
 	creditassessmentext "github.com/parstis/bnpl-backend/pkg/adapter/external/creditassessment"
-	identityext "github.com/parstis/bnpl-backend/pkg/adapter/external/identity"
+	customerext "github.com/parstis/bnpl-backend/pkg/adapter/external/customer"
 	"github.com/parstis/bnpl-backend/pkg/adapter/external/merchantwebhook"
 	notificationext "github.com/parstis/bnpl-backend/pkg/adapter/external/notification"
 	adaptercache "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/cache"
@@ -188,8 +188,8 @@ func noopTestConfig() *config.Config {
 				Provider:         string(checkoutpaymentext.NoopProvider),
 				PaymentReturnURL: "https://bnpl.example/payments/return",
 			},
-			Identity: config.ExternalIdentity{
-				Provider: string(identityext.NoopProvider),
+			Customer: config.ExternalCustomer{
+				Provider: string(customerext.NoopProvider),
 			},
 			Notification: config.ExternalNotification{
 				Provider: string(notificationext.NoopProvider),

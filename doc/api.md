@@ -44,16 +44,15 @@ Entry: `cmd/bnpl/command/root.go` → `bootstrap.Boot`.
 | `/api/v1/partner/checkout-sessions/:checkout_session_id/cancel` | `POST` | `checkoutsessionuc.CancelByMerchant` | Idempotent partner cancellation while no submitted/ambiguous payment exists |
 | `/api/v1/partner/return-destinations/:destination_name` | `PUT` | `checkoutsessionuc.UpsertReturnDestination` | Partner-managed return destination; requires `bnpl:checkout-return-destinations:manage:merchant` |
 | `/api/v1/partner/webhook-destination` | `PUT` | `checkoutsessionuc.UpsertWebhookDestination` | Partner-managed lifecycle webhook; requires `bnpl:checkout-webhooks:manage:merchant` |
-| `/api/v1/hosted/checkout-sessions/:checkout_session_id` | `GET` | `checkoutsessionuc.GetExternal` | Unauthenticated hosted external read-only projection (persisted safe offer + masked verification); path value is the public `cs_…` token |
-| `/api/v1/hosted/checkout-sessions/:checkout_session_id/start` | `POST` | `checkoutsessionuc.StartExternal` | Unauthenticated hosted external OTP request for a specific `evaluation_generation`; does not resolve Identity or create a Decision |
-| `/api/v1/hosted/checkout-sessions/:checkout_session_id/confirm` | `POST` | `checkoutsessionuc.ConfirmExternal` | Unauthenticated hosted external confirm with OTP + evaluation generation |
+| `/api/v1/checkout-sessions/:token` | `GET` | `checkoutsessionuc.GetExternal` | Unauthenticated customer read-only projection; `:token` is the public `cs_…` token |
+| `/api/v1/checkout-sessions/:token/start` | `POST` | `checkoutsessionuc.StartExternal` | Deferred offer preparation (when configured) + OTP for the displayed `evaluation_generation` |
+| `/api/v1/checkout-sessions/:token/confirm` | `POST` | `checkoutsessionuc.ConfirmExternal` | OTP confirm without JWT tenant/context headers |
+| `/api/v1/checkout-sessions/:token/cancel` | `POST` | `checkoutsessionuc.CancelByToken` | Customer cancellation via public token |
+| `/api/v1/checkout-sessions/:token/return` | `GET` | `checkoutsessionuc.ReturnExternal` | Browser redirect to the pre-registered merchant return URL |
 | `/api/v1/merchant/terminal` | `GET` | `merchantterminaluc.Get` | Lists the authenticated merchant's partner terminals and credential metadata; empty list is `200` (not `404`); never returns plaintext `api_key` (show-once); requires `bnpl:merchant-terminals:manage:merchant` |
 | `/api/v1/merchant/terminal` | `POST` | `merchantterminaluc.Provision` | Issues the partner terminal and first API key (plaintext `api_key` shown once — store it immediately); requires `bnpl:merchant-terminals:manage:merchant` and `Idempotency-Key` |
 | `/api/v1/merchant/terminal/credentials/rotate` | `POST` | `merchantterminaluc.Rotate` | Issues a new partner API key (plaintext shown once — store it immediately); requires `bnpl:merchant-terminals:manage:merchant` and `Idempotency-Key`; previous key stays valid for the grace period |
 | `/api/v1/merchant/terminal/credentials/:credential_id/retire` | `POST` | `merchantterminaluc.Retire` | Ends the grace period of a retiring credential at once; requires `bnpl:merchant-terminals:manage:merchant` |
-| `/api/v1/internal/checkout-sessions` | `POST` | `checkoutsessionuc.CreateInternal` | Trusted first-party create + immediate Decision/offer summary |
-| `/api/v1/checkout-sessions/:checkout_session_id/start` | `POST` | `checkoutsessionuc.Start` | Authenticated customer identity-binding check followed by Decision + offer creation/replay |
-| `/api/v1/checkout-sessions/:checkout_session_id/cancel` | `POST` | `checkoutsessionuc.CancelByCustomer` | Customer cancellation and registered merchant return URL |
 | `/api/v1/checkout-decisions` | `POST` | `decisionuc.Create` | Unified POS/online checkout; requires `Idempotency-Key`; approved/partial outcomes atomically persist and return the installment offer and next checkout action |
 | `/api/v1/customer-initial-credit-limits` | `POST` | `customercreditlimituc.AssignInitial` | Initial credit limit assignment |
 | `/api/v1/contracts/:contract_id/installments/:installment_id/payment-attempts` | `POST` | `installmentrepaymentuc.CreatePaymentAttempt` | Creates a payment attempt for the next payable scheduled installment; requires `Idempotency-Key` |
@@ -64,7 +63,7 @@ Unmatched paths receive Gin's default 404 behavior.
 
 ### Partner terminal authentication
 
-Everything under `/api/v1/partner` is authenticated by `middleware.PartnerTerminalAuth` (terminal credentials), **not** by the full gateway `AuthContext.Attach` middleware. The two surfaces are registered on separate router groups in `routes.Register`. Partner Create Checkout is JWT-independent: Financial Core `TenantID`/`ContextID` are resolved from the authenticated merchant's server-owned `MerchantProfile` payment scope (trusted BNPL provisioning) and snapshotted onto the checkout session. Gateway-provided SubjectID/Permissions/Tenant/Context headers never control Partner Merchant identity or payment scope. Partner credentials are never accepted on gateway routes.
+Everything under `/api/v1/partner` is authenticated by `middleware.PartnerTerminalAuth` (terminal credentials), **not** by the full gateway `AuthContext.Attach` middleware. Customer checkout under `/api/v1/checkout-sessions/:token` is a sibling of the Attach group (no JWT). Partner Create uses trusted `merchant_profiles.offer_preparation_mode` (`on_create` prepares immediately; `on_start` defers to customer START). Gateway tenant/context headers are not used on token confirm.
 
 | Header | Constant | Meaning |
 | --- | --- | --- |

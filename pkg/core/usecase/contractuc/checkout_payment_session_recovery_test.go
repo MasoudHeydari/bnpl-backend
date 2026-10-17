@@ -150,6 +150,8 @@ func TestEnsureCheckoutPaymentSession_RecoversFromReconciliationRequired(t *test
 		PayableNowAmountMinor: 1000,
 		ExpiresAt:             expiresAt,
 	}
+	tenantID := uuid.NewString()
+	contextID := uuid.NewString()
 	attempt := model.PaymentAttempt{
 		ID:                              model.PaymentAttemptID(uuid.New()),
 		ContractID:                      contractID,
@@ -162,6 +164,8 @@ func TestEnsureCheckoutPaymentSession_RecoversFromReconciliationRequired(t *test
 		SuccessReturnURL:                &returnURL,
 		FailureReturnURL:                &returnURL,
 		CancelReturnURL:                 &returnURL,
+		TenantID:                        &tenantID,
+		ContextID:                       &contextID,
 		FinancialCollectionObligationID: &obligationID,
 		IdempotencyKey:                  "bnpl:contract:" + contractID.String() + ":checkout-payment",
 	}

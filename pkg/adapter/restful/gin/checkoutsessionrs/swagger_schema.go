@@ -14,10 +14,6 @@ import (
 // no business logic.
 type CreatePartnerRequestSchema createPartnerRequest
 
-// CreateInternalRequestSchema is a schema-only representation of the trusted
-// internal create body.
-type CreateInternalRequestSchema createInternalRequest
-
 // PartnerCreateResponseSchema is a schema-only representation of the partner
 // create response data.
 type PartnerCreateResponseSchema partnerCreateResponse
@@ -58,34 +54,6 @@ type OfferSchema struct {
 	TotalPayableAmountMinor        *uint64                        `json:"total_payable_amount_minor,omitempty"`
 	Installments                   []OfferInstallmentSchema       `json:"installments,omitempty"`
 	CheckoutAction                 *CheckoutActionSchema          `json:"checkout_action,omitempty"`
-}
-
-// StartResponseSchema is a schema-only representation of the start response data.
-type StartResponseSchema startResponse
-
-// StartSuccessSchema is a schema-only success envelope for checkout start.
-type StartSuccessSchema struct {
-	Data StartResponseSchema             `json:"data"`
-	Meta serdser.SuccessMetaNoPagination `json:"meta"`
-}
-
-// GetResponseSchema is a schema-only representation of the customer GET response.
-type GetResponseSchema getResponse
-
-// GetSuccessSchema is a schema-only success envelope for customer GET.
-type GetSuccessSchema struct {
-	Data GetResponseSchema               `json:"data"`
-	Meta serdser.SuccessMetaNoPagination `json:"meta"`
-}
-
-// InternalCreateResponseSchema is a schema-only representation of the trusted
-// internal create response (hosted URL + authorized offer summary).
-type InternalCreateResponseSchema internalCreateResponse
-
-// InternalCreateSuccessSchema is a schema-only success envelope for internal create.
-type InternalCreateSuccessSchema struct {
-	Data InternalCreateResponseSchema    `json:"data"`
-	Meta serdser.SuccessMetaNoPagination `json:"meta"`
 }
 
 // StatusResponseSchema is a schema-only representation of merchant-safe checkout state.

@@ -275,7 +275,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		webhookSecretBox,
 		customerPhoneBox,
 		a.Infrastructure.Clock,
-		a.External.IdentityResolver,
+		a.External.CustomerResolver,
 		a.External.NotificationSubmitter,
 		jurisdictions,
 	)

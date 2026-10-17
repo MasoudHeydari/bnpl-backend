@@ -24,7 +24,7 @@ import (
 	extcheckoutpayment "github.com/parstis/bnpl-backend/pkg/core/external/checkoutpayment"
 	extcontractcancellation "github.com/parstis/bnpl-backend/pkg/core/external/contractcancellation"
 	extcreditassessment "github.com/parstis/bnpl-backend/pkg/core/external/creditassessment"
-	extidentity "github.com/parstis/bnpl-backend/pkg/core/external/identity"
+	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"
 	extinstallmentpayment "github.com/parstis/bnpl-backend/pkg/core/external/installmentpayment"
 	extnotification "github.com/parstis/bnpl-backend/pkg/core/external/notification"
 	"github.com/parstis/bnpl-backend/pkg/core/fingerprint"
@@ -274,7 +274,7 @@ func (c *Config) NewCheckoutSessionUseCase(
 	webhookSecretBox secretbox.Box,
 	customerPhoneBox secretbox.Box,
 	clk clock.Clock,
-	identityResolver extidentity.Resolver,
+	customerResolver extcustomer.Resolver,
 	notificationSubmitter extnotification.Submitter,
 	jurisdictions *domaincapability.Jurisdictions,
 ) (*checkoutsessionuc.UseCase, error) {
@@ -293,7 +293,7 @@ func (c *Config) NewCheckoutSessionUseCase(
 		contract, paymentAttempt, installment, installmentCharge, decisionRepo,
 		checkoutDecisionAllocation, checkoutPolicies, decision, contractUC, outbox,
 		idGenerator, webhookSecretBox, customerPhoneBox,
-		returnURLPolicyForEnvironment(env), clk, identityResolver, notificationSubmitter,
+		returnURLPolicyForEnvironment(env), clk, customerResolver, notificationSubmitter,
 		jurisdictions, phoneCanonicalizer, env,
 	)
 }

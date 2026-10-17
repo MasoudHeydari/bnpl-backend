@@ -21,7 +21,7 @@ import (
 	coreclock "github.com/parstis/bnpl-backend/pkg/core/clock"
 	"github.com/parstis/bnpl-backend/pkg/core/domaincapability"
 	"github.com/parstis/bnpl-backend/pkg/core/event/checkoutlifecycle"
-	extidentity "github.com/parstis/bnpl-backend/pkg/core/external/identity"
+	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"
 	extnotification "github.com/parstis/bnpl-backend/pkg/core/external/notification"
 	"github.com/parstis/bnpl-backend/pkg/core/mock"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
@@ -171,10 +171,10 @@ type harness struct {
 	contracts    *fakeContractCreator
 	decisions    *fakeDecisionCreator
 
-	identity             *mock.IdentityResolver
+	identity             *mock.CustomerResolver
 	identityErr          error
-	identityOutput       extidentity.ResolveByMobileOutput
-	identityCalls        []extidentity.ResolveByMobileInput
+	identityOutput       extcustomer.ResolveByMobileOutput
+	identityCalls        []extcustomer.ResolveByMobileInput
 	notification         *mock.NotificationSubmitter
 	notificationErr      error
 	notificationCalls    []extnotification.SubmitInput
@@ -232,7 +232,7 @@ func newHarness(t *testing.T) *harness {
 		decisions: &fakeDecisionCreator{
 			revalidateOutput: decisionuc.RevalidateCheckoutOfferOutput{StillHonorable: true},
 		},
-		identity:           mock.NewIdentityResolver(t),
+		identity:           mock.NewCustomerResolver(t),
 		notification:       mock.NewNotificationSubmitter(t),
 		phoneCanonicalizer: mock.NewPhoneCanonicalizer(t),
 		customerPhoneBox:   mock.NewSecretBox(t),
@@ -333,7 +333,7 @@ func newHarness(t *testing.T) *harness {
 		ttl:                        30 * time.Minute,
 		expiryBatchSize:            25,
 		otpHasher:                  newTestOTPHasher(t),
-		identityResolver:           h.identity,
+		customerResolver:           h.identity,
 		notificationSubmitter:      h.notification,
 		jurisdictions:              h.jurisdictions,
 		phoneCanonicalizer:         h.phoneCanonicalizer,
@@ -370,23 +370,20 @@ func (h *harness) installDefaultCoreCollaborators() {
 		ResolveByMobile(testifymock.Anything, testifymock.Anything).
 		RunAndReturn(func(
 			_ context.Context,
-			input extidentity.ResolveByMobileInput,
-		) (extidentity.ResolveByMobileOutput, error) {
+			input extcustomer.ResolveByMobileInput,
+		) (extcustomer.ResolveByMobileOutput, error) {
 			h.identityCalls = append(h.identityCalls, input)
 			if h.identityErr != nil {
-				return extidentity.ResolveByMobileOutput{}, h.identityErr
+				return extcustomer.ResolveByMobileOutput{}, h.identityErr
 			}
 
-			if h.identityOutput.IdentitySubjectID != (model.IdentitySubjectID{}) ||
-				h.identityOutput.SubjectType != "" ||
-				h.identityOutput.SubjectStatus != "" {
+			if !h.identityOutput.ExternalCustomerID.IsZero() || h.identityOutput.Status != "" {
 				return h.identityOutput, nil
 			}
 
-			return extidentity.ResolveByMobileOutput{
-				IdentitySubjectID: h.profileID,
-				SubjectType:       extidentity.IndividualSubjectType,
-				SubjectStatus:     extidentity.ActiveSubjectStatus,
+			return extcustomer.ResolveByMobileOutput{
+				ExternalCustomerID: h.profileID,
+				Status:             extcustomer.ActiveStatus,
 			}, nil
 		}).
 		Maybe()
@@ -435,6 +432,13 @@ func (h *harness) installDefaultCoreCollaborators() {
 
 // expectPool registers connCalls Pool.Conn invocations that never open a
 // transaction plus txCalls Pool.Conn invocations that immediately open one.
+
+// expectStartExternalPrepareLoad expects the deferred-prepare mode probe at START.
+func (h *harness) expectStartExternalPrepareLoad() {
+	h.t.Helper()
+	h.sessionCQ.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(h.session(), nil).Once()
+}
+
 func (h *harness) expectPool(connCalls int, txCalls int) {
 	h.t.Helper()
 
@@ -464,9 +468,6 @@ func (h *harness) session(mods ...func(*model.CheckoutSession)) model.CheckoutSe
 
 	phoneCiphertext := "sb1.+989121234567"
 	phoneKeyID := "test"
-	authTenantID := model.TenantID(uuid.MustParse("11111111-1111-1111-1111-111111111111"))
-	authContextID := model.ContextID(uuid.MustParse("22222222-2222-2222-2222-222222222222"))
-
 	session := model.CheckoutSession{
 		ID:                      h.sessionID,
 		PublicToken:             h.publicToken,
@@ -478,8 +479,7 @@ func (h *harness) session(mods ...func(*model.CheckoutSession)) model.CheckoutSe
 		CustomerReference:       "cust-1",
 		CustomerPhoneCiphertext: &phoneCiphertext,
 		CustomerPhoneKeyID:      &phoneKeyID,
-		AuthTenantID:            &authTenantID,
-		AuthContextID:           &authContextID,
+		OfferPreparationMode:    model.OfferPreparationOnCreate,
 		CustomerID:              &customerID,
 		ReturnDestination:       "storefront",
 		ReturnURL:               "https://shop.example/return",

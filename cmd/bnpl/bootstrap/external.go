@@ -9,7 +9,7 @@ import (
 	extcheckoutpayment "github.com/parstis/bnpl-backend/pkg/core/external/checkoutpayment"
 	extcontractcancellation "github.com/parstis/bnpl-backend/pkg/core/external/contractcancellation"
 	"github.com/parstis/bnpl-backend/pkg/core/external/creditassessment"
-	extidentity "github.com/parstis/bnpl-backend/pkg/core/external/identity"
+	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"
 	extinstallmentpayment "github.com/parstis/bnpl-backend/pkg/core/external/installmentpayment"
 	extnotification "github.com/parstis/bnpl-backend/pkg/core/external/notification"
 	"github.com/parstis/bnpl-backend/pkg/core/messaging"
@@ -30,8 +30,9 @@ type External struct {
 	// CheckoutPaymentClient creates checkout payment sessions with Financial Core.
 	CheckoutPaymentClient extcheckoutpayment.Client
 
-	// IdentityResolver maps a merchant-asserted mobile to an Identity subject.
-	IdentityResolver extidentity.Resolver
+	// CustomerResolver maps a merchant-asserted mobile to a Customer Reference
+	// Service customer_id (stored as customer_profiles.identity_subject_id).
+	CustomerResolver extcustomer.Resolver
 
 	// NotificationSubmitter durably submits checkout OTP notifications.
 	NotificationSubmitter extnotification.Submitter
@@ -113,16 +114,16 @@ func (a *App) NewExternal() (_ External, err error) {
 		external.closers = append(external.closers, checkoutPaymentCloser)
 	}
 
-	var identityCloser io.Closer
-	external.IdentityResolver, identityCloser, err = a.Config.NewExternalIdentityClient(
+	var customerCloser io.Closer
+	external.CustomerResolver, customerCloser, err = a.Config.NewExternalCustomerClient(
 		a.Infrastructure.CircuitBreaker,
 	)
 	if err != nil {
-		return External{}, fmt.Errorf("%s: initialize external identity client: %w", op, err)
+		return External{}, fmt.Errorf("%s: initialize external customer client: %w", op, err)
 	}
 
-	if identityCloser != nil {
-		external.closers = append(external.closers, identityCloser)
+	if customerCloser != nil {
+		external.closers = append(external.closers, customerCloser)
 	}
 
 	var notificationCloser io.Closer

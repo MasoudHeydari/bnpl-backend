@@ -633,6 +633,26 @@ func paymentResultSourceIDInvalidError() error {
 // cause retains diagnostic detail for logging/tracing and must never be copied
 // into Message or Details. Fields stay empty because this is a dependency
 // failure, not a client field validation issue.
+// financialCoreScopeUnavailableError fails closed when Financial Core scope is
+// required but was not supplied and cannot be fabricated at the checkout boundary.
+func financialCoreScopeUnavailableError(cause error) error {
+	return cerr.NewPublic(
+		cerr.CodeForbidden,
+		"error.financial_core_scope_is_not_available",
+		cause,
+		cerr.Details{
+			Fields: []string{},
+			Violations: []cerr.Violation{
+				{
+					Code:       "FORBIDDEN",
+					MessageKey: "error.financial_core_scope_is_not_available",
+					Fields:     []string{},
+				},
+			},
+		},
+	)
+}
+
 func financialCoreCheckoutPaymentUnavailableError(cause error) error {
 	return cerr.NewPublic(
 		cerr.CodeServiceUnavailable,

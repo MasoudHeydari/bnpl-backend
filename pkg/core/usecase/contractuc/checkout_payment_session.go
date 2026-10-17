@@ -188,13 +188,21 @@ func (uc *UseCase) buildCheckoutPaymentInputFromAttempt(
 		return extcheckoutpayment.CreateCheckoutPaymentInput{}, cerr.InternalError(fmt.Errorf("%s: checkout payable amount: %w", op, err))
 	}
 
+	tenantID := optionalStringValue(attempt.TenantID)
+	contextID := optionalStringValue(attempt.ContextID)
+	if tenantID == "" || contextID == "" {
+		return extcheckoutpayment.CreateCheckoutPaymentInput{}, financialCoreScopeUnavailableError(
+			fmt.Errorf("%s: payment attempt is missing financial core scope", op),
+		)
+	}
+
 	return extcheckoutpayment.CreateCheckoutPaymentInput{
 		IdempotencyKey:      attempt.IdempotencyKey,
 		IdempotencyRecordID: attempt.ID.String(),
 		RequestFingerprint:  attempt.RequestFingerprint,
 
-		TenantID:  optionalStringValue(attempt.TenantID),
-		ContextID: optionalStringValue(attempt.ContextID),
+		TenantID:  tenantID,
+		ContextID: contextID,
 
 		SourceService: financialSourceService,
 		SourceType:    financialSourceType,

@@ -11,7 +11,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/checkouturl"
 	"github.com/parstis/bnpl-backend/pkg/core/clock"
 	"github.com/parstis/bnpl-backend/pkg/core/domaincapability"
-	"github.com/parstis/bnpl-backend/pkg/core/external/identity"
+	"github.com/parstis/bnpl-backend/pkg/core/external/customer"
 	"github.com/parstis/bnpl-backend/pkg/core/external/notification"
 	"github.com/parstis/bnpl-backend/pkg/core/fingerprint"
 	"github.com/parstis/bnpl-backend/pkg/core/identifier"
@@ -78,7 +78,7 @@ type UseCase struct {
 	ttl                        time.Duration
 	expiryBatchSize            int
 	otpHasher                  fingerprint.Hasher
-	identityResolver           identity.Resolver
+	customerResolver           customer.Resolver
 	notificationSubmitter      notification.Submitter
 	// jurisdictions gates NEW checkout origination only. Idempotent replay of
 	// an existing CheckoutSession must not consult this capability.
@@ -99,16 +99,15 @@ type UseCase struct {
 // rest; they use separate key rings. Public checkout tokens are drawn from
 // crypto/rand.
 //
-// Hosted external checkout: identityResolver maps the Merchant-asserted phone
-// to a customer during Partner Create offer preparation; otpHasher keys the
-// stored OTP verifier; notificationSubmitter delivers the code only from Hosted START after
-// explicit Continue. OTP later authorizes confirmation of that exact offer
-// generation. Both identity and notification perform network I/O and are never called
-// inside a database transaction. otpPolicy supplies immutable security terms
-// (TTL, attempt budget, send cooldown, per-checkout and cross-checkout send
-// budgets); otpTemplateID selects the Notification template. External Partner
-// TenantID/ContextID are snapshotted onto the CheckoutSession at Create time
-// from trusted Gateway headers — never from use-case configuration.
+// Partner checkout: customerResolver maps the Merchant-asserted phone to a
+// Customer Reference Service customer_id during offer preparation (Create when
+// mode is on_create, or Start when mode is on_start); otpHasher keys the stored
+// OTP verifier; notificationSubmitter delivers the code only from customer
+// START after explicit Continue. OTP later authorizes confirmation of that exact
+// offer generation. Both customer resolution and notification perform network
+// I/O and are never called inside a database transaction. otpPolicy supplies
+// immutable security terms (TTL, attempt budget, send cooldown, per-checkout and
+// cross-checkout send budgets); otpTemplateID selects the Notification template.
 func New(
 	pool repo.Pool,
 	checkoutSession repo.CheckoutSession,
@@ -135,7 +134,7 @@ func New(
 	ttl time.Duration,
 	expiryBatchSize int,
 	otpHasher fingerprint.Hasher,
-	identityResolver identity.Resolver,
+	customerResolver customer.Resolver,
 	notificationSubmitter notification.Submitter,
 	jurisdictions domaincapability.OriginationJurisdictions,
 	phoneCanonicalizer phonenumber.Canonicalizer,
@@ -247,8 +246,8 @@ func New(
 		return nil, fmt.Errorf("%s: otp hasher is required", op)
 	}
 
-	if identityResolver == nil {
-		return nil, fmt.Errorf("%s: identity resolver is required", op)
+	if customerResolver == nil {
+		return nil, fmt.Errorf("%s: customer resolver is required", op)
 	}
 
 	if notificationSubmitter == nil {
@@ -300,7 +299,7 @@ func New(
 		ttl:                        ttl,
 		expiryBatchSize:            expiryBatchSize,
 		otpHasher:                  otpHasher,
-		identityResolver:           identityResolver,
+		customerResolver:           customerResolver,
 		notificationSubmitter:      notificationSubmitter,
 		jurisdictions:              jurisdictions,
 		phoneCanonicalizer:         phoneCanonicalizer,

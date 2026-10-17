@@ -450,14 +450,14 @@ Provider-specific settings live under `external.webhook_dispatcher.http` / `noop
 | `EXTERNAL_FINANCIAL_CORE_GRPC_TIMEOUT` | env | When grpc | `5s` | Must be positive |
 | `EXTERNAL_FINANCIAL_CORE_GRPC_INSECURE` | env | When grpc | `true` | Local development only |
 
-### External Identity Service
+### External Customer Reference Service
 
 | Key | Source | Required | Default | Notes |
 | --- | --- | --- | --- | --- |
-| `EXTERNAL_IDENTITY_PROVIDER` | env | Yes | `noop` | `grpc` in production; `noop` forbidden when `APP_ENVIRONMENT=production` |
-| `EXTERNAL_IDENTITY_GRPC_ADDRESS` | env | When grpc | — | Required when provider is `grpc` |
-| `EXTERNAL_IDENTITY_GRPC_TIMEOUT` | env | When grpc | `5s` | Must be positive |
-| `EXTERNAL_IDENTITY_GRPC_INSECURE` | env | When grpc | `true` | Local development only; must be `false` in production |
+| `EXTERNAL_CUSTOMER_PROVIDER` | env | Yes | `noop` | `grpc` in production; `noop` forbidden when `APP_ENVIRONMENT=production` |
+| `EXTERNAL_CUSTOMER_GRPC_ADDRESS` | env | When grpc | — | Required when provider is `grpc` |
+| `EXTERNAL_CUSTOMER_GRPC_TIMEOUT` | env | When grpc | `5s` | Must be positive |
+| `EXTERNAL_CUSTOMER_GRPC_INSECURE` | env | When grpc | `true` | Local development only; must be `false` in production |
 
 Identity owns `ResolveSubjectByMobile` only (merchant-asserted phone → subject). It does not submit notifications or SMS.
 

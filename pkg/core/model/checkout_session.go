@@ -341,20 +341,8 @@ type CheckoutSession struct {
 	// verification belongs to the offer being confirmed.
 	OTPEvaluationGeneration *int `db:"otp_evaluation_generation" json:"-"`
 
-	// AuthTenantID is the server-owned Financial Core tenant scope snapshotted
-	// at External Partner Create from MerchantProfile.PaymentTenantID. Hosted
-	// Confirm uses this immutable value because the browser has no JWT and
-	// Partner Create is JWT-independent. Nil for internal sessions. Never
-	// client- or Gateway-header-supplied on Hosted or Partner routes.
-	AuthTenantID *TenantID `db:"auth_tenant_id" json:"-"`
-
-	// AuthContextID is the server-owned Financial Core business context
-	// snapshotted at External Partner Create from
-	// MerchantProfile.PaymentContextID. Hosted Confirm uses this immutable
-	// value because the browser has no JWT and Partner Create is
-	// JWT-independent. Nil for internal sessions. Never client- or
-	// Gateway-header-supplied on Hosted or Partner routes.
-	AuthContextID *ContextID `db:"auth_context_id" json:"-"`
+	// OfferPreparationMode is snapshotted from MerchantProfile at create time.
+	OfferPreparationMode OfferPreparationMode `db:"offer_preparation_mode" json:"-"`
 
 	// CustomerID is the internal customer profile primary key, set once BNPL trusts the customer identity.
 	CustomerID *CustomerID `db:"customer_id" json:"customer_id,omitempty"`
@@ -411,6 +399,15 @@ type CheckoutSession struct {
 // IsExpiredAt reports whether the handoff lifetime has elapsed at now.
 func (s CheckoutSession) IsExpiredAt(now time.Time) bool {
 	return !now.Before(s.ExpiresAt)
+}
+
+// EffectiveOfferPreparationMode returns the snapshotted preparation mode.
+func (s CheckoutSession) EffectiveOfferPreparationMode() OfferPreparationMode {
+	if s.OfferPreparationMode.IsValid() {
+		return s.OfferPreparationMode
+	}
+
+	return DefaultOfferPreparationMode
 }
 
 // MatchesCreateRequest reports whether an idempotent replay carries the same

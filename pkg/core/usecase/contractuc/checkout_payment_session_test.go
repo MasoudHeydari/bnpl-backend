@@ -30,7 +30,7 @@ func TestValidateExternalPaymentURL(t *testing.T) {
 	}
 }
 
-func TestValidatePaymentBasedCreateContractInput_NilTenantOrContext(t *testing.T) {
+func TestValidatePaymentBasedCreateContractInput_AllowsMissingTenantOrContext(t *testing.T) {
 	t.Parallel()
 
 	generic := CreateContractInput{
@@ -39,20 +39,13 @@ func TestValidatePaymentBasedCreateContractInput_NilTenantOrContext(t *testing.T
 	}
 	require.NoError(t, validateCreateContractInput(generic))
 
-	base := CreateContractInput{
+	paymentBased := CreateContractInput{
 		DecisionID:        model.DecisionID(uuid.New()),
 		IdentitySubjectID: model.IdentitySubjectID(uuid.New()),
-		TenantID:          model.TenantID(uuid.New()),
-		ContextID:         model.ContextID(uuid.New()),
+		TenantID:          model.TenantID{},
+		ContextID:         model.ContextID{},
 	}
-
-	missingTenant := base
-	missingTenant.TenantID = model.TenantID{}
-	require.Error(t, validatePaymentBasedCreateContractInput(missingTenant))
-
-	missingContext := base
-	missingContext.ContextID = model.ContextID{}
-	require.Error(t, validatePaymentBasedCreateContractInput(missingContext))
+	require.NoError(t, validatePaymentBasedCreateContractInput(paymentBased))
 }
 
 func TestValidateCheckoutPaymentResult_RejectsHTTPRedirect(t *testing.T) {

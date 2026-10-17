@@ -11,13 +11,12 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
-// verifiedExternalCheckout is the trusted identity proven by the OTP step plus
-// the immutable Gateway auth scope snapshotted at Partner Create.
+// verifiedExternalCheckout is the trusted identity proven by the OTP step.
+// Financial Core scope is resolved later at payment submission — never from
+// browser JWT headers or fabricated checkout snapshots.
 type verifiedExternalCheckout struct {
 	sessionID         model.CheckoutSessionID
 	identitySubjectID model.IdentitySubjectID
-	tenantID          model.TenantID
-	contextID         model.ContextID
 }
 
 // ConfirmExternal verifies the one-time code for the exact offer version the
@@ -25,8 +24,8 @@ type verifiedExternalCheckout struct {
 // to the session.
 //
 // The Confirm core receives the customer from the session binding and the
-// payment TenantID/ContextID from the immutable scope snapshotted at Partner
-// Create. The browser supplies none of them (no JWT headers, no body fields).
+// The browser supplies no JWT tenant/context headers and no payment scope in
+// the body. Financial Core scope is resolved only when submitting payment.
 // A session whose phone was already verified for the same evaluation generation
 // is not re-challenged, so a payment retry after a retryable failure does not
 // need a new code. A wrong code is counted atomically and persisted; once the
@@ -50,8 +49,6 @@ func (uc *UseCase) ConfirmExternal(
 	return uc.Confirm(ctx, ConfirmInput{
 		CheckoutSessionID:    verified.sessionID,
 		IdentitySubjectID:    verified.identitySubjectID,
-		TenantID:             verified.tenantID,
-		ContextID:            verified.contextID,
 		EvaluationGeneration: input.EvaluationGeneration,
 	})
 }
@@ -91,14 +88,6 @@ func (uc *UseCase) verifyExternalOTP(
 						return checkoutOfferNotReadyError(
 							fmt.Errorf("%s: checkout was not started", op),
 						)
-					}
-
-					if locked.AuthTenantID == nil || locked.AuthTenantID.IsZero() ||
-						locked.AuthContextID == nil || locked.AuthContextID.IsZero() {
-						return cerr.InternalError(fmt.Errorf(
-							"%s: external checkout is missing snapshotted auth scope",
-							op,
-						))
 					}
 
 					// Detect a stale offer before consuming OTP attempts.
@@ -171,8 +160,6 @@ func (uc *UseCase) verifyExternalOTP(
 					verified = verifiedExternalCheckout{
 						sessionID:         locked.ID,
 						identitySubjectID: profile.IdentitySubjectID,
-						tenantID:          *locked.AuthTenantID,
-						contextID:         *locked.AuthContextID,
 					}
 
 					return nil

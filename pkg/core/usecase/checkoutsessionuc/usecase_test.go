@@ -12,7 +12,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/canonicalizer/phonenumber"
 	"github.com/parstis/bnpl-backend/pkg/core/checkouturl"
 	"github.com/parstis/bnpl-backend/pkg/core/domaincapability"
-	"github.com/parstis/bnpl-backend/pkg/core/external/identity"
+	"github.com/parstis/bnpl-backend/pkg/core/external/customer"
 	"github.com/parstis/bnpl-backend/pkg/core/external/notification"
 	"github.com/parstis/bnpl-backend/pkg/core/fingerprint"
 	"github.com/parstis/bnpl-backend/pkg/core/mock"
@@ -50,7 +50,7 @@ type newDeps struct {
 	ttl                        time.Duration
 	expiryBatchSize            int
 	otpHasher                  fingerprint.Hasher
-	identityResolver           identity.Resolver
+	customerResolver           customer.Resolver
 	notificationSubmitter      notification.Submitter
 	jurisdictions              domaincapability.OriginationJurisdictions
 	phoneCanonicalizer         phonenumber.Canonicalizer
@@ -112,8 +112,8 @@ func newTestDeps(t *testing.T) newDeps {
 	checkoutPolicies, err := checkoutcatalog.NewRegistry()
 	require.NoError(t, err)
 
-	identityResolver := mock.NewIdentityResolver(t)
-	identityResolver.EXPECT().
+	customerResolver := mock.NewCustomerResolver(t)
+	customerResolver.EXPECT().
 		ResolveByMobile(testifymock.Anything, testifymock.Anything).
 		Maybe()
 
@@ -147,7 +147,7 @@ func newTestDeps(t *testing.T) newDeps {
 		ttl:                        30 * time.Minute,
 		expiryBatchSize:            100,
 		otpHasher:                  newTestOTPHasher(t),
-		identityResolver:           identityResolver,
+		customerResolver:           customerResolver,
 		notificationSubmitter:      notificationSubmitter,
 		jurisdictions:              jurisdictions,
 		phoneCanonicalizer:         newTestPhoneCanonicalizer(t),
@@ -185,7 +185,7 @@ func (d newDeps) newUseCase(t *testing.T) (*UseCase, error) {
 		d.ttl,
 		d.expiryBatchSize,
 		d.otpHasher,
-		d.identityResolver,
+		d.customerResolver,
 		d.notificationSubmitter,
 		d.jurisdictions,
 		d.phoneCanonicalizer,
@@ -287,7 +287,7 @@ func TestNew_RequiresOTPDependencies(t *testing.T) {
 
 	tests := map[string]func(*newDeps){
 		"otp hasher":              func(d *newDeps) { d.otpHasher = nil },
-		"identity resolver":       func(d *newDeps) { d.identityResolver = nil },
+		"customer resolver":       func(d *newDeps) { d.customerResolver = nil },
 		"notification submitter":  func(d *newDeps) { d.notificationSubmitter = nil },
 		"jurisdiction capability": func(d *newDeps) { d.jurisdictions = nil },
 		"phone canonicalizer":     func(d *newDeps) { d.phoneCanonicalizer = nil },

@@ -97,6 +97,10 @@ type CreatePartnerInput struct {
 }
 
 // CreatePartnerOutput returns the merchant-safe hosted handoff.
+//
+// Offer is populated only when the snapshotted offer_preparation_mode is
+// on_create and preparation produced a durable Decision. Merchants configured
+// for on_start receive handoff metadata without offer economics.
 type CreatePartnerOutput struct {
 	// Result reports whether the session was created or replayed.
 	Result CreateResult
@@ -106,32 +110,9 @@ type CreatePartnerOutput struct {
 
 	// CheckoutURL is the hosted BNPL page the merchant redirects the browser to.
 	CheckoutURL string
-}
 
-// CreateInternalInput carries a trusted first-party create request.
-//
-// IdentitySubjectID is the Identity Service subject the trusted caller acts for.
-type CreateInternalInput struct {
-	CheckoutSessionRequest
-
-	// IdentitySubjectID is the trusted customer identity to evaluate immediately.
-	IdentitySubjectID model.IdentitySubjectID
-}
-
-// CreateInternalOutput returns the session, hosted URL, and offer economics.
-type CreateInternalOutput struct {
-	// Result reports whether the session was created or replayed.
-	Result CreateResult
-
-	// Session is the persisted checkout session.
-	Session model.CheckoutSession
-
-	// CheckoutURL is the hosted BNPL page the merchant redirects the browser to
-	// for final customer confirmation.
-	CheckoutURL string
-
-	// Offer is the financing projection for the trusted customer.
-	Offer Offer
+	// Offer is set when preparation ran at Create (on_create). Nil for on_start.
+	Offer *Offer
 }
 
 // StartInput carries an authenticated customer's request to evaluate a checkout.
@@ -195,13 +176,10 @@ type CancelByMerchantInput struct {
 	MerchantID model.MerchantID
 }
 
-// CancelByCustomerInput carries an explicit customer cancellation.
-type CancelByCustomerInput struct {
-	// CheckoutSessionID identifies the checkout being canceled.
-	CheckoutSessionID model.CheckoutSessionID
-
-	// IdentitySubjectID is the authenticated customer identity.
-	IdentitySubjectID model.IdentitySubjectID
+// CancelByTokenInput carries a browser cancellation using the public token.
+type CancelByTokenInput struct {
+	// Token is the public checkout session token from the hosted URL.
+	Token model.CheckoutSessionToken
 }
 
 // CancelOutput returns the canceled session and the browser return target.
@@ -225,10 +203,12 @@ type ConfirmInput struct {
 	// IdentitySubjectID is the authenticated customer identity.
 	IdentitySubjectID model.IdentitySubjectID
 
-	// TenantID identifies the tenant for the payment context.
+	// TenantID optionally identifies the Financial Core tenant when supplied by
+	// a trusted gateway caller. Token-based Confirm leaves both scope fields zero.
 	TenantID model.TenantID
 
-	// ContextID identifies the payment context.
+	// ContextID optionally identifies the Financial Core context when supplied
+	// by a trusted gateway caller.
 	ContextID model.ContextID
 
 	// EvaluationGeneration is the offer/evaluation version presented to the customer.
@@ -442,19 +422,6 @@ func (i CreatePartnerInput) validate() error {
 
 	// Jurisdiction-specific syntax and canonicalization run after
 	// MerchantProfile.Jurisdiction is known (createOrReplaySessionTx).
-	// Financial Core payment scope is resolved from the merchant profile there.
-
-	return nil
-}
-
-func (i CreateInternalInput) validate() error {
-	if err := i.CheckoutSessionRequest.validate(); err != nil {
-		return err
-	}
-
-	if i.IdentitySubjectID.IsZero() {
-		return identitySubjectIDRequiredError()
-	}
 
 	return nil
 }
@@ -478,14 +445,6 @@ func (i ConfirmInput) validate() error {
 
 	if i.IdentitySubjectID.IsZero() {
 		return identitySubjectIDRequiredError()
-	}
-
-	if i.TenantID.IsZero() {
-		return validationError("REQUIRED", "tenant_id", "error.tenant_id_required")
-	}
-
-	if i.ContextID.IsZero() {
-		return validationError("REQUIRED", "context_id", "error.context_id_required")
 	}
 
 	if i.EvaluationGeneration < 1 {
@@ -577,15 +536,21 @@ type ReturnExternalOutput struct {
 	RedirectURL string
 }
 
-// StartExternalInput carries the hosted external OTP request.
+// StartExternalInput carries the hosted customer OTP request.
 //
-// EvaluationGeneration must be the exact value returned by Hosted GET so the
-// OTP authorizes only the offer terms the customer saw.
+// When the offer was already prepared (on_create, or a prior START),
+// EvaluationGeneration must match the value returned by GET so the OTP
+// authorizes only the offer terms the customer saw.
+//
+// When the offer is still deferred (on_start, first START), EvaluationGeneration
+// may be zero: START prepares the offer, then binds OTP to the new generation
+// and returns both the Offer and evaluation_generation.
 type StartExternalInput struct {
 	// Token is the public checkout session token from the hosted URL.
 	Token model.CheckoutSessionToken
 
-	// EvaluationGeneration is the offer version presented by Hosted GET.
+	// EvaluationGeneration is the offer version presented by GET, or zero when
+	// the client has not yet seen a prepared offer (deferred preparation).
 	EvaluationGeneration int
 }
 
@@ -594,11 +559,11 @@ func (i StartExternalInput) validate() error {
 		return err
 	}
 
-	if i.EvaluationGeneration < 1 {
+	if i.EvaluationGeneration < 0 {
 		return validationError(
-			"REQUIRED",
+			"INVALID",
 			"evaluation_generation",
-			"error.evaluation_generation_required",
+			"error.evaluation_generation_invalid",
 		)
 	}
 
@@ -607,13 +572,17 @@ func (i StartExternalInput) validate() error {
 
 // StartExternalOutput returns OTP delivery state for a prepared offer.
 //
-// The full offer is returned by Hosted GET, not by successful START.
+// Offer is always included when preparation succeeded so the customer can
+// review terms before Confirm (especially after deferred on_start preparation).
 type StartExternalOutput struct {
 	// Session is the checkout session after OTP issuance (or idempotent replay).
 	Session model.CheckoutSession
 
 	// EvaluationGeneration is the offer version this OTP challenge authorizes.
 	EvaluationGeneration int
+
+	// Offer is the financing terms bound to EvaluationGeneration.
+	Offer Offer
 
 	// OTPSent is true when this call issued a new OTP and Notification accepted
 	// its submission. It is false

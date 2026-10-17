@@ -27,6 +27,44 @@ const (
 	otpNotificationIdempotencyPrefix = "checkout-otp:"
 )
 
+// ensureOfferPreparedForStart loads the checkout and prepares the financing
+// offer when it is not already linked. Preparation timing is primarily decided
+// at Partner Create (on_create vs on_start); START still safely prepares a
+// missing offer so deferred sessions and interrupted on_create retries converge
+// on the same state machine without duplicating Decisions.
+func (uc *UseCase) ensureOfferPreparedForStart(
+	ctx context.Context,
+	token model.CheckoutSessionToken,
+) (model.CheckoutSession, error) {
+	var session model.CheckoutSession
+
+	err := uc.pool.Conn(
+		ctx,
+		func(ctx context.Context, conn repo.Conn) error {
+			sessionQ := uc.checkoutSession.Conn(conn)
+
+			found, findErr := sessionQ.GetByPublicToken(ctx, token)
+			if findErr != nil {
+				return findErr
+			}
+
+			session = found
+
+			return nil
+		},
+	)
+	if err != nil {
+		return model.CheckoutSession{}, err
+	}
+
+	if session.CustomerID != nil && session.DecisionID != nil && !session.DecisionID.IsZero() {
+		return session, nil
+	}
+
+	prepared, _, err := uc.prepareExternalOffer(ctx, session)
+	return prepared, err
+}
+
 // externalOTPRequestState is what StartExternal learns before submitting OTP.
 type externalOTPRequestState struct {
 	session model.CheckoutSession
@@ -34,18 +72,21 @@ type externalOTPRequestState struct {
 	offer   Offer
 }
 
-// StartExternal requests OTP delivery for a prepared External Hosted checkout.
+// StartExternal ensures the financing offer is prepared, then requests OTP
+// delivery for the unified customer checkout token API.
 //
-// The financing offer must already have been prepared during Partner Create and
-// shown by Hosted GET. This method does not call Identity, bind a customer,
-// create/refresh a Decision, or invent new offer terms.
+// When the offer was deferred (on_start), the first START prepares it. Clients
+// that have not yet seen a generation may omit evaluation_generation (zero);
+// START then binds OTP to the newly prepared generation and returns the Offer.
+// When the client supplies a generation, it must match the durable session.
 //
 // Flow:
-//  1. Validate token + evaluation_generation against the persisted session/offer.
-//  2. Load trusted merchant display name (DB read; no network).
-//  3. Tx: apply OTP rate limits + IssueOTP (no network).
-//  4. Outside Tx: Notification SubmitNotification.
-//  5. Tx: MarkOTPNotificationAccepted (CAS on otp_issue_id).
+//  1. Ensure offer prepared (Customer Reference + Decision outside Tx when needed).
+//  2. Validate token + evaluation_generation against the persisted session/offer.
+//  3. Load trusted merchant display name (DB read; no network).
+//  4. Tx: apply OTP rate limits + IssueOTP (no network).
+//  5. Outside Tx: Notification SubmitNotification.
+//  6. Tx: MarkOTPNotificationAccepted (CAS on otp_issue_id).
 //
 // A stale evaluation_generation consumes no OTP budgets and submits nothing.
 // An active/in-flight challenge for the same generation is idempotent.
@@ -59,6 +100,22 @@ func (uc *UseCase) StartExternal(
 		return StartExternalOutput{}, err
 	}
 
+	prepared, err := uc.ensureOfferPreparedForStart(ctx, input.Token)
+	if err != nil {
+		return StartExternalOutput{}, err
+	}
+
+	// Deferred first START: client has not yet observed a generation.
+	if input.EvaluationGeneration < 1 {
+		input.EvaluationGeneration = prepared.EvaluationGeneration
+	}
+
+	if input.EvaluationGeneration < 1 {
+		return StartExternalOutput{}, checkoutOfferNotReadyError(
+			fmt.Errorf("%s: offer preparation did not produce an evaluation generation", op),
+		)
+	}
+
 	state, err := uc.beginRequestOTP(ctx, input)
 	if err != nil {
 		return StartExternalOutput{}, err
@@ -68,6 +125,7 @@ func (uc *UseCase) StartExternal(
 	output := StartExternalOutput{
 		Session:              state.session,
 		EvaluationGeneration: state.session.EvaluationGeneration,
+		Offer:                state.offer,
 		OTPExpiresAt:         activeOTPExpiry(state.session, now),
 	}
 

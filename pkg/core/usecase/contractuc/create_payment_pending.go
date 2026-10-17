@@ -328,14 +328,6 @@ func validatePaymentBasedCreateContractInput(input CreateContractInput) error {
 		return err
 	}
 
-	if input.TenantID.IsZero() {
-		return tenantIDRequiredError()
-	}
-
-	if input.ContextID.IsZero() {
-		return contextIDRequiredError()
-	}
-
 	providerCode := strings.TrimSpace(input.ProviderCode)
 	if len(providerCode) > maxProviderCodeLength {
 		return providerCodeTooLongError()

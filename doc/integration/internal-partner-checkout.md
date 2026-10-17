@@ -1062,7 +1062,7 @@ Integration Damz تفاوتی با مسیر normal ندارد: منتظر `compl
 [ ] Configure base URL + access token securely
 [ ] Add UpsertReturnDestination
 [ ] Add UpsertWebhookDestination
-[ ] Add CreateInternalCheckout
+[x] Removed — all merchants use Partner Create + customer token flow
 [ ] Add Inquiry (GetPartnerStatus)
 [ ] Add CancelByMerchant
 [ ] Persist checkout_session_id against Damz order
@@ -1211,7 +1211,7 @@ Frontend وضعیت را از Backend می‌گیرد؛ از URL نتیجه نم
 | --- | --- | --- | --- | --- | --- |
 | `/api/v1/partner/return-destinations/{destination_name}` | PUT | `UpsertReturnDestinationRequestSchema` | `ReturnDestinationSuccessSchema` | manage return destinations | منطبق |
 | `/api/v1/partner/webhook-destination` | PUT | `UpsertWebhookDestinationRequestSchema` | `WebhookDestinationSuccessSchema` | manage webhooks | منطبق |
-| `/api/v1/internal/checkout-sessions` | POST | `CreateInternalRequestSchema` | `InternalCreateSuccessSchema` | create + on-behalf | منطبق |
+| *(removed)* | — | — | — | use Partner Create | — |
 | `/api/v1/partner/checkout-sessions/{id}` | GET | path id | `StatusSuccessSchema` | read merchant | منطبق |
 | `/api/v1/partner/checkout-sessions/{id}/cancel` | POST | path id | `CancelSuccessSchema` | create merchant | منطبق |
 

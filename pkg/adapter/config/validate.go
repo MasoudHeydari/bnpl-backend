@@ -768,7 +768,7 @@ func (e External) validate(environment string, httpClient HTTPClient) error {
 		return err
 	}
 
-	if err := e.Identity.validate(env); err != nil {
+	if err := e.Customer.validate(env); err != nil {
 		return err
 	}
 

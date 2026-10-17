@@ -60,12 +60,15 @@ type hostedExternalOfferSchema struct {
 }
 
 // hostedExternalStartResponse is OTP delivery state for a prepared offer.
-// The full offer is returned by GET, not by successful START.
+// Offer and evaluation_generation are always returned so deferred (on_start)
+// preparation can surface terms before Confirm.
 type hostedExternalStartResponse struct {
 	CheckoutSessionID string                      `json:"checkout_session_id" example:"cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"`
 	Status            model.CheckoutSessionStatus `json:"status" enums:"open,unavailable"`
 	// EvaluationGeneration versions the offer. Send it back unchanged on Confirm.
 	EvaluationGeneration int `json:"evaluation_generation" example:"1"`
+	// Offer is the financing terms bound to evaluation_generation.
+	Offer *hostedExternalOfferSchema `json:"offer,omitempty"`
 	// OTPSent is true when this call delivered a new verification code.
 	OTPSent bool `json:"otp_sent" example:"true"`
 	// OTPExpiresAt is when the active verification code stops being accepted.
@@ -73,9 +76,10 @@ type hostedExternalStartResponse struct {
 }
 
 // hostedExternalStartRequest carries the offer version the customer saw on GET.
+// Omit or send 0 when the offer has not been prepared yet (on_start first START).
 type hostedExternalStartRequest struct {
-	// EvaluationGeneration is the offer version returned by Hosted GET.
-	EvaluationGeneration int `json:"evaluation_generation" binding:"required,min=1" example:"1"`
+	// EvaluationGeneration is the offer version returned by GET, when known.
+	EvaluationGeneration int `json:"evaluation_generation" binding:"omitempty,min=1" example:"1"`
 }
 
 // hostedExternalConfirmRequest carries the verification code and the offer
@@ -128,13 +132,20 @@ func toHostedExternalGetResponse(output checkoutsessionuc.GetExternalOutput) hos
 }
 
 func toHostedExternalStartResponse(output checkoutsessionuc.StartExternalOutput) hostedExternalStartResponse {
-	return hostedExternalStartResponse{
+	resp := hostedExternalStartResponse{
 		CheckoutSessionID:    output.Session.PublicToken.String(),
 		Status:               output.Session.Status,
 		EvaluationGeneration: output.EvaluationGeneration,
 		OTPSent:              output.OTPSent,
 		OTPExpiresAt:         output.OTPExpiresAt,
 	}
+
+	if output.Offer.Outcome != "" {
+		safe := toHostedExternalOfferResponse(output.Offer)
+		resp.Offer = &safe
+	}
+
+	return resp
 }
 
 func toHostedExternalOfferResponse(offer checkoutsessionuc.Offer) hostedExternalOfferSchema {
@@ -177,13 +188,13 @@ func toHostedExternalConfirmResponse(output checkoutsessionuc.ConfirmOutput) hos
 	}
 }
 
-// GetHostedExternal handles GET /api/v1/hosted/checkout-sessions/{checkout_session_id}.
+// GetHostedExternal handles GET /api/v1/checkout-sessions/{token}.
 //
 //	@Summary		Get hosted external checkout
 //	@Description	Unauthenticated read-only hosted page projection. Returns merchant display name, amount, evaluation_generation, the prepared privacy-safe offer (when available), and the masked verification destination. Never creates a Decision, binds a customer, sends OTP, or calls Financial Core.
-//	@Tags			Hosted External Checkout
+//	@Tags			Checkout Sessions
 //	@Produce		json
-//	@Param			checkout_session_id	path		string							true	"Public checkout session token (cs_<64 hex>)"
+//	@Param			token				path		string							true	"Public checkout session token (cs_<64 hex>)"
 //	@Success		200					{object}	HostedExternalGetSuccessSchema	"Success"
 //	@Failure		400					{object}	serdser.ErrorResponse
 //	@Failure		404					{object}	serdser.ErrorResponse
@@ -200,9 +211,9 @@ func toHostedExternalConfirmResponse(output checkoutsessionuc.ConfirmOutput) hos
 //	@Header			500					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
 //	@Header			500					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
 //	@Header			500					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
-//	@Router			/api/v1/hosted/checkout-sessions/{checkout_session_id} [get]
+//	@Router			/api/v1/checkout-sessions/{token} [get]
 func (rs *resource) GetHostedExternal(c *gin.Context) {
-	token, ok := checkoutSessionTokenParam(c)
+	token, ok := checkoutTokenParam(c)
 	if !ok {
 		return
 	}
@@ -225,14 +236,14 @@ func (rs *resource) GetHostedExternal(c *gin.Context) {
 	)
 }
 
-// StartHostedExternal handles POST /api/v1/hosted/checkout-sessions/{checkout_session_id}/start.
+// StartHostedExternal handles POST /api/v1/checkout-sessions/{token}/start.
 //
-//	@Summary		Request hosted external checkout OTP
-//	@Description	Unauthenticated. Requests an SMS OTP for the exact evaluation_generation returned by GET. Does not call Identity or create a Decision. Idempotent while a delivered/in-flight code is still valid.
-//	@Tags			Hosted External Checkout
+//	@Summary		Start customer checkout (prepare offer if needed + OTP)
+//	@Description	Unauthenticated token API. Prepares a deferred offer when needed (on_start), then requests SMS OTP. evaluation_generation may be omitted on the first START before an offer exists; the response returns Offer and the authoritative evaluation_generation. Idempotent while a delivered/in-flight code is still valid.
+//	@Tags			Checkout Sessions
 //	@Accept			json
 //	@Produce		json
-//	@Param			checkout_session_id	path		string								true	"Public checkout session token (cs_<64 hex>)"
+//	@Param			token				path		string								true	"Public checkout session token (cs_<64 hex>)"
 //	@Param			body				body		HostedExternalStartRequestSchema	true	"Offer version from Hosted GET"
 //	@Success		200					{object}	HostedExternalStartSuccessSchema	"Success"
 //	@Failure		400					{object}	serdser.ErrorResponse
@@ -258,9 +269,9 @@ func (rs *resource) GetHostedExternal(c *gin.Context) {
 //	@Header			500					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
 //	@Header			500					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
 //	@Header			500					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
-//	@Router			/api/v1/hosted/checkout-sessions/{checkout_session_id}/start [post]
+//	@Router			/api/v1/checkout-sessions/{token}/start [post]
 func (rs *resource) StartHostedExternal(c *gin.Context) {
-	token, ok := checkoutSessionTokenParam(c)
+	token, ok := checkoutTokenParam(c)
 	if !ok {
 		return
 	}
@@ -291,14 +302,14 @@ func (rs *resource) StartHostedExternal(c *gin.Context) {
 	)
 }
 
-// ConfirmHostedExternal handles POST /api/v1/hosted/checkout-sessions/{checkout_session_id}/confirm.
+// ConfirmHostedExternal handles POST /api/v1/checkout-sessions/{token}/confirm.
 //
 //	@Summary		Confirm hosted external checkout
 //	@Description	Unauthenticated. Verifies the SMS code, then runs Confirm & Pay for the customer bound to the checkout. A stale evaluation_generation returns reconfirm_required with the refreshed offer.
-//	@Tags			Hosted External Checkout
+//	@Tags			Checkout Sessions
 //	@Accept			json
 //	@Produce		json
-//	@Param			checkout_session_id	path		string								true	"Public checkout session token (cs_<64 hex>)"
+//	@Param			token				path		string								true	"Public checkout session token (cs_<64 hex>)"
 //	@Param			body				body		HostedExternalConfirmRequestSchema	true	"Offer version and SMS verification code"
 //	@Success		200					{object}	HostedExternalConfirmSuccessSchema	"Success"
 //	@Failure		400					{object}	serdser.ErrorResponse
@@ -328,9 +339,9 @@ func (rs *resource) StartHostedExternal(c *gin.Context) {
 //	@Header			500					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
 //	@Header			500					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
 //	@Header			500					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
-//	@Router			/api/v1/hosted/checkout-sessions/{checkout_session_id}/confirm [post]
+//	@Router			/api/v1/checkout-sessions/{token}/confirm [post]
 func (rs *resource) ConfirmHostedExternal(c *gin.Context) {
-	token, ok := checkoutSessionTokenParam(c)
+	token, ok := checkoutTokenParam(c)
 	if !ok {
 		return
 	}
@@ -374,13 +385,13 @@ func (rs *resource) ConfirmHostedExternal(c *gin.Context) {
 	)
 }
 
-// ReturnHostedExternal handles GET /api/v1/hosted/checkout-sessions/{checkout_session_id}/return.
+// ReturnHostedExternal handles GET /api/v1/checkout-sessions/{token}/return.
 //
 //	@Summary		Return from hosted external checkout
 //	@Description	Unauthenticated browser navigation only. Redirects to the merchant ReturnURL persisted at checkout creation. Never accepts a destination URL from the request. Browser arrival is NOT payment or order-fulfillment authority — merchants must trust Partner Inquiry status=completed or the verified bnpl.checkout.completed.v1 webhook.
-//	@Tags			Hosted External Checkout
+//	@Tags			Checkout Sessions
 //	@Produce		json
-//	@Param			checkout_session_id	path		string	true	"Public checkout session token (cs_<64 hex>)"
+//	@Param			token				path		string	true	"Public checkout session token (cs_<64 hex>)"
 //	@Success		302					{string}	string	"Redirect to the pre-registered merchant return URL"
 //	@Failure		400					{object}	serdser.ErrorResponse
 //	@Failure		404					{object}	serdser.ErrorResponse
@@ -397,9 +408,9 @@ func (rs *resource) ConfirmHostedExternal(c *gin.Context) {
 //	@Header			500					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
 //	@Header			500					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
 //	@Header			500					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
-//	@Router			/api/v1/hosted/checkout-sessions/{checkout_session_id}/return [get]
+//	@Router			/api/v1/checkout-sessions/{token}/return [get]
 func (rs *resource) ReturnHostedExternal(c *gin.Context) {
-	token, ok := checkoutSessionTokenParam(c)
+	token, ok := checkoutTokenParam(c)
 	if !ok {
 		return
 	}
