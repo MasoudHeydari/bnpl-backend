@@ -69,6 +69,12 @@ func TestClassifyConfirmationExternalError(t *testing.T) {
 			want:         saga.StepOutcomeRetry,
 		},
 		{
+			name:         "database mapper internal error wrapping cancellation stays retryable",
+			err:          fmt.Errorf("get saga by id: %w", cerr.InternalError(context.Canceled)),
+			attemptCount: 1,
+			want:         saga.StepOutcomeRetry,
+		},
+		{
 			name:         "service unavailable is transient",
 			err:          cerr.ServiceUnavailable(errors.New("fc unavailable")),
 			attemptCount: 1,

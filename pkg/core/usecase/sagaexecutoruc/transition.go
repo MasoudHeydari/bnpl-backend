@@ -188,6 +188,17 @@ func (uc *UseCase) applyForwardResultTx(
 	return fmt.Errorf("%s: %w: unsupported outcome %q", op, saga.ErrInvalidStepResult, result.Outcome)
 }
 
+// stepAttemptCountForUpdate applies the Saga attempt-count invariant.
+// A new step or phase starts at zero. Staying on the same operation must keep
+// the count claimed for that operation; resetting it is rejected as a decrease.
+func stepAttemptCountForUpdate(current model.SagaInstance, nextPhase model.SagaPhase, nextStep model.SagaStep) int {
+	if current.Phase == nextPhase && current.CurrentStep == nextStep {
+		return current.StepAttemptCount
+	}
+
+	return 0
+}
+
 func (uc *UseCase) startOrAdvanceCompensationTx(
 	ctx context.Context,
 	tx repo.Tx,
@@ -208,7 +219,7 @@ func (uc *UseCase) startOrAdvanceCompensationTx(
 					model.CompensatingSagaPhase,
 					model.CompensatedSagaStatus,
 					instance.CurrentStep,
-					0,
+					stepAttemptCountForUpdate(instance, model.CompensatingSagaPhase, instance.CurrentStep),
 					nil,
 					nil,
 					&now,
@@ -247,7 +258,7 @@ func (uc *UseCase) startOrAdvanceCompensationTx(
 				model.CompensatingSagaPhase,
 				model.RunningSagaStatus,
 				completion.Step,
-				0,
+				stepAttemptCountForUpdate(instance, model.CompensatingSagaPhase, completion.Step),
 				nil,
 				nil,
 				nil,
@@ -263,7 +274,7 @@ func (uc *UseCase) startOrAdvanceCompensationTx(
 				model.CompensatingSagaPhase,
 				model.RunningSagaStatus,
 				*policy.EntryStep,
-				0,
+				stepAttemptCountForUpdate(instance, model.CompensatingSagaPhase, *policy.EntryStep),
 				nil,
 				nil,
 				nil,

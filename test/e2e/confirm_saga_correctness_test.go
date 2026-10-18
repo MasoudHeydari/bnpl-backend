@@ -402,6 +402,7 @@ func TestE2E_ConfirmSaga_AwaitingPaymentRestartsWithoutInventingSuccess(t *testi
 
 	out, err := h.CheckoutSession.Confirm(h.ctx, confirmInputForSeed(seed))
 	require.NoError(t, err)
+	require.True(t, out.PaymentRequired)
 
 	session := h.querySession(seed.Session.ID)
 	require.Equal(t, model.ProcessingCheckoutSessionStatus, session.Status)
@@ -432,7 +433,7 @@ func TestE2E_ConfirmSaga_AwaitingPaymentRestartsWithoutInventingSuccess(t *testi
 	require.Equal(t, intentID, *reconciled.FinancialPaymentIntentID)
 	require.Equal(t, model.PaymentPendingContractStatus, h.queryContractBySession(h.querySession(seed.Session.ID)).Status)
 	require.Equal(t, int64(0), h.creditExposureMinor(seed.CustomerID))
-	require.Equal(t, 0, h.countOutboxEvents("bnpl.checkout.completed.v1", seed.Session.ID.String()))
+	require.Equal(t, 0, h.countOutboxEvents("bnpl.checkout.completed.v1", session.PublicToken.String()))
 
 	inboxStatus, inboxCount := h.inboxStatus("financial-core", "fc-event-amount-mismatch")
 	require.Equal(t, 1, inboxCount)
@@ -452,7 +453,7 @@ func TestE2E_ConfirmSaga_AwaitingPaymentRestartsWithoutInventingSuccess(t *testi
 	exposureCount, exposureAmount := h.countExposureIncreases(contractRow.ID)
 	require.Equal(t, 0, exposureCount)
 	require.Equal(t, int64(0), exposureAmount)
-	require.Equal(t, 0, h.countOutboxEvents("bnpl.checkout.completed.v1", seed.Session.ID.String()))
+	require.Equal(t, 0, h.countOutboxEvents("bnpl.checkout.completed.v1", session.PublicToken.String()))
 	repeatStatus, repeatCount := h.inboxStatus("financial-core", "fc-event-amount-mismatch-repeat")
 	require.Equal(t, 1, repeatCount)
 	require.Equal(t, "reconciliation_required", repeatStatus)

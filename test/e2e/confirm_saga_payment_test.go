@@ -218,7 +218,11 @@ func TestE2E_ConfirmSaga_W_DuplicatePaymentSuccessDoesNotDoubleApply(t *testing.
 	require.Greater(t, exposureAmount, int64(0))
 	require.Equal(t, exposureAmount, h.creditExposureMinor(seed.CustomerID))
 
-	require.Equal(t, 1, h.countOutboxEvents("bnpl.checkout.completed.v1", seed.Session.ID.String()))
+	// Merchant lifecycle events are keyed by the public checkout token, never the
+	// internal session id. One row after two authoritative replays is the
+	// duplicate-completion invariant.
+	require.Equal(t, 1, h.countOutboxEvents("bnpl.checkout.completed.v1", session.PublicToken.String()))
+	require.Equal(t, 0, h.countOutboxEvents("bnpl.checkout.completed.v1", seed.Session.ID.String()))
 
 	status, inboxCount := h.inboxStatus("financial-core", "fc-event-dup-success")
 	require.Equal(t, 1, inboxCount)
@@ -344,11 +348,26 @@ func TestE2E_ConfirmSaga_Y_TerminalFailureConcurrentRetriesAtMostOneReplacementA
 
 	attempts := h.listCheckoutPaymentAttempts(contractRow.ID)
 	require.Len(t, attempts, 2)
-	require.Equal(t, attemptA.ID, attempts[0].ID)
-	require.Equal(t, model.FailedPaymentAttemptState, attempts[0].State)
-	require.Equal(t, attemptA.IdempotencyKey, attempts[0].IdempotencyKey)
+	var (
+		original    checkoutPaymentAttemptSnapshot
+		replacement checkoutPaymentAttemptSnapshot
+		foundA      bool
+		foundB      bool
+	)
+	for _, row := range attempts {
+		if row.ID == attemptA.ID {
+			original = row
+			foundA = true
+			continue
+		}
 
-	replacement := attempts[1]
+		replacement = row
+		foundB = true
+	}
+	require.True(t, foundA)
+	require.True(t, foundB)
+	require.Equal(t, model.FailedPaymentAttemptState, original.State)
+	require.Equal(t, attemptA.IdempotencyKey, original.IdempotencyKey)
 	require.NotEqual(t, attemptA.ID, replacement.ID)
 	require.NotEqual(t, attemptA.IdempotencyKey, replacement.IdempotencyKey)
 	require.Equal(t, model.SubmittedPaymentAttemptState, replacement.State)

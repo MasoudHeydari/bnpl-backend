@@ -2,6 +2,7 @@ package checkoutsessionuc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -398,6 +399,37 @@ func (d *ConfirmationSagaDefinition) assertSagaClaimCurrent(
 	return nil
 }
 
+// externalStepError persists a durable Saga outcome for failures that occur
+// before an external step can return its own StepResult. A stale claim stays a
+// raw version conflict so the driver stops. Caller cancellation, deadlines, and
+// other classified failures become retry, reconciliation, or manual review
+// instead of an unpersisted error that holds the lease until it expires.
+func (d *ConfirmationSagaDefinition) externalStepError(
+	err error,
+	instance model.SagaInstance,
+) (saga.StepResult, error) {
+	if err == nil {
+		return saga.StepResult{}, nil
+	}
+
+	if errors.Is(err, repo.ErrSagaVersionConflict) {
+		return saga.StepResult{}, err
+	}
+
+	now := d.clock.Now().UTC()
+	if classified, ok := classifyConfirmationExternalError(
+		err,
+		instance.StepAttemptCount,
+		d.retryBaseDelay,
+		d.retryMaxDelay,
+		now,
+	); ok {
+		return classified, nil
+	}
+
+	return saga.StepResult{}, err
+}
+
 type confirmClaimedStep struct{ def *ConfirmationSagaDefinition }
 
 var (
@@ -532,19 +564,19 @@ func (s *confirmContractPreparedStep) Execute(
 
 	if hook := s.def.hooks.BeforePrepareContract; hook != nil {
 		if err := hook(ctx); err != nil {
-			return saga.StepResult{}, err
+			return s.def.externalStepError(err, instance)
 		}
 	}
 
 	// Re-check the claim after the barrier. A worker whose lease expired must
 	// not prepare a Contract for a Saga version another worker already advanced.
 	if err := s.def.assertSagaClaimCurrent(ctx, instance); err != nil {
-		return saga.StepResult{}, err
+		return s.def.externalStepError(err, instance)
 	}
 
 	session, err := s.def.loadSession(ctx, instance)
 	if err != nil {
-		return saga.StepResult{}, err
+		return s.def.externalStepError(err, instance)
 	}
 
 	if mismatch, ok := sessionMatchesConfirmationAttempt(session, instance); !ok {
@@ -552,7 +584,7 @@ func (s *confirmContractPreparedStep) Execute(
 	}
 
 	if session.DecisionID == nil || session.DecisionID.IsZero() {
-		return saga.StepResult{}, fmt.Errorf("%s: session has no decision", op)
+		return s.def.externalStepError(fmt.Errorf("%s: session has no decision", op), instance)
 	}
 
 	// Idempotent resume: if a Contract already exists for the Decision, advance.
@@ -573,12 +605,12 @@ func (s *confirmContractPreparedStep) Execute(
 	}
 
 	if findErr != nil && !cerr.IsCode(findErr, cerr.CodeResourceNotFound) {
-		return saga.StepResult{}, findErr
+		return s.def.externalStepError(findErr, instance)
 	}
 
 	externalCustomerID, err := s.def.loadExternalCustomerID(ctx, session)
 	if err != nil {
-		return saga.StepResult{}, err
+		return s.def.externalStepError(err, instance)
 	}
 
 	_, err = s.def.contractUC.PrepareCheckoutContract(ctx, contractuc.CreateContractInput{
@@ -600,12 +632,12 @@ func (s *confirmContractPreparedStep) Execute(
 			return classified, nil
 		}
 
-		return saga.StepResult{}, err
+		return s.def.externalStepError(err, instance)
 	}
 
 	if hook := s.def.hooks.AfterPrepareContract; hook != nil {
 		if err := hook(ctx); err != nil {
-			return saga.StepResult{}, err
+			return s.def.externalStepError(err, instance)
 		}
 	}
 
@@ -703,17 +735,17 @@ func (s *confirmFCFulfillmentStep) Execute(
 
 	if hook := s.def.hooks.BeforeFCSubmit; hook != nil {
 		if err := hook(ctx); err != nil {
-			return saga.StepResult{}, err
+			return s.def.externalStepError(err, instance)
 		}
 	}
 
 	if err := s.def.assertSagaClaimCurrent(ctx, instance); err != nil {
-		return saga.StepResult{}, err
+		return s.def.externalStepError(err, instance)
 	}
 
 	session, err := s.def.loadSession(ctx, instance)
 	if err != nil {
-		return saga.StepResult{}, err
+		return s.def.externalStepError(err, instance)
 	}
 
 	if mismatch, ok := sessionMatchesConfirmationAttempt(session, instance); !ok {
@@ -721,7 +753,7 @@ func (s *confirmFCFulfillmentStep) Execute(
 	}
 
 	if session.ContractID == nil || session.ContractID.IsZero() {
-		return saga.StepResult{}, fmt.Errorf("%s: session has no linked contract", op)
+		return s.def.externalStepError(fmt.Errorf("%s: session has no linked contract", op), instance)
 	}
 
 	var (
@@ -741,7 +773,7 @@ func (s *confirmFCFulfillmentStep) Execute(
 		return nil
 	})
 	if err != nil {
-		return saga.StepResult{}, err
+		return s.def.externalStepError(err, instance)
 	}
 
 	// Derive payment requirement from whether a checkout PaymentAttempt exists.
@@ -769,7 +801,7 @@ func (s *confirmFCFulfillmentStep) Execute(
 		paymentRequired = false
 
 	default:
-		return saga.StepResult{}, attemptErr
+		return s.def.externalStepError(attemptErr, instance)
 	}
 
 	prepared := contractuc.CreateContractOutput{
@@ -791,7 +823,7 @@ func (s *confirmFCFulfillmentStep) Execute(
 			return classified, nil
 		}
 
-		return saga.StepResult{}, err
+		return s.def.externalStepError(err, instance)
 	}
 
 	if paymentRequired {
