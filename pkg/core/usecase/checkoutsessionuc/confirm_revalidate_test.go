@@ -31,12 +31,24 @@ func TestConfirm_RevalidationHonorableContinuesWithoutGenerationBump(t *testing.
 	h.decisionTx.EXPECT().GetByID(h.ctx, h.decisionID).Return(model.Decision{ID: h.decisionID}, nil).Once()
 	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(open, nil).Once()
 	h.sessionTx.EXPECT().MarkConfirming(h.ctx, h.sessionID, h.now).Return(confirming, nil).Once()
+	h.expectConfirmClaimStepLock(confirming)
+
+	prepared := h.createdContract(true)
+	prepared.Contract.DecisionID = h.decisionID
+	h.contracts.output = prepared
+
+	h.expectConfirmSagaDriveLock(confirming)
 	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(confirming, nil).Once()
 	h.sessionTx.EXPECT().LinkContract(h.ctx, h.sessionID, h.contractID, h.now).Return(linked, nil).Once()
 	h.sessionTx.EXPECT().UpdateStatus(h.ctx, h.sessionID, model.ProcessingCheckoutSessionStatus, h.now).
 		Return(processing, nil).Once()
 
-	h.contracts.output = h.createdContract(true)
+	h.expectConfirmProjectionLock(processing)
+	h.contractCQ.EXPECT().GetByID(h.ctx, h.contractID).Return(prepared.Contract, nil).Once()
+	h.decisionCQ.EXPECT().GetByID(h.ctx, h.decisionID).Return(model.Decision{
+		PolicyID: "checkout_contract_approval", PolicyVersion: "v1",
+	}, nil).Once()
+	h.expectCheckoutPaymentAttemptLoad(true)
 
 	output, err := h.uc.Confirm(h.ctx, h.confirmInput(1))
 	require.NoError(t, err)
@@ -168,6 +180,8 @@ func TestConfirm_DeterministicInsufficientCreditRefreshesOffer(t *testing.T) {
 	h.decisionTx.EXPECT().GetByID(h.ctx, h.decisionID).Return(model.Decision{ID: h.decisionID}, nil).Once()
 	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(open, nil).Once()
 	h.sessionTx.EXPECT().MarkConfirming(h.ctx, h.sessionID, h.now).Return(confirming, nil).Once()
+	h.expectConfirmClaimStepLock(confirming)
+	h.expectConfirmSagaDriveLock(confirming)
 
 	h.contracts.err = cerr.NewPublic(
 		cerr.CodeConflict,
@@ -176,6 +190,7 @@ func TestConfirm_DeterministicInsufficientCreditRefreshesOffer(t *testing.T) {
 		cerr.Details{Violations: []cerr.Violation{{Code: "INSUFFICIENT_CREDIT"}}},
 	)
 
+	h.expectConfirmProjectionLock(confirming)
 	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(confirming, nil).Once()
 	h.contractTx.EXPECT().GetByDecisionID(h.ctx, h.decisionID).
 		Return(model.Contract{}, cerr.ResourceNotFound(nil)).Once()
@@ -212,6 +227,8 @@ func TestConfirm_AmbiguousContractFailureDoesNotReopen(t *testing.T) {
 	h.decisionTx.EXPECT().GetByID(h.ctx, h.decisionID).Return(model.Decision{ID: h.decisionID}, nil).Once()
 	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(open, nil).Once()
 	h.sessionTx.EXPECT().MarkConfirming(h.ctx, h.sessionID, h.now).Return(confirming, nil).Once()
+	h.expectConfirmClaimStepLock(confirming)
+	h.expectConfirmSagaDriveLock(confirming)
 
 	h.contracts.err = cerr.ServiceUnavailable(errFinancialCoreDown)
 

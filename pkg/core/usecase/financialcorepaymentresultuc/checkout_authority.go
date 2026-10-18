@@ -35,6 +35,12 @@ func (uc *UseCase) resolveAuthoritativeCheckoutResult(
 	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 		var loadErr error
 		paymentAttemptQ := uc.paymentAttempt.Conn(conn)
+		// TODO(fc-early-payment-result): A Financial Core payment-result event
+		// may arrive before BNPL durably saves the PaymentIntentID returned by
+		// CreateCheckoutPayment. Cover with an E2E that proves temporary
+		// GetByFinancialPaymentIntentID failure does not permanently lose the
+		// event and that retry/ack semantics eventually apply the authoritative
+		// result. Do not change this consumer path merely to satisfy that test.
 		attempt, loadErr = paymentAttemptQ.GetByFinancialPaymentIntentID(ctx, paymentIntentID)
 		return loadErr
 	})

@@ -244,7 +244,7 @@ func (rs *resource) GetHostedExternal(c *gin.Context) {
 //	@Accept			json
 //	@Produce		json
 //	@Param			token				path		string								true	"Public checkout session token (cs_<64 hex>)"
-//	@Param			body				body		HostedExternalStartRequestSchema	true	"Offer version from Hosted GET"
+//	@Param			body				body		HostedExternalStartRequestSchema	false	"Optional. Omit or send {} on first START before an offer exists; send evaluation_generation when GET already returned one"
 //	@Success		200					{object}	HostedExternalStartSuccessSchema	"Success"
 //	@Failure		400					{object}	serdser.ErrorResponse
 //	@Failure		403					{object}	serdser.ErrorResponse
@@ -276,8 +276,8 @@ func (rs *resource) StartHostedExternal(c *gin.Context) {
 		return
 	}
 
-	var req hostedExternalStartRequest
-	if !serdser.Bind(c, &req, binding.JSON) {
+	req, ok := bindHostedExternalStartRequest(c)
+	if !ok {
 		return
 	}
 
@@ -300,6 +300,25 @@ func (rs *resource) StartHostedExternal(c *gin.Context) {
 		serdser.SuccessMessageCheckoutSessionStarted,
 		toHostedExternalStartResponse(output),
 	)
+}
+
+// bindHostedExternalStartRequest reads an optional JSON body.
+//
+// An empty body (Content-Length 0) is valid for the first START of a deferred
+// (on_start) offer. A non-empty body is bound as JSON; {} leaves generation at 0.
+func bindHostedExternalStartRequest(c *gin.Context) (hostedExternalStartRequest, bool) {
+	var req hostedExternalStartRequest
+
+	// Empty body selects generation 0 (offer not yet prepared / unknown).
+	if c.Request.ContentLength == 0 {
+		return req, true
+	}
+
+	if !serdser.Bind(c, &req, binding.JSON) {
+		return hostedExternalStartRequest{}, false
+	}
+
+	return req, true
 }
 
 // ConfirmHostedExternal handles POST /api/v1/checkout-sessions/{token}/confirm.

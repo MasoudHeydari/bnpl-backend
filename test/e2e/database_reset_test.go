@@ -57,15 +57,15 @@ func TestE2E_DatabaseReset_PreservesMigrationMetadata(t *testing.T) {
 func TestE2E_DatabaseReset_RemovesBusinessData(t *testing.T) {
 	resetDatabase(t)
 
-	identitySubjectID := model.IdentitySubjectID(uuid.New())
-	insertCustomerProfile(t, identitySubjectID, model.ActiveCustomerStatus)
+	externalCustomerID := model.ExternalCustomerID(uuid.New())
+	insertCustomerProfile(t, externalCustomerID, model.ActiveCustomerStatus)
 
-	_, found := queryCustomerProfile(t, identitySubjectID)
+	_, found := queryCustomerProfile(t, externalCustomerID)
 	require.True(t, found, "test setup must have persisted the customer profile row")
 
 	resetDatabase(t)
 
-	_, found = queryCustomerProfile(t, identitySubjectID)
+	_, found = queryCustomerProfile(t, externalCustomerID)
 	assert.False(t, found, "resetDatabase must remove mutable business data such as customer_profiles rows")
 }
 

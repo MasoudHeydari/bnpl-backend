@@ -29,29 +29,29 @@ type decisionDTO struct {
 }
 
 type customerProfileRow struct {
-	ID                uuid.UUID
-	IdentitySubjectID model.IdentitySubjectID
-	Jurisdiction      string
-	Status            string
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	ID                 uuid.UUID
+	ExternalCustomerID model.ExternalCustomerID
+	Jurisdiction       string
+	Status             string
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
-func queryCustomerProfile(t *testing.T, identitySubjectID model.IdentitySubjectID) (customerProfileRow, bool) {
+func queryCustomerProfile(t *testing.T, externalCustomerID model.ExternalCustomerID) (customerProfileRow, bool) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	var idStr, identitySubjectIDStr string
+	var idStr, externalCustomerIDStr string
 	var r customerProfileRow
 
 	err := testDB.QueryRow(ctx, `
-		SELECT id, identity_subject_id, jurisdiction, status, created_at, updated_at
+		SELECT id, external_customer_id, jurisdiction, status, created_at, updated_at
 		FROM bnpl.customer_profiles
-		WHERE identity_subject_id = $1
-	`, identitySubjectID).Scan(
-		&idStr, &identitySubjectIDStr,
+		WHERE external_customer_id = $1
+	`, externalCustomerID).Scan(
+		&idStr, &externalCustomerIDStr,
 		&r.Jurisdiction, &r.Status, &r.CreatedAt, &r.UpdatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -61,16 +61,16 @@ func queryCustomerProfile(t *testing.T, identitySubjectID model.IdentitySubjectI
 	require.NoError(t, err)
 
 	r.ID = assertValidUUID(t, idStr)
-	r.IdentitySubjectID = model.IdentitySubjectID(assertValidUUID(t, identitySubjectIDStr))
+	r.ExternalCustomerID = model.ExternalCustomerID(assertValidUUID(t, externalCustomerIDStr))
 
 	return r, true
 }
 
 // insertCustomerProfile creates a customer profile row directly. Initial credit
 // assignment authenticates with x-auth-subject-id set to the profile's
-// IdentitySubjectID (customer_profiles.identity_subject_id). The returned
+// ExternalCustomerID (customer_profiles.external_customer_id). The returned
 // CustomerID is the internal BNPL primary key (customer_profiles.id).
-func insertCustomerProfile(t *testing.T, identitySubjectID model.IdentitySubjectID, status model.CustomerStatus) model.CustomerID {
+func insertCustomerProfile(t *testing.T, externalCustomerID model.ExternalCustomerID, status model.CustomerStatus) model.CustomerID {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -78,10 +78,10 @@ func insertCustomerProfile(t *testing.T, identitySubjectID model.IdentitySubject
 
 	var idStr string
 	require.NoError(t, testDB.QueryRow(ctx, `
-		INSERT INTO bnpl.customer_profiles (identity_subject_id, jurisdiction, status, created_at, updated_at)
+		INSERT INTO bnpl.customer_profiles (external_customer_id, jurisdiction, status, created_at, updated_at)
 		VALUES ($1, 'IR', $2, now(), now())
 		RETURNING id
-	`, identitySubjectID, string(status)).Scan(&idStr))
+	`, externalCustomerID, string(status)).Scan(&idStr))
 
 	return model.CustomerID(assertValidUUID(t, idStr))
 }
@@ -122,7 +122,10 @@ func queryDecisionByID(t *testing.T, id model.DecisionID) decisionRow {
 		SELECT id, type, target_type, target_id, outcome, reason_codes, policy_id, policy_version
 		FROM bnpl.decisions
 		WHERE id = $1
-	`, id).Scan(&idStr, &r.Type, &r.TargetType, &targetIDStr, &r.Outcome, &r.ReasonCodes, &r.PolicyID, &r.PolicyVersion))
+	`, id).Scan(
+		&idStr, &r.Type, &r.TargetType, &targetIDStr,
+		&r.Outcome, &r.ReasonCodes, &r.PolicyID, &r.PolicyVersion,
+	))
 
 	r.ID = assertValidUUID(t, idStr)
 	r.TargetID = assertValidUUID(t, targetIDStr)

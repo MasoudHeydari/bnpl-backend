@@ -208,14 +208,17 @@ func (a *App) NewUseCases() (UseCases, error) {
 		return UseCases{}, fmt.Errorf("%s: initialize contract cancellation saga definition: %w", op, err)
 	}
 
-	sagaExecutorUseCase, err := a.Config.NewSagaExecutorUseCase(
+	// Temporary executor covers cancellation until the confirmation definition
+	// is constructed (it depends on contractUC). Both definitions share the
+	// final registry used by background jobs and checkout Confirm.
+	cancellationOnlyExecutor, err := a.Config.NewSagaExecutorUseCase(
 		a.Pool,
 		a.Repos.Saga,
 		a.Infrastructure.Clock,
 		cancellationSagaDefinition,
 	)
 	if err != nil {
-		return UseCases{}, fmt.Errorf("%s: initialize saga executor use case: %w", op, err)
+		return UseCases{}, fmt.Errorf("%s: initialize cancellation saga executor: %w", op, err)
 	}
 
 	contractUseCase, err := a.Config.NewContractUseCase(
@@ -236,7 +239,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Infrastructure.Clock,
 		a.Infrastructure.IdentifierGenerator,
 		a.Repos.Saga,
-		sagaExecutorUseCase,
+		cancellationOnlyExecutor,
 		cancellationSagaDefinition,
 		jurisdictions,
 		a.Infrastructure.Metrics,
@@ -253,6 +256,33 @@ func (a *App) NewUseCases() (UseCases, error) {
 	customerPhoneBox, err := a.Config.Usecases.CheckoutSession.NewCustomerPhoneBox()
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize customer phone box: %w", op, err)
+	}
+
+	confirmationSagaDefinition, err := a.Config.NewCheckoutConfirmationSagaDefinition(
+		a.Pool,
+		a.Repos.CheckoutSession,
+		a.Repos.MerchantProfile,
+		a.Repos.CustomerProfile,
+		a.Repos.Contract,
+		a.Repos.PaymentAttempt,
+		contractUseCase,
+		a.Repos.Outbox,
+		a.Infrastructure.IdentifierGenerator,
+		a.Infrastructure.Clock,
+	)
+	if err != nil {
+		return UseCases{}, fmt.Errorf("%s: initialize checkout confirmation saga definition: %w", op, err)
+	}
+
+	sagaExecutorUseCase, err := a.Config.NewSagaExecutorUseCase(
+		a.Pool,
+		a.Repos.Saga,
+		a.Infrastructure.Clock,
+		cancellationSagaDefinition,
+		confirmationSagaDefinition,
+	)
+	if err != nil {
+		return UseCases{}, fmt.Errorf("%s: initialize saga executor use case: %w", op, err)
 	}
 
 	checkoutSessionUseCase, err := a.Config.NewCheckoutSessionUseCase(
@@ -278,6 +308,9 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.External.CustomerResolver,
 		a.External.NotificationSubmitter,
 		jurisdictions,
+		a.Repos.Saga,
+		sagaExecutorUseCase,
+		confirmationSagaDefinition,
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize checkout session use case: %w", op, err)

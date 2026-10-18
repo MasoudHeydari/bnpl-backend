@@ -9,6 +9,11 @@
 # Select environment: local | dev. Health routes need HEALTH_ENABLED=true.
 #
 # After a JSON body only ### may follow; plain # there is parsed as body.
+#
+# Suggested partner → hosted checkout flow:
+#   Merchant terminal Provision → Partner return/webhook destinations →
+#   Partner Create → Hosted GET → Hosted Start → Hosted Confirm (+ OTP) →
+#   Hosted Return / Partner Get status. No x-auth-* on Hosted or Partner routes.
 
 ### Health — Liveness
 # Checks that the process is alive (K8s liveness). No dependency probes.
@@ -199,20 +204,39 @@ Accept: application/json
 X-Terminal-Id: {{merchant.terminal_id}}
 X-API-Key: {{merchant.api_key}}
 
-### Customer checkout — Get session (pre-OTP)
-# Unauthenticated. Path is the public cs_… token from Partner Create.
+### Hosted checkout — Get session (pre-OTP)
+# Unauthenticated public token API. Path is the cs_… token from Partner Create.
 # Returns masked phone destination for SMS OTP; never full phone or customer ids.
+# After success (prepared offer): paste evaluation_generation → runtime.evaluation_generation
 GET {{base_url}}/api/v1/checkout-sessions/{{runtime.checkout_session_id}}
 Accept: application/json
 
-### Customer checkout — Start (prepare offer if needed + send OTP)
-# Unauthenticated. For on_start sessions prepares Decision/Offer; for on_create
-# reuses the prepared Offer. Sends SMS OTP when the offer is approved.
+### Hosted checkout — Start (first / deferred offer)
+# Unauthenticated. Body may be {} when no offer exists yet (on_start first START).
+# For on_create, GET usually already returned evaluation_generation — prefer the
+# Start-with-generation request below. After success: paste evaluation_generation
+# and use the delivered OTP for Confirm.
 POST {{base_url}}/api/v1/checkout-sessions/{{runtime.checkout_session_id}}/start
 Accept: application/json
+Content-Type: application/json
 
-### Customer checkout — Confirm with OTP
+{}
+
+### Hosted checkout — Start (with evaluation_generation)
+# Unauthenticated. Send the generation from GET when an offer is already prepared
+# (stale-offer protection). Idempotent while a delivered OTP is still valid.
+POST {{base_url}}/api/v1/checkout-sessions/{{runtime.checkout_session_id}}/start
+Accept: application/json
+Content-Type: application/json
+
+{
+  "evaluation_generation": {{runtime.evaluation_generation}}
+}
+
+### Hosted checkout — Confirm with OTP
 # Unauthenticated. Body carries only evaluation_generation + otp.
+# Prerequisite: Start succeeded; set runtime.evaluation_generation and runtime.checkout_otp.
+# After success with payment_required: follow redirect_url; then Partner Get status.
 POST {{base_url}}/api/v1/checkout-sessions/{{runtime.checkout_session_id}}/confirm
 Accept: application/json
 Content-Type: application/json
@@ -222,88 +246,23 @@ Content-Type: application/json
   "otp": "{{runtime.checkout_otp}}"
 }
 
-### Customer checkout — Cancel
+### Hosted checkout — Cancel
 # Unauthenticated. Token possession is not strong actor attribution (FIXME).
 POST {{base_url}}/api/v1/checkout-sessions/{{runtime.checkout_session_id}}/cancel
 Accept: application/json
 
-### Customer checkout — Return
-# Unauthenticated browser return handoff.
-GET {{base_url}}/api/v1/checkout-sessions/{{runtime.checkout_session_id}}/return
-Accept: application/json
-
-### Customer checkout — Get session
-# Customer reads their checkout session projection (hosted-page refresh).
-# Why: reload UI state without re-starting evaluation.
-# Prerequisite: Internal create (or external session after OTP bind);
-# runtime.checkout_session_id set; subject must own the session (else 404).
-GET {{base_url}}/api/v1/checkout-sessions/{{runtime.checkout_session_id}}
-Accept: application/json
-x-auth-subject-id: {{customer.subject_id}}
-x-auth-tenant-id: {{auth.tenant_id}}
-x-auth-context-id: {{auth.context_id}}
-x-auth-permissions: bnpl:checkout-sessions:read:self
-
-### Customer checkout — Start session
-# Authenticates customer onto the session and returns offer + evaluation_generation.
-# Why: internal/gateway path evaluates financing for the already-attached customer.
-# For partner/external checkouts use Hosted external — Start (OTP) instead.
-# Prerequisite: Internal create (or session already bound to this subject);
-# Customer credit — Initiate (active limit); runtime.checkout_session_id set.
-# After success: paste evaluation_generation → runtime.evaluation_generation
-POST {{base_url}}/api/v1/checkout-sessions/{{runtime.checkout_session_id}}/start
-Accept: application/json
-x-auth-subject-id: {{customer.subject_id}}
-x-auth-tenant-id: {{auth.tenant_id}}
-x-auth-context-id: {{auth.context_id}}
-x-auth-permissions: bnpl:checkout-sessions:start:self
-
-### Customer checkout — Confirm session
-# Confirms the offer version the customer saw; creates contract / payment redirect.
-# Why: evaluation_generation prevents confirming a stale offer.
-# Prerequisite: Customer checkout — Start (or Internal create that returned generation);
-# set runtime.evaluation_generation from that response.
-POST {{base_url}}/api/v1/checkout-sessions/{{runtime.checkout_session_id}}/confirm
-Accept: application/json
-Content-Type: application/json
-x-auth-subject-id: {{customer.subject_id}}
-x-auth-tenant-id: {{auth.tenant_id}}
-x-auth-context-id: {{auth.context_id}}
-x-auth-permissions: bnpl:checkout-sessions:start:self
-
-{
-  "evaluation_generation": {{runtime.evaluation_generation}}
-}
-
-### Customer checkout — Get return
-# Builds browser-return projection (status, merchant_state, return_url).
-# Why: hosted page redirects customer back using registered destination + state.
-# Prerequisite: session exists (Create); typically after Confirm/Cancel/terminal.
+### Hosted checkout — Return
+# Unauthenticated browser return handoff (status, merchant_state, return_url).
 # return_url is not payment truth — merchant should still poll status/webhooks.
 GET {{base_url}}/api/v1/checkout-sessions/{{runtime.checkout_session_id}}/return
 Accept: application/json
-x-auth-subject-id: {{customer.subject_id}}
-x-auth-tenant-id: {{auth.tenant_id}}
-x-auth-context-id: {{auth.context_id}}
-x-auth-permissions: bnpl:checkout-sessions:read:self
-
-### Customer checkout — Cancel session
-# Customer abandons checkout; returns canceled status + return_url.
-# Why: user backs out on hosted page before confirm completes.
-# Prerequisite: Partner/Internal create; runtime.checkout_session_id set;
-# session still cancelable.
-POST {{base_url}}/api/v1/checkout-sessions/{{runtime.checkout_session_id}}/cancel
-Accept: application/json
-x-auth-subject-id: {{customer.subject_id}}
-x-auth-tenant-id: {{auth.tenant_id}}
-x-auth-context-id: {{auth.context_id}}
-x-auth-permissions: bnpl:checkout-sessions:start:self
 
 ### Customer credit — Get
 # Returns the authenticated customer's credit limit / available summary.
 # Why: UI "my credit" and pre-check before checkout/decision.
 # Prerequisite: usually after Initiate; empty/denied states possible if none yet.
-# Auth: subject = customer_profiles.identity_subject_id
+# Auth: x-auth-subject-id resolves via Customer Reference Service →
+# customer_profiles.external_customer_id (not the internal customer_profiles.id).
 GET {{base_url}}/api/v1/customer-credit
 Accept: application/json
 x-auth-subject-id: {{customer.subject_id}}
@@ -314,7 +273,7 @@ x-auth-permissions: bnpl:credit-limits:read:self
 ### Customer credit — Initiate
 # Ensures customer profile exists and assigns initial credit limit (or already_assigned).
 # Why: decisions/checkout need an active limit; empty body — subject is the customer.
-# Prerequisite: none beyond auth. Call before Decision create / Start / Internal create.
+# Prerequisite: none beyond auth. Call before Decision create / Hosted Start as needed.
 # Policy assignment for this customer must exist (seed trusted customer).
 POST {{base_url}}/api/v1/customer-credit/initiate
 Accept: application/json

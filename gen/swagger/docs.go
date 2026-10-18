@@ -1099,10 +1099,9 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Offer version from Hosted GET",
+                        "description": "Optional. Omit or send {} on first START before an offer exists; send evaluation_generation when GET already returned one",
                         "name": "body",
                         "in": "body",
-                        "required": true,
                         "schema": {
                             "$ref": "#/definitions/checkoutsessionrs.HostedExternalStartRequestSchema"
                         }

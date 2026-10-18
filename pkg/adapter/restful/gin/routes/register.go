@@ -39,8 +39,8 @@ import (
 //
 // /api/v1 is split into three authentication surfaces:
 //   - /api/v1/partner authenticates Merchant identity with PartnerTerminalAuth
-//     (X-Terminal-Id and X-API-Key). Financial Core TenantID/ContextID for
-//     Offer preparation mode comes from trusted MerchantProfile configuration.
+//     (X-Terminal-Id and X-API-Key). OfferPreparationMode is owned by the
+//     MerchantBranchProfile and snapshotted onto the CheckoutSession at create.
 //     Gateway-provided SubjectID/Permissions never control Partner Merchant
 //     identity or permissions. The full AuthContext.Attach chain is not applied.
 //   - /api/v1/checkout-sessions/:token is the unauthenticated customer checkout

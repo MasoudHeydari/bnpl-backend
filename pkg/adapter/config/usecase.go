@@ -327,6 +327,88 @@ type CheckoutSession struct {
 
 	// OTPPepperKeys is the versioned pepper ring for OTP HMAC verifiers.
 	OTPPepperKeys KeyEntries `yaml:"otp_pepper_keys"`
+
+	// ConfirmationSaga configures checkout-confirmation saga retry timing.
+	ConfirmationSaga CheckoutConfirmationSaga `yaml:"confirmation_saga"`
+}
+
+// Default retry policy for the checkout-confirmation Saga.
+const (
+	DefaultCheckoutConfirmationSagaRetryBase = time.Second
+	DefaultCheckoutConfirmationSagaRetryMax  = time.Minute
+)
+
+// CheckoutConfirmationSaga configures business-specific retry timing.
+type CheckoutConfirmationSaga struct {
+	RetryBaseDelay time.Duration `yaml:"retry_base_delay"`
+	RetryMaxDelay  time.Duration `yaml:"retry_max_delay"`
+}
+
+func (d *CheckoutConfirmationSaga) ApplyDefaults() {
+	if d.RetryBaseDelay == 0 {
+		d.RetryBaseDelay = DefaultCheckoutConfirmationSagaRetryBase
+	}
+
+	if d.RetryMaxDelay == 0 {
+		d.RetryMaxDelay = DefaultCheckoutConfirmationSagaRetryMax
+	}
+}
+
+func (d *CheckoutConfirmationSaga) validate() error {
+	const op = "config.CheckoutConfirmationSaga.validate"
+
+	if d.RetryBaseDelay <= 0 {
+		return fmt.Errorf("%s: invalid usecases.checkout_session.confirmation_saga.retry_base_delay: must be positive", op)
+	}
+
+	if d.RetryMaxDelay < d.RetryBaseDelay {
+		return fmt.Errorf("%s: invalid usecases.checkout_session.confirmation_saga.retry_max_delay: must be greater than or equal to retry_base_delay", op)
+	}
+
+	return nil
+}
+
+func (c CheckoutSession) newConfirmationSagaDefinition(
+	pool repo.Pool,
+	checkoutSession repo.CheckoutSession,
+	merchantProfile repo.MerchantProfile,
+	customerProfile repo.CustomerProfile,
+	contract repo.Contract,
+	paymentAttempt repo.PaymentAttempt,
+	contractUC *contractuc.UseCase,
+	outbox repo.Outbox,
+	idGenerator identifier.Generator,
+	clk clock.Clock,
+) (*checkoutsessionuc.ConfirmationSagaDefinition, error) {
+	const op = "config.CheckoutSession.newConfirmationSagaDefinition"
+
+	lifecycle, err := checkoutsessionuc.NewLifecycleOutbox(
+		checkoutSession,
+		merchantProfile,
+		outbox,
+		idGenerator,
+		c.LifecycleEventsDestination,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("%s: create lifecycle outbox: %w", op, err)
+	}
+
+	sagaConfig := c.ConfirmationSaga
+	sagaConfig.ApplyDefaults()
+
+	return checkoutsessionuc.NewConfirmationSagaDefinition(
+		pool,
+		checkoutSession,
+		customerProfile,
+		contract,
+		paymentAttempt,
+		contractUC,
+		lifecycle,
+		clk,
+		sagaConfig.RetryBaseDelay,
+		sagaConfig.RetryMaxDelay,
+		checkoutsessionuc.ConfirmationSagaHooks{},
+	)
 }
 
 func (c CheckoutSession) newUseCase(
@@ -355,6 +437,9 @@ func (c CheckoutSession) newUseCase(
 	jurisdictions domaincapability.OriginationJurisdictions,
 	phoneCanonicalizer corephonenumber.Canonicalizer,
 	env model.RuntimeEnvironment,
+	confirmationSagaRepo repo.Saga,
+	confirmationSagaExecutor saga.Executor,
+	confirmationSagaDefinition *checkoutsessionuc.ConfirmationSagaDefinition,
 ) (*checkoutsessionuc.UseCase, error) {
 	const op = "config.CheckoutSession.newUseCase"
 
@@ -400,6 +485,9 @@ func (c CheckoutSession) newUseCase(
 		phoneCanonicalizer,
 		checkoutotppolicy.V1(),
 		c.EffectiveOTPTemplateID(),
+		confirmationSagaRepo,
+		confirmationSagaExecutor,
+		confirmationSagaDefinition,
 	)
 }
 

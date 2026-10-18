@@ -35,19 +35,19 @@ type RecoverStaleConfirmingOutput struct {
 
 // RecoverStaleConfirmingSessions reconciles unlinked confirming sessions and
 // outstanding activation/recognized-contract processing sessions. The scan
-// locks rows only for local state recovery; FC is called AFTER the commit.
+// locks rows only for local state recovery; FC and Saga execution run AFTER
+// the commit.
 //
-// An unlinked confirming claim cannot be released merely because no Contract
-// is visible: the original worker may be paused before its commit. Without a
-// durable fencing token a TTL reset is unsafe. Such claims remain confirming
-// for explicit diagnosis and cannot be canceled or re-financed. Existing
-// persisted Contracts are relinked idempotently and submitted/recognized with
-// their stable FC source reference.
+// Unlinked confirming without a Contract resumes the durable confirmation Saga
+// when present. Without a Saga (pre-saga orphans), claims remain fail-closed.
+// Existing persisted Contracts are relinked idempotently and submitted/recognized
+// with their stable FC source reference.
 func (uc *UseCase) RecoverStaleConfirmingSessions(ctx context.Context) (RecoverStaleConfirmingOutput, error) {
 	const op = "checkoutsessionuc.UseCase.RecoverStaleConfirmingSessions"
 
 	var output RecoverStaleConfirmingOutput
 	var resume []model.Contract
+	var resumeSagas []model.SagaID
 
 	now := uc.clock.Now().UTC()
 	staleBefore := now.Add(-DefaultConfirmingClaimTimeout)
@@ -60,6 +60,7 @@ func (uc *UseCase) RecoverStaleConfirmingSessions(ctx context.Context) (RecoverS
 				func(ctx context.Context, tx repo.Tx) error {
 					sessionQ := uc.checkoutSession.Tx(tx)
 					contractQ := uc.contract.Tx(tx)
+					sagaQ := uc.confirmationSagaRepo.Tx(tx)
 
 					candidates, listErr := sessionQ.ReopenStaleConfirmingWithoutContract(
 						ctx, now, staleBefore, uc.expiryBatchSize,
@@ -95,9 +96,25 @@ func (uc *UseCase) RecoverStaleConfirmingSessions(ctx context.Context) (RecoverS
 						existing, findErr := contractQ.GetByDecisionID(ctx, *session.DecisionID)
 						if findErr != nil {
 							if cerr.IsCode(findErr, cerr.CodeResourceNotFound) {
-								// No committed Contract does not prove the original
-								// owner stopped. Never reopen or create another one.
-								output.UnresolvedCount++
+								instance, sagaErr := sagaQ.GetByTypeAndBusinessKey(
+									ctx,
+									checkoutConfirmationSagaType,
+									model.SagaBusinessKey(session.ID.String()),
+								)
+								if sagaErr != nil {
+									if cerr.IsCode(sagaErr, cerr.CodeResourceNotFound) {
+										output.UnresolvedCount++
+										continue
+									}
+
+									return fmt.Errorf("%s: lookup confirmation saga: %w", op, sagaErr)
+								}
+
+								if _, touchErr := sessionQ.UpdateStatus(ctx, session.ID, session.Status, now); touchErr != nil {
+									return touchErr
+								}
+
+								resumeSagas = append(resumeSagas, instance.ID)
 								continue
 							}
 							return fmt.Errorf("%s: lookup contract by decision: %w", op, findErr)
@@ -120,11 +137,24 @@ func (uc *UseCase) RecoverStaleConfirmingSessions(ctx context.Context) (RecoverS
 		return RecoverStaleConfirmingOutput{}, err
 	}
 
+	var firstResumeErr error
+	for _, sagaID := range resumeSagas {
+		if driveErr := uc.driveConfirmSaga(ctx, sagaID); driveErr != nil {
+			output.UnresolvedCount++
+			if firstResumeErr == nil {
+				firstResumeErr = fmt.Errorf("%s: resume confirmation saga %s: %w", op, sagaID, driveErr)
+			}
+
+			continue
+		}
+
+		output.ResumedCount++
+	}
+
 	// Resume FC recognition using each contract's stable source reference.
 	// One unavailable FC call must not starve the rest of this claimed batch.
 	// Keep reporting the first failure to the task runtime while allowing
 	// other independent sessions to finish their reconciliation.
-	var firstResumeErr error
 	for _, contract := range resume {
 		// payment_pending alone does not choose the fulfillment path: initial-
 		// payment contracts wait for PaymentAttempt/provider results, while

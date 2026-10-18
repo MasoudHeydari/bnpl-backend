@@ -2,6 +2,7 @@ package checkoutsessionuc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -16,29 +17,20 @@ import (
 )
 
 // Confirm accepts the offer version the customer actually saw and starts
-// contract creation / payment through the existing contractuc path.
+// durable confirmation through the checkout confirmation Saga.
 //
 // Flow:
 //  1. Short TX: lock session, validate customer, refuse cancel/expiry races.
 //     Matching generation + non-expired Decision is claimed open → confirming
-//     only after Decision-domain revalidation proves the persisted offer is
-//     still honorable. Stale generation / expired Decision / material term
-//     change refreshes via bump + decisionuc.Create and returns
-//     ReconfirmRequired (or unavailable when the fresh evaluation denies).
-//  2. Outside TX: prepare and commit the Contract + PaymentAttempt locally.
-//     Known deterministic pre-contract rejections (insufficient current credit,
-//     unusable credit account, Decision/allocation no longer live) reopen the
-//     unlinked confirming claim and refresh when BNPL can prove no Contract was
-//     committed; ambiguous failures keep confirming.
-//  3. Short TX: durably link the Contract and advance to processing.
-//  4. Outside TX: submit to FC using a stable source reference.
-//  5. For merchant funding, verify the activated Contract and FC recognition
-//     IDs in another short TX before publishing checkout.completed. Payment
-//     activation continues through the authoritative payment-result path.
-//
-// A second caller observing confirming before linkage must return IN_PROGRESS,
-// not independently prepare a Contract. Processing/completed replay from durable
-// data and never make a second FC request.
+//     atomically with Saga creation after Decision-domain revalidation.
+//  2. The Saga prepares the Contract, links it, submits to Financial Core, and
+//     finalizes merchant-funding recognition. HTTP Confirm drives ExecuteByID
+//     for low latency; saga_executor remains the durable progress owner.
+//  3. Unlinked confirming without an owning HTTP request resumes the existing
+//     Saga instead of returning permanent IN_PROGRESS with no recovery path.
+//  4. Payment activation for initial-payment contracts stays on the
+//     authoritative payment-result path after the Saga reaches
+//     checkout_payment_submitted.
 //
 // reconfirm_required means the previously accepted material offer can no longer
 // be honored — not merely that available_credit_minor changed as a snapshot.
@@ -64,57 +56,21 @@ func (uc *UseCase) Confirm(ctx context.Context, input ConfirmInput) (ConfirmOutp
 		return *prepared.Replay, nil
 	}
 
-	created, err := uc.contractUC.PrepareCheckoutContract(ctx, contractuc.CreateContractInput{
-		DecisionID:        *prepared.Session.DecisionID,
-		ExternalCustomerID: input.ExternalCustomerID,
-		TenantID:          input.TenantID,
-		ContextID:         input.ContextID,
-	})
-	if err != nil {
-		if isDeterministicOfferNoLongerHonorable(err) {
-			// Deterministic pre-contract rejection proves Contract was not
-			// committed. When the session still has no linked Contract, reopen
-			// confirming → open and refresh (or expire if the hard deadline won).
-			return uc.refreshAfterDeterministicContractReject(ctx, prepared.Session, input)
-		}
+	if prepared.ResumeSaga {
+		return uc.resumeConfirmSaga(ctx, prepared.Session, input)
+	}
 
-		// Ambiguous DB/transport failure: the local preparation may have
-		// committed. Never release CONFIRMING here; recovery must inspect
-		// durable state before assuming failure.
+	if prepared.SagaID.IsZero() {
+		return ConfirmOutput{}, cerr.InternalError(
+			fmt.Errorf("checkoutsessionuc.UseCase.Confirm: confirming claim missing saga id"),
+		)
+	}
+
+	if err := uc.driveConfirmSaga(ctx, prepared.SagaID); err != nil {
 		return ConfirmOutput{}, err
 	}
 
-	// The linkage and PROCESSING status are committed BEFORE the first FC
-	// call. An immediate authoritative result can now find its session.
-	linked, err := uc.finishConfirm(ctx, prepared.Session, created)
-	if err != nil {
-		return ConfirmOutput{}, err
-	}
-
-	created, err = uc.contractUC.SubmitPreparedCheckoutFulfillment(ctx, created)
-	if err != nil {
-		// Financial Core may have created a payment even if the response is
-		// lost. PROCESSING and its contract link must remain durable.
-		return ConfirmOutput{}, err
-	}
-
-	if !created.PaymentRequired {
-		// Merchant funding is completed only AFTER the authoritative Financial
-		// Core recognition has activated the Contract. Never infer financial
-		// success merely from the absence of an initial payment.
-		linked, err = uc.completeRecognizedCheckout(ctx, created.Contract)
-		if err != nil {
-			return ConfirmOutput{}, err
-		}
-	}
-
-	return ConfirmOutput{
-		Session:         linked,
-		Contract:        created.Contract,
-		PaymentRequired: created.PaymentRequired,
-		PaymentAttempt:  created.PaymentAttempt,
-		Payment:         created.Payment,
-	}, nil
+	return uc.projectConfirmAfterSaga(ctx, prepared.Session.ID, input)
 }
 
 type beginConfirmResult struct {
@@ -131,6 +87,12 @@ type beginConfirmResult struct {
 	// forceNewGeneration asks refreshOfferForReconfirm to bump even when the
 	// linked Decision has not expired (material term change).
 	forceNewGeneration bool
+
+	// ResumeSaga means an unlinked confirming claim already owns a durable Saga.
+	ResumeSaga bool
+
+	// SagaID is set when this Confirm atomically started the confirmation Saga.
+	SagaID model.SagaID
 }
 
 // beginConfirm locks the session and either claims it as confirming, returns an
@@ -207,16 +169,13 @@ func (uc *UseCase) beginConfirm(
 							return nil
 						}
 
-						// Another Confirm owns the unlinked confirming claim.
-						// Never reopen to OPEN here and never enter a second
-						// PrepareCheckoutContract: MarkConfirming is the single
-						// flight arbiter. Concurrent or retried callers observe
-						// IN_PROGRESS until the owner links a Contract or the
-						// recovery worker safely relinks an existing Contract.
-						// Absence of a committed Contract never fences the owner.
-						return checkoutPaymentInProgressError(
-							fmt.Errorf("%s: confirming claim is held by another confirm operation", op),
-						)
+						// An unlinked confirming claim is owned by the durable
+						// confirmation Saga. Concurrent callers resume that Saga
+						// rather than starting a second prepare.
+						result.Session = locked
+						result.ResumeSaga = true
+
+						return nil
 
 					case model.OpenCheckoutSessionStatus:
 						// An accepted Contract already linked means payment retry
@@ -323,6 +282,13 @@ func (uc *UseCase) beginConfirm(
 		return uc.claimConfirmingAfterRevalidation(ctx, result.Session, input)
 	}
 
+	// Unlinked confirming is owned by the durable Saga (or is an orphan that
+	// resumeConfirmSaga fails closed on). Do not reclassify it as offer-not-ready
+	// merely because Decision linkage is missing on a corrupted row.
+	if result.ResumeSaga {
+		return result, nil
+	}
+
 	if result.Session.DecisionID == nil || result.Session.DecisionID.IsZero() {
 		return beginConfirmResult{}, checkoutOfferNotReadyError(
 			fmt.Errorf("%s: confirming session has no decision", op),
@@ -372,24 +338,22 @@ func (uc *UseCase) claimConfirmingAfterRevalidation(
 		}, nil
 	}
 
-	confirming, err := uc.markConfirmingOpenSession(ctx, session)
-	if err != nil {
-		return beginConfirmResult{}, err
-	}
-
-	return beginConfirmResult{Session: confirming}, nil
+	return uc.claimConfirmingWithSaga(ctx, session)
 }
 
-// markConfirmingOpenSession claims an open, unlinked session as confirming.
-func (uc *UseCase) markConfirmingOpenSession(
+// claimConfirmingWithSaga claims open → confirming and creates the confirmation
+// Saga in one transaction. Concurrent winners resume the existing Saga.
+func (uc *UseCase) claimConfirmingWithSaga(
 	ctx context.Context,
 	session model.CheckoutSession,
-) (model.CheckoutSession, error) {
-	const op = "checkoutsessionuc.UseCase.markConfirmingOpenSession"
+) (beginConfirmResult, error) {
+	const op = "checkoutsessionuc.UseCase.claimConfirmingWithSaga"
 
 	var (
 		confirming model.CheckoutSession
+		sagaID     model.SagaID
 		expired    bool
+		resume     bool
 	)
 
 	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
@@ -403,6 +367,12 @@ func (uc *UseCase) markConfirmingOpenSession(
 
 			now := uc.clock.Now().UTC()
 
+			if locked.Status == model.ConfirmingCheckoutSessionStatus && locked.ContractID == nil {
+				confirming = locked
+				resume = true
+				return nil
+			}
+
 			if locked.Status != model.OpenCheckoutSessionStatus || locked.ContractID != nil {
 				return checkoutPaymentInProgressError(
 					fmt.Errorf("%s: checkout session status is %q", op, locked.Status),
@@ -411,8 +381,7 @@ func (uc *UseCase) markConfirmingOpenSession(
 
 			// Revalidation runs outside this transaction. Re-check the absolute
 			// checkout deadline under the row lock so a session cannot enter
-			// confirming after expires_at elapsed during revalidation. now is
-			// captured after LockByID so lock-wait does not preserve eligibility.
+			// confirming after expires_at elapsed during revalidation.
 			if locked.IsExpiredAt(now) {
 				transitioned, statusErr := uc.transitionToExpired(ctx, tx, locked, now)
 				if statusErr != nil {
@@ -431,28 +400,49 @@ func (uc *UseCase) markConfirmingOpenSession(
 				)
 			}
 
-			if transitionErr := locked.Status.ValidateTransitionTo(model.ConfirmingCheckoutSessionStatus); transitionErr != nil {
-				return cerr.InternalError(fmt.Errorf("%s: %w", op, transitionErr))
-			}
+			claimed, startedSagaID, startErr := uc.startConfirmSagaTx(ctx, tx, locked, now)
+			if startErr != nil {
+				if errors.Is(startErr, repo.ErrSagaAlreadyExists) {
+					confirming = locked
+					resume = true
+					return nil
+				}
 
-			claimed, statusErr := sessionQ.MarkConfirming(ctx, locked.ID, now)
-			if statusErr != nil {
-				return statusErr
+				return startErr
 			}
 
 			confirming = claimed
+			sagaID = startedSagaID
 			return nil
 		})
 	})
 	if err != nil {
-		return model.CheckoutSession{}, err
+		return beginConfirmResult{}, err
 	}
 
 	if expired {
-		return model.CheckoutSession{}, checkoutSessionExpiredError()
+		return beginConfirmResult{}, checkoutSessionExpiredError()
 	}
 
-	return confirming, nil
+	if resume {
+		return beginConfirmResult{Session: confirming, ResumeSaga: true}, nil
+	}
+
+	return beginConfirmResult{Session: confirming, SagaID: sagaID}, nil
+}
+
+// markConfirmingOpenSession is retained for focused unit tests of the claim
+// deadline race. Production Confirm uses claimConfirmingWithSaga.
+func (uc *UseCase) markConfirmingOpenSession(
+	ctx context.Context,
+	session model.CheckoutSession,
+) (model.CheckoutSession, error) {
+	result, err := uc.claimConfirmingWithSaga(ctx, session)
+	if err != nil {
+		return model.CheckoutSession{}, err
+	}
+
+	return result.Session, nil
 }
 
 // refreshOfferForReconfirm bumps evaluation generation when required, creates a

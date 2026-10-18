@@ -277,6 +277,9 @@ func (c *Config) NewCheckoutSessionUseCase(
 	customerResolver extcustomer.Resolver,
 	notificationSubmitter extnotification.Submitter,
 	jurisdictions *domaincapability.Jurisdictions,
+	confirmationSagaRepo repo.Saga,
+	confirmationSagaExecutor saga.Executor,
+	confirmationSagaDefinition *checkoutsessionuc.ConfirmationSagaDefinition,
 ) (*checkoutsessionuc.UseCase, error) {
 	env, err := c.Runtime.ParsedEnvironment()
 	if err != nil {
@@ -295,6 +298,35 @@ func (c *Config) NewCheckoutSessionUseCase(
 		idGenerator, webhookSecretBox, customerPhoneBox,
 		returnURLPolicyForEnvironment(env), clk, customerResolver, notificationSubmitter,
 		jurisdictions, phoneCanonicalizer, env,
+		confirmationSagaRepo, confirmationSagaExecutor, confirmationSagaDefinition,
+	)
+}
+
+// NewCheckoutConfirmationSagaDefinition constructs the durable checkout
+// confirmation Saga definition owned by the checkout-session domain.
+func (c *Config) NewCheckoutConfirmationSagaDefinition(
+	pool repo.Pool,
+	checkoutSession repo.CheckoutSession,
+	merchantProfile repo.MerchantProfile,
+	customerProfile repo.CustomerProfile,
+	contract repo.Contract,
+	paymentAttempt repo.PaymentAttempt,
+	contractUC *contractuc.UseCase,
+	outbox repo.Outbox,
+	idGenerator identifier.Generator,
+	clk clock.Clock,
+) (*checkoutsessionuc.ConfirmationSagaDefinition, error) {
+	return c.Usecases.CheckoutSession.newConfirmationSagaDefinition(
+		pool,
+		checkoutSession,
+		merchantProfile,
+		customerProfile,
+		contract,
+		paymentAttempt,
+		contractUC,
+		outbox,
+		idGenerator,
+		clk,
 	)
 }
 

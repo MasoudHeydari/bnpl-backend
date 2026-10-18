@@ -33,16 +33,6 @@ func TestRegisterCustomerToken_RoutesAreRegisteredWithoutAuthMiddleware(t *testi
 	}
 }
 
-func TestRegisterCustomerToken_ReturnRouteIsRegistered(t *testing.T) {
-	t.Parallel()
-
-	gin.SetMode(gin.TestMode)
-	engine := gin.New()
-	RegisterCustomerToken(engine.Group("/api/v1"), &checkoutsessionuc.UseCase{}, RegisterOptions{})
-
-	require.True(t, hasRoute(engine.Routes(), "GET /api/v1/checkout-sessions/:token/return"))
-}
-
 func TestRegisterCustomerToken_ConfirmRejectsMissingOTPBeforeUseCase(t *testing.T) {
 	t.Parallel()
 
@@ -61,6 +51,61 @@ func TestRegisterCustomerToken_ConfirmRejectsMissingOTPBeforeUseCase(t *testing.
 	engine.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+}
+
+func TestBindHostedExternalStartRequest_EmptyBody(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", http.NoBody)
+
+	req, ok := bindHostedExternalStartRequest(c)
+	require.True(t, ok)
+	require.Equal(t, 0, req.EvaluationGeneration)
+}
+
+func TestBindHostedExternalStartRequest_EmptyObject(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", strings.NewReader("{}"))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	req, ok := bindHostedExternalStartRequest(c)
+	require.True(t, ok)
+	require.Equal(t, 0, req.EvaluationGeneration)
+}
+
+func TestBindHostedExternalStartRequest_WithGeneration(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"evaluation_generation":2}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	req, ok := bindHostedExternalStartRequest(c)
+	require.True(t, ok)
+	require.Equal(t, 2, req.EvaluationGeneration)
+}
+
+func TestBindHostedExternalStartRequest_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	_, ok := bindHostedExternalStartRequest(c)
+	require.False(t, ok)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 func hasRoute(routes gin.RoutesInfo, want string) bool {

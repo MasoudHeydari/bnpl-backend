@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"encoding/json"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -191,11 +192,12 @@ type swaggerOperationDoc struct {
 }
 
 type swaggerParameterDoc struct {
-	Name    string `json:"name"`
-	In      string `json:"in"`
-	Type    string `json:"type"`
-	Format  string `json:"format"`
-	Example string `json:"example"`
+	Name     string `json:"name"`
+	In       string `json:"in"`
+	Type     string `json:"type"`
+	Format   string `json:"format"`
+	Example  string `json:"example"`
+	Required bool   `json:"required"`
 }
 
 type swaggerResponseDoc struct {
@@ -253,6 +255,20 @@ func TestSwaggerAuthContractAndInitialCreditHasNoBody(t *testing.T) {
 					"%s must not declare gateway or terminal authentication",
 					operationKey,
 				)
+
+				if path == customerTokenCheckoutPathPrefix+"/start" &&
+					strings.EqualFold(method, http.MethodPost) {
+					for _, param := range op.Parameters {
+						if param.In == "body" {
+							require.Falsef(
+								t,
+								param.Required,
+								"%s body must be optional (empty/{} valid on first START)",
+								operationKey,
+							)
+						}
+					}
+				}
 
 				continue
 			}

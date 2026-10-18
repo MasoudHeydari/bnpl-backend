@@ -59,12 +59,7 @@ func TestConfirm_MatchingGenerationClaimsSessionAndLinksContract(t *testing.T) {
 			// After Decision-domain revalidation succeeds, claim confirming.
 			h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(open, nil).Once()
 			h.sessionTx.EXPECT().MarkConfirming(h.ctx, h.sessionID, h.now).Return(confirming, nil).Once()
-
-			// Link transaction after the contract exists.
-			h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(confirming, nil).Once()
-			h.sessionTx.EXPECT().LinkContract(h.ctx, h.sessionID, h.contractID, h.now).Return(linked, nil).Once()
-			h.sessionTx.EXPECT().UpdateStatus(h.ctx, h.sessionID, model.ProcessingCheckoutSessionStatus, h.now).
-				Return(processing, nil).Once()
+			h.expectConfirmClaimStepLock(confirming)
 
 			h.contracts.output = h.createdContract(tt.paymentRequired)
 			if !tt.paymentRequired {
@@ -73,9 +68,16 @@ func TestConfirm_MatchingGenerationClaimsSessionAndLinksContract(t *testing.T) {
 				h.contracts.output.Contract.Status = model.PaymentPendingContractStatus
 				merchantEntitlementID, receivableID := "fc-entitlement", "fc-receivable"
 				recognized := h.createdContract(false)
+				recognized.Contract.DecisionID = h.decisionID
 				recognized.Contract.FinancialMerchantEntitlementID = &merchantEntitlementID
 				recognized.Contract.FinancialReceivableID = &receivableID
 				h.contracts.submitted = &recognized
+
+				h.expectConfirmSagaDriveLock(confirming)
+				h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(confirming, nil).Once()
+				h.sessionTx.EXPECT().LinkContract(h.ctx, h.sessionID, h.contractID, h.now).Return(linked, nil).Once()
+				h.sessionTx.EXPECT().UpdateStatus(h.ctx, h.sessionID, model.ProcessingCheckoutSessionStatus, h.now).
+					Return(processing, nil).Once()
 
 				h.contractTx.EXPECT().GetByID(h.ctx, h.contractID).Return(recognized.Contract, nil).Once()
 				h.sessionTx.EXPECT().LockByContractID(h.ctx, h.contractID).Return(processing, nil).Once()
@@ -83,6 +85,26 @@ func TestConfirm_MatchingGenerationClaimsSessionAndLinksContract(t *testing.T) {
 					Return(final, nil).Once()
 				h.expectLifecycleEvent(final, checkoutlifecycle.EventTypeCompleted)
 				h.sessionTx.EXPECT().LockByContractID(h.ctx, h.contractID).Return(final, nil).Once()
+
+				h.expectConfirmProjectionLock(final)
+				h.contractCQ.EXPECT().GetByID(h.ctx, h.contractID).Return(recognized.Contract, nil).Once()
+			} else {
+				prepared := h.createdContract(true)
+				prepared.Contract.DecisionID = h.decisionID
+				h.contracts.output = prepared
+
+				h.expectConfirmSagaDriveLock(confirming)
+				h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(confirming, nil).Once()
+				h.sessionTx.EXPECT().LinkContract(h.ctx, h.sessionID, h.contractID, h.now).Return(linked, nil).Once()
+				h.sessionTx.EXPECT().UpdateStatus(h.ctx, h.sessionID, model.ProcessingCheckoutSessionStatus, h.now).
+					Return(processing, nil).Once()
+
+				h.expectConfirmProjectionLock(processing)
+				h.contractCQ.EXPECT().GetByID(h.ctx, h.contractID).Return(prepared.Contract, nil).Once()
+				h.decisionCQ.EXPECT().GetByID(h.ctx, h.decisionID).Return(model.Decision{
+					PolicyID: "checkout_contract_approval", PolicyVersion: "v1",
+				}, nil).Once()
+				h.expectCheckoutPaymentAttemptLoad(true)
 			}
 
 			output, err := h.uc.Confirm(h.ctx, h.confirmInput(1))
@@ -374,6 +396,8 @@ func TestConfirm_ContractFailureReleasesConfirmingClaim(t *testing.T) {
 	h.decisionTx.EXPECT().GetByID(h.ctx, h.decisionID).Return(model.Decision{ID: h.decisionID}, nil).Once()
 	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(open, nil).Once()
 	h.sessionTx.EXPECT().MarkConfirming(h.ctx, h.sessionID, h.now).Return(confirming, nil).Once()
+	h.expectConfirmClaimStepLock(confirming)
+	h.expectConfirmSagaDriveLock(confirming)
 
 	// Ambiguous preparation failures cannot release the confirmation claim.
 	h.contracts.err = cerr.ServiceUnavailable(errFinancialCoreDown)
@@ -400,6 +424,8 @@ func TestConfirm_MerchantFundingFinancialCoreUnavailableStaysProcessing(t *testi
 	h.decisionTx.EXPECT().GetByID(h.ctx, h.decisionID).Return(model.Decision{ID: h.decisionID}, nil).Once()
 	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(open, nil).Once()
 	h.sessionTx.EXPECT().MarkConfirming(h.ctx, h.sessionID, h.now).Return(confirming, nil).Once()
+	h.expectConfirmClaimStepLock(confirming)
+	h.expectConfirmSagaDriveLock(confirming)
 	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(confirming, nil).Once()
 	h.sessionTx.EXPECT().LinkContract(h.ctx, h.sessionID, h.contractID, h.now).Return(linked, nil).Once()
 	h.sessionTx.EXPECT().UpdateStatus(h.ctx, h.sessionID, model.ProcessingCheckoutSessionStatus, h.now).

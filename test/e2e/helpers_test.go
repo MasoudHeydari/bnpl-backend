@@ -35,9 +35,9 @@ func authHeaders(subjectID model.SubjectID, permissions ...string) map[string]st
 
 // creditCreateAuthHeaders returns auth headers for the initial credit-limit
 // endpoint (permission bnpl:credit-limits:create:self). SubjectID is the customer
-// identity ID (customer_profiles.identity_subject_id).
-func creditCreateAuthHeaders(identitySubjectID model.IdentitySubjectID) map[string]string {
-	return authHeaders(model.SubjectID(identitySubjectID), permission.CreditLimitsCreateSelf.Code)
+// identity ID (customer_profiles.external_customer_id).
+func creditCreateAuthHeaders(externalCustomerID model.ExternalCustomerID) map[string]string {
+	return authHeaders(model.SubjectID(externalCustomerID.UUID()), permission.CreditLimitsCreateSelf.Code)
 }
 
 // withoutHeader returns a copy of headers with name removed.

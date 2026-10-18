@@ -1,6 +1,7 @@
 package checkoutsessionuc
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -23,6 +24,7 @@ import (
 	checkoutotppolicy "github.com/parstis/bnpl-backend/pkg/core/policy/checkoutotp"
 	returndestination "github.com/parstis/bnpl-backend/pkg/core/policy/returndestination"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
+	coresaga "github.com/parstis/bnpl-backend/pkg/core/saga"
 	"github.com/parstis/bnpl-backend/pkg/core/secretbox"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/contractuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/decisionuc"
@@ -159,6 +161,8 @@ func newTestDeps(t *testing.T) newDeps {
 func (d newDeps) newUseCase(t *testing.T) (*UseCase, error) {
 	t.Helper()
 
+	sagaRepo, sagaExec, sagaDef := mustStubConfirmationSaga(t, d)
+
 	return New(
 		d.pool,
 		d.checkoutSession,
@@ -191,7 +195,62 @@ func (d newDeps) newUseCase(t *testing.T) (*UseCase, error) {
 		d.phoneCanonicalizer,
 		d.otpPolicy,
 		d.otpTemplateID,
+		sagaRepo,
+		sagaExec,
+		sagaDef,
 	)
+}
+
+type stubSagaExecutor struct{}
+
+func (stubSagaExecutor) ExecuteByID(context.Context, model.SagaID) error { return nil }
+
+func mustStubConfirmationSaga(
+	t *testing.T,
+	d newDeps,
+) (repo.Saga, coresaga.Executor, *ConfirmationSagaDefinition) {
+	t.Helper()
+
+	// Nil-dependency New() tests must reach New's own validation errors. Skip
+	// building a real ConfirmationSagaDefinition when its inputs are absent.
+	if d.pool == nil ||
+		d.checkoutSession == nil ||
+		d.merchantProfile == nil ||
+		d.customerProfile == nil ||
+		d.contract == nil ||
+		d.paymentAttempt == nil ||
+		d.outbox == nil {
+		return mock.NewSaga(t), stubSagaExecutor{}, &ConfirmationSagaDefinition{}
+	}
+
+	lifecycle, err := NewLifecycleOutbox(
+		d.checkoutSession,
+		d.merchantProfile,
+		d.outbox,
+		mock.NewIdentifierGenerator(t),
+		"bnpl.merchant.checkout.events.v1",
+	)
+	require.NoError(t, err)
+
+	clk := mock.NewClock(t)
+	clk.EXPECT().Now().Return(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)).Maybe()
+
+	def, err := NewConfirmationSagaDefinition(
+		d.pool,
+		d.checkoutSession,
+		d.customerProfile,
+		d.contract,
+		d.paymentAttempt,
+		&fakeContractCreator{},
+		lifecycle,
+		clk,
+		time.Second,
+		time.Minute,
+		ConfirmationSagaHooks{},
+	)
+	require.NoError(t, err)
+
+	return mock.NewSaga(t), stubSagaExecutor{}, def
 }
 
 func TestNew_ConstructsWithValidDependencies(t *testing.T) {

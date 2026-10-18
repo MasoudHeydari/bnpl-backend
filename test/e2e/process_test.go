@@ -206,7 +206,7 @@ func (a *applicationProcess) build(root string) error {
 		root,
 		"go",
 		"build",
-		"-tags=go_json,nomsgpack",
+		"-tags=go_json,nomsgpack,development",
 		"-o",
 		a.binaryPath,
 		"./cmd/bnpl",
@@ -581,7 +581,17 @@ func openTestDB(ctx context.Context) (*pgxpool.Pool, error) {
 		return nil, err
 	}
 
-	pool, err := pgxpool.New(ctx, dsn)
+	pgConfig, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("parse E2E postgres config: %w", err)
+	}
+
+	pgConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		_, execErr := conn.Exec(ctx, `SET search_path TO bnpl, public`)
+		return execErr
+	}
+
+	pool, err := pgxpool.NewWithConfig(ctx, pgConfig)
 	if err != nil {
 		return nil, fmt.Errorf("create E2E database pool: %w", err)
 	}
@@ -603,6 +613,9 @@ var mutableE2ETables = []string{
 	"customer_profiles",
 	"merchant_profiles",
 	"merchant_branch_profiles",
+	"merchant_pos_terminals",
+	"merchant_online_stores",
+	"merchant_return_destinations",
 	"credit_accounts",
 	"credit_transactions",
 	"contracts",
@@ -611,6 +624,8 @@ var mutableE2ETables = []string{
 	"payment_attempts",
 	"payment_attempt_items",
 	"checkout_decision_allocations",
+	"checkout_sessions",
+	"checkout_otp_rate_limits",
 	"integration_outbox",
 	"integration_inbox",
 	"integration_inbox_conflicts",
@@ -625,6 +640,14 @@ var mutableE2ETables = []string{
 // values are enforced via CHECK constraints), so there is nothing else here.
 var preservedE2ETables = []string{
 	"migrations",
+	"policy_assignments",
+	"policy_assignment_imports",
+	"policy_assignment_import_items",
+	"merchant_webhook_destinations",
+	"merchant_terminals",
+	"merchant_terminal_credentials",
+	"merchant_terminal_issuance_deliveries",
+	"merchant_terminal_permissions",
 }
 
 // resetDatabase truncates every known mutable business table before each

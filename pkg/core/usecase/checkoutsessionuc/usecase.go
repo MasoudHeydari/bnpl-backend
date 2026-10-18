@@ -19,6 +19,7 @@ import (
 	checkoutotppolicy "github.com/parstis/bnpl-backend/pkg/core/policy/checkoutotp"
 	returndestination "github.com/parstis/bnpl-backend/pkg/core/policy/returndestination"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
+	"github.com/parstis/bnpl-backend/pkg/core/saga"
 	"github.com/parstis/bnpl-backend/pkg/core/secretbox"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/contractuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/decisionuc"
@@ -86,6 +87,10 @@ type UseCase struct {
 	phoneCanonicalizer phonenumber.Canonicalizer
 	otpPolicy          checkoutotppolicy.Policy
 	otpTemplateID      string
+
+	confirmationSagaRepo       repo.Saga
+	confirmationSagaExecutor   saga.Executor
+	confirmationSagaDefinition *ConfirmationSagaDefinition
 }
 
 // New constructs a checkout session use case.
@@ -140,6 +145,9 @@ func New(
 	phoneCanonicalizer phonenumber.Canonicalizer,
 	otpPolicy checkoutotppolicy.Policy,
 	otpTemplateID string,
+	confirmationSagaRepo repo.Saga,
+	confirmationSagaExecutor saga.Executor,
+	confirmationSagaDefinition *ConfirmationSagaDefinition,
 ) (*UseCase, error) {
 	const op = "checkoutsessionuc.New"
 
@@ -274,6 +282,18 @@ func New(
 		return nil, fmt.Errorf("%s: otp template id is required", op)
 	}
 
+	if confirmationSagaRepo == nil {
+		return nil, fmt.Errorf("%s: confirmation saga repository is required", op)
+	}
+
+	if confirmationSagaExecutor == nil {
+		return nil, fmt.Errorf("%s: confirmation saga executor is required", op)
+	}
+
+	if confirmationSagaDefinition == nil {
+		return nil, fmt.Errorf("%s: confirmation saga definition is required", op)
+	}
+
 	return &UseCase{
 		pool:                       pool,
 		checkoutSession:            checkoutSession,
@@ -305,5 +325,8 @@ func New(
 		phoneCanonicalizer:         phoneCanonicalizer,
 		otpPolicy:                  otpPolicy,
 		otpTemplateID:              otpTemplateID,
+		confirmationSagaRepo:       confirmationSagaRepo,
+		confirmationSagaExecutor:   confirmationSagaExecutor,
+		confirmationSagaDefinition: confirmationSagaDefinition,
 	}, nil
 }

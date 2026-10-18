@@ -248,6 +248,11 @@ func (u *Usecases) validate(environment string) error {
 		return err
 	}
 
+	u.CheckoutSession.ConfirmationSaga.ApplyDefaults()
+	if err := u.CheckoutSession.ConfirmationSaga.validate(); err != nil {
+		return err
+	}
+
 	if u.PaymentAttemptReconciliation.BatchSize <= 0 {
 		return fmt.Errorf("%s: invalid usecases.payment_attempt_reconciliation.batch_size: must be positive", op)
 	}

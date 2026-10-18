@@ -192,8 +192,6 @@ func allEndpointPermissions() []permission.Permission {
 		permission.BranchesReadMerchant,
 		permission.CheckoutSessionsCreateMerchant,
 		permission.CheckoutSessionsReadMerchant,
-		permission.CheckoutSessionsStartSelf,
-		permission.CheckoutSessionsReadSelf,
 		permission.CheckoutWebhooksManageMerchant,
 		permission.CheckoutReturnDestinationsManageMerchant,
 		permission.MerchantProfileReadMerchant,
