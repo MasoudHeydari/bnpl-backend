@@ -265,6 +265,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Repos.CustomerProfile,
 		a.Repos.Contract,
 		a.Repos.PaymentAttempt,
+		a.Repos.Saga,
 		contractUseCase,
 		a.Repos.Outbox,
 		a.Infrastructure.IdentifierGenerator,

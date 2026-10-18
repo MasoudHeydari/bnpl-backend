@@ -16,8 +16,12 @@ func TestCheckoutSessionStatus_Transitions(t *testing.T) {
 	require.True(t, ConfirmingCheckoutSessionStatus.CanTransitionTo(OpenCheckoutSessionStatus))
 	require.True(t, ProcessingCheckoutSessionStatus.CanTransitionTo(OpenCheckoutSessionStatus))
 
-	// Confirm must claim the session; open never jumps straight to processing.
-	require.False(t, OpenCheckoutSessionStatus.CanTransitionTo(ProcessingCheckoutSessionStatus))
+	// A linked checkout whose payment attempt was replaced re-enters processing,
+	// and authoritative success can complete that open session if the processing
+	// update was lost. The first Confirm of an unlinked session still claims
+	// confirming before any contract exists.
+	require.True(t, OpenCheckoutSessionStatus.CanTransitionTo(ProcessingCheckoutSessionStatus))
+	require.True(t, OpenCheckoutSessionStatus.CanTransitionTo(CompletedCheckoutSessionStatus))
 
 	// Terminal states never reopen.
 	require.False(t, CanceledCheckoutSessionStatus.CanTransitionTo(OpenCheckoutSessionStatus))

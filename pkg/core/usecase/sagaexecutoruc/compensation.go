@@ -152,7 +152,8 @@ func (uc *UseCase) executeDirectCompensation(
 		return err
 	}
 
-	return uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
+	persistCtx := persistStepContext(ctx)
+	return uc.pool.Conn(persistCtx, func(ctx context.Context, conn repo.Conn) error {
 		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
 			sagasQ := uc.sagas.Tx(tx)
 			locked, err := sagasQ.LockLatestUncompensatedForwardStepCompletion(ctx, instance.ID)
@@ -225,7 +226,8 @@ func (uc *UseCase) executeCompensationWorkflowStep(
 		return err
 	}
 
-	return uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
+	persistCtx := persistStepContext(ctx)
+	return uc.pool.Conn(persistCtx, func(ctx context.Context, conn repo.Conn) error {
 		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
 			sagasQ := uc.sagas.Tx(tx)
 			locked, err := sagasQ.LockLatestUncompensatedForwardStepCompletion(ctx, instance.ID)

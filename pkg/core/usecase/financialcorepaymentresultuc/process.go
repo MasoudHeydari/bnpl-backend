@@ -437,15 +437,9 @@ func (uc *UseCase) finishCheckoutTerminalPaymentResult(
 
 	if input.PaymentStatus == model.FailedFinancialPaymentResultStatus &&
 		attempt.State == model.FailedPaymentAttemptState {
-		installmentQ := uc.installment.Tx(tx)
-		installmentChargeQ := uc.installmentCharge.Tx(tx)
-		if err := closePaymentPendingContractAfterTerminalNonSuccess(
-			ctx, contractQ, installmentQ, installmentChargeQ,
-			contractRow, input.EventOccurredAt.UTC(), now,
-		); err != nil {
-			return err
-		}
-
+		// The payment_pending Contract stays in place so a later Confirm can
+		// mint one replacement PaymentAttempt. Canceling it would force a new
+		// Contract for the same checkout.
 		if err := uc.checkoutSessionUC.ApplyPaymentRetryableFailure(ctx, tx, contractRow.ID, now); err != nil {
 			return err
 		}
@@ -455,15 +449,6 @@ func (uc *UseCase) finishCheckoutTerminalPaymentResult(
 
 	if input.PaymentStatus == model.CanceledFinancialPaymentResultStatus &&
 		attempt.State == model.CanceledPaymentAttemptState {
-		installmentQ := uc.installment.Tx(tx)
-		installmentChargeQ := uc.installmentCharge.Tx(tx)
-		if err := closePaymentPendingContractAfterTerminalNonSuccess(
-			ctx, contractQ, installmentQ, installmentChargeQ,
-			contractRow, input.EventOccurredAt.UTC(), now,
-		); err != nil {
-			return err
-		}
-
 		if err := uc.checkoutSessionUC.ApplyPaymentRetryableFailure(ctx, tx, contractRow.ID, now); err != nil {
 			return err
 		}
@@ -503,15 +488,6 @@ func (uc *UseCase) finishCheckoutTerminalPaymentResult(
 			return err
 		}
 
-		installmentQ := uc.installment.Tx(tx)
-		installmentChargeQ := uc.installmentCharge.Tx(tx)
-		if err := closePaymentPendingContractAfterTerminalNonSuccess(
-			ctx, contractQ, installmentQ, installmentChargeQ,
-			contractRow, input.EventOccurredAt.UTC(), now,
-		); err != nil {
-			return err
-		}
-
 		reasonCode := auditReasonPaymentAttemptCanceled
 		if cancelCode != nil {
 			reasonCode = *cancelCode
@@ -536,18 +512,6 @@ func (uc *UseCase) finishCheckoutTerminalPaymentResult(
 		}
 
 		if _, err := paymentAttemptQ.MarkFailed(ctx, enrichedAttempt.ID, reasonCode, input.EventOccurredAt.UTC(), now); err != nil {
-			return err
-		}
-
-		// A terminal failure is just as conclusive as a cancellation for a
-		// pre-activation checkout. Close the contract in this same transaction so
-		// the single-in-flight gate is released atomically with the failed attempt.
-		installmentQ := uc.installment.Tx(tx)
-		installmentChargeQ := uc.installmentCharge.Tx(tx)
-		if err := closePaymentPendingContractAfterTerminalNonSuccess(
-			ctx, contractQ, installmentQ, installmentChargeQ,
-			contractRow, input.EventOccurredAt.UTC(), now,
-		); err != nil {
 			return err
 		}
 
@@ -582,38 +546,6 @@ func (uc *UseCase) finishCheckoutTerminalPaymentResult(
 	}
 
 	output.Result = result
-	return nil
-}
-
-// closePaymentPendingContractAfterTerminalNonSuccess closes a checkout that
-// Financial Core has authoritatively resolved as failed or canceled. No credit
-// exposure was ever committed, so this only releases the durable payment gate
-// and invalidates the pre-activation offer rows.
-func closePaymentPendingContractAfterTerminalNonSuccess(
-	ctx context.Context,
-	contractQ repo.ContractTxQueryer,
-	installmentQ repo.InstallmentTxQueryer,
-	installmentChargeQ repo.InstallmentChargeTxQueryer,
-	contractRow model.Contract,
-	terminalAt time.Time,
-	now time.Time,
-) error {
-	if contractRow.Status != model.PaymentPendingContractStatus {
-		return nil
-	}
-
-	if _, err := contractQ.MarkCanceledFromPaymentPending(ctx, contractRow.ID, terminalAt, now); err != nil {
-		return err
-	}
-
-	if _, err := installmentQ.ExpireOfferedByContractID(ctx, contractRow.ID, now); err != nil {
-		return err
-	}
-
-	if _, err := installmentChargeQ.CancelOfferedByContractID(ctx, contractRow.ID, now); err != nil {
-		return err
-	}
-
 	return nil
 }
 

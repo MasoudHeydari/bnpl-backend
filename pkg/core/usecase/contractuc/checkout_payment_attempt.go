@@ -122,6 +122,134 @@ func (uc *UseCase) ensureCheckoutPaymentAttemptInTx(
 	return existing, nil
 }
 
+// ensureActiveCheckoutPaymentAttempt returns the current non-terminal checkout
+// attempt. A failed or canceled attempt is replaced by exactly one new attempt
+// with a new Financial Core idempotency identity. Concurrent callers converge
+// on that row through the installment lock and the single-active-attempt index.
+func (uc *UseCase) ensureActiveCheckoutPaymentAttempt(
+	ctx context.Context,
+	contractRow model.Contract,
+	attempt model.PaymentAttempt,
+) (model.PaymentAttempt, error) {
+	if attempt.State != model.FailedPaymentAttemptState && attempt.State != model.CanceledPaymentAttemptState {
+		return attempt, nil
+	}
+
+	if uc.BeforeTerminalCheckoutPaymentReplacement != nil {
+		if err := uc.BeforeTerminalCheckoutPaymentReplacement(ctx); err != nil {
+			return model.PaymentAttempt{}, err
+		}
+	}
+
+	return uc.replaceTerminalCheckoutPaymentAttempt(ctx, contractRow, attempt)
+}
+
+func (uc *UseCase) replaceTerminalCheckoutPaymentAttempt(
+	ctx context.Context,
+	contractRow model.Contract,
+	attempt model.PaymentAttempt,
+) (model.PaymentAttempt, error) {
+	const op = "contractuc.UseCase.replaceTerminalCheckoutPaymentAttempt"
+
+	if len(attempt.Items) == 0 {
+		return model.PaymentAttempt{}, cerr.InternalError(fmt.Errorf("%s: terminal checkout attempt has no items", op))
+	}
+
+	successURL := strings.TrimSpace(optionalStringValue(attempt.SuccessReturnURL))
+	failureURL := strings.TrimSpace(optionalStringValue(attempt.FailureReturnURL))
+	cancelURL := strings.TrimSpace(optionalStringValue(attempt.CancelReturnURL))
+	if successURL == "" || failureURL == "" || cancelURL == "" {
+		return model.PaymentAttempt{}, cerr.InternalError(fmt.Errorf("%s: terminal checkout attempt return url is incomplete", op))
+	}
+
+	var replaced model.PaymentAttempt
+	now := uc.clock.Now().UTC()
+	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
+		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
+			contractQ := uc.contract.Tx(tx)
+			attemptQ := uc.paymentAttempt.Tx(tx)
+
+			if _, lockErr := contractQ.LockByID(ctx, contractRow.ID); lockErr != nil {
+				return lockErr
+			}
+
+			current, currentErr := attemptQ.GetByContractIDAndPurposeWithItems(
+				ctx,
+				contractRow.ID,
+				model.CheckoutFirstInstallmentFinancialCorePaymentPurpose,
+			)
+			if currentErr != nil {
+				return currentErr
+			}
+
+			if current.State != model.FailedPaymentAttemptState && current.State != model.CanceledPaymentAttemptState {
+				replaced = current
+				return nil
+			}
+
+			created, createErr := attemptQ.CreateCheckoutWithItems(
+				ctx,
+				contractRow.ID,
+				current.InstallmentID,
+				current.AmountMinor,
+				current.Currency,
+				current.Channel,
+				checkoutPaymentIdempotencyKey(contractRow.ID, uuid.New()),
+				current.RequestFingerprint,
+				optionalStringValue(current.TenantID),
+				optionalStringValue(current.ContextID),
+				current.ProviderCode,
+				successURL,
+				failureURL,
+				cancelURL,
+				current.Items,
+				now,
+				now,
+			)
+			if createErr != nil {
+				if !cerr.IsCode(createErr, cerr.CodeConflict) && !cerr.IsCode(createErr, cerr.CodeValidationFailed) {
+					return createErr
+				}
+
+				reloaded, reloadErr := attemptQ.GetByContractIDAndPurposeWithItems(
+					ctx,
+					contractRow.ID,
+					model.CheckoutFirstInstallmentFinancialCorePaymentPurpose,
+				)
+				if reloadErr != nil {
+					return createErr
+				}
+
+				if reloaded.State == model.FailedPaymentAttemptState || reloaded.State == model.CanceledPaymentAttemptState {
+					return createErr
+				}
+
+				replaced = reloaded
+				return nil
+			}
+
+			obligationID := strings.TrimSpace(optionalStringValue(current.FinancialCollectionObligationID))
+			if obligationID == "" {
+				replaced = created
+				return nil
+			}
+
+			bound, bindErr := attemptQ.BindCollectionObligationIfAbsent(ctx, created.ID, obligationID, now)
+			if bindErr != nil {
+				return bindErr
+			}
+
+			replaced = bound
+			return nil
+		})
+	})
+	if err != nil {
+		return model.PaymentAttempt{}, err
+	}
+
+	return replaced, nil
+}
+
 func validateCheckoutPaymentAttempt(
 	attempt model.PaymentAttempt,
 	input CreateContractInput,

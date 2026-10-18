@@ -45,10 +45,6 @@ func TestFinishCheckoutTerminalPaymentResult_ValidatesStoredPaymentIdentity(t *t
 		paymentAttemptQ := mock.NewPaymentAttemptTxQueryer(t)
 		contractRepo := mock.NewContract(t)
 		contractQ := mock.NewContractTxQueryer(t)
-		installmentRepo := mock.NewInstallment(t)
-		installmentQ := mock.NewInstallmentTxQueryer(t)
-		installmentChargeRepo := mock.NewInstallmentCharge(t)
-		installmentChargeQ := mock.NewInstallmentChargeTxQueryer(t)
 		inboxQ := mock.NewInboxTxQueryer(t)
 		outboxQ := mock.NewOutboxTxQueryer(t)
 
@@ -72,12 +68,6 @@ func TestFinishCheckoutTerminalPaymentResult_ValidatesStoredPaymentIdentity(t *t
 		paymentAttemptQ.EXPECT().
 			MarkFailed(ctx, attemptID, "unknown", occurredAt, now).
 			Return(baseAttempt, nil).Once()
-		contractQ.EXPECT().MarkCanceledFromPaymentPending(ctx, contractID, occurredAt, now).
-			Return(model.Contract{}, nil).Once()
-		installmentRepo.EXPECT().Tx(tx).Return(installmentQ).Once()
-		installmentQ.EXPECT().ExpireOfferedByContractID(ctx, contractID, now).Return(int64(0), nil).Once()
-		installmentChargeRepo.EXPECT().Tx(tx).Return(installmentChargeQ).Once()
-		installmentChargeQ.EXPECT().CancelOfferedByContractID(ctx, contractID, now).Return(int64(0), nil).Once()
 		outboxQ.EXPECT().Create(ctx, testifymock.MatchedBy(func(message repo.CreateOutboxMessage) bool {
 			if message.Destination != testAuditDestination || message.EventType != audit.EventType {
 				return false
@@ -98,8 +88,6 @@ func TestFinishCheckoutTerminalPaymentResult_ValidatesStoredPaymentIdentity(t *t
 		uc := &UseCase{
 			paymentAttempt:    paymentAttemptRepo,
 			contract:          contractRepo,
-			installment:       installmentRepo,
-			installmentCharge: installmentChargeRepo,
 			checkoutSessionUC: noopCheckoutSessionPaymentHook{},
 			idGenerator:       testIDGenerator{value: "audit-event-1"},
 			auditDestination:  testAuditDestination,

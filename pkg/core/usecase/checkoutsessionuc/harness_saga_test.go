@@ -321,6 +321,7 @@ func installHarnessSaga(h *harness) {
 		h.uc.customerProfile,
 		h.uc.contract,
 		h.uc.paymentAttempt,
+		sagaRepo,
 		h.contracts,
 		h.uc.lifecycle,
 		h.uc.clock,

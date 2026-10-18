@@ -395,10 +395,6 @@ func TestFinishCheckoutTerminal_AlreadyFailedCreatesNoAudit(t *testing.T) {
 	paymentAttemptQ := mock.NewPaymentAttemptTxQueryer(t)
 	contractRepo := mock.NewContract(t)
 	contractQ := mock.NewContractTxQueryer(t)
-	installmentRepo := mock.NewInstallment(t)
-	installmentQ := mock.NewInstallmentTxQueryer(t)
-	installmentChargeRepo := mock.NewInstallmentCharge(t)
-	installmentChargeQ := mock.NewInstallmentChargeTxQueryer(t)
 	inboxQ := mock.NewInboxTxQueryer(t)
 	outboxQ := mock.NewOutboxTxQueryer(t)
 
@@ -410,20 +406,12 @@ func TestFinishCheckoutTerminal_AlreadyFailedCreatesNoAudit(t *testing.T) {
 		Status: model.PaymentPendingContractStatus,
 	}, nil).Once()
 	paymentAttemptQ.EXPECT().LockByIDWithItems(ctx, attemptID).Return(attempt, nil).Once()
-	contractQ.EXPECT().MarkCanceledFromPaymentPending(ctx, contractID, now, now).
-		Return(model.Contract{}, nil).Once()
-	installmentRepo.EXPECT().Tx(tx).Return(installmentQ).Once()
-	installmentQ.EXPECT().ExpireOfferedByContractID(ctx, contractID, now).Return(int64(0), nil).Once()
-	installmentChargeRepo.EXPECT().Tx(tx).Return(installmentChargeQ).Once()
-	installmentChargeQ.EXPECT().CancelOfferedByContractID(ctx, contractID, now).Return(int64(0), nil).Once()
 	inboxQ.EXPECT().MarkProcessed(ctx, inboxID, now, now).
 		Return(model.Inbox{ID: inboxID, Status: model.ProcessedInboxStatus}, nil).Once()
 
 	uc := &UseCase{
 		paymentAttempt:    paymentAttemptRepo,
 		contract:          contractRepo,
-		installment:       installmentRepo,
-		installmentCharge: installmentChargeRepo,
 		checkoutSessionUC: noopCheckoutSessionPaymentHook{},
 		idGenerator:       testIDGenerator{},
 		auditDestination:  testAuditDestination,

@@ -239,9 +239,11 @@ func (h *confirmSagaHarness) buildCheckoutPaymentFailureProcessInput(
 
 	require.NotNil(h.t, attempt.FinancialPaymentIntentID)
 	intentID := *attempt.FinancialPaymentIntentID
-	h.fc.setPaymentAuthoritativeFailed(intentID)
 
+	// buildCheckoutPaymentProcessInput records authoritative success. Apply the
+	// failure afterwards so GetPaymentStatus does not overwrite this event.
 	input := h.buildCheckoutPaymentProcessInput(attempt, contract, eventID)
+	h.fc.setPaymentAuthoritativeFailed(intentID)
 	input.PaymentStatus = model.FailedFinancialPaymentResultStatus
 	failureCode := "card_declined"
 	input.FailureCode = &failureCode
@@ -275,4 +277,136 @@ func (h *confirmSagaHarness) driveSagaExpectAttemptFence(oldSagaID model.SagaID,
 	if sessionBefore.ContractID != nil && after.ContractID != nil {
 		require.Equal(h.t, *sessionBefore.ContractID, *after.ContractID)
 	}
+}
+
+type checkoutPaymentAttemptSnapshot struct {
+	ID             model.PaymentAttemptID
+	State          model.PaymentAttemptState
+	IdempotencyKey string
+	AmountMinor    uint64
+	Currency       model.Currency
+}
+
+func (h *confirmSagaHarness) listCheckoutPaymentAttempts(contractID model.ContractID) []checkoutPaymentAttemptSnapshot {
+	h.t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	rows, err := testDB.Query(ctx, `
+		SELECT id, state, idempotency_key, amount_minor, currency
+		FROM bnpl.payment_attempts
+		WHERE contract_id = $1
+		  AND purpose = $2
+		ORDER BY created_at ASC, id ASC
+	`, contractID, model.CheckoutFirstInstallmentFinancialCorePaymentPurpose)
+	require.NoError(h.t, err)
+	defer rows.Close()
+
+	var attempts []checkoutPaymentAttemptSnapshot
+	for rows.Next() {
+		var (
+			id     string
+			row    checkoutPaymentAttemptSnapshot
+			amount int64
+		)
+		require.NoError(h.t, rows.Scan(&id, &row.State, &row.IdempotencyKey, &amount, &row.Currency))
+		parsed, parseErr := uuid.Parse(id)
+		require.NoError(h.t, parseErr)
+		row.ID = model.PaymentAttemptID(parsed)
+		require.GreaterOrEqual(h.t, amount, int64(0))
+		row.AmountMinor = uint64(amount)
+		attempts = append(attempts, row)
+	}
+	require.NoError(h.t, rows.Err())
+
+	return attempts
+}
+
+func (h *confirmSagaHarness) countExposureIncreases(contractID model.ContractID) (count int, amountMinor int64) {
+	h.t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err := testDB.QueryRow(ctx, `
+		SELECT count(*), COALESCE(sum(amount_minor), 0)
+		FROM bnpl.credit_transactions
+		WHERE type = 'exposure_increased'
+		  AND reason_code = 'contract_activated'
+		  AND reference_type = 'contract'
+		  AND reference_id = $1
+	`, contractID).Scan(&count, &amountMinor)
+	require.NoError(h.t, err)
+
+	return count, amountMinor
+}
+
+func (h *confirmSagaHarness) creditExposureMinor(customerID model.CustomerID) int64 {
+	h.t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var exposure int64
+	err := testDB.QueryRow(ctx, `
+		SELECT exposure_amount_minor
+		FROM bnpl.credit_accounts
+		WHERE customer_id = $1
+	`, customerID).Scan(&exposure)
+	require.NoError(h.t, err)
+
+	return exposure
+}
+
+func (h *confirmSagaHarness) countPaidInstallments(contractID model.ContractID) (count int, paidAmount int64) {
+	h.t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err := testDB.QueryRow(ctx, `
+		SELECT count(*), COALESCE(sum(paid_amount_minor), 0)
+		FROM bnpl.installments
+		WHERE contract_id = $1
+		  AND status = 'paid'
+	`, contractID).Scan(&count, &paidAmount)
+	require.NoError(h.t, err)
+
+	return count, paidAmount
+}
+
+func (h *confirmSagaHarness) countOutboxEvents(eventType string, messageKey string) int {
+	h.t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var count int
+	err := testDB.QueryRow(ctx, `
+		SELECT count(*)
+		FROM bnpl.integration_outbox
+		WHERE event_type = $1
+		  AND message_key = $2
+	`, eventType, messageKey).Scan(&count)
+	require.NoError(h.t, err)
+
+	return count
+}
+
+func (h *confirmSagaHarness) inboxStatus(sourceService string, eventID string) (status string, count int) {
+	h.t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err := testDB.QueryRow(ctx, `
+		SELECT COALESCE(max(status), ''), count(*)
+		FROM bnpl.integration_inbox
+		WHERE source_service = $1
+		  AND event_id = $2
+	`, sourceService, eventID).Scan(&status, &count)
+	require.NoError(h.t, err)
+
+	return status, count
 }

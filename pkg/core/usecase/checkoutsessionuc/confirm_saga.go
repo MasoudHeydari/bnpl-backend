@@ -35,6 +35,11 @@ type ConfirmationSagaHooks struct {
 	AfterPrepareContract  func(context.Context) error
 	BeforeLink            func(context.Context) error
 	BeforeFCSubmit        func(context.Context) error
+
+	// OnResumeConfirming runs when a second Confirm observes an unlinked
+	// confirming session and is about to resume its Saga. It runs outside the
+	// session lock so tests can overlap that resume with compensation.
+	OnResumeConfirming func(context.Context) error
 }
 
 // ConfirmationSagaSettings configures business-specific retry timing.
@@ -56,6 +61,7 @@ type ConfirmationSagaDefinition struct {
 	customerProfile repo.CustomerProfile
 	contract        repo.Contract
 	paymentAttempt  repo.PaymentAttempt
+	sagas           repo.Saga
 	contractUC      contractCreator
 	lifecycle       *LifecycleOutbox
 	clock           clock.Clock
@@ -80,6 +86,7 @@ func NewConfirmationSagaDefinition(
 	customerProfile repo.CustomerProfile,
 	contract repo.Contract,
 	paymentAttempt repo.PaymentAttempt,
+	sagas repo.Saga,
 	contractUC contractCreator,
 	lifecycle *LifecycleOutbox,
 	clk clock.Clock,
@@ -109,6 +116,10 @@ func NewConfirmationSagaDefinition(
 		return nil, fmt.Errorf("%s: payment attempt repository is required", op)
 	}
 
+	if sagas == nil {
+		return nil, fmt.Errorf("%s: saga repository is required", op)
+	}
+
 	if contractUC == nil {
 		return nil, fmt.Errorf("%s: contract use case is required", op)
 	}
@@ -135,6 +146,7 @@ func NewConfirmationSagaDefinition(
 		customerProfile: customerProfile,
 		contract:        contract,
 		paymentAttempt:  paymentAttempt,
+		sagas:           sagas,
 		contractUC:      contractUC,
 		lifecycle:       lifecycle,
 		clock:           clk,
@@ -348,6 +360,44 @@ func (d *ConfirmationSagaDefinition) loadExternalCustomerID(
 	return profile.ExternalCustomerID, nil
 }
 
+// assertSagaClaimCurrent rejects a worker whose Saga version is no longer the
+// version it claimed. The check runs immediately before an external mutation
+// so a stale worker does not start a second Contract or Financial Core call
+// after another worker has advanced the Saga.
+func (d *ConfirmationSagaDefinition) assertSagaClaimCurrent(
+	ctx context.Context,
+	instance model.SagaInstance,
+) error {
+	const op = "checkoutsessionuc.ConfirmationSagaDefinition.assertSagaClaimCurrent"
+
+	var current model.SagaInstance
+	err := d.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
+		row, getErr := d.sagas.Conn(conn).GetByID(ctx, instance.ID)
+		if getErr != nil {
+			return getErr
+		}
+
+		current = row
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	if current.Version != instance.Version {
+		return fmt.Errorf(
+			"%s: %w: confirmation saga %s claim version %d is stale; current version %d",
+			op,
+			repo.ErrSagaVersionConflict,
+			instance.ID,
+			instance.Version,
+			current.Version,
+		)
+	}
+
+	return nil
+}
+
 type confirmClaimedStep struct{ def *ConfirmationSagaDefinition }
 
 var (
@@ -486,6 +536,12 @@ func (s *confirmContractPreparedStep) Execute(
 		}
 	}
 
+	// Re-check the claim after the barrier. A worker whose lease expired must
+	// not prepare a Contract for a Saga version another worker already advanced.
+	if err := s.def.assertSagaClaimCurrent(ctx, instance); err != nil {
+		return saga.StepResult{}, err
+	}
+
 	session, err := s.def.loadSession(ctx, instance)
 	if err != nil {
 		return saga.StepResult{}, err
@@ -530,21 +586,16 @@ func (s *confirmContractPreparedStep) Execute(
 		ExternalCustomerID: externalCustomerID,
 	})
 	if err != nil {
-		if isDeterministicOfferNoLongerHonorable(err) {
-			reason := boundedConfirmationSagaReason(err.Error())
-			return saga.StepResult{Outcome: saga.StepOutcomeCompensate, Reason: &reason}, nil
-		}
-
 		// Prepare is convergent on DecisionID; a lost response may already have
-		// committed a Contract. Prefer retry/discovery over dead-end reconcile.
+		// committed a Contract. Retry only failures that a repeat can resolve.
+		// Deterministic pre-contract rejections compensate instead.
 		now := s.def.clock.Now().UTC()
-		if classified, ok := classifyConfirmationExternalError(
+		if classified, ok := classifyConfirmationPrepareError(
 			err,
 			instance.StepAttemptCount,
 			s.def.retryBaseDelay,
 			s.def.retryMaxDelay,
 			now,
-			true,
 		); ok {
 			return classified, nil
 		}
@@ -656,6 +707,10 @@ func (s *confirmFCFulfillmentStep) Execute(
 		}
 	}
 
+	if err := s.def.assertSagaClaimCurrent(ctx, instance); err != nil {
+		return saga.StepResult{}, err
+	}
+
 	session, err := s.def.loadSession(ctx, instance)
 	if err != nil {
 		return saga.StepResult{}, err
@@ -732,7 +787,6 @@ func (s *confirmFCFulfillmentStep) Execute(
 			s.def.retryBaseDelay,
 			s.def.retryMaxDelay,
 			now,
-			true,
 		); ok {
 			return classified, nil
 		}

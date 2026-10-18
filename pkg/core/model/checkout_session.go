@@ -235,6 +235,12 @@ var checkoutSessionStatusTransitions = newStatusTransitionTable(
 	map[CheckoutSessionStatus][]CheckoutSessionStatus{
 		OpenCheckoutSessionStatus: {
 			ConfirmingCheckoutSessionStatus,
+			// A replacement checkout payment is submitted against the Contract
+			// that is already linked. That handoff returns to processing without
+			// minting another ConfirmationAttempt. Authoritative success may also
+			// complete the session directly when the processing update was lost.
+			ProcessingCheckoutSessionStatus,
+			CompletedCheckoutSessionStatus,
 			CanceledCheckoutSessionStatus,
 			ExpiredCheckoutSessionStatus,
 			UnavailableCheckoutSessionStatus,

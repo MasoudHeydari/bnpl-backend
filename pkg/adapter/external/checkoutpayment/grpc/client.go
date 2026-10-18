@@ -2,18 +2,22 @@ package grpc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	grpcclient "google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	paymentv1 "github.com/parstis/bnpl-backend/gen/proto/checkoutpayment/v1"
 	collectionobligationv1 "github.com/parstis/bnpl-backend/gen/proto/collectionobligation/v1"
 	commonv1 "github.com/parstis/bnpl-backend/gen/proto/common/v1"
 	merchantentitlementv1 "github.com/parstis/bnpl-backend/gen/proto/merchantentitlement/v1"
+	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/circuitbreaker"
 	extcheckoutpayment "github.com/parstis/bnpl-backend/pkg/core/external/checkoutpayment"
 )
@@ -146,8 +150,8 @@ func (c *Client) CreateCheckoutPayment(
 		},
 	)
 	if err != nil {
-		return extcheckoutpayment.CreateCheckoutPaymentResult{}, fmt.Errorf(
-			"%s: financial core create checkout payment: %w", op, err,
+		return extcheckoutpayment.CreateCheckoutPaymentResult{}, mapFinancialCoreDependencyError(
+			op, fmt.Errorf("%s: financial core create checkout payment: %w", op, err),
 		)
 	}
 
@@ -179,7 +183,9 @@ func (c *Client) GetPaymentStatus(
 		return callErr
 	})
 	if err != nil {
-		return extcheckoutpayment.GetPaymentStatusResult{}, fmt.Errorf("%s: financial core get payment status: %w", op, err)
+		return extcheckoutpayment.GetPaymentStatusResult{}, mapFinancialCoreDependencyError(
+			op, fmt.Errorf("%s: financial core get payment status: %w", op, err),
+		)
 	}
 
 	if response == nil {
@@ -254,7 +260,9 @@ func (c *Client) PrepareCollectionObligation(
 		return callErr
 	})
 	if err != nil {
-		return extcheckoutpayment.PrepareCollectionObligationResult{}, fmt.Errorf("%s: %w", op, err)
+		return extcheckoutpayment.PrepareCollectionObligationResult{}, mapFinancialCoreDependencyError(
+			op, fmt.Errorf("%s: %w", op, err),
+		)
 	}
 
 	if response == nil || strings.TrimSpace(response.GetCollectionObligationId()) == "" {
@@ -308,7 +316,9 @@ func (c *Client) RecordMerchantEntitlement(
 		return callErr
 	})
 	if err != nil {
-		return extcheckoutpayment.RecordMerchantEntitlementResult{}, fmt.Errorf("%s: %w", op, err)
+		return extcheckoutpayment.RecordMerchantEntitlementResult{}, mapFinancialCoreDependencyError(
+			op, fmt.Errorf("%s: %w", op, err),
+		)
 	}
 
 	if response == nil || strings.TrimSpace(response.GetMerchantEntitlementId()) == "" {
@@ -319,6 +329,92 @@ func (c *Client) RecordMerchantEntitlement(
 		MerchantEntitlementID:  response.GetMerchantEntitlementId(),
 		ReusedIdempotentResult: response.GetReusedIdempotentResult(),
 	}, nil
+}
+
+// mapFinancialCoreDependencyError converts transport failures into core error
+// classes. gRPC status codes stay in this adapter.
+//
+// A deadline or cancellation does not prove Financial Core failed to commit.
+// Those errors stay retryable with the original idempotency identity.
+func mapFinancialCoreDependencyError(op string, err error) error {
+	if err == nil {
+		return nil
+	}
+
+	if errors.Is(err, context.Canceled) {
+		return fmt.Errorf("%s: financial core call canceled: %w", op, context.Canceled)
+	}
+
+	if errors.Is(err, context.DeadlineExceeded) {
+		return extcheckoutpayment.NewFailure(
+			extcheckoutpayment.FailureClassAmbiguous,
+			fmt.Errorf("%s: financial core deadline exceeded: %w", op, context.DeadlineExceeded),
+		)
+	}
+
+	if errors.Is(err, circuitbreaker.ErrOpen) {
+		return cerr.ServiceUnavailable(extcheckoutpayment.NewFailure(
+			extcheckoutpayment.FailureClassTransient,
+			fmt.Errorf("%s: financial core circuit open", op),
+		))
+	}
+
+	code := status.Code(err)
+	switch code {
+	case codes.Unavailable:
+		return cerr.ServiceUnavailable(extcheckoutpayment.NewFailure(
+			extcheckoutpayment.FailureClassTransient,
+			fmt.Errorf("%s: financial core unavailable (grpc_code=%s)", op, code),
+		))
+
+	case codes.ResourceExhausted:
+		return cerr.ServiceUnavailable(extcheckoutpayment.NewFailure(
+			extcheckoutpayment.FailureClassTransient,
+			fmt.Errorf("%s: financial core resource exhausted (grpc_code=%s)", op, code),
+		))
+
+	case codes.DeadlineExceeded:
+		return extcheckoutpayment.NewFailure(
+			extcheckoutpayment.FailureClassAmbiguous,
+			fmt.Errorf("%s: financial core deadline exceeded (grpc_code=%s): %w", op, code, context.DeadlineExceeded),
+		)
+
+	case codes.Canceled:
+		return fmt.Errorf("%s: financial core call canceled (grpc_code=%s): %w", op, code, context.Canceled)
+
+	case codes.Aborted:
+		return cerr.Conflict(extcheckoutpayment.NewFailure(
+			extcheckoutpayment.FailureClassRetryableConcurrency,
+			fmt.Errorf("%s: financial core concurrency conflict (grpc_code=%s)", op, code),
+		))
+
+	case codes.InvalidArgument, codes.FailedPrecondition, codes.OutOfRange:
+		return cerr.InvalidArgument(extcheckoutpayment.NewFailure(
+			extcheckoutpayment.FailureClassPermanentInvalidInput,
+			fmt.Errorf("%s: financial core rejected immutable input (grpc_code=%s)", op, code),
+		))
+
+	case codes.AlreadyExists:
+		return cerr.Conflict(extcheckoutpayment.NewFailure(
+			extcheckoutpayment.FailureClassPermanentConflict,
+			fmt.Errorf("%s: financial core reported a conflicting identity (grpc_code=%s)", op, code),
+		))
+
+	case codes.OK:
+		return err
+
+	default:
+		if code == codes.Unknown && status.Code(err) == codes.Unknown {
+			if _, ok := status.FromError(err); !ok {
+				return err
+			}
+		}
+
+		return cerr.InternalError(extcheckoutpayment.NewFailure(
+			extcheckoutpayment.FailureClassUnknown,
+			fmt.Errorf("%s: financial core call failed (grpc_code=%s)", op, code),
+		))
+	}
 }
 
 func mapCollectionApplication(

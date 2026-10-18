@@ -1047,8 +1047,14 @@ RETURNING` + checkoutSessionColumns
 	return row, err
 }
 
-// ReopenConfirmingToOpen returns confirming → open and clears the active
-// confirmation attempt atomically when no contract is linked.
+// ReopenConfirmingToOpen returns confirming → open, clears the active
+// confirmation attempt, and invalidates the offer generation atomically when
+// no contract is linked.
+//
+// Generation invalidation is local state only. It does not evaluate a new
+// offer, so the transaction does not perform network I/O. A stale Confirm
+// still carrying the superseded generation cannot claim a new attempt for the
+// rejected terms.
 func ReopenConfirmingToOpen[Q postgres.Queryer](
 	ctx context.Context,
 	q Q,
@@ -1070,7 +1076,16 @@ func ReopenConfirmingToOpen[Q postgres.Queryer](
 
 	const query = `
 UPDATE checkout_sessions
-SET status = $2, confirmation_attempt_id = NULL, updated_at = $3
+SET status = $2,
+	confirmation_attempt_id = NULL,
+	evaluation_generation = evaluation_generation + 1,
+	decision_id = NULL,
+	otp_issue_id = NULL,
+	otp_verifier = NULL,
+	otp_expires_at = NULL,
+	otp_verified_at = NULL,
+	otp_attempt_count = 0,
+	updated_at = $3
 WHERE id = $1
   AND status = $4
   AND contract_id IS NULL

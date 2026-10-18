@@ -5,6 +5,7 @@ package e2e_test
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -16,21 +17,21 @@ type fcCallKind string
 
 const (
 	fcCallPrepareCollectionObligation fcCallKind = "prepare_collection_obligation"
-	fcCallCreateCheckoutPayment         fcCallKind = "create_checkout_payment"
-	fcCallGetPaymentStatus              fcCallKind = "get_payment_status"
-	fcCallRecordMerchantEntitlement     fcCallKind = "record_merchant_entitlement"
+	fcCallCreateCheckoutPayment       fcCallKind = "create_checkout_payment"
+	fcCallGetPaymentStatus            fcCallKind = "get_payment_status"
+	fcCallRecordMerchantEntitlement   fcCallKind = "record_merchant_entitlement"
 )
 
 type fcCallRecord struct {
-	Kind      fcCallKind
-	SourceID  string
-	At        time.Time
+	Kind       fcCallKind
+	SourceID   string
+	At         time.Time
 	Concurrent bool
 }
 
 type fcEntitlementBehavior struct {
-	err           error
-	delay         time.Duration
+	err             error
+	delay           time.Duration
 	lostAfterCommit bool
 }
 
@@ -58,6 +59,8 @@ type controllableCheckoutPaymentClient struct {
 
 	inFlightEntitlement map[string]struct{}
 	inFlightPaymentKey  map[string]struct{}
+	paymentGuards       map[string]*sync.Mutex
+	entitlementGuards   map[string]*sync.Mutex
 
 	calls []fcCallRecord
 }
@@ -71,6 +74,8 @@ func newControllableCheckoutPaymentClient() *controllableCheckoutPaymentClient {
 		authoritativeStatus:  make(map[string]paymentAuthoritativeStatus),
 		inFlightEntitlement:  make(map[string]struct{}),
 		inFlightPaymentKey:   make(map[string]struct{}),
+		paymentGuards:        make(map[string]*sync.Mutex),
+		entitlementGuards:    make(map[string]*sync.Mutex),
 	}
 }
 
@@ -87,7 +92,38 @@ func (c *controllableCheckoutPaymentClient) reset() {
 	c.authoritativeStatus = make(map[string]paymentAuthoritativeStatus)
 	c.inFlightEntitlement = make(map[string]struct{})
 	c.inFlightPaymentKey = make(map[string]struct{})
+	c.paymentGuards = make(map[string]*sync.Mutex)
+	c.entitlementGuards = make(map[string]*sync.Mutex)
 	c.calls = nil
+}
+
+// keyGuard serializes callers that share one Financial Core idempotency identity.
+// FC guarantees those calls are concurrency-safe and return one logical result.
+func (c *controllableCheckoutPaymentClient) keyGuard(table map[string]*sync.Mutex, key string) *sync.Mutex {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	guard, ok := table[key]
+	if !ok {
+		guard = &sync.Mutex{}
+		table[key] = guard
+	}
+
+	return guard
+}
+
+func (c *controllableCheckoutPaymentClient) committedPaymentKeys() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	keys := make([]string, 0, len(c.paymentsByKey))
+	for key := range c.paymentsByKey {
+		keys = append(keys, key)
+	}
+
+	sort.Strings(keys)
+
+	return keys
 }
 
 func (c *controllableCheckoutPaymentClient) setEntitlementSuccess() {
@@ -298,12 +334,14 @@ func (c *controllableCheckoutPaymentClient) CreateCheckoutPayment(
 	ctx context.Context,
 	input extcheckoutpayment.CreateCheckoutPaymentInput,
 ) (extcheckoutpayment.CreateCheckoutPaymentResult, error) {
-	const op = "e2e.controllableCheckoutPaymentClient.CreateCheckoutPayment"
-
 	key := input.IdempotencyKey
 	if key == "" {
 		key = input.SourceID
 	}
+
+	guard := c.keyGuard(c.paymentGuards, key)
+	guard.Lock()
+	defer guard.Unlock()
 
 	c.mu.Lock()
 	if existing, ok := c.paymentsByKey[key]; ok {
@@ -314,21 +352,8 @@ func (c *controllableCheckoutPaymentClient) CreateCheckoutPayment(
 		return existing, nil
 	}
 
-	if _, busy := c.inFlightPaymentKey[key]; busy {
-		c.mu.Unlock()
-		c.recordCall(fcCallCreateCheckoutPayment, input.SourceID, true)
-		return extcheckoutpayment.CreateCheckoutPaymentResult{}, fmt.Errorf("%s: concurrent checkout payment for %s", op, key)
-	}
-
-	c.inFlightPaymentKey[key] = struct{}{}
 	behavior := c.paymentBehavior
 	c.mu.Unlock()
-
-	defer func() {
-		c.mu.Lock()
-		delete(c.inFlightPaymentKey, key)
-		c.mu.Unlock()
-	}()
 
 	if behavior.delay > 0 {
 		select {
@@ -431,6 +456,10 @@ func (c *controllableCheckoutPaymentClient) RecordMerchantEntitlement(
 		return extcheckoutpayment.RecordMerchantEntitlementResult{}, fmt.Errorf("%s: source id is required", op)
 	}
 
+	guard := c.keyGuard(c.entitlementGuards, input.SourceID)
+	guard.Lock()
+	defer guard.Unlock()
+
 	c.mu.Lock()
 	if existing, ok := c.entitlementsBySource[input.SourceID]; ok {
 		c.mu.Unlock()
@@ -440,21 +469,8 @@ func (c *controllableCheckoutPaymentClient) RecordMerchantEntitlement(
 		return existing, nil
 	}
 
-	if _, busy := c.inFlightEntitlement[input.SourceID]; busy {
-		c.mu.Unlock()
-		c.recordCall(fcCallRecordMerchantEntitlement, input.SourceID, true)
-		return extcheckoutpayment.RecordMerchantEntitlementResult{}, fmt.Errorf("%s: concurrent entitlement for %s", op, input.SourceID)
-	}
-
-	c.inFlightEntitlement[input.SourceID] = struct{}{}
 	behavior := c.entitlementBehavior
 	c.mu.Unlock()
-
-	defer func() {
-		c.mu.Lock()
-		delete(c.inFlightEntitlement, input.SourceID)
-		c.mu.Unlock()
-	}()
 
 	if behavior.delay > 0 {
 		select {

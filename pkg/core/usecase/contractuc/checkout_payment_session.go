@@ -409,7 +409,7 @@ func validateCheckoutPaymentResult(
 	}
 
 	if result.AmountMinor != expectedAmountMinor || result.Currency != string(contractRow.Currency) {
-		return financialCoreCheckoutPaymentUnavailableError(
+		return financialCoreCheckoutPaymentConflictError(
 			errors.New("financial core returned payment amount or currency mismatch"),
 		)
 	}
@@ -501,6 +501,11 @@ func (uc *UseCase) ensureCheckoutPaymentSession(
 	contractRow model.Contract,
 	attempt model.PaymentAttempt,
 ) (model.Contract, model.PaymentAttempt, CheckoutPaymentOutput, error) {
+	attempt, err := uc.ensureActiveCheckoutPaymentAttempt(ctx, contractRow, attempt)
+	if err != nil {
+		return model.Contract{}, model.PaymentAttempt{}, CheckoutPaymentOutput{}, err
+	}
+
 	if checkoutContractSessionMatchesAttempt(contractRow, attempt) {
 		if attempt.State == model.FailedPaymentAttemptState || attempt.State == model.CanceledPaymentAttemptState {
 			return model.Contract{}, model.PaymentAttempt{}, CheckoutPaymentOutput{}, checkoutPaymentAttemptTerminalStateError(attempt.State)

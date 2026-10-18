@@ -66,8 +66,9 @@ type confirmSagaHarness struct {
 }
 
 type confirmSagaHarnessOptions struct {
-	hooks              checkoutsessionuc.ConfirmationSagaHooks
-	externalCustomerID model.ExternalCustomerID
+	hooks                                    checkoutsessionuc.ConfirmationSagaHooks
+	externalCustomerID                       model.ExternalCustomerID
+	beforeTerminalCheckoutPaymentReplacement func(context.Context) error
 }
 
 func newConfirmSagaHarness(t *testing.T, opts confirmSagaHarnessOptions) *confirmSagaHarness {
@@ -181,12 +182,17 @@ func newConfirmSagaHarness(t *testing.T, opts confirmSagaHarnessOptions) *confir
 	sagaRetry := cfg.Usecases.CheckoutSession.ConfirmationSaga
 	sagaRetry.ApplyDefaults()
 
+	if opts.beforeTerminalCheckoutPaymentReplacement != nil {
+		contractUC.BeforeTerminalCheckoutPaymentReplacement = opts.beforeTerminalCheckoutPaymentReplacement
+	}
+
 	confirmationSagaDefinition, err := checkoutsessionuc.NewConfirmationSagaDefinition(
 		pool,
 		repos.CheckoutSession,
 		repos.CustomerProfile,
 		repos.Contract,
 		repos.PaymentAttempt,
+		repos.Saga,
 		contractUC,
 		lifecycle,
 		fixedClock,

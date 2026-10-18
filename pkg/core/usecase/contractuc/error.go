@@ -654,6 +654,22 @@ func financialDelegationUnavailableError(cause error) error {
 	)
 }
 
+func financialCoreCheckoutPaymentConflictError(cause error) error {
+	return cerr.NewPublic(
+		cerr.CodeConflict,
+		"error.financial_core_checkout_payment_conflict",
+		cause,
+		cerr.Details{
+			Fields: []string{},
+			Violations: []cerr.Violation{{
+				Code:       "CONFLICT",
+				MessageKey: "error.financial_core_checkout_payment_conflict",
+				Fields:     []string{},
+			}},
+		},
+	)
+}
+
 func financialCoreCheckoutPaymentUnavailableError(cause error) error {
 	return cerr.NewPublic(
 		cerr.CodeServiceUnavailable,

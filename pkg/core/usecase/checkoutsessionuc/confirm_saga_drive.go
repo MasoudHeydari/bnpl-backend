@@ -120,6 +120,12 @@ func (uc *UseCase) resumeConfirmSaga(
 ) (ConfirmOutput, error) {
 	const op = "checkoutsessionuc.UseCase.resumeConfirmSaga"
 
+	if hook := uc.confirmationSagaDefinition.hooks.OnResumeConfirming; hook != nil {
+		if err := hook(ctx); err != nil {
+			return ConfirmOutput{}, err
+		}
+	}
+
 	instance, err := uc.findConfirmationSagaBySession(ctx, session)
 	if err != nil {
 		if cerr.IsCode(err, cerr.CodeResourceNotFound) {

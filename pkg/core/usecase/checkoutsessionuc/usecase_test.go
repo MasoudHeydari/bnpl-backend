@@ -241,6 +241,7 @@ func mustStubConfirmationSaga(
 		d.customerProfile,
 		d.contract,
 		d.paymentAttempt,
+		mock.NewSaga(t),
 		&fakeContractCreator{},
 		lifecycle,
 		clk,

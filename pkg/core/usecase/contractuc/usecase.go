@@ -1,6 +1,7 @@
 package contractuc
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -69,6 +70,12 @@ type UseCase struct {
 
 	// CancellationSaga executes contract cancellation saga steps.
 	CancellationSaga CancellationSagaSettings
+
+	// BeforeTerminalCheckoutPaymentReplacement is an optional test barrier.
+	// It runs after a terminal checkout attempt is observed and before the
+	// replacement row is inserted, outside the database transaction.
+	// Production leaves it nil.
+	BeforeTerminalCheckoutPaymentReplacement func(context.Context) error
 }
 
 // New constructs the checkout contract use case with payment-attempt persistence,

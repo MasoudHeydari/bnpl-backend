@@ -877,13 +877,26 @@ func (uc *UseCase) replayConfirm(
 	}
 
 	if paymentRequired {
+		if paused, pauseErr := uc.externalFulfillmentPausedBySaga(ctx, session); pauseErr != nil {
+			return ConfirmOutput{}, pauseErr
+		} else if paused {
+			return ConfirmOutput{}, checkoutPaymentInProgressError(
+				fmt.Errorf("%s: confirmation saga is waiting before another financial core submission", op),
+			)
+		}
+
 		submitted, submitErr := uc.contractUC.SubmitPreparedCheckoutFulfillment(ctx, prepared)
 		if submitErr != nil {
 			return ConfirmOutput{}, submitErr
 		}
 
+		awaiting, awaitErr := uc.markOpenCheckoutAwaitingPaymentResult(ctx, session)
+		if awaitErr != nil {
+			return ConfirmOutput{}, awaitErr
+		}
+
 		return ConfirmOutput{
-			Session:         session,
+			Session:         awaiting,
 			Contract:        submitted.Contract,
 			PaymentRequired: true,
 			PaymentAttempt:  submitted.PaymentAttempt,
@@ -925,6 +938,14 @@ func (uc *UseCase) replayConfirm(
 
 	// An unrecognized merchant-funding activation resumes with its stable FC source
 	// reference; an unknown outcome must never turn into premature completion.
+	if paused, pauseErr := uc.externalFulfillmentPausedBySaga(ctx, session); pauseErr != nil {
+		return ConfirmOutput{}, pauseErr
+	} else if paused {
+		return ConfirmOutput{}, checkoutPaymentInProgressError(
+			fmt.Errorf("%s: confirmation saga is waiting before another financial core submission", op),
+		)
+	}
+
 	submitted, submitErr := uc.contractUC.SubmitPreparedCheckoutFulfillment(ctx, prepared)
 	if submitErr != nil {
 		return ConfirmOutput{}, submitErr
@@ -1297,6 +1318,95 @@ func (uc *UseCase) recordCheckoutPaymentStateConflict(
 	// AND the conflict evidence. Commit both, and let the outbox alert
 	// reconciliation/operations to the persisted mismatch.
 	return nil
+}
+
+// markOpenCheckoutAwaitingPaymentResult moves a linked open checkout back to
+// processing after a replacement payment has been submitted. Open cannot stay
+// open while an authoritative result is outstanding: cancel and expiry would
+// otherwise race the payment, and success could not complete the session.
+func (uc *UseCase) markOpenCheckoutAwaitingPaymentResult(
+	ctx context.Context,
+	session model.CheckoutSession,
+) (model.CheckoutSession, error) {
+	const op = "checkoutsessionuc.UseCase.markOpenCheckoutAwaitingPaymentResult"
+
+	if session.Status != model.OpenCheckoutSessionStatus || session.ContractID == nil || session.ContractID.IsZero() {
+		return session, nil
+	}
+
+	var updated model.CheckoutSession
+	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
+		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
+			sessionQ := uc.checkoutSession.Tx(tx)
+
+			locked, lockErr := sessionQ.LockByID(ctx, session.ID)
+			if lockErr != nil {
+				return lockErr
+			}
+
+			if locked.Status != model.OpenCheckoutSessionStatus ||
+				locked.ContractID == nil ||
+				*locked.ContractID != *session.ContractID {
+				updated = locked
+
+				return nil
+			}
+
+			now := uc.clock.Now().UTC()
+			if transitionErr := locked.Status.ValidateTransitionTo(model.ProcessingCheckoutSessionStatus); transitionErr != nil {
+				return cerr.InternalError(fmt.Errorf("%s: %w", op, transitionErr))
+			}
+
+			row, statusErr := sessionQ.UpdateStatus(ctx, locked.ID, model.ProcessingCheckoutSessionStatus, now)
+			if statusErr != nil {
+				return statusErr
+			}
+
+			updated = row
+
+			return nil
+		})
+	})
+	if err != nil {
+		return model.CheckoutSession{}, err
+	}
+
+	return updated, nil
+}
+
+// externalFulfillmentPausedBySaga reports whether the confirmation Saga has
+// scheduled a retry or stopped for reconciliation/manual review. Replay must
+// not send the same unchanged Financial Core operation in that interval.
+func (uc *UseCase) externalFulfillmentPausedBySaga(
+	ctx context.Context,
+	session model.CheckoutSession,
+) (bool, error) {
+	if session.ConfirmationAttemptID == nil || session.ConfirmationAttemptID.IsZero() {
+		return false, nil
+	}
+
+	instance, err := uc.findConfirmationSagaBySession(ctx, session)
+	if err != nil {
+		if cerr.IsCode(err, cerr.CodeResourceNotFound) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	switch instance.Status {
+	case model.ReconciliationRequiredSagaStatus,
+		model.ManualReviewRequiredSagaStatus,
+		model.FailedSagaStatus:
+		return true, nil
+
+	case model.RunningSagaStatus:
+		if instance.NextAttemptAt != nil && instance.NextAttemptAt.After(uc.clock.Now().UTC()) {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // sameDecisionLink compares nullable Decision IDs without comparing addresses.
