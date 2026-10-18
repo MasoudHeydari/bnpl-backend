@@ -39,7 +39,7 @@ func TestEnsureFinancialCoreInstallmentPayment_UsesExistingReceivableAndExternal
 	idGenerator := mock.NewIdentifierGenerator(t)
 
 	customerInternalID := model.CustomerID(uuid.New())
-	identitySubjectID := model.IdentitySubjectID(uuid.New())
+	externalCustomerID := model.ExternalCustomerID(uuid.New())
 	merchantProfileID := model.MerchantProfileID(uuid.New())
 	merchantID := model.MerchantID(uuid.New())
 	contractID := model.ContractID(uuid.New())
@@ -77,17 +77,17 @@ func TestEnsureFinancialCoreInstallmentPayment_UsesExistingReceivableAndExternal
 	).Once()
 	contractRepo.EXPECT().Conn(conn).Return(contractCQ).Once()
 	contractCQ.EXPECT().GetByID(ctx, contractID).Return(model.Contract{
-		ID:                    contractID,
-		CustomerID:            customerInternalID,
-		MerchantProfileID:     merchantProfileID,
-		Status:                model.ActiveContractStatus,
-		Currency:              model.IRRCurrency,
-		FinancialReceivableID: &receivableID,
+		ID:                             contractID,
+		CustomerID:                     customerInternalID,
+		MerchantProfileID:              merchantProfileID,
+		Status:                         model.ActiveContractStatus,
+		Currency:                       model.IRRCurrency,
+		FinancialMerchantEntitlementID: &receivableID,
 	}, nil).Once()
 	customerProfile.EXPECT().Conn(conn).Return(customerCQ).Once()
-	customerCQ.EXPECT().GetByIdentitySubjectID(ctx, identitySubjectID).Return(model.CustomerProfile{
+	customerCQ.EXPECT().GetByExternalCustomerID(ctx, externalCustomerID).Return(model.CustomerProfile{
 		ID:                customerInternalID,
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 	}, nil).Once()
 	merchantProfile.EXPECT().Conn(conn).Return(merchantCQ).Once()
 	merchantCQ.EXPECT().GetByID(ctx, merchantProfileID).Return(model.MerchantProfile{
@@ -105,12 +105,12 @@ func TestEnsureFinancialCoreInstallmentPayment_UsesExistingReceivableAndExternal
 	checkoutClient.EXPECT().PrepareCollectionObligation(ctx, testifymock.MatchedBy(
 		func(in extcheckoutpayment.PrepareCollectionObligationInput) bool {
 			return in.Application == extcheckoutpayment.ExistingReceivableCollectionApplication &&
-				in.ReceivableID == receivableID &&
+				in.MerchantEntitlementID == receivableID &&
 				in.AmountMinor == 20 &&
 				in.MerchantID == merchantID.String() &&
-				in.CustomerSubjectID == identitySubjectID.String() &&
+				in.CustomerID == externalCustomerID.String() &&
 				in.MerchantID != merchantProfileID.String() &&
-				in.CustomerSubjectID != customerInternalID.String()
+				in.CustomerID != customerInternalID.String()
 		},
 	)).Return(extcheckoutpayment.PrepareCollectionObligationResult{
 		CollectionObligationID: "fc-obligation-1",
@@ -139,7 +139,7 @@ func TestEnsureFinancialCoreInstallmentPayment_UsesExistingReceivableAndExternal
 	checkoutClient.EXPECT().CreateCheckoutPayment(ctx, testifymock.MatchedBy(
 		func(in extcheckoutpayment.CreateCheckoutPaymentInput) bool {
 			return in.CollectionObligationID == obligationID &&
-				in.PayerID == identitySubjectID.String() &&
+				in.PayerID == externalCustomerID.String() &&
 				in.PayeeID == merchantID.String() &&
 				in.AmountMinor == 20
 		},
@@ -188,7 +188,7 @@ func TestEnsureFinancialCoreInstallmentPayment_UsesExistingReceivableAndExternal
 	require.NoError(t, err)
 
 	out, err := uc.ensureFinancialCoreInstallmentPayment(ctx, attempt, CreatePaymentAttemptInput{
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 		TenantID:          model.TenantID(uuid.MustParse("00000000-0000-4000-8000-0000000000aa")),
 		ContextID:         model.ContextID(uuid.MustParse("00000000-0000-4000-8000-0000000000bb")),
 	})
@@ -253,7 +253,7 @@ func TestEnsureFinancialCoreInstallmentPayment_RejectsMissingReceivable(t *testi
 		FailureReturnURL: &returnURL,
 		CancelReturnURL:  &returnURL,
 	}, CreatePaymentAttemptInput{
-		IdentitySubjectID: model.IdentitySubjectID(uuid.New()),
+		ExternalCustomerID: model.ExternalCustomerID(uuid.New()),
 	})
 	require.Error(t, err)
 }
@@ -276,7 +276,7 @@ func TestEnsureFinancialCoreInstallmentPayment_RejectsChargesAgainstPrincipalRec
 	installmentCQ := mock.NewInstallmentConnQueryer(t)
 
 	customerInternalID := model.CustomerID(uuid.New())
-	identitySubjectID := model.IdentitySubjectID(uuid.New())
+	externalCustomerID := model.ExternalCustomerID(uuid.New())
 	merchantProfileID := model.MerchantProfileID(uuid.New())
 	contractID := model.ContractID(uuid.New())
 	installmentID := model.InstallmentID(uuid.New())
@@ -296,12 +296,12 @@ func TestEnsureFinancialCoreInstallmentPayment_RejectsChargesAgainstPrincipalRec
 		CustomerID:            customerInternalID,
 		MerchantProfileID:     merchantProfileID,
 		Status:                model.ActiveContractStatus,
-		FinancialReceivableID: &receivableID,
+		FinancialMerchantEntitlementID: &receivableID,
 	}, nil).Once()
 	customerProfile.EXPECT().Conn(conn).Return(customerCQ).Once()
-	customerCQ.EXPECT().GetByIdentitySubjectID(ctx, identitySubjectID).Return(model.CustomerProfile{
+	customerCQ.EXPECT().GetByExternalCustomerID(ctx, externalCustomerID).Return(model.CustomerProfile{
 		ID:                customerInternalID,
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 	}, nil).Once()
 	merchantProfile.EXPECT().Conn(conn).Return(merchantCQ).Once()
 	merchantCQ.EXPECT().GetByID(ctx, merchantProfileID).Return(model.MerchantProfile{
@@ -345,6 +345,6 @@ func TestEnsureFinancialCoreInstallmentPayment_RejectsChargesAgainstPrincipalRec
 		SuccessReturnURL: &returnURL,
 		FailureReturnURL: &returnURL,
 		CancelReturnURL:  &returnURL,
-	}, CreatePaymentAttemptInput{IdentitySubjectID: identitySubjectID})
+	}, CreatePaymentAttemptInput{ExternalCustomerID: externalCustomerID})
 	require.Error(t, err)
 }

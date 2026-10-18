@@ -299,23 +299,9 @@ type MerchantProfile struct {
 	// BNPL activity.
 	Jurisdiction Jurisdiction `db:"jurisdiction" json:"jurisdiction,omitempty"`
 
-	// OfferPreparationMode controls when Partner Create prepares the financing
-	// offer. Trusted BNPL provisioning owns this value — never partner input.
-	OfferPreparationMode OfferPreparationMode `db:"offer_preparation_mode" json:"-"`
-
 	// CreatedAt is when the profile was created.
 	CreatedAt time.Time `db:"created_at" json:"created_at,omitempty"`
 
 	// UpdatedAt is when the profile was last modified.
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at,omitempty"`
-}
-
-// EffectiveOfferPreparationMode returns the merchant preparation mode, defaulting
-// to on_start when unset in legacy rows.
-func (p MerchantProfile) EffectiveOfferPreparationMode() OfferPreparationMode {
-	if p.OfferPreparationMode.IsValid() {
-		return p.OfferPreparationMode
-	}
-
-	return DefaultOfferPreparationMode
 }

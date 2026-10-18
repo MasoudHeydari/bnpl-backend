@@ -26,7 +26,7 @@ func TestListUnpaidInstallments_EmptyWhenCustomerProfileMissing(t *testing.T) {
 	customerProfileQ := mock.NewCustomerProfileConnQueryer(t)
 	installment := mock.NewInstallment(t)
 
-	identitySubjectID := model.IdentitySubjectID(uuid.New())
+	externalCustomerID := model.ExternalCustomerID(uuid.New())
 
 	pool.EXPECT().
 		Conn(testifymock.Anything, testifymock.Anything).
@@ -35,13 +35,13 @@ func TestListUnpaidInstallments_EmptyWhenCustomerProfileMissing(t *testing.T) {
 		})
 	customerProfile.EXPECT().Conn(testifymock.Anything).Return(customerProfileQ)
 	customerProfileQ.EXPECT().
-		GetByIdentitySubjectID(testifymock.Anything, identitySubjectID).
+		GetByExternalCustomerID(testifymock.Anything, externalCustomerID).
 		Return(model.CustomerProfile{}, cerr.ResourceNotFound(errors.New("missing")))
 
 	uc := customeraccountuc.New(pool, customerProfile, nil, installment, nil, nil)
 
 	out, err := uc.ListUnpaidInstallments(context.Background(), customeraccountuc.ListUnpaidInstallmentsInput{
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 		Page:              pagination.KeysetRequest{Limit: 20},
 	})
 	require.NoError(t, err)
@@ -59,7 +59,7 @@ func TestListUnpaidInstallments_OrdersByDueAtAndBuildsDueAtCursor(t *testing.T) 
 	installment := mock.NewInstallment(t)
 	installmentQ := mock.NewInstallmentConnQueryer(t)
 
-	identitySubjectID := model.IdentitySubjectID(uuid.New())
+	externalCustomerID := model.ExternalCustomerID(uuid.New())
 	profileID := model.CustomerID(uuid.New())
 	contractID := model.ContractID(uuid.New())
 	due1 := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
@@ -74,8 +74,8 @@ func TestListUnpaidInstallments_OrdersByDueAtAndBuildsDueAtCursor(t *testing.T) 
 		})
 	customerProfile.EXPECT().Conn(testifymock.Anything).Return(customerProfileQ)
 	customerProfileQ.EXPECT().
-		GetByIdentitySubjectID(testifymock.Anything, identitySubjectID).
-		Return(model.CustomerProfile{ID: profileID, IdentitySubjectID: identitySubjectID}, nil)
+		GetByExternalCustomerID(testifymock.Anything, externalCustomerID).
+		Return(model.CustomerProfile{ID: profileID, ExternalCustomerID: externalCustomerID}, nil)
 	installment.EXPECT().Conn(testifymock.Anything).Return(installmentQ)
 	installmentQ.EXPECT().
 		ListUnpaidByCustomerID(testifymock.Anything, profileID, testifymock.MatchedBy(func(page pagination.KeysetRequest) bool {
@@ -107,7 +107,7 @@ func TestListUnpaidInstallments_OrdersByDueAtAndBuildsDueAtCursor(t *testing.T) 
 	uc := customeraccountuc.New(pool, customerProfile, nil, installment, nil, nil)
 
 	out, err := uc.ListUnpaidInstallments(context.Background(), customeraccountuc.ListUnpaidInstallmentsInput{
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 		Page:              pagination.KeysetRequest{Limit: 1},
 	})
 	require.NoError(t, err)

@@ -31,7 +31,7 @@ type External struct {
 	CheckoutPaymentClient extcheckoutpayment.Client
 
 	// CustomerResolver maps a merchant-asserted mobile to a Customer Reference
-	// Service customer_id (stored as customer_profiles.identity_subject_id).
+	// Service customer_id (stored as customer_profiles.external_customer_id).
 	CustomerResolver extcustomer.Resolver
 
 	// NotificationSubmitter durably submits checkout OTP notifications.

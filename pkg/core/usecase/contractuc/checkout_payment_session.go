@@ -145,16 +145,16 @@ func isCheckoutPaymentRetryIdempotencyKey(contractID model.ContractID, value str
 }
 
 func checkoutPaymentRequestFingerprint(input CreateContractInput, contractRow model.Contract) string {
+	// Local BNPL fingerprint for PaymentAttempt durability. Financial Core owns
+	// its own request fingerprint and must not receive this value on the wire.
 	raw := fmt.Sprintf(
-		"contract:%s:amount:%d:currency:%s:customer:%s:merchant:%s:expires:%s:tenant:%s:context:%s:provider:%s",
+		"contract:%s:amount:%d:currency:%s:customer:%s:merchant:%s:expires:%s:provider:%s",
 		contractRow.ID,
 		contractRow.PayableNowAmountMinor,
 		contractRow.Currency,
 		contractRow.CustomerID,
 		contractRow.MerchantProfileID,
 		contractRow.ExpiresAt.UTC().Format(time.RFC3339Nano),
-		input.TenantID,
-		input.ContextID,
 		strings.TrimSpace(input.ProviderCode),
 	)
 
@@ -162,10 +162,15 @@ func checkoutPaymentRequestFingerprint(input CreateContractInput, contractRow mo
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
+func financialSourceVersion() *int64 {
+	v := int64(1)
+	return &v
+}
+
 func (uc *UseCase) buildCheckoutPaymentInputFromAttempt(
 	contractRow model.Contract,
 	attempt model.PaymentAttempt,
-	identitySubjectID model.IdentitySubjectID,
+	externalCustomerID model.ExternalCustomerID,
 	merchantID model.MerchantID,
 ) (extcheckoutpayment.CreateCheckoutPaymentInput, error) {
 	const op = "contractuc.UseCase.buildCheckoutPaymentInputFromAttempt"
@@ -178,6 +183,13 @@ func (uc *UseCase) buildCheckoutPaymentInputFromAttempt(
 		return extcheckoutpayment.CreateCheckoutPaymentInput{}, cerr.InternalError(fmt.Errorf("%s: checkout payment attempt return url is incomplete", op))
 	}
 
+	collectionObligationID := optionalStringValue(attempt.FinancialCollectionObligationID)
+	if collectionObligationID == "" {
+		return extcheckoutpayment.CreateCheckoutPaymentInput{}, cerr.InternalError(
+			fmt.Errorf("%s: collection obligation target is required before checkout payment", op),
+		)
+	}
+
 	providerCode := ""
 	if attempt.ProviderCode != nil {
 		providerCode = strings.TrimSpace(*attempt.ProviderCode)
@@ -188,29 +200,15 @@ func (uc *UseCase) buildCheckoutPaymentInputFromAttempt(
 		return extcheckoutpayment.CreateCheckoutPaymentInput{}, cerr.InternalError(fmt.Errorf("%s: checkout payable amount: %w", op, err))
 	}
 
-	tenantID := optionalStringValue(attempt.TenantID)
-	contextID := optionalStringValue(attempt.ContextID)
-	if tenantID == "" || contextID == "" {
-		return extcheckoutpayment.CreateCheckoutPaymentInput{}, financialCoreScopeUnavailableError(
-			fmt.Errorf("%s: payment attempt is missing financial core scope", op),
-		)
-	}
-
 	return extcheckoutpayment.CreateCheckoutPaymentInput{
-		IdempotencyKey:      attempt.IdempotencyKey,
-		IdempotencyRecordID: attempt.ID.String(),
-		RequestFingerprint:  attempt.RequestFingerprint,
+		IdempotencyKey: attempt.IdempotencyKey,
 
-		TenantID:  tenantID,
-		ContextID: contextID,
-
-		SourceService: financialSourceService,
 		SourceType:    financialSourceType,
 		SourceID:      contractRow.ID.String(),
-		SourceVersion: 1,
+		SourceVersion: financialSourceVersion(),
 
 		PayerType: financialPayerType,
-		PayerID:   identitySubjectID.String(),
+		PayerID:   externalCustomerID.String(),
 		PayeeType: financialPayeeType,
 		PayeeID:   merchantID.String(),
 
@@ -218,7 +216,7 @@ func (uc *UseCase) buildCheckoutPaymentInputFromAttempt(
 		Currency:    string(contractRow.Currency),
 
 		ProviderCode:           providerCode,
-		CollectionObligationID: optionalStringValue(attempt.FinancialCollectionObligationID),
+		CollectionObligationID: collectionObligationID,
 
 		SuccessReturnURL: strings.TrimSpace(*attempt.SuccessReturnURL),
 		FailureReturnURL: strings.TrimSpace(*attempt.FailureReturnURL),
@@ -286,7 +284,7 @@ func (uc *UseCase) loadCheckoutFinancialParties(
 		return model.CustomerProfile{}, model.MerchantProfile{}, err
 	}
 
-	if customer.IdentitySubjectID.IsZero() || merchant.MerchantID.IsZero() {
+	if customer.ExternalCustomerID.IsZero() || merchant.MerchantID.IsZero() {
 		return model.CustomerProfile{}, model.MerchantProfile{}, cerr.InternalError(
 			fmt.Errorf("%s: checkout financial party identity is missing", op),
 		)
@@ -326,16 +324,16 @@ func (uc *UseCase) ensureCheckoutCollectionObligation(
 	}
 
 	result, err := uc.checkoutPaymentClient.PrepareCollectionObligation(ctx, extcheckoutpayment.PrepareCollectionObligationInput{
-		SourceType:        financialSourceType,
-		SourceID:          contractRow.ID.String(),
-		SourceVersion:     1,
-		MerchantID:        merchant.MerchantID.String(),
-		CustomerSubjectID: customer.IdentitySubjectID.String(),
-		Currency:          string(contractRow.Currency),
-		AmountMinor:       amountMinor,
-		Application:       extcheckoutpayment.PreRecognitionCashCollectionApplication,
-		Description:       fmt.Sprintf("BNPL checkout contract %s activation collection", contractRow.ID),
-		DueAt:             contractRow.ExpiresAt.UTC(),
+		SourceType:    financialSourceType,
+		SourceID:      contractRow.ID.String(),
+		SourceVersion: financialSourceVersion(),
+		MerchantID:    merchant.MerchantID.String(),
+		CustomerID:    customer.ExternalCustomerID.String(),
+		Currency:      string(contractRow.Currency),
+		AmountMinor:   amountMinor,
+		Application:   extcheckoutpayment.PreRecognitionCashCollectionApplication,
+		Description:   fmt.Sprintf("BNPL checkout contract %s activation collection", contractRow.ID),
+		DueAt:         contractRow.ExpiresAt.UTC(),
 	})
 	if err != nil {
 		return model.PaymentAttempt{}, err
@@ -521,13 +519,17 @@ func (uc *UseCase) ensureCheckoutPaymentSession(
 		return model.Contract{}, model.PaymentAttempt{}, CheckoutPaymentOutput{}, err
 	}
 
-	request, err := uc.buildCheckoutPaymentInputFromAttempt(contractRow, attempt, customer.IdentitySubjectID, merchant.MerchantID)
+	request, err := uc.buildCheckoutPaymentInputFromAttempt(contractRow, attempt, customer.ExternalCustomerID, merchant.MerchantID)
 	if err != nil {
 		return model.Contract{}, model.PaymentAttempt{}, CheckoutPaymentOutput{}, err
 	}
 
 	paymentResult, err := uc.checkoutPaymentClient.CreateCheckoutPayment(ctx, request)
 	if err != nil {
+		if errors.Is(err, extcheckoutpayment.ErrFinancialDelegationUnavailable) {
+			return model.Contract{}, model.PaymentAttempt{}, CheckoutPaymentOutput{}, financialDelegationUnavailableError(err)
+		}
+
 		return model.Contract{}, model.PaymentAttempt{}, CheckoutPaymentOutput{}, err
 	}
 

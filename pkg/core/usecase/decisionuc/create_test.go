@@ -178,7 +178,7 @@ func (d createDeps) expectAuditOutbox(
 	ctx context.Context,
 	eventID string,
 	decisionID model.DecisionID,
-	identitySubjectID model.IdentitySubjectID,
+	externalCustomerID model.ExternalCustomerID,
 	outcome audit.Outcome,
 ) *audit.Event {
 	t.Helper()
@@ -201,7 +201,7 @@ func (d createDeps) expectAuditOutbox(
 
 			if event.Data.Actor.Type != audit.CustomerActorType ||
 				event.Data.Actor.ID == nil ||
-				*event.Data.Actor.ID != identitySubjectID.String() ||
+				*event.Data.Actor.ID != externalCustomerID.String() ||
 				event.Data.Actor.Service != nil {
 				return false
 			}
@@ -231,20 +231,20 @@ func (d createDeps) expectAuditOutbox(
 }
 
 func eligibleFixtures(now time.Time) (
-	identitySubjectID model.IdentitySubjectID,
+	externalCustomerID model.ExternalCustomerID,
 	posGpsID model.PosGpsID,
 	customerProfile model.CustomerProfile,
 	merchantProfile model.MerchantProfile,
 	branch model.MerchantBranchProfile,
 	creditAccount model.CreditAccount,
 ) {
-	identitySubjectID = model.IdentitySubjectID(uuid.New())
+	externalCustomerID = model.ExternalCustomerID(uuid.New())
 	posGpsID = model.PosGpsID(uuid.New())
 	merchantIdentityID := model.MerchantID(uuid.New())
 
 	customerProfile = model.CustomerProfile{
 		ID:                model.CustomerID(uuid.New()),
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 		Jurisdiction:      model.IRJurisdiction,
 		Status:            model.ActiveCustomerStatus,
 	}
@@ -273,7 +273,7 @@ func eligibleFixtures(now time.Time) (
 		ExpiresAt:        &expiresAt,
 	}
 
-	return identitySubjectID, posGpsID, customerProfile, merchantProfile, branch, creditAccount
+	return externalCustomerID, posGpsID, customerProfile, merchantProfile, branch, creditAccount
 }
 
 func expectOfferedInstallments(
@@ -344,7 +344,7 @@ func TestCreate_NilBranchIdentity_Rejected(t *testing.T) {
 
 	_, err := deps.newUseCase(t).Create(ctx, decisionuc.CreateInput{
 		CheckoutKey:       "checkout-key",
-		IdentitySubjectID: model.IdentitySubjectID(uuid.New()),
+		ExternalCustomerID: model.ExternalCustomerID(uuid.New()),
 		PurchaseContext: decisionuc.PurchaseContext{
 			Channel:  model.POSPurchaseChannel,
 			PosGpsID: model.PosGpsID{},
@@ -362,20 +362,20 @@ func TestCreate_MissingBranch_ReturnsNotFound(t *testing.T) {
 	ctx := testRequestContext()
 	now := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
 	deps := newCreateDeps(t, now)
-	identitySubjectID, posGpsID, customerProfile, _, _, _ := eligibleFixtures(now)
+	externalCustomerID, posGpsID, customerProfile, _, _, _ := eligibleFixtures(now)
 
 	deps.expectConnTx(ctx)
 	deps.expectTxBindings()
 	deps.expectDefaultCheckoutPolicyAssignment(ctx)
 	deps.decisionTx.EXPECT().GetByIdempotencyKey(ctx, testifymock.Anything).
 		Return(model.Decision{}, cerr.ResourceNotFound(errors.New("missing"))).Once()
-	deps.customerProfileTx.EXPECT().LockByIdentitySubjectID(ctx, identitySubjectID).Return(customerProfile, nil).Once()
+	deps.customerProfileTx.EXPECT().LockByExternalCustomerID(ctx, externalCustomerID).Return(customerProfile, nil).Once()
 	deps.merchantBranchProfileTx.EXPECT().LockByPosGpsID(ctx, posGpsID).
 		Return(model.MerchantBranchProfile{}, cerr.ResourceNotFound(errors.New("branch missing"))).Once()
 
 	_, err := deps.newUseCase(t).Create(ctx, decisionuc.CreateInput{
 		CheckoutKey:       "checkout-key",
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 		PurchaseContext: decisionuc.PurchaseContext{
 			Channel:  model.POSPurchaseChannel,
 			PosGpsID: posGpsID,
@@ -393,7 +393,7 @@ func TestCreate_Denied_NoInstallments_ReturnsReasonCodes(t *testing.T) {
 	ctx := testRequestContext()
 	now := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
 	deps := newCreateDeps(t, now)
-	identitySubjectID, posGpsID, customerProfile, merchantProfile, branch, _ := eligibleFixtures(now)
+	externalCustomerID, posGpsID, customerProfile, merchantProfile, branch, _ := eligibleFixtures(now)
 	branch.Status = model.SuspendedMerchantBranchStatus
 	decisionID := model.DecisionID(uuid.New())
 	expiresAt := now.Add(checkoutv1.New().Terms().DecisionTTL)
@@ -403,7 +403,7 @@ func TestCreate_Denied_NoInstallments_ReturnsReasonCodes(t *testing.T) {
 	deps.expectDefaultCheckoutPolicyAssignment(ctx)
 	deps.decisionTx.EXPECT().GetByIdempotencyKey(ctx, testifymock.Anything).
 		Return(model.Decision{}, cerr.ResourceNotFound(errors.New("missing"))).Once()
-	deps.customerProfileTx.EXPECT().LockByIdentitySubjectID(ctx, identitySubjectID).Return(customerProfile, nil).Once()
+	deps.customerProfileTx.EXPECT().LockByExternalCustomerID(ctx, externalCustomerID).Return(customerProfile, nil).Once()
 	deps.merchantBranchProfileTx.EXPECT().LockByPosGpsID(ctx, posGpsID).Return(branch, nil).Once()
 	deps.merchantProfileTx.EXPECT().LockByMerchantID(ctx, branch.MerchantID).Return(merchantProfile, nil).Once()
 	deps.creditAccountTx.EXPECT().GetByCustomerIDAndCurrency(
@@ -477,13 +477,13 @@ func TestCreate_Denied_NoInstallments_ReturnsReasonCodes(t *testing.T) {
 		ctx,
 		"audit-denied",
 		decisionID,
-		identitySubjectID,
+		externalCustomerID,
 		audit.DeniedOutcome,
 	)
 
 	output, err := deps.newUseCase(t).Create(ctx, decisionuc.CreateInput{
 		CheckoutKey:       "checkout-key",
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 		PurchaseContext: decisionuc.PurchaseContext{
 			Channel:  model.POSPurchaseChannel,
 			PosGpsID: posGpsID,
@@ -502,7 +502,7 @@ func TestCreate_Denied_NoInstallments_ReturnsReasonCodes(t *testing.T) {
 	require.Equal(t, model.MerchantBranchProfileNotActiveDecisionReason, *auditEvent.Data.ReasonCode)
 	require.Equal(t, []any{model.MerchantBranchProfileNotActiveDecisionReason}, auditEvent.Data.Metadata["reason_codes"])
 	require.Equal(t, customerProfile.ID.String(), auditEvent.Data.Metadata["customer_id"])
-	require.Equal(t, identitySubjectID.String(), auditEvent.Data.Metadata["identity_subject_id"])
+	require.Equal(t, externalCustomerID.String(), auditEvent.Data.Metadata["identity_subject_id"])
 	require.Equal(t, merchantProfile.ID.String(), auditEvent.Data.Metadata["merchant_profile_id"])
 	require.Equal(t, merchantProfile.MerchantID.String(), auditEvent.Data.Metadata["merchant_id"])
 	require.Equal(t, branch.ID.String(), auditEvent.Data.Metadata["merchant_branch_profile_id"])
@@ -523,7 +523,7 @@ func TestCreate_Approved_CreatesInstallmentsAndAudit(t *testing.T) {
 	ctx := testRequestContext()
 	now := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
 	deps := newCreateDeps(t, now)
-	identitySubjectID, posGpsID, customerProfile, merchantProfile, branch, creditAccount := eligibleFixtures(now)
+	externalCustomerID, posGpsID, customerProfile, merchantProfile, branch, creditAccount := eligibleFixtures(now)
 	decisionID := model.DecisionID(uuid.New())
 	expiresAt := now.Add(checkoutv1.New().Terms().DecisionTTL)
 
@@ -532,7 +532,7 @@ func TestCreate_Approved_CreatesInstallmentsAndAudit(t *testing.T) {
 	deps.expectDefaultCheckoutPolicyAssignment(ctx)
 	deps.decisionTx.EXPECT().GetByIdempotencyKey(ctx, testifymock.Anything).
 		Return(model.Decision{}, cerr.ResourceNotFound(errors.New("missing"))).Once()
-	deps.customerProfileTx.EXPECT().LockByIdentitySubjectID(ctx, identitySubjectID).Return(customerProfile, nil).Once()
+	deps.customerProfileTx.EXPECT().LockByExternalCustomerID(ctx, externalCustomerID).Return(customerProfile, nil).Once()
 	deps.merchantBranchProfileTx.EXPECT().LockByPosGpsID(ctx, posGpsID).Return(branch, nil).Once()
 	deps.merchantProfileTx.EXPECT().LockByMerchantID(ctx, branch.MerchantID).Return(merchantProfile, nil).Once()
 	deps.creditAccountTx.EXPECT().GetByCustomerIDAndCurrency(
@@ -610,13 +610,13 @@ func TestCreate_Approved_CreatesInstallmentsAndAudit(t *testing.T) {
 		ctx,
 		"audit-approved",
 		decisionID,
-		identitySubjectID,
+		externalCustomerID,
 		audit.SucceededOutcome,
 	)
 
 	output, err := deps.newUseCase(t).Create(ctx, decisionuc.CreateInput{
 		CheckoutKey:       "checkout-key",
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 		PurchaseContext: decisionuc.PurchaseContext{
 			Channel:  model.POSPurchaseChannel,
 			PosGpsID: posGpsID,
@@ -637,7 +637,7 @@ func TestCreate_Approved_CreatesInstallmentsAndAudit(t *testing.T) {
 	require.Equal(t, model.ApprovedFullFinancingDecisionReason, *auditEvent.Data.ReasonCode)
 	require.Equal(t, []any{model.ApprovedFullFinancingDecisionReason}, auditEvent.Data.Metadata["reason_codes"])
 	require.Equal(t, customerProfile.ID.String(), auditEvent.Data.Metadata["customer_id"])
-	require.Equal(t, identitySubjectID.String(), auditEvent.Data.Metadata["identity_subject_id"])
+	require.Equal(t, externalCustomerID.String(), auditEvent.Data.Metadata["identity_subject_id"])
 	require.Equal(t, merchantProfile.ID.String(), auditEvent.Data.Metadata["merchant_profile_id"])
 	require.Equal(t, merchantProfile.MerchantID.String(), auditEvent.Data.Metadata["merchant_id"])
 	require.Equal(t, branch.ID.String(), auditEvent.Data.Metadata["merchant_branch_profile_id"])
@@ -664,7 +664,7 @@ func TestCreate_InstallmentCreateFailure_RollsBack(t *testing.T) {
 	ctx := testRequestContext()
 	now := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
 	deps := newCreateDeps(t, now)
-	identitySubjectID, posGpsID, customerProfile, merchantProfile, branch, creditAccount := eligibleFixtures(now)
+	externalCustomerID, posGpsID, customerProfile, merchantProfile, branch, creditAccount := eligibleFixtures(now)
 	decisionID := model.DecisionID(uuid.New())
 
 	deps.expectConnTx(ctx)
@@ -672,7 +672,7 @@ func TestCreate_InstallmentCreateFailure_RollsBack(t *testing.T) {
 	deps.expectDefaultCheckoutPolicyAssignment(ctx)
 	deps.decisionTx.EXPECT().GetByIdempotencyKey(ctx, testifymock.Anything).
 		Return(model.Decision{}, cerr.ResourceNotFound(errors.New("missing"))).Once()
-	deps.customerProfileTx.EXPECT().LockByIdentitySubjectID(ctx, identitySubjectID).Return(customerProfile, nil).Once()
+	deps.customerProfileTx.EXPECT().LockByExternalCustomerID(ctx, externalCustomerID).Return(customerProfile, nil).Once()
 	deps.merchantBranchProfileTx.EXPECT().LockByPosGpsID(ctx, posGpsID).Return(branch, nil).Once()
 	deps.merchantProfileTx.EXPECT().LockByMerchantID(ctx, branch.MerchantID).Return(merchantProfile, nil).Once()
 	deps.creditAccountTx.EXPECT().GetByCustomerIDAndCurrency(
@@ -715,7 +715,7 @@ func TestCreate_InstallmentCreateFailure_RollsBack(t *testing.T) {
 
 	_, err := deps.newUseCase(t).Create(ctx, decisionuc.CreateInput{
 		CheckoutKey:       "checkout-key",
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 		PurchaseContext: decisionuc.PurchaseContext{
 			Channel:  model.POSPurchaseChannel,
 			PosGpsID: posGpsID,
@@ -733,7 +733,7 @@ func TestCreate_IdempotentReplay_ReturnsPersistedInstallments(t *testing.T) {
 	ctx := testRequestContext()
 	now := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
 	deps := newCreateDeps(t, now)
-	identitySubjectID, posGpsID, customerProfile, merchantProfile, branch, _ := eligibleFixtures(now)
+	externalCustomerID, posGpsID, customerProfile, merchantProfile, branch, _ := eligibleFixtures(now)
 	decisionID := model.DecisionID(uuid.New())
 	expiresAt := now.Add(15 * time.Minute)
 
@@ -741,7 +741,7 @@ func TestCreate_IdempotentReplay_ReturnsPersistedInstallments(t *testing.T) {
 	fingerprint, err := decisionuc.CheckoutFingerprintForTest(
 		uc,
 		"checkout-key",
-		identitySubjectID,
+		externalCustomerID,
 		decisionuc.PurchaseContext{Channel: model.POSPurchaseChannel, PosGpsID: posGpsID},
 		100_000,
 		"IRR",
@@ -802,7 +802,7 @@ func TestCreate_IdempotentReplay_ReturnsPersistedInstallments(t *testing.T) {
 
 	output, err := uc.Create(ctx, decisionuc.CreateInput{
 		CheckoutKey:       "checkout-key",
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 		PurchaseContext: decisionuc.PurchaseContext{
 			Channel:  model.POSPurchaseChannel,
 			PosGpsID: posGpsID,
@@ -823,7 +823,7 @@ func TestCreate_DeniedIdempotentReplay_ReturnsPersistedAvailableCredit(t *testin
 	ctx := testRequestContext()
 	now := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
 	deps := newCreateDeps(t, now)
-	identitySubjectID := model.IdentitySubjectID(uuid.New())
+	externalCustomerID := model.ExternalCustomerID(uuid.New())
 	posGpsID := model.PosGpsID(uuid.New())
 	decisionID := model.DecisionID(uuid.New())
 	expiresAt := now.Add(15 * time.Minute)
@@ -832,7 +832,7 @@ func TestCreate_DeniedIdempotentReplay_ReturnsPersistedAvailableCredit(t *testin
 	fingerprint, err := decisionuc.CheckoutFingerprintForTest(
 		uc,
 		"checkout-key",
-		identitySubjectID,
+		externalCustomerID,
 		decisionuc.PurchaseContext{Channel: model.POSPurchaseChannel, PosGpsID: posGpsID},
 		100_000,
 		"IRR",
@@ -864,7 +864,7 @@ func TestCreate_DeniedIdempotentReplay_ReturnsPersistedAvailableCredit(t *testin
 
 	output, err := uc.Create(ctx, decisionuc.CreateInput{
 		CheckoutKey:       "checkout-key",
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 		PurchaseContext: decisionuc.PurchaseContext{
 			Channel:  model.POSPurchaseChannel,
 			PosGpsID: posGpsID,
@@ -887,12 +887,12 @@ func TestCreate_ChangedBranch_IdempotencyConflict(t *testing.T) {
 	ctx := testRequestContext()
 	now := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
 	deps := newCreateDeps(t, now)
-	identitySubjectID, posGpsID, _, _, _, _ := eligibleFixtures(now)
+	externalCustomerID, posGpsID, _, _, _, _ := eligibleFixtures(now)
 	otherBranchID := uuid.New()
 
 	uc := deps.newUseCase(t)
 	storedFingerprint, err := decisionuc.CheckoutFingerprintForTest(
-		uc, "checkout-key", identitySubjectID, decisionuc.PurchaseContext{Channel: model.POSPurchaseChannel, PosGpsID: model.PosGpsID(otherBranchID)}, 100_000, "IRR",
+		uc, "checkout-key", externalCustomerID, decisionuc.PurchaseContext{Channel: model.POSPurchaseChannel, PosGpsID: model.PosGpsID(otherBranchID)}, 100_000, "IRR",
 		"checkout_contract_approval", "v1",
 	)
 	require.NoError(t, err)
@@ -909,7 +909,7 @@ func TestCreate_ChangedBranch_IdempotencyConflict(t *testing.T) {
 
 	_, err = uc.Create(ctx, decisionuc.CreateInput{
 		CheckoutKey:       "checkout-key",
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 		PurchaseContext: decisionuc.PurchaseContext{
 			Channel:  model.POSPurchaseChannel,
 			PosGpsID: posGpsID,
@@ -927,7 +927,7 @@ func TestCreate_OriginationDisabled_FailsClosedBeforePersist(t *testing.T) {
 	ctx := testRequestContext()
 	now := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
 	deps := newCreateDeps(t, now)
-	identitySubjectID, posGpsID, customerProfile, merchantProfile, branch, _ := eligibleFixtures(now)
+	externalCustomerID, posGpsID, customerProfile, merchantProfile, branch, _ := eligibleFixtures(now)
 	merchantProfile.Jurisdiction = model.Jurisdiction("TR")
 
 	deps.expectConnTx(ctx)
@@ -935,13 +935,13 @@ func TestCreate_OriginationDisabled_FailsClosedBeforePersist(t *testing.T) {
 	deps.expectDefaultCheckoutPolicyAssignment(ctx)
 	deps.decisionTx.EXPECT().GetByIdempotencyKey(ctx, testifymock.Anything).
 		Return(model.Decision{}, cerr.ResourceNotFound(errors.New("missing"))).Once()
-	deps.customerProfileTx.EXPECT().LockByIdentitySubjectID(ctx, identitySubjectID).Return(customerProfile, nil).Once()
+	deps.customerProfileTx.EXPECT().LockByExternalCustomerID(ctx, externalCustomerID).Return(customerProfile, nil).Once()
 	deps.merchantBranchProfileTx.EXPECT().LockByPosGpsID(ctx, posGpsID).Return(branch, nil).Once()
 	deps.merchantProfileTx.EXPECT().LockByMerchantID(ctx, branch.MerchantID).Return(merchantProfile, nil).Once()
 
 	_, err := deps.newUseCase(t).Create(ctx, decisionuc.CreateInput{
 		CheckoutKey:       "checkout-key",
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 		PurchaseContext: decisionuc.PurchaseContext{
 			Channel:  model.POSPurchaseChannel,
 			PosGpsID: posGpsID,
@@ -962,7 +962,7 @@ func TestCreate_IdempotentReplay_AfterOriginationDisabled(t *testing.T) {
 	deps := newCreateDeps(t, now)
 	blocked := mock.NewOriginationJurisdictions(t)
 	deps.jurisdictions = blocked
-	identitySubjectID, posGpsID, customerProfile, merchantProfile, branch, _ := eligibleFixtures(now)
+	externalCustomerID, posGpsID, customerProfile, merchantProfile, branch, _ := eligibleFixtures(now)
 	decisionID := model.DecisionID(uuid.New())
 	expiresAt := now.Add(15 * time.Minute)
 
@@ -970,7 +970,7 @@ func TestCreate_IdempotentReplay_AfterOriginationDisabled(t *testing.T) {
 	fingerprint, err := decisionuc.CheckoutFingerprintForTest(
 		uc,
 		"checkout-key",
-		identitySubjectID,
+		externalCustomerID,
 		decisionuc.PurchaseContext{Channel: model.POSPurchaseChannel, PosGpsID: posGpsID},
 		100_000,
 		"IRR",
@@ -1031,7 +1031,7 @@ func TestCreate_IdempotentReplay_AfterOriginationDisabled(t *testing.T) {
 
 	output, err := uc.Create(ctx, decisionuc.CreateInput{
 		CheckoutKey:       "checkout-key",
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 		PurchaseContext: decisionuc.PurchaseContext{
 			Channel:  model.POSPurchaseChannel,
 			PosGpsID: posGpsID,

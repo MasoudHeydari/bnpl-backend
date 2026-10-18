@@ -206,9 +206,9 @@ func (uc *UseCase) recordMerchantEntitlement(
 	result, err := uc.checkoutPaymentClient.RecordMerchantEntitlement(ctx, extcheckoutpayment.RecordMerchantEntitlementInput{
 		SourceType:                        financialSourceType,
 		SourceID:                          contractRow.ID.String(),
-		SourceVersion:                     1,
+		SourceVersion:                     financialSourceVersion(),
 		MerchantID:                        merchant.MerchantID.String(),
-		CustomerSubjectID:                 customer.IdentitySubjectID.String(),
+		CustomerID:                        customer.ExternalCustomerID.String(),
 		Currency:                          string(contractRow.Currency),
 		CollectedCashAmountMinor:          cashMinor,
 		ReceivableAmountMinor:             receivableMinor,
@@ -227,16 +227,13 @@ func (uc *UseCase) recordMerchantEntitlement(
 		)
 	}
 
-	receivableID := strings.TrimSpace(result.ReceivableID)
-	if receivableID == "" || len(receivableID) > maxFinancialIdentifierLength {
-		return merchantEntitlementRecord{}, financialCoreCheckoutPaymentUnavailableError(
-			fmt.Errorf("%s: financial core returned invalid receivable id", op),
-		)
-	}
-
+	// Financial Core v2 returns only merchant_entitlement_id. Existing-receivable
+	// collection targets that entitlement; receivable_id is no longer a separate
+	// public response field. Persist the entitlement id in both bindings so
+	// legacy receivable-gated paths remain durable until they are retired.
 	return merchantEntitlementRecord{
 		MerchantEntitlementID: entitlementID,
-		ReceivableID:          receivableID,
+		ReceivableID:          entitlementID,
 	}, nil
 }
 
@@ -251,7 +248,5 @@ func contractStatusAllowed(status model.ContractStatus, allowed []model.Contract
 
 func contractHasFinancialRecognition(contractRow model.Contract) bool {
 	return contractRow.FinancialMerchantEntitlementID != nil &&
-		strings.TrimSpace(*contractRow.FinancialMerchantEntitlementID) != "" &&
-		contractRow.FinancialReceivableID != nil &&
-		strings.TrimSpace(*contractRow.FinancialReceivableID) != ""
+		strings.TrimSpace(*contractRow.FinancialMerchantEntitlementID) != ""
 }

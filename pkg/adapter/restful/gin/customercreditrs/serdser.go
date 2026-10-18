@@ -60,6 +60,6 @@ func toGetInput(c *gin.Context) (customercredituc.Input, bool) {
 	}
 
 	return customercredituc.Input{
-		IdentitySubjectID: authCtx.SubjectID.AsIdentitySubjectID(),
+		ExternalCustomerID: authCtx.SubjectID.AsExternalCustomerID(),
 	}, true
 }

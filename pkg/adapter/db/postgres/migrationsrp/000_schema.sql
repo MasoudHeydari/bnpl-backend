@@ -501,13 +501,13 @@ CREATE INDEX IF NOT EXISTS idx_decisions_prior_decision_id
 -- phone number, or birthdate, and never performs or persists identity
 -- verification. Customer identity verification is owned by the upstream
 -- Identity Service; BNPL receives an already authenticated customer identity
--- (identity_subject_id) through the trusted gateway boundary.
+-- (external_customer_id) through the trusted gateway boundary.
 CREATE TABLE IF NOT EXISTS customer_profiles (
     -- Unique profile identifier assigned by the database.
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
 
     -- Customer identity this BNPL profile belongs to.
-    identity_subject_id uuid NOT NULL UNIQUE,
+    external_customer_id uuid NOT NULL UNIQUE,
 
 
     -- Regulatory jurisdiction that governs this customer's BNPL profile.
@@ -576,7 +576,7 @@ CREATE INDEX IF NOT EXISTS idx_policy_assignments_active_lookup
     ON policy_assignments (subject_type, subject_id, policy_family, valid_from DESC);
 
 -- Durable evidence for operational/bulk assignment imports. Item failures are
--- intentionally independent so one rejected Identity Service subject does not
+-- intentionally independent so one rejected Customer Reference Service customer_id does not
 -- roll back successful subjects in the same file.
 CREATE TABLE IF NOT EXISTS policy_assignment_imports (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -689,9 +689,6 @@ CREATE TABLE IF NOT EXISTS merchant_profiles (
     -- Regulatory jurisdiction governing this merchant's BNPL activity.
     jurisdiction text NOT NULL,
 
-    -- When Partner Create prepares the financing offer (on_create vs on_start).
-    offer_preparation_mode text NOT NULL DEFAULT 'on_start',
-
     -- Creation and update timestamps.
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
@@ -718,14 +715,8 @@ CREATE TABLE IF NOT EXISTS merchant_profiles (
     ),
 
     CONSTRAINT chk_merchant_profiles_max_amount_currency
-    CHECK (max_amount_currency = '' OR max_amount_currency IN ('IRR', 'EUR', 'USD')),
-
-    CONSTRAINT chk_merchant_profiles_offer_preparation_mode
-    CHECK (offer_preparation_mode IN ('on_create', 'on_start'))
+    CHECK (max_amount_currency = '' OR max_amount_currency IN ('IRR', 'EUR', 'USD'))
 );
-
-COMMENT ON COLUMN merchant_profiles.offer_preparation_mode IS
-    'Trusted BNPL setting: on_create prepares the offer at Partner Create; on_start defers to customer START.';
 
 -- -----------------------------------------------------------------------------
 -- Merchant Branch Profiles
@@ -772,6 +763,10 @@ CREATE TABLE IF NOT EXISTS merchant_branch_profiles (
     -- Regulatory jurisdiction governing this selling point's BNPL activity.
     jurisdiction text NOT NULL,
 
+    -- Trusted Offer preparation policy for checkouts at this selling point.
+    -- Snapshotted onto checkout_sessions at Partner Create. Default on_start.
+    offer_preparation_mode text NOT NULL DEFAULT 'on_start',
+
     -- Creation and update timestamps.
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
@@ -785,6 +780,10 @@ CREATE TABLE IF NOT EXISTS merchant_branch_profiles (
 
     CONSTRAINT chk_merchant_branch_profiles_status
     CHECK (status IN ('pending_review', 'active', 'deactivated', 'suspended', 'terminated')),
+
+
+    CONSTRAINT chk_merchant_branch_profiles_offer_preparation_mode
+    CHECK (offer_preparation_mode IN ('on_create', 'on_start')),
 
     CONSTRAINT chk_merchant_branch_profiles_risk_tier_override
     CHECK (risk_tier_override IS NULL OR risk_tier_override IN ('low', 'medium', 'high')),
@@ -813,6 +812,10 @@ CREATE TABLE IF NOT EXISTS merchant_branch_profiles (
 -- Lookup of selling-point profiles by parent merchant.
 CREATE INDEX IF NOT EXISTS idx_merchant_branch_profiles_merchant_id
     ON merchant_branch_profiles (merchant_id);
+
+COMMENT ON COLUMN merchant_branch_profiles.offer_preparation_mode IS
+    'Trusted BNPL setting: on_create prepares the offer at Partner Create; on_start defers to customer START. Snapshotted onto checkout_sessions.';
+
 
 -- -----------------------------------------------------------------------------
 -- Merchant POS Terminals
@@ -1394,13 +1397,14 @@ CREATE TABLE IF NOT EXISTS payment_attempts (
     CONSTRAINT chk_payment_attempts_purpose
         CHECK (purpose IN ('checkout_first_installment', 'installment_repayment')),
 
+    -- Checkout payments no longer require caller-supplied Financial Scope.
+    -- tenant_id/context_id columns are preserved for legacy rows but may be NULL
+    -- for new JWT-independent checkout attempts under Financial Core v2.
     CONSTRAINT chk_payment_attempts_checkout_context
         CHECK (
             purpose <> 'checkout_first_installment'
             OR (
-                tenant_id IS NOT NULL
-                AND context_id IS NOT NULL
-                AND success_return_url IS NOT NULL
+                success_return_url IS NOT NULL
                 AND failure_return_url IS NOT NULL
                 AND cancel_return_url IS NOT NULL
             )
@@ -1985,7 +1989,7 @@ COMMENT ON COLUMN checkout_sessions.public_token IS
 COMMENT ON COLUMN checkout_sessions.origin IS
     'Create path: external_partner (phone OTP on hosted page) or internal (pre-bound trusted customer).';
 COMMENT ON COLUMN checkout_sessions.offer_preparation_mode IS
-    'Immutable snapshot of merchant_profiles.offer_preparation_mode at Partner Create.';
+    'Immutable snapshot of merchant_branch_profiles.offer_preparation_mode at Partner Create.';
 COMMENT ON COLUMN checkout_sessions.customer_reference IS
     'Optional merchant correlation handle; never used to resolve a customer identity.';
 COMMENT ON COLUMN checkout_sessions.customer_phone_ciphertext IS

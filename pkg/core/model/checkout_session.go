@@ -341,7 +341,7 @@ type CheckoutSession struct {
 	// verification belongs to the offer being confirmed.
 	OTPEvaluationGeneration *int `db:"otp_evaluation_generation" json:"-"`
 
-	// OfferPreparationMode is snapshotted from MerchantProfile at create time.
+	// OfferPreparationMode is snapshotted from MerchantBranchProfile at create time.
 	OfferPreparationMode OfferPreparationMode `db:"offer_preparation_mode" json:"-"`
 
 	// CustomerID is the internal customer profile primary key, set once BNPL trusts the customer identity.

@@ -87,7 +87,7 @@ type revalidateHarness struct {
 	assignment   *mock.PolicyAssignment
 	decisionID   model.DecisionID
 	customerID   model.CustomerID
-	profileID    model.IdentitySubjectID
+	profileID    model.ExternalCustomerID
 	merchantPID  model.MerchantProfileID
 	merchantID   model.MerchantID
 	branchPID    model.MerchantBranchProfileID
@@ -119,7 +119,7 @@ func newRevalidateHarness(t *testing.T) *revalidateHarness {
 		assignment:   mock.NewPolicyAssignment(t),
 		decisionID:   model.DecisionID(uuid.New()),
 		customerID:   model.CustomerID(uuid.New()),
-		profileID:    model.IdentitySubjectID(uuid.New()),
+		profileID:    model.ExternalCustomerID(uuid.New()),
 		merchantPID:  model.MerchantProfileID(uuid.New()),
 		merchantID:   model.MerchantID(uuid.New()),
 		branchPID:    model.MerchantBranchProfileID(uuid.New()),
@@ -198,7 +198,7 @@ func (h *revalidateHarness) wireProfilesAndCredit(limitMinor uint64) {
 	}
 	customer := model.CustomerProfile{
 		ID:                h.customerID,
-		IdentitySubjectID: h.profileID,
+		ExternalCustomerID: h.profileID,
 		Status:            model.ActiveCustomerStatus,
 		Jurisdiction:      model.IRJurisdiction,
 	}

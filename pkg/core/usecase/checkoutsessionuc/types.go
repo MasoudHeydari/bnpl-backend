@@ -120,8 +120,8 @@ type StartInput struct {
 	// CheckoutSessionID identifies the hosted checkout being started.
 	CheckoutSessionID model.CheckoutSessionID
 
-	// IdentitySubjectID is the authenticated customer identity.
-	IdentitySubjectID model.IdentitySubjectID
+	// ExternalCustomerID is the authenticated customer identity.
+	ExternalCustomerID model.ExternalCustomerID
 }
 
 // StartOutput returns the evaluated checkout state and offer.
@@ -200,8 +200,8 @@ type ConfirmInput struct {
 	// CheckoutSessionID identifies the hosted checkout being confirmed.
 	CheckoutSessionID model.CheckoutSessionID
 
-	// IdentitySubjectID is the authenticated customer identity.
-	IdentitySubjectID model.IdentitySubjectID
+	// ExternalCustomerID is the authenticated customer identity.
+	ExternalCustomerID model.ExternalCustomerID
 
 	// TenantID optionally identifies the Financial Core tenant when supplied by
 	// a trusted gateway caller. Token-based Confirm leaves both scope fields zero.
@@ -249,8 +249,8 @@ type GetReturnInput struct {
 	// CheckoutSessionID identifies the checkout the customer is returning from.
 	CheckoutSessionID model.CheckoutSessionID
 
-	// IdentitySubjectID is the authenticated customer identity.
-	IdentitySubjectID model.IdentitySubjectID
+	// ExternalCustomerID is the authenticated customer identity.
+	ExternalCustomerID model.ExternalCustomerID
 }
 
 // GetReturnOutput is the customer-facing browser-return projection.
@@ -431,8 +431,8 @@ func (i StartInput) validate() error {
 		return checkoutSessionIDRequiredError()
 	}
 
-	if i.IdentitySubjectID.IsZero() {
-		return identitySubjectIDRequiredError()
+	if i.ExternalCustomerID.IsZero() {
+		return externalCustomerIDRequiredError()
 	}
 
 	return nil
@@ -443,8 +443,8 @@ func (i ConfirmInput) validate() error {
 		return checkoutSessionIDRequiredError()
 	}
 
-	if i.IdentitySubjectID.IsZero() {
-		return identitySubjectIDRequiredError()
+	if i.ExternalCustomerID.IsZero() {
+		return externalCustomerIDRequiredError()
 	}
 
 	if i.EvaluationGeneration < 1 {

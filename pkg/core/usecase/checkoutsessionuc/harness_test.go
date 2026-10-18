@@ -153,7 +153,10 @@ type harness struct {
 	merchantTx   *mock.MerchantProfileTxQueryer
 	merchantCQ   *mock.MerchantProfileConnQueryer
 	branchTx     *mock.MerchantBranchProfileTxQueryer
-	customerTx   *mock.CustomerProfileTxQueryer
+	// branchOfferMode is returned by LockByOnlineStoreID during Create. Default
+	// on_create matches existing Partner Create tests that expect an Offer.
+	branchOfferMode model.OfferPreparationMode
+	customerTx      *mock.CustomerProfileTxQueryer
 	customerCQ   *mock.CustomerProfileConnQueryer
 	sessionCQ    *mock.CheckoutSessionConnQueryer
 	decisionCQ   *mock.DecisionConnQueryer
@@ -191,7 +194,7 @@ type harness struct {
 	contractID  model.ContractID
 	attemptID   model.PaymentAttemptID
 	customerID  model.CustomerID
-	profileID   model.IdentitySubjectID
+	profileID   model.ExternalCustomerID
 	merchantPID model.MerchantProfileID
 	merchantID  model.MerchantID
 	storeID     model.OnlineStoreID
@@ -203,16 +206,17 @@ func newHarness(t *testing.T) *harness {
 	now := time.Date(2026, time.August, 9, 12, 0, 0, 0, time.UTC)
 
 	h := &harness{
-		t:            t,
-		ctx:          context.Background(),
-		now:          now,
-		pool:         mock.NewPool(t),
-		conn:         mock.NewConn(t),
-		tx:           mock.NewTx(t),
-		sessionTx:    mock.NewCheckoutSessionTxQueryer(t),
-		merchantTx:   mock.NewMerchantProfileTxQueryer(t),
-		merchantCQ:   mock.NewMerchantProfileConnQueryer(t),
-		branchTx:     mock.NewMerchantBranchProfileTxQueryer(t),
+		t:               t,
+		ctx:             context.Background(),
+		now:             now,
+		pool:            mock.NewPool(t),
+		conn:            mock.NewConn(t),
+		tx:              mock.NewTx(t),
+		sessionTx:       mock.NewCheckoutSessionTxQueryer(t),
+		merchantTx:      mock.NewMerchantProfileTxQueryer(t),
+		merchantCQ:      mock.NewMerchantProfileConnQueryer(t),
+		branchTx:        mock.NewMerchantBranchProfileTxQueryer(t),
+		branchOfferMode: model.OfferPreparationOnCreate,
 		customerTx:   mock.NewCustomerProfileTxQueryer(t),
 		customerCQ:   mock.NewCustomerProfileConnQueryer(t),
 		sessionCQ:    mock.NewCheckoutSessionConnQueryer(t),
@@ -243,7 +247,7 @@ func newHarness(t *testing.T) *harness {
 		contractID:         model.ContractID(uuid.New()),
 		attemptID:          model.PaymentAttemptID(uuid.New()),
 		customerID:         model.CustomerID(uuid.New()),
-		profileID:          model.IdentitySubjectID(uuid.New()),
+		profileID:          model.ExternalCustomerID(uuid.New()),
 		merchantPID:        model.MerchantProfileID(uuid.New()),
 		merchantID:         model.MerchantID(uuid.New()),
 		storeID:            model.OnlineStoreID(uuid.New()),
@@ -526,13 +530,13 @@ func withCustomer(id *model.CustomerID) func(*model.CheckoutSession) {
 }
 
 func (h *harness) customerProfile() model.CustomerProfile {
-	return model.CustomerProfile{ID: h.customerID, IdentitySubjectID: h.profileID}
+	return model.CustomerProfile{ID: h.customerID, ExternalCustomerID: h.profileID}
 }
 
 // expectCustomerLock expects the customer profile row lock Confirm and cancel take.
 func (h *harness) expectCustomerLock() {
 	h.customerTx.EXPECT().
-		LockByIdentitySubjectID(h.ctx, h.profileID).
+		LockByExternalCustomerID(h.ctx, h.profileID).
 		Return(h.customerProfile(), nil).Once()
 }
 
@@ -585,7 +589,7 @@ func requireCerr(t *testing.T, err error, code cerr.Code, messageKey cerr.Messag
 func (h *harness) confirmInput(generation int) ConfirmInput {
 	return ConfirmInput{
 		CheckoutSessionID:    h.sessionID,
-		IdentitySubjectID:    h.profileID,
+		ExternalCustomerID:    h.profileID,
 		TenantID:             model.TenantID(uuid.New()),
 		ContextID:            model.ContextID(uuid.New()),
 		EvaluationGeneration: generation,
@@ -759,15 +763,19 @@ func (h *harness) expectProjectDeniedOffer(session model.CheckoutSession) {
 		}, nil).Once()
 }
 
-// expectPreparedExternalOfferReload expects loadPreparedExternalOffer on replay.
+// expectPreparedExternalOfferReload expects loadPreparedExternalOffer on replay,
+// including the full persisted Offer projection (Decision + allocation +
+// installments + charges).
 func (h *harness) expectPreparedExternalOfferReload(session model.CheckoutSession) {
 	h.t.Helper()
 
 	require.NotNil(h.t, session.DecisionID)
 
+	// loadPreparedExternalOffer loads the Decision once before projecting.
 	h.decisionCQ.EXPECT().
 		GetByID(h.ctx, *session.DecisionID).
 		Return(h.persistedApprovedDecision(), nil).Once()
+	h.expectProjectApprovedOffer(session)
 }
 
 // expectExternalOfferPreparation expects Identity bind + Decision evaluate after create.

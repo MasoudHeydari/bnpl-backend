@@ -20,8 +20,8 @@ func (uc *UseCase) ListUnpaidInstallments(
 	ctx context.Context,
 	input ListUnpaidInstallmentsInput,
 ) (ListUnpaidInstallmentsOutput, error) {
-	if input.IdentitySubjectID.IsZero() {
-		return ListUnpaidInstallmentsOutput{}, identitySubjectIDRequiredError()
+	if input.ExternalCustomerID.IsZero() {
+		return ListUnpaidInstallmentsOutput{}, externalCustomerIDRequiredError()
 	}
 
 	page := input.Page
@@ -41,7 +41,7 @@ func (uc *UseCase) ListUnpaidInstallments(
 		ctx,
 		func(ctx context.Context, conn repo.Conn) error {
 			customerProfileQ := uc.customerProfile.Conn(conn)
-			profile, err := customerProfileQ.GetByIdentitySubjectID(ctx, input.IdentitySubjectID)
+			profile, err := customerProfileQ.GetByExternalCustomerID(ctx, input.ExternalCustomerID)
 			if err != nil {
 				if cerr.IsCode(err, cerr.CodeResourceNotFound) {
 					installments = nil

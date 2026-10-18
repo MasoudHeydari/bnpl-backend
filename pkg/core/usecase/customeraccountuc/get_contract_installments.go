@@ -26,8 +26,8 @@ func (uc *UseCase) GetContractInstallments(
 		return GetContractInstallmentsOutput{}, contractIDRequiredError()
 	}
 
-	if input.IdentitySubjectID.IsZero() {
-		return GetContractInstallmentsOutput{}, identitySubjectIDRequiredError()
+	if input.ExternalCustomerID.IsZero() {
+		return GetContractInstallmentsOutput{}, externalCustomerIDRequiredError()
 	}
 
 	var output GetContractInstallmentsOutput
@@ -40,7 +40,7 @@ func (uc *UseCase) GetContractInstallments(
 			installmentQ := uc.installment.Conn(conn)
 			installmentChargeQ := uc.installmentCharge.Conn(conn)
 
-			profile, err := profileQ.GetByIdentitySubjectID(ctx, input.IdentitySubjectID)
+			profile, err := profileQ.GetByExternalCustomerID(ctx, input.ExternalCustomerID)
 			if err != nil {
 				if cerr.IsCode(err, cerr.CodeResourceNotFound) {
 					return contractNotFoundError(err)

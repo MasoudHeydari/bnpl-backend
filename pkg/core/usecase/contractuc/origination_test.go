@@ -243,7 +243,7 @@ func TestPrepareCheckoutContract_PaymentBased_NewContractBlockedWhenOriginationD
 	deps.jurisdictions = blocked
 
 	decisionID := model.DecisionID(uuid.New())
-	identitySubjectID := model.IdentitySubjectID(uuid.New())
+	externalCustomerID := model.ExternalCustomerID(uuid.New())
 	customerID := model.CustomerID(uuid.New())
 	merchantProfileID := model.MerchantProfileID(uuid.New())
 	tenantID := model.TenantID(uuid.New())
@@ -255,8 +255,8 @@ func TestPrepareCheckoutContract_PaymentBased_NewContractBlockedWhenOriginationD
 	deps.expectPaymentPendingTxBindings(ctx)
 
 	deps.customerProfileTx.EXPECT().
-		LockByIdentitySubjectID(ctx, identitySubjectID).
-		Return(model.CustomerProfile{ID: customerID, IdentitySubjectID: identitySubjectID}, nil).
+		LockByExternalCustomerID(ctx, externalCustomerID).
+		Return(model.CustomerProfile{ID: customerID, ExternalCustomerID: externalCustomerID}, nil).
 		Once()
 	deps.allocationTx.EXPECT().
 		LockByDecisionID(ctx, decisionID).
@@ -299,7 +299,7 @@ func TestPrepareCheckoutContract_PaymentBased_NewContractBlockedWhenOriginationD
 	uc := deps.newUseCase(t)
 	_, err := uc.PrepareCheckoutContract(ctx, CreateContractInput{
 		DecisionID:        decisionID,
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 		TenantID:          tenantID,
 		ContextID:         contextID,
 	})
@@ -318,7 +318,7 @@ func TestPrepareCheckoutContract_PaymentBased_ExistingContractReplayAfterOrigina
 	deps.jurisdictions = mock.NewOriginationJurisdictions(t)
 
 	decisionID := model.DecisionID(uuid.New())
-	identitySubjectID := model.IdentitySubjectID(uuid.New())
+	externalCustomerID := model.ExternalCustomerID(uuid.New())
 	customerID := model.CustomerID(uuid.New())
 	merchantProfileID := model.MerchantProfileID(uuid.New())
 	contractID := model.ContractID(uuid.New())
@@ -329,7 +329,7 @@ func TestPrepareCheckoutContract_PaymentBased_ExistingContractReplayAfterOrigina
 
 	input := CreateContractInput{
 		DecisionID:        decisionID,
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 		TenantID:          tenantID,
 		ContextID:         contextID,
 	}
@@ -359,8 +359,8 @@ func TestPrepareCheckoutContract_PaymentBased_ExistingContractReplayAfterOrigina
 	deps.expectPaymentPendingTxBindings(ctx)
 
 	deps.customerProfileTx.EXPECT().
-		LockByIdentitySubjectID(ctx, identitySubjectID).
-		Return(model.CustomerProfile{ID: customerID, IdentitySubjectID: identitySubjectID}, nil).
+		LockByExternalCustomerID(ctx, externalCustomerID).
+		Return(model.CustomerProfile{ID: customerID, ExternalCustomerID: externalCustomerID}, nil).
 		Once()
 	deps.allocationTx.EXPECT().
 		LockByDecisionID(ctx, decisionID).
@@ -419,7 +419,7 @@ func TestPrepareCheckoutContract_PaymentBased_RaceLoserReplaysWithoutRequiringOr
 	deps.jurisdictions = jurisdictions
 
 	decisionID := model.DecisionID(uuid.New())
-	identitySubjectID := model.IdentitySubjectID(uuid.New())
+	externalCustomerID := model.ExternalCustomerID(uuid.New())
 	customerID := model.CustomerID(uuid.New())
 	merchantProfileID := model.MerchantProfileID(uuid.New())
 	creditAccountID := model.CreditAccountID(uuid.New())
@@ -431,7 +431,7 @@ func TestPrepareCheckoutContract_PaymentBased_RaceLoserReplaysWithoutRequiringOr
 
 	input := CreateContractInput{
 		DecisionID:        decisionID,
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 		TenantID:          tenantID,
 		ContextID:         contextID,
 	}
@@ -472,8 +472,8 @@ func TestPrepareCheckoutContract_PaymentBased_RaceLoserReplaysWithoutRequiringOr
 	deps.expectPaymentPendingTxBindings(ctx)
 
 	deps.customerProfileTx.EXPECT().
-		LockByIdentitySubjectID(ctx, identitySubjectID).
-		Return(model.CustomerProfile{ID: customerID, IdentitySubjectID: identitySubjectID}, nil).
+		LockByExternalCustomerID(ctx, externalCustomerID).
+		Return(model.CustomerProfile{ID: customerID, ExternalCustomerID: externalCustomerID}, nil).
 		Once()
 	deps.allocationTx.EXPECT().LockByDecisionID(ctx, decisionID).Return(allocation, nil).Once()
 	deps.installmentTx.EXPECT().LockByDecisionID(ctx, decisionID).Return([]model.Installment{first}, nil).Once()
@@ -558,7 +558,7 @@ func TestPrepareCheckoutContract_MerchantFunding_NewContractBlockedWhenOriginati
 	deps.jurisdictions = blocked
 
 	decisionID := model.DecisionID(uuid.New())
-	identitySubjectID := model.IdentitySubjectID(uuid.New())
+	externalCustomerID := model.ExternalCustomerID(uuid.New())
 	customerID := model.CustomerID(uuid.New())
 	merchantProfileID := model.MerchantProfileID(uuid.New())
 
@@ -567,8 +567,8 @@ func TestPrepareCheckoutContract_MerchantFunding_NewContractBlockedWhenOriginati
 	deps.expectMerchantFundingTxBindings(ctx)
 
 	deps.customerProfileTx.EXPECT().
-		LockByIdentitySubjectID(ctx, identitySubjectID).
-		Return(model.CustomerProfile{ID: customerID, IdentitySubjectID: identitySubjectID}, nil).
+		LockByExternalCustomerID(ctx, externalCustomerID).
+		Return(model.CustomerProfile{ID: customerID, ExternalCustomerID: externalCustomerID}, nil).
 		Once()
 	deps.contractTx.EXPECT().
 		GetByDecisionID(ctx, decisionID).
@@ -607,7 +607,7 @@ func TestPrepareCheckoutContract_MerchantFunding_NewContractBlockedWhenOriginati
 	uc := deps.newUseCase(t)
 	_, err := uc.PrepareCheckoutContract(ctx, CreateContractInput{
 		DecisionID:        decisionID,
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 	})
 	require.Error(t, err)
 	require.True(t, cerr.IsCode(err, cerr.CodeInternalError))
@@ -623,7 +623,7 @@ func TestPrepareCheckoutContract_MerchantFunding_ExistingContractResumeAfterOrig
 	deps.jurisdictions = mock.NewOriginationJurisdictions(t)
 
 	decisionID := model.DecisionID(uuid.New())
-	identitySubjectID := model.IdentitySubjectID(uuid.New())
+	externalCustomerID := model.ExternalCustomerID(uuid.New())
 	customerID := model.CustomerID(uuid.New())
 	contractID := model.ContractID(uuid.New())
 
@@ -640,8 +640,8 @@ func TestPrepareCheckoutContract_MerchantFunding_ExistingContractResumeAfterOrig
 	}
 
 	deps.customerProfileTx.EXPECT().
-		LockByIdentitySubjectID(ctx, identitySubjectID).
-		Return(model.CustomerProfile{ID: customerID, IdentitySubjectID: identitySubjectID}, nil).
+		LockByExternalCustomerID(ctx, externalCustomerID).
+		Return(model.CustomerProfile{ID: customerID, ExternalCustomerID: externalCustomerID}, nil).
 		Once()
 	deps.contractTx.EXPECT().
 		GetByDecisionID(ctx, decisionID).
@@ -651,7 +651,7 @@ func TestPrepareCheckoutContract_MerchantFunding_ExistingContractResumeAfterOrig
 	uc := deps.newUseCase(t)
 	output, err := uc.PrepareCheckoutContract(ctx, CreateContractInput{
 		DecisionID:        decisionID,
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 	})
 	require.NoError(t, err)
 	require.Equal(t, CreateContractResultAlreadyExists, output.Result)

@@ -15,7 +15,7 @@ import (
 // GetInput reads a hosted checkout session for the authenticated customer.
 type GetInput struct {
 	CheckoutSessionID model.CheckoutSessionID
-	IdentitySubjectID model.IdentitySubjectID
+	ExternalCustomerID model.ExternalCustomerID
 }
 
 func (in GetInput) validate() error {
@@ -23,8 +23,8 @@ func (in GetInput) validate() error {
 		return checkoutSessionIDRequiredError()
 	}
 
-	if in.IdentitySubjectID.IsZero() {
-		return identitySubjectIDRequiredError()
+	if in.ExternalCustomerID.IsZero() {
+		return externalCustomerIDRequiredError()
 	}
 
 	return nil
@@ -71,7 +71,7 @@ func (uc *UseCase) Get(ctx context.Context, input GetInput) (GetOutput, error) {
 				return findErr
 			}
 
-			profile, profileErr := customerProfileQ.GetByIdentitySubjectID(ctx, input.IdentitySubjectID)
+			profile, profileErr := customerProfileQ.GetByExternalCustomerID(ctx, input.ExternalCustomerID)
 			if profileErr != nil {
 				return profileErr
 			}

@@ -45,7 +45,7 @@ func TestEnsureMerchantEntitlement_PersistsEntitlementAndReceivableWithExternalI
 	contractID := model.ContractID(uuid.New())
 	decisionID := model.DecisionID(uuid.New())
 	customerInternalID := model.CustomerID(uuid.New())
-	identitySubjectID := model.IdentitySubjectID(uuid.New())
+	externalCustomerID := model.ExternalCustomerID(uuid.New())
 	merchantProfileID := model.MerchantProfileID(uuid.New())
 	merchantID := model.MerchantID(uuid.New())
 	paymentIntentID := "fc-intent-activation"
@@ -84,7 +84,7 @@ func TestEnsureMerchantEntitlement_PersistsEntitlementAndReceivableWithExternalI
 	customerProfile.EXPECT().Conn(conn).Return(customerCQ).Once()
 	customerCQ.EXPECT().GetByID(ctx, customerInternalID).Return(model.CustomerProfile{
 		ID:                customerInternalID,
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 	}, nil).Once()
 	merchantProfile.EXPECT().Conn(conn).Return(merchantCQ).Once()
 	merchantCQ.EXPECT().GetByID(ctx, merchantProfileID).Return(model.MerchantProfile{
@@ -111,9 +111,9 @@ func TestEnsureMerchantEntitlement_PersistsEntitlementAndReceivableWithExternalI
 	checkoutClient.EXPECT().RecordMerchantEntitlement(ctx, testifymock.MatchedBy(
 		func(in extcheckoutpayment.RecordMerchantEntitlementInput) bool {
 			return in.MerchantID == merchantID.String() &&
-				in.CustomerSubjectID == identitySubjectID.String() &&
+				in.CustomerID == externalCustomerID.String() &&
 				in.MerchantID != merchantProfileID.String() &&
-				in.CustomerSubjectID != customerInternalID.String() &&
+				in.CustomerID != customerInternalID.String() &&
 				in.CollectedCashAmountMinor == 40 &&
 				in.ReceivableAmountMinor == 60 &&
 				in.MerchantPayableAmountMinor == 100 &&
@@ -122,7 +122,6 @@ func TestEnsureMerchantEntitlement_PersistsEntitlementAndReceivableWithExternalI
 		},
 	)).Return(extcheckoutpayment.RecordMerchantEntitlementResult{
 		MerchantEntitlementID: "fc-entitlement-1",
-		ReceivableID:          "fc-receivable-60",
 	}, nil).Once()
 
 	pool.EXPECT().Conn(ctx, testifymock.Anything).RunAndReturn(
@@ -138,7 +137,7 @@ func TestEnsureMerchantEntitlement_PersistsEntitlementAndReceivableWithExternalI
 	contractRepo.EXPECT().Tx(tx).Return(contractTx).Once()
 	contractTx.EXPECT().BindMerchantEntitlementIfAbsent(ctx, contractID, "fc-entitlement-1", now).
 		Return(contractRow, nil).Once()
-	contractTx.EXPECT().BindReceivableIfAbsent(ctx, contractID, "fc-receivable-60", now).
+	contractTx.EXPECT().BindReceivableIfAbsent(ctx, contractID, "fc-entitlement-1", now).
 		Return(contractRow, nil).Once()
 
 	uc := &UseCase{
@@ -182,7 +181,7 @@ func TestRecordMerchantEntitlement_ActivationPendingCallsFinancialCoreOnceAndDoe
 	contractID := model.ContractID(uuid.New())
 	decisionID := model.DecisionID(uuid.New())
 	customerInternalID := model.CustomerID(uuid.New())
-	identitySubjectID := model.IdentitySubjectID(uuid.New())
+	externalCustomerID := model.ExternalCustomerID(uuid.New())
 	merchantProfileID := model.MerchantProfileID(uuid.New())
 	merchantID := model.MerchantID(uuid.New())
 
@@ -216,7 +215,7 @@ func TestRecordMerchantEntitlement_ActivationPendingCallsFinancialCoreOnceAndDoe
 	customerProfile.EXPECT().Conn(conn).Return(customerCQ).Once()
 	customerCQ.EXPECT().GetByID(ctx, customerInternalID).Return(model.CustomerProfile{
 		ID:                customerInternalID,
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 	}, nil).Once()
 	merchantProfile.EXPECT().Conn(conn).Return(merchantCQ).Once()
 	merchantCQ.EXPECT().GetByID(ctx, merchantProfileID).Return(model.MerchantProfile{
@@ -251,7 +250,7 @@ func TestRecordMerchantEntitlement_ActivationPendingCallsFinancialCoreOnceAndDoe
 	checkoutClient.EXPECT().RecordMerchantEntitlement(ctx, testifymock.MatchedBy(
 		func(in extcheckoutpayment.RecordMerchantEntitlementInput) bool {
 			return in.MerchantID == merchantID.String() &&
-				in.CustomerSubjectID == identitySubjectID.String() &&
+				in.CustomerID == externalCustomerID.String() &&
 				in.CollectedCashAmountMinor == 0 &&
 				in.ReceivableAmountMinor == 100 &&
 				in.MerchantPayableAmountMinor == 100 &&

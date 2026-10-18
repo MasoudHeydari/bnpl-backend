@@ -49,13 +49,11 @@ func TestResolveAuthoritativeInstallmentResult_ProcessingDoesNotMutateOutcome(t 
 		FinancialPaymentIntentID: &intentID,
 	}, nil).Once()
 
+	sourceVersion := int64(1)
 	checkoutClient.EXPECT().GetPaymentStatus(ctx, extcheckoutpayment.GetPaymentStatusInput{
-		TenantID:        tenantID,
-		ContextID:       contextID,
-		SourceService:   financialCoreBNPLSourceService,
 		SourceType:      financialCorePaymentAttemptSourceType,
 		SourceID:        attemptID.String(),
-		SourceVersion:   1,
+		SourceVersion:   &sourceVersion,
 		PaymentIntentID: intentID,
 	}).Return(extcheckoutpayment.GetPaymentStatusResult{
 		PaymentIntentID: intentID,

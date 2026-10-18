@@ -13,7 +13,7 @@ import (
 //
 //	@Summary		Create checkout decision
 //	@Description	Evaluates checkout feasibility for a customer/merchant pair and persists a decision.
-//	@Description	x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.identity_subject_id). Do not send customer_id in the body.
+//	@Description	x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Do not send customer_id in the body.
 //	@Description	purchase_context.type must be "pos" or "online"; the channel is explicit and is never inferred from optional fields.
 //	@Description	For type=pos, purchase_context.pos_gps_id is required; online_store_id and merchant_order_id are forbidden.
 //	@Description	For type=online, purchase_context.online_store_id is required; pos_gps_id is forbidden; merchant_order_id is optional (max 256 characters).
@@ -34,7 +34,7 @@ import (
 //	@Tags			Decisions
 //	@Accept			json
 //	@Produce		json
-//	@Param			x-auth-subject-id	header		string				true	"Stable authenticated subject identifier issued by Identity Service (customer_profiles.identity_subject_id)"	format(uuid)
+//	@Param			x-auth-subject-id	header		string				true	"Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)"	format(uuid)
 //	@Param			x-auth-tenant-id	header		string				true	"Authenticated tenant UUID"																						format(uuid)
 //	@Param			x-auth-context-id	header		string				true	"Authenticated business-context UUID"																			format(uuid)
 //	@Param			x-auth-permissions	header		string				true	"Comma-separated gateway permissions"																			example(bnpl:decisions:create:self)

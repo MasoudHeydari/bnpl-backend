@@ -13,7 +13,7 @@ import (
 //
 //	@Summary		Create checkout contract
 //	@Description	Creates a checkout contract according to the policy snapshot stored on the Decision. When customer action is required, returns redirect_url and expires_at; merchant-funding policies return payment_required=false.
-//	@Description	x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.identity_subject_id). Do not send customer_id or payment provider selection in the body.
+//	@Description	x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Do not send customer_id or payment provider selection in the body.
 //	@Description	Installment schedule details are not returned from this endpoint; use contract installment read APIs when needed.
 //	@Description	For initial-payment policies activation occurs only after an authoritative payment result. Merchant-funding policies create no PaymentAttempt and activate only after authoritative Financial Core merchant funding.
 //	@Description	Merchant funding records MerchantEntitlement synchronously before the contract becomes active. On recognition failure BNPL does not retry in the background; the caller may retry the same contract request.

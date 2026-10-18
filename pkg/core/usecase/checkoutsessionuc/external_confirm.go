@@ -16,7 +16,7 @@ import (
 // browser JWT headers or fabricated checkout snapshots.
 type verifiedExternalCheckout struct {
 	sessionID         model.CheckoutSessionID
-	identitySubjectID model.IdentitySubjectID
+	externalCustomerID model.ExternalCustomerID
 }
 
 // ConfirmExternal verifies the one-time code for the exact offer version the
@@ -48,7 +48,7 @@ func (uc *UseCase) ConfirmExternal(
 
 	return uc.Confirm(ctx, ConfirmInput{
 		CheckoutSessionID:    verified.sessionID,
-		IdentitySubjectID:    verified.identitySubjectID,
+		ExternalCustomerID:    verified.externalCustomerID,
 		EvaluationGeneration: input.EvaluationGeneration,
 	})
 }
@@ -159,7 +159,7 @@ func (uc *UseCase) verifyExternalOTP(
 
 					verified = verifiedExternalCheckout{
 						sessionID:         locked.ID,
-						identitySubjectID: profile.IdentitySubjectID,
+						externalCustomerID: profile.ExternalCustomerID,
 					}
 
 					return nil

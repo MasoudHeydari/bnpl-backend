@@ -15,7 +15,7 @@ import (
 func (uc *UseCase) resolveCheckoutPolicy(
 	ctx context.Context,
 	assignmentQ repo.PolicyAssignmentQueryer,
-	identitySubjectID model.IdentitySubjectID,
+	externalCustomerID model.ExternalCustomerID,
 	now time.Time,
 ) (checkout.Policy, error) {
 	const op = "decisionuc.UseCase.resolveCheckoutPolicy"
@@ -24,7 +24,7 @@ func (uc *UseCase) resolveCheckoutPolicy(
 	assignment, err := assignmentQ.GetActive(
 		ctx,
 		model.CustomerPolicySubjectType,
-		identitySubjectID.String(),
+		externalCustomerID.String(),
 		model.CheckoutPolicyFamily,
 		now,
 	)

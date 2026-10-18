@@ -94,7 +94,7 @@ func TestConfirm_MatchingGenerationClaimsSessionAndLinksContract(t *testing.T) {
 
 			require.Len(t, h.contracts.calls, 1)
 			require.Equal(t, h.decisionID, h.contracts.calls[0].DecisionID)
-			require.Equal(t, h.profileID, h.contracts.calls[0].IdentitySubjectID)
+			require.Equal(t, h.profileID, h.contracts.calls[0].ExternalCustomerID)
 		})
 	}
 }

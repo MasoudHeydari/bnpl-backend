@@ -32,7 +32,7 @@ func TestEnsureCheckoutCollectionObligation_UsesPreRecognitionCashAndExternalIDs
 	contractID := model.ContractID(uuid.New())
 	attemptID := model.PaymentAttemptID(uuid.New())
 	customerInternalID := model.CustomerID(uuid.New())
-	identitySubjectID := model.IdentitySubjectID(uuid.New())
+	externalCustomerID := model.ExternalCustomerID(uuid.New())
 	merchantProfileID := model.MerchantProfileID(uuid.New())
 	merchantID := model.MerchantID(uuid.New())
 	expiresAt := now.Add(30 * time.Minute)
@@ -59,7 +59,7 @@ func TestEnsureCheckoutCollectionObligation_UsesPreRecognitionCashAndExternalIDs
 	}
 	customer := model.CustomerProfile{
 		ID:                customerInternalID,
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 	}
 	merchant := model.MerchantProfile{
 		ID:         merchantProfileID,
@@ -70,11 +70,11 @@ func TestEnsureCheckoutCollectionObligation_UsesPreRecognitionCashAndExternalIDs
 		func(in extcheckoutpayment.PrepareCollectionObligationInput) bool {
 			return in.Application == extcheckoutpayment.PreRecognitionCashCollectionApplication &&
 				in.AmountMinor == 40 &&
-				in.ReceivableID == "" &&
+				in.MerchantEntitlementID == "" &&
 				in.MerchantID == merchantID.String() &&
-				in.CustomerSubjectID == identitySubjectID.String() &&
+				in.CustomerID == externalCustomerID.String() &&
 				in.MerchantID != merchantProfileID.String() &&
-				in.CustomerSubjectID != customerInternalID.String() &&
+				in.CustomerID != customerInternalID.String() &&
 				in.SourceID == contractID.String()
 		},
 	)).Return(extcheckoutpayment.PrepareCollectionObligationResult{

@@ -10,8 +10,8 @@ import (
 type InitialLimitAssessmentInput struct {
 	// CustomerID is the internal customer_profiles.id primary key.
 	CustomerID model.CustomerID
-	// IdentitySubjectID is the Identity Service subject mapped to customer_profiles.identity_subject_id.
-	IdentitySubjectID model.IdentitySubjectID
+	// ExternalCustomerID is the Identity Service subject mapped to customer_profiles.external_customer_id.
+	ExternalCustomerID model.ExternalCustomerID
 	// Jurisdiction is the operating jurisdiction.
 	Jurisdiction model.Jurisdiction
 

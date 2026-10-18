@@ -188,10 +188,10 @@ func (d assignInitialLimitDeps) expectAuditOutbox(
 	return captured
 }
 
-func sampleActiveProfile(profileID model.CustomerID, identitySubjectID model.IdentitySubjectID, now time.Time) model.CustomerProfile {
+func sampleActiveProfile(profileID model.CustomerID, externalCustomerID model.ExternalCustomerID, now time.Time) model.CustomerProfile {
 	return model.CustomerProfile{
 		ID:                profileID,
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 		Jurisdiction:      model.IRJurisdiction,
 		Status:            model.ActiveCustomerStatus,
 		CreatedAt:         now,
@@ -205,11 +205,11 @@ func TestAssignInitialLimit_MissingProfile_CreatesActiveProfileAndAssigns(t *tes
 	ctx := testRequestContext()
 	now := time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC)
 	deps := newAssignInitialLimitDeps(t, now)
-	identitySubjectID := model.IdentitySubjectID(uuid.New())
+	externalCustomerID := model.ExternalCustomerID(uuid.New())
 	customerID := model.CustomerID(uuid.New())
-	require.NotEqual(t, identitySubjectID.UUID(), customerID.UUID())
+	require.NotEqual(t, externalCustomerID.UUID(), customerID.UUID())
 
-	profile := sampleActiveProfile(customerID, identitySubjectID, now)
+	profile := sampleActiveProfile(customerID, externalCustomerID, now)
 	policy := initialcreditlimitv1.New()
 	terms := policy.Terms()
 	currency := terms.Currency
@@ -224,7 +224,7 @@ func TestAssignInitialLimit_MissingProfile_CreatesActiveProfileAndAssigns(t *tes
 	deps.creditAccount.EXPECT().Tx(deps.tx).Return(deps.creditAccountTx).Once()
 	deps.customerProfileTx.EXPECT().EnsureExists(
 		ctx,
-		identitySubjectID,
+		externalCustomerID,
 		model.IRJurisdiction,
 		model.ActiveCustomerStatus,
 		now,
@@ -332,13 +332,13 @@ func TestAssignInitialLimit_MissingProfile_CreatesActiveProfileAndAssigns(t *tes
 
 	deps.expectFetchSignals(ctx)
 	uc := deps.newUseCase()
-	output, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{IdentitySubjectID: identitySubjectID})
+	output, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{ExternalCustomerID: externalCustomerID})
 	require.NoError(t, err)
 	require.Equal(t, customercredituc.AssignInitialLimitResultCreated, output.Result)
 	require.NotNil(t, output.CreditLimit)
 	require.Equal(t, accountID, output.CreditLimit.ID)
 	require.Equal(t, customerID, output.CreditLimit.CustomerID)
-	require.NotEqual(t, identitySubjectID.UUID(), output.CreditLimit.CustomerID.UUID())
+	require.NotEqual(t, externalCustomerID.UUID(), output.CreditLimit.CustomerID.UUID())
 	require.Equal(t, model.IRJurisdiction, profile.Jurisdiction)
 	require.Equal(t, model.ActiveCustomerStatus, profile.Status)
 
@@ -346,7 +346,7 @@ func TestAssignInitialLimit_MissingProfile_CreatesActiveProfileAndAssigns(t *tes
 	require.Equal(t, terms.ApprovalReasonCode, *auditEvent.Data.ReasonCode)
 	require.Equal(t, []any{terms.ApprovalReasonCode}, auditEvent.Data.Metadata["reason_codes"])
 	require.Equal(t, customerID.String(), auditEvent.Data.Metadata["customer_id"])
-	require.Equal(t, identitySubjectID.String(), auditEvent.Data.Metadata["identity_subject_id"])
+	require.Equal(t, externalCustomerID.String(), auditEvent.Data.Metadata["identity_subject_id"])
 	require.Equal(t, decisionID.String(), auditEvent.Data.Metadata["decision_id"])
 	require.Equal(t, accountID.String(), auditEvent.Data.Metadata["credit_account_id"])
 	require.Equal(t, policy.Ref().ID, auditEvent.Data.Metadata["policy_id"])
@@ -375,11 +375,11 @@ func TestAssignInitialLimit_ExistingNonActiveProfile_IsDeniedWithoutReactivation
 	ctx := testRequestContext()
 	now := time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC)
 	deps := newAssignInitialLimitDeps(t, now)
-	identitySubjectID := model.IdentitySubjectID(uuid.New())
+	externalCustomerID := model.ExternalCustomerID(uuid.New())
 	customerID := model.CustomerID(uuid.New())
-	require.NotEqual(t, identitySubjectID.UUID(), customerID.UUID())
+	require.NotEqual(t, externalCustomerID.UUID(), customerID.UUID())
 
-	profile := sampleActiveProfile(customerID, identitySubjectID, now)
+	profile := sampleActiveProfile(customerID, externalCustomerID, now)
 	profile.Status = model.TerminatedCustomerStatus
 	decisionID := model.DecisionID(uuid.New())
 
@@ -389,7 +389,7 @@ func TestAssignInitialLimit_ExistingNonActiveProfile_IsDeniedWithoutReactivation
 	deps.creditAccount.EXPECT().Tx(deps.tx).Return(deps.creditAccountTx).Once()
 	deps.customerProfileTx.EXPECT().EnsureExists(
 		ctx,
-		identitySubjectID,
+		externalCustomerID,
 		model.IRJurisdiction,
 		model.ActiveCustomerStatus,
 		now,
@@ -441,7 +441,7 @@ func TestAssignInitialLimit_ExistingNonActiveProfile_IsDeniedWithoutReactivation
 	)
 
 	uc := deps.newUseCase()
-	output, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{IdentitySubjectID: identitySubjectID})
+	output, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{ExternalCustomerID: externalCustomerID})
 	require.NoError(t, err)
 	require.Equal(t, customercredituc.AssignInitialLimitResultDenied, output.Result)
 	require.Nil(t, output.CreditLimit)
@@ -451,7 +451,7 @@ func TestAssignInitialLimit_ExistingNonActiveProfile_IsDeniedWithoutReactivation
 	require.Equal(t, model.CustomerProfileNotActiveDecisionReason, *auditEvent.Data.ReasonCode)
 	require.Equal(t, []any{model.CustomerProfileNotActiveDecisionReason}, auditEvent.Data.Metadata["reason_codes"])
 	require.Equal(t, customerID.String(), auditEvent.Data.Metadata["customer_id"])
-	require.Equal(t, identitySubjectID.String(), auditEvent.Data.Metadata["identity_subject_id"])
+	require.Equal(t, externalCustomerID.String(), auditEvent.Data.Metadata["identity_subject_id"])
 	require.Equal(t, decisionID.String(), auditEvent.Data.Metadata["decision_id"])
 	_, hasAccountID := auditEvent.Data.Metadata["credit_account_id"]
 	require.False(t, hasAccountID)
@@ -469,7 +469,7 @@ func TestAssignInitialLimit_EnsureExistsFailure_ReturnsError(t *testing.T) {
 	ctx := testRequestContext()
 	now := time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC)
 	deps := newAssignInitialLimitDeps(t, now)
-	identitySubjectID := model.IdentitySubjectID(uuid.New())
+	externalCustomerID := model.ExternalCustomerID(uuid.New())
 	repoErr := cerr.InternalError(errors.New("db unavailable"))
 
 	deps.expectConnTx(ctx)
@@ -477,7 +477,7 @@ func TestAssignInitialLimit_EnsureExistsFailure_ReturnsError(t *testing.T) {
 	deps.creditAccount.EXPECT().Tx(deps.tx).Return(deps.creditAccountTx).Once()
 	deps.customerProfileTx.EXPECT().EnsureExists(
 		ctx,
-		identitySubjectID,
+		externalCustomerID,
 		model.IRJurisdiction,
 		model.ActiveCustomerStatus,
 		now,
@@ -485,7 +485,7 @@ func TestAssignInitialLimit_EnsureExistsFailure_ReturnsError(t *testing.T) {
 	).Return(model.CustomerProfile{}, false, repoErr).Once()
 
 	uc := deps.newUseCase()
-	_, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{IdentitySubjectID: identitySubjectID})
+	_, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{ExternalCustomerID: externalCustomerID})
 	require.Error(t, err)
 	require.True(t, cerr.IsCode(err, cerr.CodeInternalError))
 }
@@ -498,11 +498,11 @@ func TestAssignInitialLimit_DenialPathStampsPolicyRef(t *testing.T) {
 	ctx := testRequestContext()
 	now := time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC)
 	deps := newAssignInitialLimitDeps(t, now)
-	identitySubjectID := model.IdentitySubjectID(uuid.New())
+	externalCustomerID := model.ExternalCustomerID(uuid.New())
 	customerID := model.CustomerID(uuid.New())
-	require.NotEqual(t, identitySubjectID.UUID(), customerID.UUID())
+	require.NotEqual(t, externalCustomerID.UUID(), customerID.UUID())
 
-	profile := sampleActiveProfile(customerID, identitySubjectID, now)
+	profile := sampleActiveProfile(customerID, externalCustomerID, now)
 	profile.Status = model.TerminatedCustomerStatus
 	decisionID := model.DecisionID(uuid.New())
 	v1Ref := initialcreditlimitv1.New().Ref()
@@ -513,7 +513,7 @@ func TestAssignInitialLimit_DenialPathStampsPolicyRef(t *testing.T) {
 	deps.creditAccount.EXPECT().Tx(deps.tx).Return(deps.creditAccountTx).Once()
 	deps.customerProfileTx.EXPECT().EnsureExists(
 		ctx,
-		identitySubjectID,
+		externalCustomerID,
 		model.IRJurisdiction,
 		model.ActiveCustomerStatus,
 		now,
@@ -567,7 +567,7 @@ func TestAssignInitialLimit_DenialPathStampsPolicyRef(t *testing.T) {
 	)
 
 	uc := deps.newUseCase()
-	output, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{IdentitySubjectID: identitySubjectID})
+	output, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{ExternalCustomerID: externalCustomerID})
 	require.NoError(t, err)
 	require.Equal(t, customercredituc.AssignInitialLimitResultDenied, output.Result)
 }

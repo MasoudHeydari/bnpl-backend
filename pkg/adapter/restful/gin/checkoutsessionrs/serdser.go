@@ -55,8 +55,8 @@ type partnerCreateResponse struct {
 	Status            model.CheckoutSessionStatus `json:"status" enums:"open,confirming,processing,completed,canceled,expired,unavailable"`
 	CheckoutURL       string                      `json:"checkout_url"`
 	ExpiresAt         time.Time                   `json:"expires_at"`
-	// Offer is present only when merchant_profiles.offer_preparation_mode is
-	// on_create (snapshotted onto the session). Omitted for on_start.
+	// Offer is present only when the session's snapshotted branch
+	// offer_preparation_mode is on_create. Omitted for on_start.
 	Offer *OfferSchema `json:"offer,omitempty"`
 }
 
@@ -208,18 +208,18 @@ func authenticatedMerchantID(c *gin.Context) (model.MerchantID, bool) {
 	return authCtx.SubjectID.AsMerchantID(), true
 }
 
-func authenticatedIdentitySubjectID(c *gin.Context) (model.IdentitySubjectID, bool) {
-	const op = "checkoutsessionrs.authenticatedIdentitySubjectID"
+func authenticatedExternalCustomerID(c *gin.Context) (model.ExternalCustomerID, bool) {
+	const op = "checkoutsessionrs.authenticatedExternalCustomerID"
 
 	authCtx, ok := permission.FromContext(c.Request.Context())
 	if !ok {
 		serdser.SerErr(c, cerr.Unauthorized(
 			fmt.Errorf("%s: authentication context is missing", op),
 		))
-		return model.IdentitySubjectID{}, false
+		return model.ExternalCustomerID{}, false
 	}
 
-	return authCtx.SubjectID.AsIdentitySubjectID(), true
+	return authCtx.SubjectID.AsExternalCustomerID(), true
 }
 
 func checkoutSessionIDParam(c *gin.Context) (model.CheckoutSessionID, bool) {

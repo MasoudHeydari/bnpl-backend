@@ -14,8 +14,8 @@ import (
 // An empty list is a successful result, including when no customer profile exists
 // for the external subject ID.
 func (uc *UseCase) ListActiveContracts(ctx context.Context, input ListActiveContractsInput) (ListActiveContractsOutput, error) {
-	if input.IdentitySubjectID.IsZero() {
-		return ListActiveContractsOutput{}, identitySubjectIDRequiredError()
+	if input.ExternalCustomerID.IsZero() {
+		return ListActiveContractsOutput{}, externalCustomerIDRequiredError()
 	}
 
 	page := input.Page
@@ -35,7 +35,7 @@ func (uc *UseCase) ListActiveContracts(ctx context.Context, input ListActiveCont
 		ctx,
 		func(ctx context.Context, conn repo.Conn) error {
 			customerProfileQ := uc.customerProfile.Conn(conn)
-			profile, err := customerProfileQ.GetByIdentitySubjectID(ctx, input.IdentitySubjectID)
+			profile, err := customerProfileQ.GetByExternalCustomerID(ctx, input.ExternalCustomerID)
 			if err != nil {
 				if cerr.IsCode(err, cerr.CodeResourceNotFound) {
 					contracts = nil

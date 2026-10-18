@@ -26,7 +26,7 @@ const checkoutSessionDecisionKeyPrefix = "checkout-session:"
 func (uc *UseCase) evaluateSession(
 	ctx context.Context,
 	session model.CheckoutSession,
-	identitySubjectID model.IdentitySubjectID,
+	externalCustomerID model.ExternalCustomerID,
 ) (model.CheckoutSession, Offer, error) {
 	session, err := uc.prepareEvaluationGeneration(ctx, session)
 	if err != nil {
@@ -43,7 +43,7 @@ func (uc *UseCase) evaluateSession(
 			session.ID,
 			generation,
 		),
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 		PurchaseContext: decisionuc.PurchaseContext{
 			Channel:         model.OnlinePurchaseChannel,
 			OnlineStoreID:   session.OnlineStoreID,

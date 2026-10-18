@@ -23,8 +23,8 @@ func (uc *UseCase) GetReturn(ctx context.Context, input GetReturnInput) (GetRetu
 		return GetReturnOutput{}, checkoutSessionIDRequiredError()
 	}
 
-	if input.IdentitySubjectID.IsZero() {
-		return GetReturnOutput{}, identitySubjectIDRequiredError()
+	if input.ExternalCustomerID.IsZero() {
+		return GetReturnOutput{}, externalCustomerIDRequiredError()
 	}
 
 	var session model.CheckoutSession
@@ -44,7 +44,7 @@ func (uc *UseCase) GetReturn(ctx context.Context, input GetReturnInput) (GetRetu
 				return findErr
 			}
 
-			profile, profileErr := customerProfileQ.GetByIdentitySubjectID(ctx, input.IdentitySubjectID)
+			profile, profileErr := customerProfileQ.GetByExternalCustomerID(ctx, input.ExternalCustomerID)
 			if profileErr != nil {
 				return profileErr
 			}

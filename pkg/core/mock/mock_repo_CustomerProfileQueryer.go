@@ -38,53 +38,53 @@ func (_m *CustomerProfileQueryer) EXPECT() *CustomerProfileQueryer_Expecter {
 	return &CustomerProfileQueryer_Expecter{mock: &_m.Mock}
 }
 
-// ExistsByIdentitySubjectID provides a mock function for the type CustomerProfileQueryer
-func (_mock *CustomerProfileQueryer) ExistsByIdentitySubjectID(ctx context.Context, identitySubjectID model.IdentitySubjectID) (bool, error) {
-	ret := _mock.Called(ctx, identitySubjectID)
+// ExistsByExternalCustomerID provides a mock function for the type CustomerProfileQueryer
+func (_mock *CustomerProfileQueryer) ExistsByExternalCustomerID(ctx context.Context, externalCustomerID model.ExternalCustomerID) (bool, error) {
+	ret := _mock.Called(ctx, externalCustomerID)
 
 	if len(ret) == 0 {
-		panic("no return value specified for ExistsByIdentitySubjectID")
+		panic("no return value specified for ExistsByExternalCustomerID")
 	}
 
 	var r0 bool
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.IdentitySubjectID) (bool, error)); ok {
-		return returnFunc(ctx, identitySubjectID)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.ExternalCustomerID) (bool, error)); ok {
+		return returnFunc(ctx, externalCustomerID)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.IdentitySubjectID) bool); ok {
-		r0 = returnFunc(ctx, identitySubjectID)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.ExternalCustomerID) bool); ok {
+		r0 = returnFunc(ctx, externalCustomerID)
 	} else {
 		r0 = ret.Get(0).(bool)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, model.IdentitySubjectID) error); ok {
-		r1 = returnFunc(ctx, identitySubjectID)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.ExternalCustomerID) error); ok {
+		r1 = returnFunc(ctx, externalCustomerID)
 	} else {
 		r1 = ret.Error(1)
 	}
 	return r0, r1
 }
 
-// CustomerProfileQueryer_ExistsByIdentitySubjectID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ExistsByIdentitySubjectID'
-type CustomerProfileQueryer_ExistsByIdentitySubjectID_Call struct {
+// CustomerProfileQueryer_ExistsByExternalCustomerID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ExistsByExternalCustomerID'
+type CustomerProfileQueryer_ExistsByExternalCustomerID_Call struct {
 	*mock.Call
 }
 
-// ExistsByIdentitySubjectID is a helper method to define mock.On call
+// ExistsByExternalCustomerID is a helper method to define mock.On call
 //   - ctx context.Context
-//   - identitySubjectID model.IdentitySubjectID
-func (_e *CustomerProfileQueryer_Expecter) ExistsByIdentitySubjectID(ctx any, identitySubjectID any) *CustomerProfileQueryer_ExistsByIdentitySubjectID_Call {
-	return &CustomerProfileQueryer_ExistsByIdentitySubjectID_Call{Call: _e.mock.On("ExistsByIdentitySubjectID", ctx, identitySubjectID)}
+//   - externalCustomerID model.ExternalCustomerID
+func (_e *CustomerProfileQueryer_Expecter) ExistsByExternalCustomerID(ctx any, externalCustomerID any) *CustomerProfileQueryer_ExistsByExternalCustomerID_Call {
+	return &CustomerProfileQueryer_ExistsByExternalCustomerID_Call{Call: _e.mock.On("ExistsByExternalCustomerID", ctx, externalCustomerID)}
 }
 
-func (_c *CustomerProfileQueryer_ExistsByIdentitySubjectID_Call) Run(run func(ctx context.Context, identitySubjectID model.IdentitySubjectID)) *CustomerProfileQueryer_ExistsByIdentitySubjectID_Call {
+func (_c *CustomerProfileQueryer_ExistsByExternalCustomerID_Call) Run(run func(ctx context.Context, externalCustomerID model.ExternalCustomerID)) *CustomerProfileQueryer_ExistsByExternalCustomerID_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 model.IdentitySubjectID
+		var arg1 model.ExternalCustomerID
 		if args[1] != nil {
-			arg1 = args[1].(model.IdentitySubjectID)
+			arg1 = args[1].(model.ExternalCustomerID)
 		}
 		run(
 			arg0,
@@ -94,12 +94,78 @@ func (_c *CustomerProfileQueryer_ExistsByIdentitySubjectID_Call) Run(run func(ct
 	return _c
 }
 
-func (_c *CustomerProfileQueryer_ExistsByIdentitySubjectID_Call) Return(b bool, err error) *CustomerProfileQueryer_ExistsByIdentitySubjectID_Call {
+func (_c *CustomerProfileQueryer_ExistsByExternalCustomerID_Call) Return(b bool, err error) *CustomerProfileQueryer_ExistsByExternalCustomerID_Call {
 	_c.Call.Return(b, err)
 	return _c
 }
 
-func (_c *CustomerProfileQueryer_ExistsByIdentitySubjectID_Call) RunAndReturn(run func(ctx context.Context, identitySubjectID model.IdentitySubjectID) (bool, error)) *CustomerProfileQueryer_ExistsByIdentitySubjectID_Call {
+func (_c *CustomerProfileQueryer_ExistsByExternalCustomerID_Call) RunAndReturn(run func(ctx context.Context, externalCustomerID model.ExternalCustomerID) (bool, error)) *CustomerProfileQueryer_ExistsByExternalCustomerID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetByExternalCustomerID provides a mock function for the type CustomerProfileQueryer
+func (_mock *CustomerProfileQueryer) GetByExternalCustomerID(ctx context.Context, externalCustomerID model.ExternalCustomerID) (model.CustomerProfile, error) {
+	ret := _mock.Called(ctx, externalCustomerID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetByExternalCustomerID")
+	}
+
+	var r0 model.CustomerProfile
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.ExternalCustomerID) (model.CustomerProfile, error)); ok {
+		return returnFunc(ctx, externalCustomerID)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.ExternalCustomerID) model.CustomerProfile); ok {
+		r0 = returnFunc(ctx, externalCustomerID)
+	} else {
+		r0 = ret.Get(0).(model.CustomerProfile)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.ExternalCustomerID) error); ok {
+		r1 = returnFunc(ctx, externalCustomerID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// CustomerProfileQueryer_GetByExternalCustomerID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetByExternalCustomerID'
+type CustomerProfileQueryer_GetByExternalCustomerID_Call struct {
+	*mock.Call
+}
+
+// GetByExternalCustomerID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - externalCustomerID model.ExternalCustomerID
+func (_e *CustomerProfileQueryer_Expecter) GetByExternalCustomerID(ctx any, externalCustomerID any) *CustomerProfileQueryer_GetByExternalCustomerID_Call {
+	return &CustomerProfileQueryer_GetByExternalCustomerID_Call{Call: _e.mock.On("GetByExternalCustomerID", ctx, externalCustomerID)}
+}
+
+func (_c *CustomerProfileQueryer_GetByExternalCustomerID_Call) Run(run func(ctx context.Context, externalCustomerID model.ExternalCustomerID)) *CustomerProfileQueryer_GetByExternalCustomerID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.ExternalCustomerID
+		if args[1] != nil {
+			arg1 = args[1].(model.ExternalCustomerID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *CustomerProfileQueryer_GetByExternalCustomerID_Call) Return(customerProfile model.CustomerProfile, err error) *CustomerProfileQueryer_GetByExternalCustomerID_Call {
+	_c.Call.Return(customerProfile, err)
+	return _c
+}
+
+func (_c *CustomerProfileQueryer_GetByExternalCustomerID_Call) RunAndReturn(run func(ctx context.Context, externalCustomerID model.ExternalCustomerID) (model.CustomerProfile, error)) *CustomerProfileQueryer_GetByExternalCustomerID_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -166,72 +232,6 @@ func (_c *CustomerProfileQueryer_GetByID_Call) Return(customerProfile model.Cust
 }
 
 func (_c *CustomerProfileQueryer_GetByID_Call) RunAndReturn(run func(ctx context.Context, id model.CustomerID) (model.CustomerProfile, error)) *CustomerProfileQueryer_GetByID_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// GetByIdentitySubjectID provides a mock function for the type CustomerProfileQueryer
-func (_mock *CustomerProfileQueryer) GetByIdentitySubjectID(ctx context.Context, identitySubjectID model.IdentitySubjectID) (model.CustomerProfile, error) {
-	ret := _mock.Called(ctx, identitySubjectID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetByIdentitySubjectID")
-	}
-
-	var r0 model.CustomerProfile
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.IdentitySubjectID) (model.CustomerProfile, error)); ok {
-		return returnFunc(ctx, identitySubjectID)
-	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.IdentitySubjectID) model.CustomerProfile); ok {
-		r0 = returnFunc(ctx, identitySubjectID)
-	} else {
-		r0 = ret.Get(0).(model.CustomerProfile)
-	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, model.IdentitySubjectID) error); ok {
-		r1 = returnFunc(ctx, identitySubjectID)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// CustomerProfileQueryer_GetByIdentitySubjectID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetByIdentitySubjectID'
-type CustomerProfileQueryer_GetByIdentitySubjectID_Call struct {
-	*mock.Call
-}
-
-// GetByIdentitySubjectID is a helper method to define mock.On call
-//   - ctx context.Context
-//   - identitySubjectID model.IdentitySubjectID
-func (_e *CustomerProfileQueryer_Expecter) GetByIdentitySubjectID(ctx any, identitySubjectID any) *CustomerProfileQueryer_GetByIdentitySubjectID_Call {
-	return &CustomerProfileQueryer_GetByIdentitySubjectID_Call{Call: _e.mock.On("GetByIdentitySubjectID", ctx, identitySubjectID)}
-}
-
-func (_c *CustomerProfileQueryer_GetByIdentitySubjectID_Call) Run(run func(ctx context.Context, identitySubjectID model.IdentitySubjectID)) *CustomerProfileQueryer_GetByIdentitySubjectID_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 model.IdentitySubjectID
-		if args[1] != nil {
-			arg1 = args[1].(model.IdentitySubjectID)
-		}
-		run(
-			arg0,
-			arg1,
-		)
-	})
-	return _c
-}
-
-func (_c *CustomerProfileQueryer_GetByIdentitySubjectID_Call) Return(customerProfile model.CustomerProfile, err error) *CustomerProfileQueryer_GetByIdentitySubjectID_Call {
-	_c.Call.Return(customerProfile, err)
-	return _c
-}
-
-func (_c *CustomerProfileQueryer_GetByIdentitySubjectID_Call) RunAndReturn(run func(ctx context.Context, identitySubjectID model.IdentitySubjectID) (model.CustomerProfile, error)) *CustomerProfileQueryer_GetByIdentitySubjectID_Call {
 	_c.Call.Return(run)
 	return _c
 }

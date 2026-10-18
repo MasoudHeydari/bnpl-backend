@@ -77,19 +77,8 @@ func (uc *UseCase) ensureCheckoutPaymentAttemptInTx(
 
 	providerCode := optionalTrimmedString(input.ProviderCode)
 
-	// payment.proto still requires FinancialScope. Checkout no longer receives
-	// TenantID/ContextID from JWT or merchant_profiles. Do not fabricate scope
-	// values and do not insert a checkout payment_attempt that would violate
-	// chk_payment_attempts_checkout_context with empty scope.
-	if input.TenantID.IsZero() || input.ContextID.IsZero() {
-		return model.PaymentAttempt{}, financialCoreScopeUnavailableError(
-			fmt.Errorf("%s: financial core scope is not available for JWT-independent checkout", op),
-		)
-	}
-
-	tenantID := input.TenantID.String()
-	contextID := input.ContextID.String()
-
+	// Financial Core v2 derives scope from the payment target. Do not require or
+	// fabricate TenantID/ContextID for new checkout payment attempts.
 	attempt, err := paymentAttemptQ.CreateCheckoutWithItems(
 		ctx,
 		contractRow.ID,
@@ -99,8 +88,8 @@ func (uc *UseCase) ensureCheckoutPaymentAttemptInTx(
 		model.GatewayPaymentChannel,
 		checkoutPaymentIdempotencyKey(contractRow.ID, retryID),
 		checkoutPaymentRequestFingerprint(input, contractRow),
-		tenantID,
-		contextID,
+		"",
+		"",
 		providerCode,
 		uc.paymentReturnURL,
 		uc.paymentReturnURL,
@@ -153,9 +142,7 @@ func validateCheckoutPaymentAttempt(
 		return checkoutPaymentAttemptIdempotencyConflictError(fmt.Errorf("%s: checkout payment attempt does not match request", op))
 	}
 
-	if !sameOptionalString(attempt.TenantID, input.TenantID.String()) ||
-		!sameOptionalString(attempt.ContextID, input.ContextID.String()) ||
-		!sameOptionalString(attempt.ProviderCode, strings.TrimSpace(input.ProviderCode)) ||
+	if !sameOptionalString(attempt.ProviderCode, strings.TrimSpace(input.ProviderCode)) ||
 		!sameOptionalString(attempt.SuccessReturnURL, paymentReturnURL) ||
 		!sameOptionalString(attempt.FailureReturnURL, paymentReturnURL) ||
 		!sameOptionalString(attempt.CancelReturnURL, paymentReturnURL) {

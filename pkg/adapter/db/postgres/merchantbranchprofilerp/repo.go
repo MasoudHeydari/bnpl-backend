@@ -193,6 +193,7 @@ func (q txQueryer) Create(
 	maxAmountOverrideCurrency *model.Currency,
 	maxTenureMonthsOverride *uint,
 	jurisdiction model.Jurisdiction,
+	offerPreparationMode model.OfferPreparationMode,
 	createdAt time.Time,
 	updatedAt time.Time,
 ) (model.MerchantBranchProfile, error) {
@@ -211,9 +212,20 @@ func (q txQueryer) Create(
 		maxAmountOverrideCurrency,
 		maxTenureMonthsOverride,
 		jurisdiction,
+		offerPreparationMode,
 		createdAt,
 		updatedAt,
 	)
+}
+
+// UpdateOfferPreparationMode sets the trusted branch Offer preparation policy.
+func (q txQueryer) UpdateOfferPreparationMode(
+	ctx context.Context,
+	id model.MerchantBranchProfileID,
+	mode model.OfferPreparationMode,
+	updatedAt time.Time,
+) (model.MerchantBranchProfile, error) {
+	return UpdateOfferPreparationMode(ctx, q.Tx, id, mode, updatedAt)
 }
 
 // LockByID returns the branch profile and locks it for state changes.

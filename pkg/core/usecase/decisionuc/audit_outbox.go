@@ -21,7 +21,7 @@ const (
 // checkoutDecisionAuditFacts carries in-transaction identifiers already loaded
 // for the audited Decision. Do not query repositories to populate this struct.
 type checkoutDecisionAuditFacts struct {
-	IdentitySubjectID       model.IdentitySubjectID
+	ExternalCustomerID       model.ExternalCustomerID
 	CustomerID              model.CustomerID
 	MerchantProfileID       model.MerchantProfileID
 	MerchantID              model.MerchantID
@@ -35,7 +35,7 @@ type checkoutDecisionAuditFacts struct {
 // insertCheckoutDecisionAuditOutbox records the concluded checkout decision in
 // the transactional outbox. Call only for newly created decisions, not replay.
 //
-// Actor is the authenticated customer (Identity subject / customer_profiles.identity_subject_id).
+// Actor is the authenticated customer (Identity subject / customer_profiles.external_customer_id).
 // Decision.ActorType remains system and is recorded in Metadata as decision_actor_type.
 func (uc *UseCase) insertCheckoutDecisionAuditOutbox(
 	ctx context.Context,
@@ -97,14 +97,14 @@ func buildCheckoutDecisionAuditEvent(
 ) (audit.Event, error) {
 	const op = "decisionuc.buildCheckoutDecisionAuditEvent"
 
-	actorID := facts.IdentitySubjectID.String()
+	actorID := facts.ExternalCustomerID.String()
 	reasonCodes := decision.ReasonCodes
 
 	metadata := map[string]any{
 		"decision_id":                decision.ID.String(),
 		"checkout_key":               decision.IdempotencyKey,
 		"customer_id":                facts.CustomerID.String(),
-		"identity_subject_id":        facts.IdentitySubjectID.String(),
+		"identity_subject_id":        facts.ExternalCustomerID.String(),
 		"merchant_profile_id":        facts.MerchantProfileID.String(),
 		"merchant_id":                facts.MerchantID.String(),
 		"merchant_branch_profile_id": facts.MerchantBranchProfileID.String(),

@@ -37,7 +37,7 @@ func toCreateContractInput(c *gin.Context) (contractuc.CreateContractInput, bool
 
 	return contractuc.CreateContractInput{
 		DecisionID:        decisionID,
-		IdentitySubjectID: authCtx.SubjectID.AsIdentitySubjectID(),
+		ExternalCustomerID: authCtx.SubjectID.AsExternalCustomerID(),
 		TenantID:          authCtx.TenantID,
 		ContextID:         authCtx.ContextID,
 	}, true
@@ -113,7 +113,7 @@ func toCancelInput(c *gin.Context) (contractuc.CancelInput, bool) {
 		TenantID:          authCtx.TenantID,
 		ContextID:         authCtx.ContextID,
 		ContractID:        contractID,
-		IdentitySubjectID: authCtx.SubjectID.AsIdentitySubjectID(),
+		ExternalCustomerID: authCtx.SubjectID.AsExternalCustomerID(),
 		IdempotencyKey:    idempotencyKey,
 		Reason:            model.ContractCancellationReason(strings.TrimSpace(req.Reason)),
 	}, true

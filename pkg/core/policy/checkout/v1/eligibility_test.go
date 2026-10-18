@@ -24,7 +24,7 @@ func eligibleEligibilityInput() checkout.EligibilityInput {
 		BranchRequested:      false,
 		CustomerProfile: model.CustomerProfile{
 			ID:                model.CustomerID(uuid.New()),
-			IdentitySubjectID: model.IdentitySubjectID(uuid.New()),
+			ExternalCustomerID: model.ExternalCustomerID(uuid.New()),
 			Jurisdiction:      model.IRJurisdiction,
 			Status:            model.ActiveCustomerStatus,
 		},

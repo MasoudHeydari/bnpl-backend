@@ -14,13 +14,16 @@ import (
 )
 
 const (
-	financialCoreSourceService            = "bnpl-core"
 	financialCorePaymentAttemptSourceType = "bnpl_payment_attempt"
-	financialCoreSourceVersion            = int64(1)
-	financialPartyTypeSubject             = "subject"
+	financialPartyTypeCustomer            = "customer"
 	financialPartyTypeMerchant            = "merchant"
 	maxFinancialIdentifierLength          = 256
 )
+
+func financialCoreSourceVersionPtr() *int64 {
+	v := int64(1)
+	return &v
+}
 
 // ensureFinancialCoreInstallmentPayment creates or recovers the FC collection
 // obligation and checkout session for installments after the activation payment.
@@ -94,12 +97,12 @@ func (uc *UseCase) ensureFinancialCoreInstallmentPayment(
 			return contractNotActiveError()
 		}
 
-		if contractRow.FinancialReceivableID == nil || strings.TrimSpace(*contractRow.FinancialReceivableID) == "" {
+		if contractRow.FinancialMerchantEntitlementID == nil || strings.TrimSpace(*contractRow.FinancialMerchantEntitlementID) == "" {
 			return financialReceivableNotReadyError()
 		}
 
 		customerProfileQ := uc.customerProfile.Conn(conn)
-		customer, loadErr = customerProfileQ.GetByIdentitySubjectID(ctx, input.IdentitySubjectID)
+		customer, loadErr = customerProfileQ.GetByExternalCustomerID(ctx, input.ExternalCustomerID)
 		if loadErr != nil {
 			return loadErr
 		}
@@ -146,17 +149,17 @@ func (uc *UseCase) ensureFinancialCoreInstallmentPayment(
 
 	if obligationID == "" {
 		prepared, prepareErr := uc.checkoutPaymentClient.PrepareCollectionObligation(ctx, extcheckoutpayment.PrepareCollectionObligationInput{
-			SourceType:        financialCorePaymentAttemptSourceType,
-			SourceID:          attempt.ID.String(),
-			SourceVersion:     financialCoreSourceVersion,
-			MerchantID:        merchant.MerchantID.String(),
-			CustomerSubjectID: customer.IdentitySubjectID.String(),
-			Currency:          string(attempt.Currency),
-			AmountMinor:       amountMinor,
-			Application:       extcheckoutpayment.ExistingReceivableCollectionApplication,
-			ReceivableID:      strings.TrimSpace(*contractRow.FinancialReceivableID),
-			Description:       "BNPL installment repayment",
-			DueAt:             installmentRow.DueAt,
+			SourceType:            financialCorePaymentAttemptSourceType,
+			SourceID:              attempt.ID.String(),
+			SourceVersion:         financialCoreSourceVersionPtr(),
+			MerchantID:            merchant.MerchantID.String(),
+			CustomerID:            customer.ExternalCustomerID.String(),
+			Currency:              string(attempt.Currency),
+			AmountMinor:           amountMinor,
+			Application:           extcheckoutpayment.ExistingReceivableCollectionApplication,
+			MerchantEntitlementID: strings.TrimSpace(*contractRow.FinancialMerchantEntitlementID),
+			Description:           "BNPL installment repayment",
+			DueAt:                 installmentRow.DueAt,
 		})
 		if prepareErr != nil {
 			return model.PaymentAttempt{}, prepareErr
@@ -190,23 +193,17 @@ func (uc *UseCase) ensureFinancialCoreInstallmentPayment(
 		providerCode = strings.TrimSpace(*attempt.ProviderCode)
 	}
 
-	if attempt.TenantID == nil || attempt.ContextID == nil ||
-		attempt.SuccessReturnURL == nil || attempt.FailureReturnURL == nil || attempt.CancelReturnURL == nil {
+	if attempt.SuccessReturnURL == nil || attempt.FailureReturnURL == nil || attempt.CancelReturnURL == nil {
 		return model.PaymentAttempt{}, cerr.InternalError(fmt.Errorf("%s: financial request context is incomplete", op))
 	}
 
 	created, err := uc.checkoutPaymentClient.CreateCheckoutPayment(ctx, extcheckoutpayment.CreateCheckoutPaymentInput{
 		IdempotencyKey:         attempt.IdempotencyKey,
-		IdempotencyRecordID:    attempt.ID.String(),
-		RequestFingerprint:     attempt.RequestFingerprint,
-		TenantID:               strings.TrimSpace(*attempt.TenantID),
-		ContextID:              strings.TrimSpace(*attempt.ContextID),
-		SourceService:          financialCoreSourceService,
 		SourceType:             financialCorePaymentAttemptSourceType,
 		SourceID:               attempt.ID.String(),
-		SourceVersion:          financialCoreSourceVersion,
-		PayerType:              financialPartyTypeSubject,
-		PayerID:                customer.IdentitySubjectID.String(),
+		SourceVersion:          financialCoreSourceVersionPtr(),
+		PayerType:              financialPartyTypeCustomer,
+		PayerID:                customer.ExternalCustomerID.String(),
 		PayeeType:              financialPartyTypeMerchant,
 		PayeeID:                merchant.MerchantID.String(),
 		AmountMinor:            amountMinor,

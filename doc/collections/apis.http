@@ -199,21 +199,21 @@ Accept: application/json
 X-Terminal-Id: {{merchant.terminal_id}}
 X-API-Key: {{merchant.api_key}}
 
-### Hosted external — Get session (pre-OTP)
-# Unauthenticated. Path checkout_session_id is the public cs_… token.
+### Customer checkout — Get session (pre-OTP)
+# Unauthenticated. Path is the public cs_… token from Partner Create.
 # Returns masked phone destination for SMS OTP; never full phone or customer ids.
-GET {{base_url}}/api/v1/hosted/checkout-sessions/{{runtime.checkout_session_id}}
+GET {{base_url}}/api/v1/checkout-sessions/{{runtime.checkout_session_id}}
 Accept: application/json
 
-### Hosted external — Start (resolve + offer + send OTP)
-# Unauthenticated. Resolves Identity from the checkout phone, evaluates financing,
-# and sends a templated SMS OTP when the offer is approved.
-POST {{base_url}}/api/v1/hosted/checkout-sessions/{{runtime.checkout_session_id}}/start
+### Customer checkout — Start (prepare offer if needed + send OTP)
+# Unauthenticated. For on_start sessions prepares Decision/Offer; for on_create
+# reuses the prepared Offer. Sends SMS OTP when the offer is approved.
+POST {{base_url}}/api/v1/checkout-sessions/{{runtime.checkout_session_id}}/start
 Accept: application/json
 
-### Hosted external — Confirm with OTP
+### Customer checkout — Confirm with OTP
 # Unauthenticated. Body carries only evaluation_generation + otp.
-POST {{base_url}}/api/v1/hosted/checkout-sessions/{{runtime.checkout_session_id}}/confirm
+POST {{base_url}}/api/v1/checkout-sessions/{{runtime.checkout_session_id}}/confirm
 Accept: application/json
 Content-Type: application/json
 
@@ -222,32 +222,15 @@ Content-Type: application/json
   "otp": "{{runtime.checkout_otp}}"
 }
 
-### Internal checkout — Create session
-# Trusted first-party create: evaluates financing for a named customer up front.
-# Why: first-party apps can pass identity_subject_id; partners cannot.
-# Prerequisite: return destination exists; customer should already have credit
-# (Customer credit — Initiate). Needs both create:merchant and on-behalf perms.
-# After success: paste checkout_session_id → runtime.checkout_session_id
-# and evaluation_generation → runtime.evaluation_generation (offer already present).
-POST {{base_url}}/api/v1/internal/checkout-sessions
+### Customer checkout — Cancel
+# Unauthenticated. Token possession is not strong actor attribution (FIXME).
+POST {{base_url}}/api/v1/checkout-sessions/{{runtime.checkout_session_id}}/cancel
 Accept: application/json
-Content-Type: application/json
-x-auth-subject-id: {{merchant.subject_id}}
-x-auth-tenant-id: {{auth.tenant_id}}
-x-auth-context-id: {{auth.context_id}}
-x-auth-permissions: bnpl:checkout-sessions:create:merchant,bnpl:decisions:create:on-behalf
 
-{
-  "online_store_id": "{{merchant.online_store_id}}",
-  "merchant_order_id": "{{merchant.merchant_order_id_prefix}}-INT-{{$timestamp}}",
-  "idempotency_key": "internal-checkout-{{$timestamp}}",
-  "customer_reference": "{{merchant.customer_reference}}",
-  "return_destination": "{{merchant.return_destination}}",
-  "merchant_state": "{{merchant.merchant_state}}",
-  "requested_amount_minor": {{merchant.requested_amount_minor}},
-  "currency": "{{merchant.currency}}",
-  "identity_subject_id": "{{customer.subject_id}}"
-}
+### Customer checkout — Return
+# Unauthenticated browser return handoff.
+GET {{base_url}}/api/v1/checkout-sessions/{{runtime.checkout_session_id}}/return
+Accept: application/json
 
 ### Customer checkout — Get session
 # Customer reads their checkout session projection (hosted-page refresh).

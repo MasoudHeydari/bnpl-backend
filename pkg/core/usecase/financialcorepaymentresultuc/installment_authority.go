@@ -43,18 +43,11 @@ func (uc *UseCase) resolveAuthoritativeInstallmentResult(
 		)
 	}
 
-	if attempt.TenantID == nil || strings.TrimSpace(*attempt.TenantID) == "" ||
-		attempt.ContextID == nil || strings.TrimSpace(*attempt.ContextID) == "" {
-		return ProcessInput{}, cerr.InternalError(fmt.Errorf("%s: persisted installment financial scope is incomplete", op))
-	}
-
+	sourceVersion := int64(1)
 	status, err := uc.checkoutPaymentClient.GetPaymentStatus(ctx, extcheckoutpayment.GetPaymentStatusInput{
-		TenantID:        strings.TrimSpace(*attempt.TenantID),
-		ContextID:       strings.TrimSpace(*attempt.ContextID),
-		SourceService:   financialCoreBNPLSourceService,
 		SourceType:      financialCorePaymentAttemptSourceType,
 		SourceID:        attempt.ID.String(),
-		SourceVersion:   1,
+		SourceVersion:   &sourceVersion,
 		PaymentIntentID: paymentIntentID,
 	})
 	if err != nil {

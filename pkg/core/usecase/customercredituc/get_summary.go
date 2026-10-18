@@ -16,8 +16,8 @@ import (
 // journal explains how that state changed; it is not recomputed as a financial
 // ledger.
 func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) {
-	if input.IdentitySubjectID.IsZero() {
-		return Output{}, identitySubjectIDRequiredError()
+	if input.ExternalCustomerID.IsZero() {
+		return Output{}, externalCustomerIDRequiredError()
 	}
 
 	now := uc.clock.Now().UTC()
@@ -29,7 +29,7 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 			profile, err := uc.ensureActiveCustomerProfile(
 				ctx,
 				customerProfileQ,
-				input.IdentitySubjectID,
+				input.ExternalCustomerID,
 				now,
 			)
 			if err != nil {
@@ -38,7 +38,7 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 
 			accountQ := uc.creditAccount.Tx(tx)
 			policyAssignmentQ := uc.policyAssignment.Tx(tx)
-			selectedPolicy, err := uc.resolveInitialLimitPolicy(ctx, policyAssignmentQ, input.IdentitySubjectID, now)
+			selectedPolicy, err := uc.resolveInitialLimitPolicy(ctx, policyAssignmentQ, input.ExternalCustomerID, now)
 			if err != nil {
 				return err
 			}
@@ -102,12 +102,12 @@ func zeroSummary(customerID model.CustomerID, currency model.Currency) Output {
 func (uc *UseCase) ensureActiveCustomerProfile(
 	ctx context.Context,
 	profileQ repo.CustomerProfileTxQueryer,
-	identitySubjectID model.IdentitySubjectID,
+	externalCustomerID model.ExternalCustomerID,
 	now time.Time,
 ) (model.CustomerProfile, error) {
 	profile, _, err := profileQ.EnsureExists(
 		ctx,
-		identitySubjectID,
+		externalCustomerID,
 		model.IRJurisdiction,
 		model.ActiveCustomerStatus,
 		now,

@@ -43,7 +43,7 @@ func TestCheckoutFingerprint_DeterministicAndSensitiveToInputs(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	identitySubjectID := model.IdentitySubjectID(uuid.New())
+	externalCustomerID := model.ExternalCustomerID(uuid.New())
 	purchaseContext := PurchaseContext{
 		Channel:  model.POSPurchaseChannel,
 		PosGpsID: model.PosGpsID(uuid.New()),
@@ -51,7 +51,7 @@ func TestCheckoutFingerprint_DeterministicAndSensitiveToInputs(t *testing.T) {
 
 	first, err := uc.checkoutFingerprint(
 		"checkout-intent-1",
-		identitySubjectID,
+		externalCustomerID,
 		purchaseContext,
 		100_000,
 		"IRR",
@@ -62,7 +62,7 @@ func TestCheckoutFingerprint_DeterministicAndSensitiveToInputs(t *testing.T) {
 
 	second, err := uc.checkoutFingerprint(
 		"checkout-intent-1",
-		identitySubjectID,
+		externalCustomerID,
 		purchaseContext,
 		100_000,
 		"IRR",
@@ -74,7 +74,7 @@ func TestCheckoutFingerprint_DeterministicAndSensitiveToInputs(t *testing.T) {
 
 	differentAmount, err := uc.checkoutFingerprint(
 		"checkout-intent-1",
-		identitySubjectID,
+		externalCustomerID,
 		purchaseContext,
 		100_001,
 		"IRR",
@@ -86,7 +86,7 @@ func TestCheckoutFingerprint_DeterministicAndSensitiveToInputs(t *testing.T) {
 
 	differentSource, err := uc.checkoutFingerprint(
 		"checkout-intent-1",
-		identitySubjectID,
+		externalCustomerID,
 		PurchaseContext{
 			Channel:  model.POSPurchaseChannel,
 			PosGpsID: model.PosGpsID(uuid.New()),

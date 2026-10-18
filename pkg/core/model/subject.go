@@ -15,21 +15,21 @@ import (
 // CustomerID or ContractID.
 //
 // Mapping rules:
-//   - For customer APIs, SubjectID equals IdentitySubjectID
-//     (x-auth-subject-id → customer_profiles.identity_subject_id).
+//   - For customer APIs, SubjectID equals ExternalCustomerID
+//     (x-auth-subject-id → customer_profiles.external_customer_id).
 //   - For merchant APIs, SubjectID equals MerchantID
 //     (x-auth-subject-id → merchant_profiles.merchant_id).
 //   - SubjectID is never customer_profiles.id (CustomerID) or
 //     merchant_profiles.id (MerchantProfileID).
 //
-// Convert at the use-case boundary with AsIdentitySubjectID or AsMerchantID
+// Convert at the use-case boundary with AsExternalCustomerID or AsMerchantID
 // according to the caller's role. Do not cross-cast these types into entity
 // primary keys.
 
 // SubjectID is the Identity Service subject UUID from x-auth-subject-id.
 //
-// Its meaning is role-polymorphic: customer callers carry an IdentitySubjectID;
-// merchant callers carry a MerchantID. Use AsIdentitySubjectID or AsMerchantID
+// Its meaning is role-polymorphic: customer callers carry an ExternalCustomerID;
+// merchant callers carry a MerchantID. Use AsExternalCustomerID or AsMerchantID
 // at the authenticated entrypoint; never compare SubjectID directly with
 // internal customer_id / merchant_profile_id columns.
 type SubjectID uuid.UUID
@@ -53,14 +53,14 @@ func (id SubjectID) String() string { return uuid.UUID(id).String() }
 // IsZero reports whether id is the zero (nil) UUID.
 func (id SubjectID) IsZero() bool { return uuid.UUID(id) == uuid.Nil }
 
-// AsIdentitySubjectID interprets the authenticated subject as an external
-// customer identity (customer_profiles.identity_subject_id).
+// AsExternalCustomerID interprets the authenticated subject as an external
+// customer identity (customer_profiles.external_customer_id).
 //
 // Call this only on customer-authenticated paths. Resolve the BNPL profile
-// with GetByIdentitySubjectID / LockByIdentitySubjectID / EnsureExists, then
+// with GetByExternalCustomerID / LockByExternalCustomerID / EnsureExists, then
 // use profile.ID (CustomerID) for internal foreign keys.
-func (id SubjectID) AsIdentitySubjectID() IdentitySubjectID {
-	return IdentitySubjectID(id)
+func (id SubjectID) AsExternalCustomerID() ExternalCustomerID {
+	return ExternalCustomerID(id)
 }
 
 // AsMerchantID interprets the authenticated subject as an external merchant

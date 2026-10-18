@@ -15,9 +15,9 @@ import (
 
 // CreateInput carries checkout decision material inputs.
 //
-// IdentitySubjectID is the authenticated Identity Service subject ID
-// (x-auth-subject-id / customer_profiles.identity_subject_id). It is resolved via
-// LockByIdentitySubjectID to the BNPL customer profile primary key.
+// ExternalCustomerID is the authenticated Identity Service subject ID
+// (x-auth-subject-id / customer_profiles.external_customer_id). It is resolved via
+// LockByExternalCustomerID to the BNPL customer profile primary key.
 //
 // PurchaseContext explicitly identifies whether checkout originated from a
 // physical POS terminal or an online storefront. The use case resolves the
@@ -32,8 +32,8 @@ type CreateInput struct {
 	// CheckoutKey is the checkout idempotency key.
 	CheckoutKey string
 
-	// IdentitySubjectID is the Identity Service subject mapped to customer_profiles.identity_subject_id.
-	IdentitySubjectID model.IdentitySubjectID
+	// ExternalCustomerID is the Identity Service subject mapped to customer_profiles.external_customer_id.
+	ExternalCustomerID model.ExternalCustomerID
 	// PurchaseContext identifies the authoritative merchant sales source for this checkout.
 	PurchaseContext PurchaseContext
 
@@ -120,7 +120,7 @@ func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput,
 			}
 			fingerprint, policyErr = uc.checkoutFingerprint(
 				input.CheckoutKey,
-				input.IdentitySubjectID,
+				input.ExternalCustomerID,
 				input.PurchaseContext,
 				input.RequestedAmountMinor,
 				string(input.Currency),
@@ -152,13 +152,13 @@ func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput,
 			return existingErr
 		}
 
-		selectedPolicy, err := uc.resolveCheckoutPolicy(ctx, policyAssignmentQ, input.IdentitySubjectID, now)
+		selectedPolicy, err := uc.resolveCheckoutPolicy(ctx, policyAssignmentQ, input.ExternalCustomerID, now)
 		if err != nil {
 			return err
 		}
 		fingerprint, err = uc.checkoutFingerprint(
 			input.CheckoutKey,
-			input.IdentitySubjectID,
+			input.ExternalCustomerID,
 			input.PurchaseContext,
 			input.RequestedAmountMinor,
 			string(input.Currency),
@@ -170,7 +170,7 @@ func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput,
 		}
 		installmentCount := selectedPolicy.Terms().InstallmentCount
 
-		customerProfile, err := customerProfileQ.LockByIdentitySubjectID(ctx, input.IdentitySubjectID)
+		customerProfile, err := customerProfileQ.LockByExternalCustomerID(ctx, input.ExternalCustomerID)
 		if err != nil {
 			return err
 		}
@@ -248,7 +248,7 @@ func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput,
 				evaluation.AvailableCreditMinor,
 				installmentCount,
 				checkoutDecisionAuditFacts{
-					IdentitySubjectID:       input.IdentitySubjectID,
+					ExternalCustomerID:       input.ExternalCustomerID,
 					CustomerID:              customerProfile.ID,
 					MerchantProfileID:       merchantProfile.ID,
 					MerchantID:              merchantProfile.MerchantID,
@@ -279,7 +279,7 @@ func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput,
 			evaluation,
 			installmentCount,
 			checkoutDecisionAuditFacts{
-				IdentitySubjectID:       input.IdentitySubjectID,
+				ExternalCustomerID:       input.ExternalCustomerID,
 				CustomerID:              customerID,
 				MerchantProfileID:       merchantProfileID,
 				MerchantID:              merchantProfile.MerchantID,
@@ -327,8 +327,8 @@ func validateCreateInput(input CreateInput) error {
 		return checkoutKeyRequiredError()
 	}
 
-	if input.IdentitySubjectID.IsZero() {
-		return identitySubjectIDRequiredError()
+	if input.ExternalCustomerID.IsZero() {
+		return externalCustomerIDRequiredError()
 	}
 
 	if err := input.PurchaseContext.validate(); err != nil {

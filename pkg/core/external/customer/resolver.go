@@ -35,9 +35,9 @@ type ResolveByMobileInput struct {
 // customer.
 type ResolveByMobileOutput struct {
 	// ExternalCustomerID is the Customer Reference Service customer_id.
-	// Persist it as customer_profiles.identity_subject_id (model.IdentitySubjectID).
+	// Persist it as customer_profiles.external_customer_id (model.ExternalCustomerID).
 	// Never treat this as the BNPL-local model.CustomerID.
-	ExternalCustomerID model.IdentitySubjectID
+	ExternalCustomerID model.ExternalCustomerID
 
 	// Status is the Customer Reference Service wire status.
 	Status Status

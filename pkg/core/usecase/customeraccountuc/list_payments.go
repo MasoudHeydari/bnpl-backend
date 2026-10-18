@@ -19,8 +19,8 @@ import (
 // An empty list is a successful result, including when no customer profile exists
 // for the external subject ID.
 func (uc *UseCase) ListPayments(ctx context.Context, input ListPaymentsInput) (ListPaymentsOutput, error) {
-	if input.IdentitySubjectID.IsZero() {
-		return ListPaymentsOutput{}, identitySubjectIDRequiredError()
+	if input.ExternalCustomerID.IsZero() {
+		return ListPaymentsOutput{}, externalCustomerIDRequiredError()
 	}
 
 	page := input.Page
@@ -40,7 +40,7 @@ func (uc *UseCase) ListPayments(ctx context.Context, input ListPaymentsInput) (L
 		ctx,
 		func(ctx context.Context, conn repo.Conn) error {
 			customerProfileQ := uc.customerProfile.Conn(conn)
-			profile, err := customerProfileQ.GetByIdentitySubjectID(ctx, input.IdentitySubjectID)
+			profile, err := customerProfileQ.GetByExternalCustomerID(ctx, input.ExternalCustomerID)
 			if err != nil {
 				if cerr.IsCode(err, cerr.CodeResourceNotFound) {
 					payments = nil

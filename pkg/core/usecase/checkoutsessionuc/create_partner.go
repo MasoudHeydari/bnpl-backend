@@ -10,8 +10,8 @@ import (
 // terminal credentials, then optionally prepares the financing offer.
 //
 // Offer preparation timing follows the trusted
-// merchant_profiles.offer_preparation_mode snapshotted onto the session at
-// create time:
+// merchant_branch_profiles.offer_preparation_mode snapshotted onto the session
+// at create time:
 //   - on_create: resolve the merchant-asserted phone through the Customer
 //     Reference Service, bind the customer, prepare/replay the Decision/Offer,
 //     and return the Offer to the merchant together with the checkout URL.

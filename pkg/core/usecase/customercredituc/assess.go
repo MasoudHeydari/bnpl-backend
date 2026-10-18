@@ -20,7 +20,7 @@ func (uc *UseCase) AssessInitialLimit(
 	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 		var err error
 		policyAssignmentQ := uc.policyAssignment.Conn(conn)
-		selected, err = uc.resolveInitialLimitPolicy(ctx, policyAssignmentQ, input.IdentitySubjectID, now)
+		selected, err = uc.resolveInitialLimitPolicy(ctx, policyAssignmentQ, input.ExternalCustomerID, now)
 		return err
 	})
 	if err != nil {
@@ -38,7 +38,7 @@ func (uc *UseCase) assessInitialLimitWithPolicy(
 		ctx,
 		creditassessment.FetchSignalsInput{
 			CustomerID:        input.CustomerID,
-			IdentitySubjectID: input.IdentitySubjectID,
+			ExternalCustomerID: input.ExternalCustomerID,
 			Jurisdiction:      input.Jurisdiction,
 			RequestedAt:       input.RequestedAt,
 		},

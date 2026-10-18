@@ -12,14 +12,14 @@ import (
 //
 //	@Summary		List contract installments
 //	@Description	Returns the order summary and ordered installment schedule for one BNPL contract owned by the authenticated customer.
-//	@Description	x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.identity_subject_id). Missing or foreign-owned contracts return 404.
+//	@Description	x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Missing or foreign-owned contracts return 404.
 //	@Description	requested_amount_minor is the persisted total order/purchase price. status is the contract lifecycle status.
 //	@Description	next_payable_installment is the earliest unpaid schedule installment by installment_order and the only installment currently eligible for repayment; null when none remain.
 //	@Description	Installments must be paid in sequence: a later installment cannot be paid while an earlier unpaid schedule installment exists.
 //	@Description	Financial Core remains authoritative for monetary truth.
 //	@Tags			Contracts
 //	@Produce		json
-//	@Param			x-auth-subject-id	header		string				true	"Stable authenticated subject identifier issued by Identity Service (customer_profiles.identity_subject_id)"	format(uuid)
+//	@Param			x-auth-subject-id	header		string				true	"Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)"	format(uuid)
 //	@Param			x-auth-tenant-id	header		string				true	"Authenticated tenant UUID"																						format(uuid)
 //	@Param			x-auth-context-id	header		string				true	"Authenticated business-context UUID"																			format(uuid)
 //	@Param			x-auth-permissions	header		string				true	"Comma-separated gateway permissions"																			example(bnpl:installments:read:self)

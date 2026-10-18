@@ -10,9 +10,10 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	paymentv1 "github.com/parstis/bnpl-backend/gen/proto/checkoutpayment/v1"
 	collectionobligationv1 "github.com/parstis/bnpl-backend/gen/proto/collectionobligation/v1"
+	commonv1 "github.com/parstis/bnpl-backend/gen/proto/common/v1"
 	merchantentitlementv1 "github.com/parstis/bnpl-backend/gen/proto/merchantentitlement/v1"
-	paymentv1 "github.com/parstis/bnpl-backend/gen/proto/payment/v1"
 	"github.com/parstis/bnpl-backend/pkg/core/circuitbreaker"
 	extcheckoutpayment "github.com/parstis/bnpl-backend/pkg/core/external/checkoutpayment"
 )
@@ -71,25 +72,36 @@ func Dial(address string, insecureTransport bool) (*grpcclient.ClientConn, error
 }
 
 // CreateCheckoutPayment creates a checkout payment through Financial Core.
+//
+// FIXME(financial-delegation): The Identity-issued financial_delegation
+// acquisition contract is not yet available. Customer Checkout Payment
+// requires this delegation capability (Authorization: Bearer) for
+// party_type=customer. Wire the approved Identity integration here when the
+// contract is published. Never synthesize, reuse an unrelated JWT, or bypass
+// the required customer authorization.
 func (c *Client) CreateCheckoutPayment(
 	ctx context.Context,
 	input extcheckoutpayment.CreateCheckoutPaymentInput,
 ) (extcheckoutpayment.CreateCheckoutPaymentResult, error) {
 	const op = "grpc.Client.CreateCheckoutPayment"
 
+	if strings.TrimSpace(input.PayerType) == extcheckoutpayment.PartyCustomer {
+		// Fail closed until Identity financial_delegation can be attached to
+		// the outbound gRPC metadata. Do not call Financial Core without it.
+		return extcheckoutpayment.CreateCheckoutPaymentResult{}, fmt.Errorf(
+			"%s: %w", op, extcheckoutpayment.ErrFinancialDelegationUnavailable,
+		)
+	}
+
 	callCtx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
+	sourceVersion := input.SourceVersion
 	request := &paymentv1.CreateCheckoutPaymentRequest{
-		Scope: &paymentv1.FinancialScope{
-			TenantId:  input.TenantID,
-			ContextId: input.ContextID,
-		},
-		Source: &paymentv1.FinancialSourceReference{
-			SourceService: input.SourceService,
-			SourceType:    input.SourceType,
-			SourceId:      input.SourceID,
-			SourceVersion: input.SourceVersion,
+		Source: &commonv1.BusinessSourceReference{
+			Type:    input.SourceType,
+			Id:      input.SourceID,
+			Version: sourceVersion,
 		},
 		Payer: &paymentv1.FinancialParty{
 			PartyType: input.PayerType,
@@ -99,19 +111,25 @@ func (c *Client) CreateCheckoutPayment(
 			PartyType: input.PayeeType,
 			PartyId:   input.PayeeID,
 		},
-		PaymentAmount: &paymentv1.Money{
+		PaymentAmount: &commonv1.Money{
 			AmountMinor: input.AmountMinor,
 			Currency:    input.Currency,
 		},
-		ProviderCode:           input.ProviderCode,
-		SuccessReturnUrl:       input.SuccessReturnURL,
-		FailureReturnUrl:       input.FailureReturnURL,
-		CancelReturnUrl:        input.CancelReturnURL,
-		Description:            input.Description,
-		IdempotencyKey:         input.IdempotencyKey,
-		RequestFingerprint:     input.RequestFingerprint,
-		IdempotencyRecordId:    input.IdempotencyRecordID,
-		CollectionObligationId: input.CollectionObligationID,
+		ProviderCode: input.ProviderCode,
+		ReturnUrls: &commonv1.PaymentReturnUrls{
+			SuccessUrl: input.SuccessReturnURL,
+			FailureUrl: input.FailureReturnURL,
+			CancelUrl:  input.CancelReturnURL,
+		},
+		Description:    input.Description,
+		IdempotencyKey: input.IdempotencyKey,
+		Target: &paymentv1.CheckoutPaymentTarget{
+			Kind: &paymentv1.CheckoutPaymentTarget_CollectionObligation{
+				CollectionObligation: &paymentv1.CollectionObligationCheckoutTarget{
+					CollectionObligationId: input.CollectionObligationID,
+				},
+			},
+		},
 	}
 	if !input.ExpiresAt.IsZero() {
 		request.ExpiresAt = timestamppb.New(input.ExpiresAt.UTC())
@@ -145,10 +163,12 @@ func (c *Client) GetPaymentStatus(
 	callCtx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
+	sourceVersion := input.SourceVersion
 	request := &paymentv1.GetPaymentStatusRequest{
-		Scope: &paymentv1.FinancialScope{TenantId: input.TenantID, ContextId: input.ContextID},
-		Source: &paymentv1.FinancialSourceReference{
-			SourceService: input.SourceService, SourceType: input.SourceType, SourceId: input.SourceID, SourceVersion: input.SourceVersion,
+		Source: &commonv1.BusinessSourceReference{
+			Type:    input.SourceType,
+			Id:      input.SourceID,
+			Version: sourceVersion,
 		},
 		PaymentIntentId: input.PaymentIntentID,
 	}
@@ -193,25 +213,30 @@ func (c *Client) GetPaymentStatus(
 }
 
 // PrepareCollectionObligation prepares the generic pre-recognition collection instrument.
-func (c *Client) PrepareCollectionObligation(ctx context.Context, input extcheckoutpayment.PrepareCollectionObligationInput) (extcheckoutpayment.PrepareCollectionObligationResult, error) {
+func (c *Client) PrepareCollectionObligation(
+	ctx context.Context,
+	input extcheckoutpayment.PrepareCollectionObligationInput,
+) (extcheckoutpayment.PrepareCollectionObligationResult, error) {
 	const op = "grpc.Client.PrepareCollectionObligation"
 	callCtx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
-	application, err := mapCollectionApplication(input.Application)
+
+	application, err := mapCollectionApplication(input)
 	if err != nil {
 		return extcheckoutpayment.PrepareCollectionObligationResult{}, err
 	}
 
+	sourceVersion := input.SourceVersion
 	req := &collectionobligationv1.PrepareCollectionObligationRequest{
-		SourceType:            input.SourceType,
-		SourceId:              input.SourceID,
-		SourceVersion:         input.SourceVersion,
-		MerchantId:            input.MerchantID,
-		CustomerSubjectId:     input.CustomerSubjectID,
-		Currency:              input.Currency,
-		AmountMinor:           input.AmountMinor,
-		CollectionApplication: application,
-		ReceivableId:          strings.TrimSpace(input.ReceivableID),
+		Source: &commonv1.BusinessSourceReference{
+			Type:    input.SourceType,
+			Id:      input.SourceID,
+			Version: sourceVersion,
+		},
+		MerchantId:  input.MerchantID,
+		CustomerId:  input.CustomerID,
+		Amount:      &commonv1.Money{AmountMinor: input.AmountMinor, Currency: input.Currency},
+		Application: application,
 	}
 	if input.Description != "" {
 		v := input.Description
@@ -236,15 +261,41 @@ func (c *Client) PrepareCollectionObligation(ctx context.Context, input extcheck
 		return extcheckoutpayment.PrepareCollectionObligationResult{}, fmt.Errorf("%s: invalid response", op)
 	}
 
-	return extcheckoutpayment.PrepareCollectionObligationResult{CollectionObligationID: response.GetCollectionObligationId(), OutstandingAmountMinor: response.GetOutstandingAmountMinor(), Currency: response.GetCurrency(), ReusedIdempotentResult: response.GetReusedIdempotentResult()}, nil
+	outstanding := response.GetOutstandingAmount()
+	return extcheckoutpayment.PrepareCollectionObligationResult{
+		CollectionObligationID: response.GetCollectionObligationId(),
+		OutstandingAmountMinor: outstanding.GetAmountMinor(),
+		Currency:               outstanding.GetCurrency(),
+		ReusedIdempotentResult: response.GetReusedIdempotentResult(),
+	}, nil
 }
 
 // RecordMerchantEntitlement synchronously records Financial Core economic recognition for contract activation.
-func (c *Client) RecordMerchantEntitlement(ctx context.Context, input extcheckoutpayment.RecordMerchantEntitlementInput) (extcheckoutpayment.RecordMerchantEntitlementResult, error) {
+func (c *Client) RecordMerchantEntitlement(
+	ctx context.Context,
+	input extcheckoutpayment.RecordMerchantEntitlementInput,
+) (extcheckoutpayment.RecordMerchantEntitlementResult, error) {
 	const op = "grpc.Client.RecordMerchantEntitlement"
 	callCtx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
-	req := &merchantentitlementv1.RecordMerchantEntitlementRequest{SourceType: input.SourceType, SourceId: input.SourceID, SourceVersion: input.SourceVersion, MerchantId: input.MerchantID, CustomerSubjectId: input.CustomerSubjectID, Currency: input.Currency, CollectedCashAmountMinor: input.CollectedCashAmountMinor, ReceivableAmountMinor: input.ReceivableAmountMinor, MerchantPayableAmountMinor: input.MerchantPayableAmountMinor, MerchantTransactionFeeAmountMinor: input.MerchantTransactionFeeAmountMinor}
+
+	sourceVersion := input.SourceVersion
+	req := &merchantentitlementv1.RecordMerchantEntitlementRequest{
+		Source: &commonv1.BusinessSourceReference{
+			Type:    input.SourceType,
+			Id:      input.SourceID,
+			Version: sourceVersion,
+		},
+		MerchantId: input.MerchantID,
+		CustomerId: input.CustomerID,
+		Economics: &merchantentitlementv1.MerchantEntitlementEconomics{
+			Currency:                          input.Currency,
+			CollectedCashAmountMinor:          input.CollectedCashAmountMinor,
+			ReceivableAmountMinor:             input.ReceivableAmountMinor,
+			MerchantPayableAmountMinor:        input.MerchantPayableAmountMinor,
+			MerchantTransactionFeeAmountMinor: input.MerchantTransactionFeeAmountMinor,
+		},
+	}
 	if input.CollectedCashPaymentIntentID != "" {
 		v := input.CollectedCashPaymentIntentID
 		req.CollectedCashPaymentIntentId = &v
@@ -266,23 +317,39 @@ func (c *Client) RecordMerchantEntitlement(ctx context.Context, input extcheckou
 
 	return extcheckoutpayment.RecordMerchantEntitlementResult{
 		MerchantEntitlementID:  response.GetMerchantEntitlementId(),
-		ReceivableID:           response.GetReceivableId(),
 		ReusedIdempotentResult: response.GetReusedIdempotentResult(),
 	}, nil
 }
 
-func mapCollectionApplication(application extcheckoutpayment.CollectionApplication) (collectionobligationv1.CollectionApplication, error) {
+func mapCollectionApplication(
+	input extcheckoutpayment.PrepareCollectionObligationInput,
+) (*collectionobligationv1.CollectionApplication, error) {
 	const op = "grpc.mapCollectionApplication"
 
-	switch application {
+	switch input.Application {
 	case extcheckoutpayment.PreRecognitionCashCollectionApplication:
-		return collectionobligationv1.CollectionApplication_COLLECTION_APPLICATION_PRE_RECOGNITION_CASH, nil
+		return &collectionobligationv1.CollectionApplication{
+			Kind: &collectionobligationv1.CollectionApplication_PreRecognitionCash{
+				PreRecognitionCash: &collectionobligationv1.PreRecognitionCashCollection{},
+			},
+		}, nil
 
 	case extcheckoutpayment.ExistingReceivableCollectionApplication:
-		return collectionobligationv1.CollectionApplication_COLLECTION_APPLICATION_EXISTING_RECEIVABLE, nil
+		entitlementID := strings.TrimSpace(input.MerchantEntitlementID)
+		if entitlementID == "" {
+			return nil, fmt.Errorf("%s: merchant entitlement id is required for existing receivable collection", op)
+		}
+
+		return &collectionobligationv1.CollectionApplication{
+			Kind: &collectionobligationv1.CollectionApplication_ExistingReceivable{
+				ExistingReceivable: &collectionobligationv1.ExistingReceivableCollection{
+					MerchantEntitlementId: entitlementID,
+				},
+			},
+		}, nil
 
 	default:
-		return collectionobligationv1.CollectionApplication_COLLECTION_APPLICATION_UNSPECIFIED, fmt.Errorf("%s: unsupported collection application %q", op, application)
+		return nil, fmt.Errorf("%s: unsupported collection application %q", op, input.Application)
 	}
 }
 

@@ -22,7 +22,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Evaluates checkout feasibility for a customer/merchant pair and persists a decision.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.identity_subject_id). Do not send customer_id in the body.\npurchase_context.type must be \"pos\" or \"online\"; the channel is explicit and is never inferred from optional fields.\nFor type=pos, purchase_context.pos_gps_id is required; online_store_id and merchant_order_id are forbidden.\nFor type=online, purchase_context.online_store_id is required; pos_gps_id is forbidden; merchant_order_id is optional (max 256 characters).\nMalformed purchase_context combinations are rejected with HTTP 400 before the use case runs.\nBNPL resolves the selling point and merchant from the supplied source identifier; do not send merchant_profile_id or branch_id.\nRequires an authenticated customer subject, an eligible customer profile, and an active credit limit.\nAn approved (including domain conditional / partial financing) checkout Decision atomically creates and returns the persisted installment offer\n(installment IDs, status, order, due date, principal, upfront, fees, totals, payable-now, and total payable).\nFor policies anchored to contract_activation, offered due dates are provisional; installment economics stay fixed and due dates are finalized from the successful activation instant.\ncheckout_action tells the client how to confirm the offer: confirm_and_pay requires the returned initial payment; confirm_purchase creates the contract without an initial payment.\nFrontend clients should drive the checkout button from checkout_action, not from policy version or purchase channel.\nThe HTTP response outcome is always \"approved\" or \"denied\"; persisted conditional outcomes are mapped to \"approved\".\nDenied decisions return reason codes and omit installment_offer; no installment records are created.\nApproval means the customer had enough available credit at evaluation time (limit minus active exposure).\nDoes not reserve or reduce available credit; final capacity is checked again at contract activation.\nIdempotent via Idempotency-Key (checkout_intent_id / checkout key). Returns 201 on create and 200 on idempotent replay\nwith the same Decision and persisted installments (no duplicates).",
+                "description": "Evaluates checkout feasibility for a customer/merchant pair and persists a decision.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Do not send customer_id in the body.\npurchase_context.type must be \"pos\" or \"online\"; the channel is explicit and is never inferred from optional fields.\nFor type=pos, purchase_context.pos_gps_id is required; online_store_id and merchant_order_id are forbidden.\nFor type=online, purchase_context.online_store_id is required; pos_gps_id is forbidden; merchant_order_id is optional (max 256 characters).\nMalformed purchase_context combinations are rejected with HTTP 400 before the use case runs.\nBNPL resolves the selling point and merchant from the supplied source identifier; do not send merchant_profile_id or branch_id.\nRequires an authenticated customer subject, an eligible customer profile, and an active credit limit.\nAn approved (including domain conditional / partial financing) checkout Decision atomically creates and returns the persisted installment offer\n(installment IDs, status, order, due date, principal, upfront, fees, totals, payable-now, and total payable).\nFor policies anchored to contract_activation, offered due dates are provisional; installment economics stay fixed and due dates are finalized from the successful activation instant.\ncheckout_action tells the client how to confirm the offer: confirm_and_pay requires the returned initial payment; confirm_purchase creates the contract without an initial payment.\nFrontend clients should drive the checkout button from checkout_action, not from policy version or purchase channel.\nThe HTTP response outcome is always \"approved\" or \"denied\"; persisted conditional outcomes are mapped to \"approved\".\nDenied decisions return reason codes and omit installment_offer; no installment records are created.\nApproval means the customer had enough available credit at evaluation time (limit minus active exposure).\nDoes not reserve or reduce available credit; final capacity is checked again at contract activation.\nIdempotent via Idempotency-Key (checkout_intent_id / checkout key). Returns 201 on create and 200 on idempotent replay\nwith the same Decision and persisted installments (no duplicates).",
                 "consumes": [
                     "application/json"
                 ],
@@ -37,7 +37,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.identity_subject_id)",
+                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)",
                         "name": "x-auth-subject-id",
                         "in": "header",
                         "required": true
@@ -292,7 +292,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Creates a checkout contract according to the policy snapshot stored on the Decision. When customer action is required, returns redirect_url and expires_at; merchant-funding policies return payment_required=false.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.identity_subject_id). Do not send customer_id or payment provider selection in the body.\nInstallment schedule details are not returned from this endpoint; use contract installment read APIs when needed.\nFor initial-payment policies activation occurs only after an authoritative payment result. Merchant-funding policies create no PaymentAttempt and activate only after authoritative Financial Core merchant funding.\nMerchant funding records MerchantEntitlement synchronously before the contract becomes active. On recognition failure BNPL does not retry in the background; the caller may retry the same contract request.\nIdempotent on decision: returns 201 on create and 200 when a contract already exists.\nPublic response never includes Financial Core payment identifiers.",
+                "description": "Creates a checkout contract according to the policy snapshot stored on the Decision. When customer action is required, returns redirect_url and expires_at; merchant-funding policies return payment_required=false.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Do not send customer_id or payment provider selection in the body.\nInstallment schedule details are not returned from this endpoint; use contract installment read APIs when needed.\nFor initial-payment policies activation occurs only after an authoritative payment result. Merchant-funding policies create no PaymentAttempt and activate only after authoritative Financial Core merchant funding.\nMerchant funding records MerchantEntitlement synchronously before the contract becomes active. On recognition failure BNPL does not retry in the background; the caller may retry the same contract request.\nIdempotent on decision: returns 201 on create and 200 when a contract already exists.\nPublic response never includes Financial Core payment identifiers.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1239,7 +1239,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Returns active or canceling BNPL contracts (purchased orders) owned by the authenticated customer.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.identity_subject_id). Contracts with status=active or canceling are returned.\nNewest contracts first (created_at DESC, id DESC). Empty list is 200, not 404.\nrequested_amount_minor is the persisted total order/purchase price.\nKeyset pagination via limit, after_id, and after_created_at.",
+                "description": "Returns active or canceling BNPL contracts (purchased orders) owned by the authenticated customer.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Contracts with status=active or canceling are returned.\nNewest contracts first (created_at DESC, id DESC). Empty list is 200, not 404.\nrequested_amount_minor is the persisted total order/purchase price.\nKeyset pagination via limit, after_id, and after_created_at.",
                 "produces": [
                     "application/json"
                 ],
@@ -1251,7 +1251,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.identity_subject_id)",
+                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)",
                         "name": "x-auth-subject-id",
                         "in": "header",
                         "required": true
@@ -1441,7 +1441,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Starts cancellation of an active BNPL contract owned by the authenticated customer (active → canceling).\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.identity_subject_id). Do not send customer identity in path or body.\nFinancial Core remains authoritative for canceling → canceled. This endpoint never marks a contract canceled.\nRequires Idempotency-Key. A new request returns 202 only after Financial Core synchronously accepts the cancellation for processing; temporary handoff failures return 503 while durable retry remains scheduled. Exact replay returns 200.",
+                "description": "Starts cancellation of an active BNPL contract owned by the authenticated customer (active → canceling).\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Do not send customer identity in path or body.\nFinancial Core remains authoritative for canceling → canceled. This endpoint never marks a contract canceled.\nRequires Idempotency-Key. A new request returns 202 only after Financial Core synchronously accepts the cancellation for processing; temporary handoff failures return 503 while durable retry remains scheduled. Exact replay returns 200.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1456,7 +1456,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.identity_subject_id)",
+                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)",
                         "name": "x-auth-subject-id",
                         "in": "header",
                         "required": true
@@ -1739,7 +1739,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Returns the order summary and ordered installment schedule for one BNPL contract owned by the authenticated customer.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.identity_subject_id). Missing or foreign-owned contracts return 404.\nrequested_amount_minor is the persisted total order/purchase price. status is the contract lifecycle status.\nnext_payable_installment is the earliest unpaid schedule installment by installment_order and the only installment currently eligible for repayment; null when none remain.\nInstallments must be paid in sequence: a later installment cannot be paid while an earlier unpaid schedule installment exists.\nFinancial Core remains authoritative for monetary truth.",
+                "description": "Returns the order summary and ordered installment schedule for one BNPL contract owned by the authenticated customer.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Missing or foreign-owned contracts return 404.\nrequested_amount_minor is the persisted total order/purchase price. status is the contract lifecycle status.\nnext_payable_installment is the earliest unpaid schedule installment by installment_order and the only installment currently eligible for repayment; null when none remain.\nInstallments must be paid in sequence: a later installment cannot be paid while an earlier unpaid schedule installment exists.\nFinancial Core remains authoritative for monetary truth.",
                 "produces": [
                     "application/json"
                 ],
@@ -1751,7 +1751,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.identity_subject_id)",
+                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)",
                         "name": "x-auth-subject-id",
                         "in": "header",
                         "required": true
@@ -1938,7 +1938,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Queues an installment repayment attempt. When browser action is required, the BNPL payment attempt projection includes redirect_url and expires_at.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.identity_subject_id). Do not send customer_id or payment provider selection in the body.\nInstallments must be paid in sequence: only the earliest unpaid schedule installment for the contract may be paid.\nPayment success is determined by authoritative backend processing, never by browser redirect alone. Requires Idempotency-Key.\nReturns 202 when newly queued and 200 on idempotent replay.\nPublic response never includes Financial Core payment identifiers.",
+                "description": "Queues an installment repayment attempt. When browser action is required, the BNPL payment attempt projection includes redirect_url and expires_at.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Do not send customer_id or payment provider selection in the body.\nInstallments must be paid in sequence: only the earliest unpaid schedule installment for the contract may be paid.\nPayment success is determined by authoritative backend processing, never by browser redirect alone. Requires Idempotency-Key.\nReturns 202 when newly queued and 200 on idempotent replay.\nPublic response never includes Financial Core payment identifiers.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1953,7 +1953,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.identity_subject_id)",
+                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)",
                         "name": "x-auth-subject-id",
                         "in": "header",
                         "required": true
@@ -2224,7 +2224,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Returns the authenticated customer's current BNPL credit summary.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.identity_subject_id), not the internal BNPL profile primary key.\nBNPL resolves or provisions the local customer profile automatically when missing. Profile provisioning is idempotent and does not assign initial credit.\nRequires only an authenticated customer subject; no BNPL profile eligibility or credit limit precondition applies.\nNo request body.\nAvailable credit = effective current credit limit minus active committed financed exposure.\nActive financed exposure is persisted on the customer CreditAccount as outstanding principal from activated contracts.\nCheckout decisions, installment offers, and pre-activation contracts (payment_pending) do not reduce available credit.\nCredit is consumed only when a contract becomes active under its persisted checkout policy.\nWhen no credit limit has been assigned (customer never assessed), data contains only status not_assigned and meta.code is CUSTOMER_CREDIT_NOT_ASSIGNED — clients must initiate credit assessment, not treat this as a zero balance.\nWhen a historical limit exists but is not currently usable (including time-expired), data contains only status expired and expires_at; meta.code is CUSTOMER_CREDIT_EXPIRED — clients must trigger reassessment.\nFor an active limit, available_amount_minor is an integer minor-unit amount in the response currency.",
+                "description": "Returns the authenticated customer's current BNPL credit summary.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id), not the internal BNPL profile primary key.\nBNPL resolves or provisions the local customer profile automatically when missing. Profile provisioning is idempotent and does not assign initial credit.\nRequires only an authenticated customer subject; no BNPL profile eligibility or credit limit precondition applies.\nNo request body.\nAvailable credit = effective current credit limit minus active committed financed exposure.\nActive financed exposure is persisted on the customer CreditAccount as outstanding principal from activated contracts.\nCheckout decisions, installment offers, and pre-activation contracts (payment_pending) do not reduce available credit.\nCredit is consumed only when a contract becomes active under its persisted checkout policy.\nWhen no credit limit has been assigned (customer never assessed), data contains only status not_assigned and meta.code is CUSTOMER_CREDIT_NOT_ASSIGNED — clients must initiate credit assessment, not treat this as a zero balance.\nWhen a historical limit exists but is not currently usable (including time-expired), data contains only status expired and expires_at; meta.code is CUSTOMER_CREDIT_EXPIRED — clients must trigger reassessment.\nFor an active limit, available_amount_minor is an integer minor-unit amount in the response currency.",
                 "produces": [
                     "application/json"
                 ],
@@ -2236,7 +2236,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.identity_subject_id)",
+                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)",
                         "name": "x-auth-subject-id",
                         "in": "header",
                         "required": true
@@ -2395,7 +2395,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Assigns the configured initial credit limit to an eligible customer profile identified by x-auth-subject-id.\nSubject is the customer identity ID (customer_profiles.identity_subject_id).\nThe customer profile is created automatically when it does not exist; the profile primary key is assigned by the database.\nRequires only an authenticated customer subject. No request body.\nReturns 201 when a new limit is created, and 200 for already-assigned or denied outcomes.",
+                "description": "Assigns the configured initial credit limit to an eligible customer profile identified by x-auth-subject-id.\nSubject is the customer identity ID (customer_profiles.external_customer_id).\nThe customer profile is created automatically when it does not exist; the profile primary key is assigned by the database.\nRequires only an authenticated customer subject. No request body.\nReturns 201 when a new limit is created, and 200 for already-assigned or denied outcomes.",
                 "produces": [
                     "application/json"
                 ],
@@ -2407,7 +2407,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.identity_subject_id)",
+                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)",
                         "name": "x-auth-subject-id",
                         "in": "header",
                         "required": true
@@ -2646,7 +2646,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Returns unpaid BNPL installments owned by the authenticated customer across contracts.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.identity_subject_id). Do not send customer identity in path or query.\nOnly installments with status scheduled, due, or overdue and an attached contract_id are returned.\nNearest due date first (due_at ASC, id ASC). Empty list is 200, not 404.\ntotal_amount_minor is an integer minor-unit monetary value in the response currency.\nKeyset pagination via limit, after_id, and after_due_at.",
+                "description": "Returns unpaid BNPL installments owned by the authenticated customer across contracts.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Do not send customer identity in path or query.\nOnly installments with status scheduled, due, or overdue and an attached contract_id are returned.\nNearest due date first (due_at ASC, id ASC). Empty list is 200, not 404.\ntotal_amount_minor is an integer minor-unit monetary value in the response currency.\nKeyset pagination via limit, after_id, and after_due_at.",
                 "produces": [
                     "application/json"
                 ],
@@ -2658,7 +2658,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.identity_subject_id)",
+                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)",
                         "name": "x-auth-subject-id",
                         "in": "header",
                         "required": true
@@ -4418,7 +4418,7 @@ const docTemplate = `{
                         "TerminalID": []
                     }
                 ],
-                "description": "Creates an idempotent merchant checkout handoff authenticated by terminal credentials (X-Terminal-Id, X-API-Key). Requires verified_phone_number. JWT and gateway Subject/Tenant/Context headers are not required.\nOffer preparation timing follows trusted merchant_profiles.offer_preparation_mode (on_create returns the Offer; on_start returns handoff metadata only). Every customer must complete BNPL SMS OTP on the unified token Confirm path.",
+                "description": "Creates an idempotent merchant checkout handoff authenticated by terminal credentials (X-Terminal-Id, X-API-Key). Requires customer_phone. JWT and gateway Subject/Tenant/Context headers are not required.\nOffer preparation timing follows the trusted merchant_branch_profiles.offer_preparation_mode for the selected online_store_id (on_create returns the Offer; on_start returns handoff metadata only). The mode is snapshotted onto the CheckoutSession. Every customer must complete BNPL SMS OTP on the unified token Confirm path.",
                 "consumes": [
                     "application/json"
                 ],
@@ -5366,7 +5366,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Returns finalized installment payment attempts owned by the authenticated customer.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.identity_subject_id). Do not send customer identity in path or query.\nOnly payment attempts in states succeeded, failed, or canceled are returned.\nIn-progress and operational states (created, submitted, reconciliation_required, manual_review_required) are excluded and never mapped to another public status.\nIncludes purposes checkout_first_installment (first_installment) and installment_repayment (installment).\nMultiple finalized attempts for the same installment remain visible as separate rows.\nNewest attempts first (created_at DESC, id DESC). Empty list is 200, not 404.\namount_minor is an integer minor-unit monetary value in the response currency.\ncompleted_at is state-specific when present: succeeded uses applied_at, failed uses failed_at, canceled uses canceled_at; otherwise null.\nRaw provider, reconciliation, and gateway failure details are not exposed.\nKeyset pagination via limit, after_id, and after_created_at.",
+                "description": "Returns finalized installment payment attempts owned by the authenticated customer.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Do not send customer identity in path or query.\nOnly payment attempts in states succeeded, failed, or canceled are returned.\nIn-progress and operational states (created, submitted, reconciliation_required, manual_review_required) are excluded and never mapped to another public status.\nIncludes purposes checkout_first_installment (first_installment) and installment_repayment (installment).\nMultiple finalized attempts for the same installment remain visible as separate rows.\nNewest attempts first (created_at DESC, id DESC). Empty list is 200, not 404.\namount_minor is an integer minor-unit monetary value in the response currency.\ncompleted_at is state-specific when present: succeeded uses applied_at, failed uses failed_at, canceled uses canceled_at; otherwise null.\nRaw provider, reconciliation, and gateway failure details are not exposed.\nKeyset pagination via limit, after_id, and after_created_at.",
                 "produces": [
                     "application/json"
                 ],
@@ -5378,7 +5378,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.identity_subject_id)",
+                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)",
                         "name": "x-auth-subject-id",
                         "in": "header",
                         "required": true
@@ -6111,7 +6111,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "offer": {
-                    "description": "Offer is present only when merchant_profiles.offer_preparation_mode is\non_create (snapshotted onto the session). Omitted for on_start.",
+                    "description": "Offer is present only when the session's snapshotted branch\noffer_preparation_mode is on_create. Omitted for on_start.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/checkoutsessionrs.OfferSchema"

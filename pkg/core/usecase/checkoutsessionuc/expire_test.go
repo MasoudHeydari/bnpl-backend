@@ -201,7 +201,7 @@ func TestStart_LazyExpiryPersistsExpiredAndEmitsLifecycleEvent(t *testing.T) {
 
 	_, err := h.uc.Start(h.ctx, StartInput{
 		CheckoutSessionID: h.sessionID,
-		IdentitySubjectID: h.profileID,
+		ExternalCustomerID: h.profileID,
 	})
 	requireCerr(t, err, cerr.CodeConflict, "error.checkout_session_expired")
 	require.Empty(t, h.decisions.calls)

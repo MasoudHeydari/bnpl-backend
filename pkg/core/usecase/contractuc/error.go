@@ -28,13 +28,13 @@ func decisionIDRequiredError() error {
 	)
 }
 
-// identitySubjectIDRequiredError returns a public validation error when the
-// authenticated Identity Service subject (IdentitySubjectID) is missing from
+// externalCustomerIDRequiredError returns a public validation error when the
+// authenticated Identity Service subject (ExternalCustomerID) is missing from
 // use-case input. REST maps this from x-auth-subject-id; clients must not
 // supply an internal customer_id.
 //
 // Detected locally from input, so cause is intentionally nil.
-func identitySubjectIDRequiredError() error {
+func externalCustomerIDRequiredError() error {
 	return cerr.NewPublic(
 		cerr.CodeInvalidArgument,
 		"error.identity_subject_id_required",
@@ -633,19 +633,20 @@ func paymentResultSourceIDInvalidError() error {
 // cause retains diagnostic detail for logging/tracing and must never be copied
 // into Message or Details. Fields stay empty because this is a dependency
 // failure, not a client field validation issue.
-// financialCoreScopeUnavailableError fails closed when Financial Core scope is
-// required but was not supplied and cannot be fabricated at the checkout boundary.
-func financialCoreScopeUnavailableError(cause error) error {
+// financialDelegationUnavailableError fails closed when customer Checkout
+// Payment cannot be authorized because Identity financial_delegation is not
+// yet integrated. Local PaymentAttempt/Contract state must remain retryable.
+func financialDelegationUnavailableError(cause error) error {
 	return cerr.NewPublic(
 		cerr.CodeForbidden,
-		"error.financial_core_scope_is_not_available",
+		"error.financial_delegation_is_not_available",
 		cause,
 		cerr.Details{
 			Fields: []string{},
 			Violations: []cerr.Violation{
 				{
 					Code:       "FORBIDDEN",
-					MessageKey: "error.financial_core_scope_is_not_available",
+					MessageKey: "error.financial_delegation_is_not_available",
 					Fields:     []string{},
 				},
 			},

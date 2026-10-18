@@ -84,6 +84,7 @@ type MerchantBranchProfileTxQueryer interface {
 	MerchantBranchProfileQueryer
 
 	// Create stores a new branch profile inside the current transaction.
+	// offerPreparationMode defaults to on_start when empty or invalid.
 	Create(
 		ctx context.Context,
 		merchantID model.MerchantID,
@@ -98,7 +99,18 @@ type MerchantBranchProfileTxQueryer interface {
 		maxAmountOverrideCurrency *model.Currency,
 		maxTenureMonthsOverride *uint,
 		jurisdiction model.Jurisdiction,
+		offerPreparationMode model.OfferPreparationMode,
 		createdAt time.Time,
+		updatedAt time.Time,
+	) (model.MerchantBranchProfile, error)
+
+	// UpdateOfferPreparationMode sets the trusted branch Offer preparation
+	// policy. Terminal credentials must never call this; only trusted
+	// administration / provisioning paths may.
+	UpdateOfferPreparationMode(
+		ctx context.Context,
+		id model.MerchantBranchProfileID,
+		mode model.OfferPreparationMode,
 		updatedAt time.Time,
 	) (model.MerchantBranchProfile, error)
 

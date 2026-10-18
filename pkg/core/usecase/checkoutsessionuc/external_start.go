@@ -296,7 +296,7 @@ func (uc *UseCase) beginRequestOTP(
 func (uc *UseCase) bindExternalCustomer(
 	ctx context.Context,
 	token model.CheckoutSessionToken,
-	identitySubjectID model.IdentitySubjectID,
+	externalCustomerID model.ExternalCustomerID,
 ) (model.CheckoutSession, error) {
 	const op = "checkoutsessionuc.UseCase.bindExternalCustomer"
 
@@ -329,7 +329,7 @@ func (uc *UseCase) bindExternalCustomer(
 
 					profile, _, err := customerProfileQ.EnsureExists(
 						ctx,
-						identitySubjectID,
+						externalCustomerID,
 						model.IRJurisdiction,
 						model.ActiveCustomerStatus,
 						now,

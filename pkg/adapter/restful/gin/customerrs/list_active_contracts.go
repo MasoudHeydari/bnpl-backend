@@ -21,13 +21,13 @@ import (
 //
 //	@Summary		List current contracts
 //	@Description	Returns active or canceling BNPL contracts (purchased orders) owned by the authenticated customer.
-//	@Description	x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.identity_subject_id). Contracts with status=active or canceling are returned.
+//	@Description	x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Contracts with status=active or canceling are returned.
 //	@Description	Newest contracts first (created_at DESC, id DESC). Empty list is 200, not 404.
 //	@Description	requested_amount_minor is the persisted total order/purchase price.
 //	@Description	Keyset pagination via limit, after_id, and after_created_at.
 //	@Tags			Contracts
 //	@Produce		json
-//	@Param			x-auth-subject-id	header		string								true	"Stable authenticated subject identifier issued by Identity Service (customer_profiles.identity_subject_id)"	format(uuid)
+//	@Param			x-auth-subject-id	header		string								true	"Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)"	format(uuid)
 //	@Param			x-auth-tenant-id	header		string								true	"Authenticated tenant UUID"																						format(uuid)
 //	@Param			x-auth-context-id	header		string								true	"Authenticated business-context UUID"																			format(uuid)
 //	@Param			x-auth-permissions	header		string								true	"Comma-separated gateway permissions"																			example(bnpl:contracts:read:self)
@@ -100,7 +100,7 @@ func toListActiveContractsInput(c *gin.Context) (customeraccountuc.ListActiveCon
 	page.Order = corepagination.OrderDesc
 
 	return customeraccountuc.ListActiveContractsInput{
-		IdentitySubjectID: authCtx.SubjectID.AsIdentitySubjectID(),
+		ExternalCustomerID: authCtx.SubjectID.AsExternalCustomerID(),
 		Page:              page,
 	}, true
 }

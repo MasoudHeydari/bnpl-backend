@@ -23,8 +23,8 @@ const (
 
 // Input identifies the authenticated external customer (Identity Service subject).
 type Input struct {
-	// IdentitySubjectID is the Identity Service subject mapped to customer_profiles.identity_subject_id.
-	IdentitySubjectID model.IdentitySubjectID
+	// ExternalCustomerID is the Identity Service subject mapped to customer_profiles.external_customer_id.
+	ExternalCustomerID model.ExternalCustomerID
 }
 
 // Output carries the customer's current BNPL credit summary.

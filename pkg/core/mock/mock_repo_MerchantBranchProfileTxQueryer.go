@@ -107,8 +107,8 @@ func (_c *MerchantBranchProfileTxQueryer_CountByMerchantID_Call) RunAndReturn(ru
 }
 
 // Create provides a mock function for the type MerchantBranchProfileTxQueryer
-func (_mock *MerchantBranchProfileTxQueryer) Create(ctx context.Context, merchantID model.MerchantID, branchID model.BranchID, branchType model.MerchantBranchType, status model.BranchStatus, fundingModels []model.FundingModel, settlementModels []model.SettlementModel, currencies []model.Currency, riskTierOverride *model.RiskTier, maxAmountOverrideMinor *uint64, maxAmountOverrideCurrency *model.Currency, maxTenureMonthsOverride *uint, jurisdiction model.Jurisdiction, createdAt time.Time, updatedAt time.Time) (model.MerchantBranchProfile, error) {
-	ret := _mock.Called(ctx, merchantID, branchID, branchType, status, fundingModels, settlementModels, currencies, riskTierOverride, maxAmountOverrideMinor, maxAmountOverrideCurrency, maxTenureMonthsOverride, jurisdiction, createdAt, updatedAt)
+func (_mock *MerchantBranchProfileTxQueryer) Create(ctx context.Context, merchantID model.MerchantID, branchID model.BranchID, branchType model.MerchantBranchType, status model.BranchStatus, fundingModels []model.FundingModel, settlementModels []model.SettlementModel, currencies []model.Currency, riskTierOverride *model.RiskTier, maxAmountOverrideMinor *uint64, maxAmountOverrideCurrency *model.Currency, maxTenureMonthsOverride *uint, jurisdiction model.Jurisdiction, offerPreparationMode model.OfferPreparationMode, createdAt time.Time, updatedAt time.Time) (model.MerchantBranchProfile, error) {
+	ret := _mock.Called(ctx, merchantID, branchID, branchType, status, fundingModels, settlementModels, currencies, riskTierOverride, maxAmountOverrideMinor, maxAmountOverrideCurrency, maxTenureMonthsOverride, jurisdiction, offerPreparationMode, createdAt, updatedAt)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Create")
@@ -116,16 +116,16 @@ func (_mock *MerchantBranchProfileTxQueryer) Create(ctx context.Context, merchan
 
 	var r0 model.MerchantBranchProfile
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantID, model.BranchID, model.MerchantBranchType, model.BranchStatus, []model.FundingModel, []model.SettlementModel, []model.Currency, *model.RiskTier, *uint64, *model.Currency, *uint, model.Jurisdiction, time.Time, time.Time) (model.MerchantBranchProfile, error)); ok {
-		return returnFunc(ctx, merchantID, branchID, branchType, status, fundingModels, settlementModels, currencies, riskTierOverride, maxAmountOverrideMinor, maxAmountOverrideCurrency, maxTenureMonthsOverride, jurisdiction, createdAt, updatedAt)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantID, model.BranchID, model.MerchantBranchType, model.BranchStatus, []model.FundingModel, []model.SettlementModel, []model.Currency, *model.RiskTier, *uint64, *model.Currency, *uint, model.Jurisdiction, model.OfferPreparationMode, time.Time, time.Time) (model.MerchantBranchProfile, error)); ok {
+		return returnFunc(ctx, merchantID, branchID, branchType, status, fundingModels, settlementModels, currencies, riskTierOverride, maxAmountOverrideMinor, maxAmountOverrideCurrency, maxTenureMonthsOverride, jurisdiction, offerPreparationMode, createdAt, updatedAt)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantID, model.BranchID, model.MerchantBranchType, model.BranchStatus, []model.FundingModel, []model.SettlementModel, []model.Currency, *model.RiskTier, *uint64, *model.Currency, *uint, model.Jurisdiction, time.Time, time.Time) model.MerchantBranchProfile); ok {
-		r0 = returnFunc(ctx, merchantID, branchID, branchType, status, fundingModels, settlementModels, currencies, riskTierOverride, maxAmountOverrideMinor, maxAmountOverrideCurrency, maxTenureMonthsOverride, jurisdiction, createdAt, updatedAt)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantID, model.BranchID, model.MerchantBranchType, model.BranchStatus, []model.FundingModel, []model.SettlementModel, []model.Currency, *model.RiskTier, *uint64, *model.Currency, *uint, model.Jurisdiction, model.OfferPreparationMode, time.Time, time.Time) model.MerchantBranchProfile); ok {
+		r0 = returnFunc(ctx, merchantID, branchID, branchType, status, fundingModels, settlementModels, currencies, riskTierOverride, maxAmountOverrideMinor, maxAmountOverrideCurrency, maxTenureMonthsOverride, jurisdiction, offerPreparationMode, createdAt, updatedAt)
 	} else {
 		r0 = ret.Get(0).(model.MerchantBranchProfile)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, model.MerchantID, model.BranchID, model.MerchantBranchType, model.BranchStatus, []model.FundingModel, []model.SettlementModel, []model.Currency, *model.RiskTier, *uint64, *model.Currency, *uint, model.Jurisdiction, time.Time, time.Time) error); ok {
-		r1 = returnFunc(ctx, merchantID, branchID, branchType, status, fundingModels, settlementModels, currencies, riskTierOverride, maxAmountOverrideMinor, maxAmountOverrideCurrency, maxTenureMonthsOverride, jurisdiction, createdAt, updatedAt)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.MerchantID, model.BranchID, model.MerchantBranchType, model.BranchStatus, []model.FundingModel, []model.SettlementModel, []model.Currency, *model.RiskTier, *uint64, *model.Currency, *uint, model.Jurisdiction, model.OfferPreparationMode, time.Time, time.Time) error); ok {
+		r1 = returnFunc(ctx, merchantID, branchID, branchType, status, fundingModels, settlementModels, currencies, riskTierOverride, maxAmountOverrideMinor, maxAmountOverrideCurrency, maxTenureMonthsOverride, jurisdiction, offerPreparationMode, createdAt, updatedAt)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -151,13 +151,14 @@ type MerchantBranchProfileTxQueryer_Create_Call struct {
 //   - maxAmountOverrideCurrency *model.Currency
 //   - maxTenureMonthsOverride *uint
 //   - jurisdiction model.Jurisdiction
+//   - offerPreparationMode model.OfferPreparationMode
 //   - createdAt time.Time
 //   - updatedAt time.Time
-func (_e *MerchantBranchProfileTxQueryer_Expecter) Create(ctx any, merchantID any, branchID any, branchType any, status any, fundingModels any, settlementModels any, currencies any, riskTierOverride any, maxAmountOverrideMinor any, maxAmountOverrideCurrency any, maxTenureMonthsOverride any, jurisdiction any, createdAt any, updatedAt any) *MerchantBranchProfileTxQueryer_Create_Call {
-	return &MerchantBranchProfileTxQueryer_Create_Call{Call: _e.mock.On("Create", ctx, merchantID, branchID, branchType, status, fundingModels, settlementModels, currencies, riskTierOverride, maxAmountOverrideMinor, maxAmountOverrideCurrency, maxTenureMonthsOverride, jurisdiction, createdAt, updatedAt)}
+func (_e *MerchantBranchProfileTxQueryer_Expecter) Create(ctx any, merchantID any, branchID any, branchType any, status any, fundingModels any, settlementModels any, currencies any, riskTierOverride any, maxAmountOverrideMinor any, maxAmountOverrideCurrency any, maxTenureMonthsOverride any, jurisdiction any, offerPreparationMode any, createdAt any, updatedAt any) *MerchantBranchProfileTxQueryer_Create_Call {
+	return &MerchantBranchProfileTxQueryer_Create_Call{Call: _e.mock.On("Create", ctx, merchantID, branchID, branchType, status, fundingModels, settlementModels, currencies, riskTierOverride, maxAmountOverrideMinor, maxAmountOverrideCurrency, maxTenureMonthsOverride, jurisdiction, offerPreparationMode, createdAt, updatedAt)}
 }
 
-func (_c *MerchantBranchProfileTxQueryer_Create_Call) Run(run func(ctx context.Context, merchantID model.MerchantID, branchID model.BranchID, branchType model.MerchantBranchType, status model.BranchStatus, fundingModels []model.FundingModel, settlementModels []model.SettlementModel, currencies []model.Currency, riskTierOverride *model.RiskTier, maxAmountOverrideMinor *uint64, maxAmountOverrideCurrency *model.Currency, maxTenureMonthsOverride *uint, jurisdiction model.Jurisdiction, createdAt time.Time, updatedAt time.Time)) *MerchantBranchProfileTxQueryer_Create_Call {
+func (_c *MerchantBranchProfileTxQueryer_Create_Call) Run(run func(ctx context.Context, merchantID model.MerchantID, branchID model.BranchID, branchType model.MerchantBranchType, status model.BranchStatus, fundingModels []model.FundingModel, settlementModels []model.SettlementModel, currencies []model.Currency, riskTierOverride *model.RiskTier, maxAmountOverrideMinor *uint64, maxAmountOverrideCurrency *model.Currency, maxTenureMonthsOverride *uint, jurisdiction model.Jurisdiction, offerPreparationMode model.OfferPreparationMode, createdAt time.Time, updatedAt time.Time)) *MerchantBranchProfileTxQueryer_Create_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -211,13 +212,17 @@ func (_c *MerchantBranchProfileTxQueryer_Create_Call) Run(run func(ctx context.C
 		if args[12] != nil {
 			arg12 = args[12].(model.Jurisdiction)
 		}
-		var arg13 time.Time
+		var arg13 model.OfferPreparationMode
 		if args[13] != nil {
-			arg13 = args[13].(time.Time)
+			arg13 = args[13].(model.OfferPreparationMode)
 		}
 		var arg14 time.Time
 		if args[14] != nil {
 			arg14 = args[14].(time.Time)
+		}
+		var arg15 time.Time
+		if args[15] != nil {
+			arg15 = args[15].(time.Time)
 		}
 		run(
 			arg0,
@@ -235,6 +240,7 @@ func (_c *MerchantBranchProfileTxQueryer_Create_Call) Run(run func(ctx context.C
 			arg12,
 			arg13,
 			arg14,
+			arg15,
 		)
 	})
 	return _c
@@ -245,7 +251,7 @@ func (_c *MerchantBranchProfileTxQueryer_Create_Call) Return(merchantBranchProfi
 	return _c
 }
 
-func (_c *MerchantBranchProfileTxQueryer_Create_Call) RunAndReturn(run func(ctx context.Context, merchantID model.MerchantID, branchID model.BranchID, branchType model.MerchantBranchType, status model.BranchStatus, fundingModels []model.FundingModel, settlementModels []model.SettlementModel, currencies []model.Currency, riskTierOverride *model.RiskTier, maxAmountOverrideMinor *uint64, maxAmountOverrideCurrency *model.Currency, maxTenureMonthsOverride *uint, jurisdiction model.Jurisdiction, createdAt time.Time, updatedAt time.Time) (model.MerchantBranchProfile, error)) *MerchantBranchProfileTxQueryer_Create_Call {
+func (_c *MerchantBranchProfileTxQueryer_Create_Call) RunAndReturn(run func(ctx context.Context, merchantID model.MerchantID, branchID model.BranchID, branchType model.MerchantBranchType, status model.BranchStatus, fundingModels []model.FundingModel, settlementModels []model.SettlementModel, currencies []model.Currency, riskTierOverride *model.RiskTier, maxAmountOverrideMinor *uint64, maxAmountOverrideCurrency *model.Currency, maxTenureMonthsOverride *uint, jurisdiction model.Jurisdiction, offerPreparationMode model.OfferPreparationMode, createdAt time.Time, updatedAt time.Time) (model.MerchantBranchProfile, error)) *MerchantBranchProfileTxQueryer_Create_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -990,6 +996,84 @@ func (_c *MerchantBranchProfileTxQueryer_LockByPosGpsID_Call) Return(merchantBra
 }
 
 func (_c *MerchantBranchProfileTxQueryer_LockByPosGpsID_Call) RunAndReturn(run func(ctx context.Context, posGpsID model.PosGpsID) (model.MerchantBranchProfile, error)) *MerchantBranchProfileTxQueryer_LockByPosGpsID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateOfferPreparationMode provides a mock function for the type MerchantBranchProfileTxQueryer
+func (_mock *MerchantBranchProfileTxQueryer) UpdateOfferPreparationMode(ctx context.Context, id model.MerchantBranchProfileID, mode model.OfferPreparationMode, updatedAt time.Time) (model.MerchantBranchProfile, error) {
+	ret := _mock.Called(ctx, id, mode, updatedAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateOfferPreparationMode")
+	}
+
+	var r0 model.MerchantBranchProfile
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantBranchProfileID, model.OfferPreparationMode, time.Time) (model.MerchantBranchProfile, error)); ok {
+		return returnFunc(ctx, id, mode, updatedAt)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantBranchProfileID, model.OfferPreparationMode, time.Time) model.MerchantBranchProfile); ok {
+		r0 = returnFunc(ctx, id, mode, updatedAt)
+	} else {
+		r0 = ret.Get(0).(model.MerchantBranchProfile)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.MerchantBranchProfileID, model.OfferPreparationMode, time.Time) error); ok {
+		r1 = returnFunc(ctx, id, mode, updatedAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MerchantBranchProfileTxQueryer_UpdateOfferPreparationMode_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateOfferPreparationMode'
+type MerchantBranchProfileTxQueryer_UpdateOfferPreparationMode_Call struct {
+	*mock.Call
+}
+
+// UpdateOfferPreparationMode is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id model.MerchantBranchProfileID
+//   - mode model.OfferPreparationMode
+//   - updatedAt time.Time
+func (_e *MerchantBranchProfileTxQueryer_Expecter) UpdateOfferPreparationMode(ctx any, id any, mode any, updatedAt any) *MerchantBranchProfileTxQueryer_UpdateOfferPreparationMode_Call {
+	return &MerchantBranchProfileTxQueryer_UpdateOfferPreparationMode_Call{Call: _e.mock.On("UpdateOfferPreparationMode", ctx, id, mode, updatedAt)}
+}
+
+func (_c *MerchantBranchProfileTxQueryer_UpdateOfferPreparationMode_Call) Run(run func(ctx context.Context, id model.MerchantBranchProfileID, mode model.OfferPreparationMode, updatedAt time.Time)) *MerchantBranchProfileTxQueryer_UpdateOfferPreparationMode_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.MerchantBranchProfileID
+		if args[1] != nil {
+			arg1 = args[1].(model.MerchantBranchProfileID)
+		}
+		var arg2 model.OfferPreparationMode
+		if args[2] != nil {
+			arg2 = args[2].(model.OfferPreparationMode)
+		}
+		var arg3 time.Time
+		if args[3] != nil {
+			arg3 = args[3].(time.Time)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *MerchantBranchProfileTxQueryer_UpdateOfferPreparationMode_Call) Return(merchantBranchProfile model.MerchantBranchProfile, err error) *MerchantBranchProfileTxQueryer_UpdateOfferPreparationMode_Call {
+	_c.Call.Return(merchantBranchProfile, err)
+	return _c
+}
+
+func (_c *MerchantBranchProfileTxQueryer_UpdateOfferPreparationMode_Call) RunAndReturn(run func(ctx context.Context, id model.MerchantBranchProfileID, mode model.OfferPreparationMode, updatedAt time.Time) (model.MerchantBranchProfile, error)) *MerchantBranchProfileTxQueryer_UpdateOfferPreparationMode_Call {
 	_c.Call.Return(run)
 	return _c
 }

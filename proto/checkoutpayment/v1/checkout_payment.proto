@@ -2,7 +2,9 @@ syntax = "proto3";
 
 package payment.v1;
 
-option go_package = "github.com/parstis/bnpl-backend/gen/proto/payment/v1;paymentv1";
+// Package path matches protoc paths=source_relative output under
+// gen/proto/checkoutpayment/v1. The wire package remains payment.v1.
+option go_package = "github.com/parstis/bnpl-backend/gen/proto/checkoutpayment/v1;paymentv1";
 
 import "google/protobuf/timestamp.proto";
 import "common/v1/common.proto";

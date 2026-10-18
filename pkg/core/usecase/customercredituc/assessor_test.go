@@ -110,7 +110,7 @@ func TestAssessInitialLimit_UsesInjectedPolicyRef(t *testing.T) {
 
 	result, err := uc.AssessInitialLimit(context.Background(), customercredituc.InitialLimitAssessmentInput{
 		CustomerID:        model.CustomerID(uuid.New()),
-		IdentitySubjectID: model.IdentitySubjectID(uuid.New()),
+		ExternalCustomerID: model.ExternalCustomerID(uuid.New()),
 		Jurisdiction:      model.IRJurisdiction,
 		RequestedAt:       time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC),
 	})
@@ -141,7 +141,7 @@ func TestAssessInitialLimit_DeterministicAgainstRealPolicy(t *testing.T) {
 
 	input := customercredituc.InitialLimitAssessmentInput{
 		CustomerID:        model.CustomerID(uuid.New()),
-		IdentitySubjectID: model.IdentitySubjectID(uuid.New()),
+		ExternalCustomerID: model.ExternalCustomerID(uuid.New()),
 		Jurisdiction:      model.IRJurisdiction,
 		RequestedAt:       time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC),
 	}
@@ -178,7 +178,7 @@ func TestAssessInitialLimit_PropagatesClientError(t *testing.T) {
 
 	_, err = uc.AssessInitialLimit(context.Background(), customercredituc.InitialLimitAssessmentInput{
 		CustomerID:        model.CustomerID(uuid.New()),
-		IdentitySubjectID: model.IdentitySubjectID(uuid.New()),
+		ExternalCustomerID: model.ExternalCustomerID(uuid.New()),
 		Jurisdiction:      model.IRJurisdiction,
 		RequestedAt:       time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC),
 	})

@@ -21,14 +21,14 @@ import (
 //
 //	@Summary		List unpaid installments
 //	@Description	Returns unpaid BNPL installments owned by the authenticated customer across contracts.
-//	@Description	x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.identity_subject_id). Do not send customer identity in path or query.
+//	@Description	x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Do not send customer identity in path or query.
 //	@Description	Only installments with status scheduled, due, or overdue and an attached contract_id are returned.
 //	@Description	Nearest due date first (due_at ASC, id ASC). Empty list is 200, not 404.
 //	@Description	total_amount_minor is an integer minor-unit monetary value in the response currency.
 //	@Description	Keyset pagination via limit, after_id, and after_due_at.
 //	@Tags			Installments
 //	@Produce		json
-//	@Param			x-auth-subject-id	header		string								true	"Stable authenticated subject identifier issued by Identity Service (customer_profiles.identity_subject_id)"	format(uuid)
+//	@Param			x-auth-subject-id	header		string								true	"Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)"	format(uuid)
 //	@Param			x-auth-tenant-id	header		string								true	"Authenticated tenant UUID"																						format(uuid)
 //	@Param			x-auth-context-id	header		string								true	"Authenticated business-context UUID"																			format(uuid)
 //	@Param			x-auth-permissions	header		string								true	"Comma-separated gateway permissions"																			example(bnpl:installments:read:self)
@@ -101,7 +101,7 @@ func toListUnpaidInstallmentsInput(c *gin.Context) (customeraccountuc.ListUnpaid
 	page.Order = corepagination.OrderAsc
 
 	return customeraccountuc.ListUnpaidInstallmentsInput{
-		IdentitySubjectID: authCtx.SubjectID.AsIdentitySubjectID(),
+		ExternalCustomerID: authCtx.SubjectID.AsExternalCustomerID(),
 		Page:              page,
 	}, true
 }

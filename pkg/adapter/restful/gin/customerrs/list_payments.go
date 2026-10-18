@@ -38,7 +38,7 @@ const (
 //
 //	@Summary		List installment payment history
 //	@Description	Returns finalized installment payment attempts owned by the authenticated customer.
-//	@Description	x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.identity_subject_id). Do not send customer identity in path or query.
+//	@Description	x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Do not send customer identity in path or query.
 //	@Description	Only payment attempts in states succeeded, failed, or canceled are returned.
 //	@Description	In-progress and operational states (created, submitted, reconciliation_required, manual_review_required) are excluded and never mapped to another public status.
 //	@Description	Includes purposes checkout_first_installment (first_installment) and installment_repayment (installment).
@@ -50,7 +50,7 @@ const (
 //	@Description	Keyset pagination via limit, after_id, and after_created_at.
 //	@Tags			Installment Payments
 //	@Produce		json
-//	@Param			x-auth-subject-id	header		string						true	"Stable authenticated subject identifier issued by Identity Service (customer_profiles.identity_subject_id)"	format(uuid)
+//	@Param			x-auth-subject-id	header		string						true	"Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)"	format(uuid)
 //	@Param			x-auth-tenant-id	header		string						true	"Authenticated tenant UUID"																						format(uuid)
 //	@Param			x-auth-context-id	header		string						true	"Authenticated business-context UUID"																			format(uuid)
 //	@Param			x-auth-permissions	header		string						true	"Comma-separated gateway permissions"																			example(bnpl:payments:read:self)
@@ -129,7 +129,7 @@ func toListPaymentsInput(c *gin.Context) (customeraccountuc.ListPaymentsInput, b
 	page.Order = corepagination.OrderDesc
 
 	return customeraccountuc.ListPaymentsInput{
-		IdentitySubjectID: authCtx.SubjectID.AsIdentitySubjectID(),
+		ExternalCustomerID: authCtx.SubjectID.AsExternalCustomerID(),
 		Page:              page,
 	}, true
 }

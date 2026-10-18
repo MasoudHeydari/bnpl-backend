@@ -97,7 +97,7 @@ func (uc *UseCase) submitPreparedMerchantFunding(
 
 	var (
 		selected          checkout.Policy
-		identitySubjectID model.IdentitySubjectID
+		externalCustomerID model.ExternalCustomerID
 	)
 
 	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
@@ -114,7 +114,7 @@ func (uc *UseCase) submitPreparedMerchantFunding(
 			return profileErr
 		}
 
-		identitySubjectID = profile.IdentitySubjectID
+		externalCustomerID = profile.ExternalCustomerID
 
 		var resolveErr error
 		selected, resolveErr = uc.checkoutPolicies.Resolve(policy.Ref{
@@ -146,7 +146,7 @@ func (uc *UseCase) submitPreparedMerchantFunding(
 		ctx,
 		CreateContractInput{
 			DecisionID:        contract.DecisionID,
-			IdentitySubjectID: identitySubjectID,
+			ExternalCustomerID: externalCustomerID,
 		},
 		merchantFundingPrep,
 		selected,
@@ -185,7 +185,7 @@ func (uc *UseCase) prepareMerchantFunding(
 			creditAccountQ := uc.creditAccount.Tx(tx)
 			installmentQ := uc.installment.Tx(tx)
 
-			profile, err := profileQ.LockByIdentitySubjectID(ctx, input.IdentitySubjectID)
+			profile, err := profileQ.LockByExternalCustomerID(ctx, input.ExternalCustomerID)
 			if err != nil {
 				if cerr.IsCode(err, cerr.CodeResourceNotFound) {
 					return checkoutDecisionDoesNotBelongToCustomerError(
@@ -580,7 +580,7 @@ func (uc *UseCase) finalizeMerchantFundingActivation(
 			if err = uc.insertCreateActiveContractAuditOutbox(
 				ctx,
 				outboxQ,
-				input.IdentitySubjectID,
+				input.ExternalCustomerID,
 				activated,
 				updatedInstallments,
 				now,

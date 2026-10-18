@@ -38,7 +38,7 @@ func (c *Client) ResolveByMobile(
 		return extcustomer.ResolveByMobileOutput{}, fmt.Errorf("%s: mobile is required", op)
 	}
 
-	externalCustomerID, err := model.ParseIdentitySubjectID(
+	externalCustomerID, err := model.ParseExternalCustomerID(
 		uuid.NewSHA1(customerNamespace, []byte(mobile)).String(),
 	)
 	if err != nil {

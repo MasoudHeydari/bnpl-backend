@@ -1,16 +1,13 @@
 # External Partner ↔ BNPL Checkout Integration Guide
 
-> This document is the **merchant-facing integration contract** for an **external / untrusted** partner (for example Digikala, Technolife — not a first-party internal merchant such as Damz).
+> This document is the **merchant-facing integration contract** for Partner checkout (Digikala, Technolife, Damz, and all other merchants). All merchants use the same Partner Create API and customer token lifecycle; first-party notes live in [internal-partner-checkout.md](internal-partner-checkout.md).
 >
 > Financial Core, PSP, payment providers, payment intents/sessions, and other BNPL internals are **out of contract**. Do not model them in the merchant domain.
->
-> For trusted internal partners (for example Damz), see [internal-partner-checkout.md](internal-partner-checkout.md).
 
 **Audience:** Merchant Backend · Merchant Frontend · Merchant QA · Cursor / AI coding agents in the merchant repo  
 **Source of truth:** Latest BNPL source (`checkoutsessionrs`, `checkoutsessionuc`, `checkoutlifecycle`, `checkoutotp`, external `identity` / `notification` ports, `merchantwebhook/http`, `merchantterminaluc`, permission catalog, return/webhook policies)  
 **Base path:** all REST paths below are under `/api/v1`  
-**Auth:** Partner APIs authenticate Merchant identity with terminal credentials — `X-Terminal-Id` + `X-API-Key` on every `/api/v1/partner/**` call; see [Partner terminal authentication](#authentication--permissions) and [api.md](../api.md#partner-terminal-authentication). Partner Create is JWT-independent: Financial Core TenantID/ContextID come from the merchant's server-owned payment scope (not Gateway headers; not request-body fields). Gateway-provided SubjectID/Permissions do not control Partner Merchant identity or permissions.  
-**Do not use** `POST /api/v1/internal/checkout-sessions` for this integration.
+**Auth:** Partner APIs authenticate Merchant identity with terminal credentials — `X-Terminal-Id` + `X-API-Key` on every `/api/v1/partner/**` call; see [Partner terminal authentication](#authentication--permissions) and [api.md](../api.md#partner-terminal-authentication). Partner Create is JWT-independent (no Gateway tenant/context/subject headers). Customer token routes under `/api/v1/checkout-sessions/:token` are also JWT-independent (public token + OTP). Gateway-provided SubjectID/Permissions do not control Partner Merchant identity or permissions. Checkout payment uses Financial Core v2 without FinancialScope/tenant/context on new payment RPCs; `financial_delegation` is unresolved (FIXME) — customer payment fails closed until defined.
 
 ---
 
@@ -21,13 +18,13 @@ Create Checkout (Identity resolve + Decision/Offer prepared; no OTP)
     ↓
 Receive checkout_url
     ↓
-Redirect Customer to BNPL Hosted Checkout
+Redirect Customer to BNPL Checkout UI (checkout_url)
     ↓
-Hosted GET → customer sees prepared offer
+GET /checkout-sessions/{token} → customer sees offer (per branch offer_preparation_mode)
     ↓
-Continue → Hosted START → SMS OTP
+Continue → POST .../start → SMS OTP (when mode is on_start or refresh needed)
     ↓
-Confirm → OTP authorizes generation → Contract fulfillment
+POST .../confirm → OTP authorizes generation → Contract fulfillment
     ↓
 Receive Authoritative Result via Signed Webhook and/or Inquiry
 ```
@@ -65,12 +62,12 @@ Merchant Frontend / Browser
         |
         | Redirect (opaque URL)
         v
-BNPL Hosted Checkout
+BNPL Checkout UI (token routes)
         |
-        | GET: project persisted safe offer (read-only)
-        | Continue / START: issue SMS OTP for exact evaluation_generation
-        | Confirm: OTP proves phone possession + authorizes that generation
-        | BNPL Handles Contract + Payment Internally
+        | GET /checkout-sessions/{token}: project persisted safe offer (read-only)
+        | POST .../start: issue SMS OTP for exact evaluation_generation
+        | POST .../confirm: OTP proves phone possession + authorizes that generation
+        | BNPL handles contract + payment internally
         v
 BNPL
         |
@@ -93,23 +90,22 @@ Merchant **never**:
 
 ---
 
-## External Merchant vs Internal Merchant
+## Unified Partner Create (all merchants)
 
-| | External (`/partner/...`) | Internal (`/internal/...`) |
+Digikala, Technolife, Damz, and other merchants all use **`POST /api/v1/partner/checkout-sessions`** with **`X-Terminal-Id` + `X-API-Key`** and required **`customer_phone`**. There is no separate merchant create route and no `identity_subject_id` on create.
+
+The main operational difference between merchants is **`merchant_branch_profiles.offer_preparation_mode`** for the selling branch (snapshotted on the session):
+
+| Mode | When Decision/Offer is prepared | Customer experience |
 | --- | --- | --- |
-| Create route | `POST /partner/checkout-sessions` | `POST /internal/checkout-sessions` |
-| Authentication | `X-Terminal-Id` + `X-API-Key` (terminal credentials) | Gateway `x-auth-*` (trusted internal principal) |
-| Authorization | Server-side terminal permission assignments | Gateway `x-auth-permissions` |
-| Create permission | `bnpl:checkout-sessions:create:merchant` (terminal-assigned) | create **and** `bnpl:decisions:create:on-behalf` |
-| Customer at create | **Not** sent | Requires `identity_subject_id` |
-| Customer identity | Required `customer_phone` (`09…` or `+989…` → E.164); optional `customer_reference` | Optional `customer_reference` |
-| Who is financed | Merchant-asserted phone resolved at **Partner Create** via Identity `ResolveSubjectByMobile`; OTP later proves possession | Pre-bound trusted customer |
-| Evaluation at create | **Yes** — Identity resolve + Decision/Offer prepared before successful `open`; **no OTP** | Immediate Decision + offer in create response |
-| Create response | `checkout_session_id`, `status`, `checkout_url`, `expires_at` (no offer) | Same plus `evaluation_generation` + `offer` |
-| Merchant Backend calls `start` / `confirm` | **Never** | **Never** (hosted UI only) |
-| Credit / schedule visible to merchant | **Never** on partner APIs | Offer summary on internal create only |
+| `on_start` (default) | On customer `POST .../start` after Continue | Page load may show status without a full offer until Continue |
+| `on_create` | Before successful Partner Create returns (when policy allows) | Page load can show the prepared safe offer immediately |
 
-External merchant only knows its own customer handle, for example:
+Partner Create response is always merchant-safe: `checkout_session_id` (public `cs_…` token), `status`, `checkout_url`, `expires_at` — **never** credit, schedules, or Decision economics.
+
+First-party Damz notes: [internal-partner-checkout.md](internal-partner-checkout.md).
+
+Merchant-only customer handle example:
 
 ```text
 customer_reference = DAMZ-CUSTOMER-12345
@@ -138,11 +134,11 @@ RequireAny(permission)
         ↓
 Partner use case
         ↓ (Create)
-merchant_profiles.offer_preparation_mode
+merchant_branch_profiles.offer_preparation_mode
         ↓ snapshot onto checkout_sessions.offer_preparation_mode
-Hosted START (on_start) or Create response (on_create) prepares offer
+on_create: prepare before create success · on_start: prepare on customer POST .../start
         ↓
-Hosted Confirm → contract/payment (FC scope on payment_attempt only)
+Customer POST .../confirm → contract/payment (Financial Core v2; no scope/tenant/context on RPC — delegation FIXME, fail closed)
 ```
 
 **Trust on Partner Create:**
@@ -150,9 +146,9 @@ Hosted Confirm → contract/payment (FC scope on payment_attempt only)
 | Concern | Source |
 | --- | --- |
 | Merchant identity + permissions | Terminal ID + API key (`PartnerTerminalAuth`) |
-| When the credit offer is prepared | Server-owned `merchant_profiles.offer_preparation_mode` (`on_create` \| `on_start`, default `on_start`) snapshotted on the session |
+| When the credit offer is prepared | Server-owned `merchant_branch_profiles.offer_preparation_mode` (`on_create` \| `on_start`, default `on_start`) snapshotted on `checkout_sessions.offer_preparation_mode` |
 
-Gateway-provided SubjectID/Permissions/Tenant/Context do **not** control Partner Merchant identity or permissions. Financial Core tenant/context are **not** snapshotted on checkout sessions; they are stored on `payment_attempts` when payment scope is available at submission time.
+Gateway-provided SubjectID/Permissions/Tenant/Context do **not** control Partner Merchant identity or permissions. Checkout payment RPCs use Financial Core v2 without FinancialScope/tenant/context; `financial_delegation` is unresolved (FIXME).
 
 **Authentication ≠ Authorization.** The API key proves *who* the terminal is. It does **not** encode permissions. Permissions are assigned server-side to the terminal at provision time and loaded on every authenticated request.
 
@@ -232,15 +228,15 @@ Notes:
 
 > “Permission: …” annotations on Partner endpoints below mean **required terminal assignment**, not a header the merchant sends.
 
-### Hosted checkout routes — Merchant Backend must not use
+### Customer token routes — Merchant Backend must not use
 
-External partner integration uses **unauthenticated** customer-token routes under `/api/v1/checkout-sessions/{token}/...` where `{token}` is the public checkout token (`cs_<64 hex>`). The BNPL Hosted Checkout **frontend** calls those; Merchant Backend never does.
+All customers (every merchant) use **unauthenticated** token routes under `/api/v1/checkout-sessions/{token}/...` where `{token}` is the public checkout token (`cs_<64 hex>`). The BNPL checkout **frontend** calls those; Merchant Backend never does.
 
-These routes are registered **without** gateway `AuthContext.Attach` (sibling of authenticated `/api/v1` routes). OTP + public token are the customer credentials.
+These routes are registered **without** gateway `AuthContext.Attach`. OTP + public token are the customer credentials.
 
 | Audience | Base path | Auth |
 | --- | --- | --- |
-| Hosted checkout UI (external partner) | `/api/v1/checkout-sessions/{token}/...` | None (public token + OTP) |
+| BNPL checkout UI (customer) | `/api/v1/checkout-sessions/{token}/...` | None (public token + OTP) |
 | Merchant Partner API | `/api/v1/partner/checkout-sessions/...` | Terminal ID + API key |
 
 Merchant-facing Partner permissions (not customer-token routes):
@@ -354,13 +350,13 @@ curl -sS -X PUT "$BNPL_API_BASE/api/v1/partner/webhook-destination" \
 
 There is **no** Customer Binding or account-link step. Merchants assert the paying customer’s mobile on **Create Checkout**; BNPL encrypts it server-side, resolves it through Identity (`ResolveSubjectByMobile`), binds the customer when the subject is `individual` + `active`, and prepares the Decision/Offer before returning a successful `open` checkout URL. Hosted **GET** projects that offer read-only. Hosted **START** (after the customer clicks Continue) generates an OTP and submits it through the Notification Service for the exact `evaluation_generation` shown. Hosted **CONFIRM** proves phone possession and authorizes that generation before Contract fulfillment. Identity subject status is not synchronized into BNPL CustomerProfile status.
 
-See [Customer phone + hosted OTP](#customer-phone--hosted-otp).
+See [Customer phone + token OTP flow](#customer-phone--token-otp-flow).
 
 > **Removed from contract:** `POST /api/v1/partner/customer-bindings`, revoke, HMAC account-link proofs, and `bnpl:checkout-customer-bindings:manage:merchant`.
 
 ---
 
-## Customer phone + hosted OTP
+## Customer phone + token OTP flow
 
 ### What the merchant sends at Create
 
@@ -371,13 +367,15 @@ See [Customer phone + hosted OTP](#customer-phone--hosted-otp).
 
 Merchant **must not** send `identity_subject_id` on Partner Create. Merchant **must not** treat `customer_reference` as authority to pick a BNPL customer.
 
-### What happens on hosted checkout
+BNPL may persist **`customer_profiles.external_customer_id`** from the Customer Reference Service (`customer_id` on that service). That **ExternalCustomerID** is not BNPL internal `customer_profiles.id` and is not supplied by merchants on Partner Create.
+
+### What happens on the customer token flow
 
 1. Customer opens the opaque `checkout_url` (public token in the path).
-2. Hosted UI `GET .../hosted/checkout-sessions/{token}` loads the **already-prepared** safe offer, masked SMS destination, and `evaluation_generation` (read-only; no Identity, Decision, OTP, or writes).
-3. Customer reviews the offer and clicks Continue; Hosted UI `POST .../start` with `{ "evaluation_generation": N }` — BNPL validates the generation and approved offer, then sends an SMS OTP (templated via Identity notification). No Identity resolve and no Decision create on START.
-4. Customer enters the OTP; Hosted UI `POST .../confirm` with `{ "evaluation_generation", "otp" }`.
-5. On OTP success BNPL continues Confirm & Pay internally (contract + payment / merchant-funding UX). OTP alone is not monetary truth; Contract activates only after the policy-required authoritative Financial Core operation succeeds.
+2. Checkout UI `GET /api/v1/checkout-sessions/{token}` loads persisted safe offer (when prepared per branch mode), masked SMS destination, and `evaluation_generation` (read-only; no Identity resolve, Decision create, OTP send, or writes on GET).
+3. Customer reviews the offer and clicks Continue; UI `POST /api/v1/checkout-sessions/{token}/start` with `{ "evaluation_generation": N }` — on `on_start` branches this prepares the offer if needed, validates generation, then sends SMS OTP. No OTP on page load alone.
+4. Customer enters the OTP; UI `POST /api/v1/checkout-sessions/{token}/confirm` with `{ "evaluation_generation", "otp" }`.
+5. On OTP success BNPL continues Confirm & Pay internally (contract + payment / merchant-funding UX). OTP alone is not monetary truth; Contract activates only after the policy-required authoritative Financial Core operation succeeds (v2 RPCs; customer payment fail-closed while `financial_delegation` is unresolved).
 
 Partner APIs never expose OTP codes, full phone numbers, or customer credit data.
 
@@ -528,18 +526,17 @@ Rules:
 
 ---
 
-## Hosted External OTP flow (informational — Merchant Backend does not call these)
+## Customer token OTP flow (informational — Merchant Backend does not call these)
 
-These **unauthenticated** routes are called by the **BNPL Hosted Checkout frontend** for external partner sessions. Path `{token}` is the public token (`cs_<64 hex>`) from Create — not an internal UUID.
+These **unauthenticated** routes are called by the **BNPL checkout frontend** for all merchants. Path `{token}` is the public token (`cs_<64 hex>`) from Create — not an internal UUID.
 
 | Method | Path |
 | --- | --- |
 | `GET` | `/api/v1/checkout-sessions/{token}` |
 | `POST` | `/api/v1/checkout-sessions/{token}/start` |
 | `POST` | `/api/v1/checkout-sessions/{token}/confirm` |
+| `POST` | `/api/v1/checkout-sessions/{token}/cancel` |
 | `GET` | `/api/v1/checkout-sessions/{token}/return` |
-
-Do **not** integrate external merchants against `/api/v1/checkout-sessions/...` (gateway customer auth — first-party / internal hosted only).
 
 ### Frontend state machine
 
@@ -578,19 +575,19 @@ If the refreshed evaluation is denied, the checkout becomes `unavailable` (and m
 
 1. Partner Create already resolved Identity, bound the customer, and persisted an approved Decision/Offer (no OTP).
 2. Browser opens `checkout_url`.
-3. Hosted UI `GET .../hosted/checkout-sessions/{token}` — **read-only** projection of persisted state:
+3. Checkout UI `GET /api/v1/checkout-sessions/{token}` — **read-only** projection of persisted state:
    - merchant display name, purchase amount, status, `evaluation_generation`
    - privacy-safe `offer` (approved purchase economics; **no** `available_credit_minor`, `customer_reference`, Decision ID, full phone, customer ids)
    - masked SMS destination (`verification.type` = `sms_otp`)
    - GET never calls Identity, creates a Decision, sends OTP, or mutates lifecycle state
 4. Customer reviews the offer and clicks Continue.
-5. Hosted UI `POST .../start` with `{ "evaluation_generation": N }` (exact generation from GET):
+5. Checkout UI `POST /api/v1/checkout-sessions/{token}/start` with `{ "evaluation_generation": N }` (exact generation from GET):
    - validates open session, bound customer, persisted approved offer for generation N
    - applies OTP rate limits, issues an OTP, and submits it through Notification (`SubmitNotification`)
    - returns OTP state (`otp_sent`, `otp_expires_at`) — not a full offer replay
    - **does not** call Identity or create/evaluate a Decision
    - stale generation → reconfirm/stale-offer error; **no** OTP budget consumption and **no** Notification submit
-6. Customer enters the OTP; Hosted UI `POST .../confirm` with `{ "evaluation_generation": N, "otp": "<six-digit code>" }`.
+6. Customer enters the OTP; Checkout UI `POST /api/v1/checkout-sessions/{token}/confirm` with `{ "evaluation_generation": N, "otp": "<six-digit code>" }`.
    - **Every external purchase requires OTP.** The code is bound to the active `evaluation_generation`.
    - OTP submission is idempotent per `otp_issue_id` while an accepted challenge is still valid (retries do not create a new Notification request).
 7. If Confirm-time Decision revalidation proves the accepted material offer can no longer be honored → bump generation, invalidate OTP bound to the old generation, create a fresh Decision → `reconfirm_required: true` + new approved offer (no Contract; no Financial Core call). Frontend must Continue → START(new gen) → new OTP. A denied refresh makes the checkout `unavailable` instead.
@@ -637,7 +634,7 @@ Checkout expiry is evaluated against current time after acquiring the
 CheckoutSession row lock for state-changing operations. Waiting for a lock
 does not preserve an earlier eligibility to continue the checkout.
 
-### Confirm request / response (Hosted External only)
+### Confirm request / response (customer token UI only)
 
 ```json
 {
@@ -681,7 +678,7 @@ Merchant Backend must not call hosted start/confirm/return. Do not persist Finan
 | After Confirm | Next step |
 | --- | --- |
 | `payment_required: true` | Redirect customer to Financial Core using Confirm `redirect_url` |
-| `payment_required: false` and session `completed` | `GET .../hosted/checkout-sessions/{token}/return` → merchant registered return URL |
+| `payment_required: false` and session `completed` | `GET /api/v1/checkout-sessions/{token}/return` → merchant registered return URL |
 
 ---
 
@@ -1060,7 +1057,7 @@ currency                = IRR
 3. **Create Partner Checkout** — `POST .../partner/checkout-sessions` with `customer_phone` → receive `checkout_url` + public token.
 4. **Persist** `checkout_session_id` (token), key, amounts.
 5. **Frontend** `window.location.assign(checkout_url)`.
-6. **BNPL Hosted External** — GET prepared offer (read-only), Continue → `start` (SMS OTP for that generation), customer confirms with OTP.
+6. **BNPL checkout UI** — GET token session (read-only offer when prepared), Continue → `start` (SMS OTP for that generation), customer confirms with OTP.
 7. BNPL handles payment internally.
 8. Checkout → `completed`.
 9. **Webhook** `bnpl.checkout.completed.v1` → verify signature → match fields → finalize order.
@@ -1075,14 +1072,14 @@ Copy this section into the merchant project’s Cursor chat.
 
 ### Goal
 
-Implement BNPL as an **external hosted payment method** using **only** Partner APIs under `/api/v1/partner/...`. Do **not** call `/internal/checkout-sessions`. Do **not** call `/checkout-sessions/...` or `/hosted/checkout-sessions/.../start` or `/confirm` from Merchant Backend.
+Implement BNPL as a **token checkout payment method** using **only** Partner APIs under `/api/v1/partner/...`. Do **not** call `/api/v1/checkout-sessions/...` (`start`, `confirm`, `cancel`, `return`) from Merchant Backend — those are for the BNPL checkout UI and public token only.
 
 ### Process
 
 1. Inspect the merchant repo architecture (HTTP client patterns, secrets, webhooks, order state machine).
 2. Add a BNPL Partner client module matching existing HTTP/auth patterns.
 3. Implement config: API base URL, `TERMINAL_ID`, `API_KEY` (from Merchant Panel Provision/Rotate), webhook signing secret storage.
-4. Attach `X-Terminal-Id` and `X-API-Key` on every Partner request. Do **not** send merchant-fabricated `x-auth-*` headers. Partner Create is JWT-independent; Financial Core scope comes from BNPL merchant payment-scope provisioning.
+4. Attach `X-Terminal-Id` and `X-API-Key` on every Partner request. Do **not** send merchant-fabricated `x-auth-*` headers. Partner Create is JWT-independent.
 5. Implement one-time ops endpoints or admin jobs for:
    - `PUT /partner/return-destinations/{name}`
    - `PUT /partner/webhook-destination`
@@ -1114,8 +1111,7 @@ Implement BNPL as an **external hosted payment method** using **only** Partner A
 - [ ] Webhook verify + dedupe + finalize gate
 - [ ] Cancel
 - [ ] IRR/Toman conversion if ledger is Toman
-- [ ] No internal create route
-- [ ] No hosted or internal start/confirm from Backend
+- [ ] No customer token start/confirm/cancel/return from Backend
 
 ### Frontend checklist
 
@@ -1130,7 +1126,7 @@ Implement BNPL as an **external hosted payment method** using **only** Partner A
 
 Partner Inquiry / Create / Webhook `data` intentionally omit customer credit and FC identifiers.
 
-Hosted External Confirm response may include `contract.id` / `contract.status` and `redirect_url` for the **customer UI**. Merchant Backend must not call hosted routes and must not treat them as Partner contract fields.
+Customer Confirm response may include `contract.id` / `contract.status` and `redirect_url` for the **checkout UI**. Merchant Backend must not call token routes and must not treat them as Partner contract fields.
 
 ---
 
@@ -1169,7 +1165,7 @@ Do **not** invent answers. Confirm with BNPL ops / Identity before production:
 - [x] No `identity_subject_id` on Create
 - [x] `customer_phone` + optional `customer_reference` documented
 - [x] Public `cs_…` token in Partner + webhook fields documented
-- [x] Hosted External OTP `start` / `confirm` informational only
+- [x] Customer token OTP `start` / `confirm` informational only
 - [x] Partner Create returns merchant-safe projection
 - [x] Browser Return non-authoritative
 - [x] Webhook + Inquiry authoritative

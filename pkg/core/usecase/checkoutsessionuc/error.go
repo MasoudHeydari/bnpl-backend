@@ -31,7 +31,7 @@ func merchantIDRequiredError() error {
 	return validationError("REQUIRED", "merchant_id", "error.merchant_id_required")
 }
 
-func identitySubjectIDRequiredError() error {
+func externalCustomerIDRequiredError() error {
 	return validationError("REQUIRED", "identity_subject_id", "error.identity_subject_id_required")
 }
 

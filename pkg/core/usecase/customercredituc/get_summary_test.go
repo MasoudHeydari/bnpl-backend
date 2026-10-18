@@ -86,7 +86,7 @@ func TestGetSummary_ExpiredLimit_ReturnsExpiredNotZeroAssigned(t *testing.T) {
 	creditAccountTx := mock.NewCreditAccountTxQueryer(t)
 	policyAssignment := mock.NewPolicyAssignment(t)
 
-	identitySubjectID := model.IdentitySubjectID(uuid.New())
+	externalCustomerID := model.ExternalCustomerID(uuid.New())
 	profileID := model.CustomerID(uuid.New())
 	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
 	expiredAt := now.Add(-time.Hour)
@@ -109,7 +109,7 @@ func TestGetSummary_ExpiredLimit_ReturnsExpiredNotZeroAssigned(t *testing.T) {
 	customerProfileTx.EXPECT().
 		EnsureExists(
 			testifymock.Anything,
-			identitySubjectID,
+			externalCustomerID,
 			model.IRJurisdiction,
 			model.ActiveCustomerStatus,
 			now,
@@ -117,7 +117,7 @@ func TestGetSummary_ExpiredLimit_ReturnsExpiredNotZeroAssigned(t *testing.T) {
 		).
 		Return(model.CustomerProfile{
 			ID:                profileID,
-			IdentitySubjectID: identitySubjectID,
+			ExternalCustomerID: externalCustomerID,
 			UpdatedAt:         now,
 		}, true, nil).
 		Once()
@@ -153,7 +153,7 @@ func TestGetSummary_ExpiredLimit_ReturnsExpiredNotZeroAssigned(t *testing.T) {
 	uc := newSummaryUseCase(t, pool, customerProfile, creditAccount, policyAssignment, clk)
 
 	out, err := uc.GetSummary(context.Background(), customercredituc.Input{
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 	})
 	require.NoError(t, err)
 	require.Equal(t, customercredituc.SummaryStatusExpired, out.Status)
@@ -177,7 +177,7 @@ func TestGetSummary_NoLimit_ReturnsNotAssigned(t *testing.T) {
 	creditAccountTx := mock.NewCreditAccountTxQueryer(t)
 	policyAssignment := mock.NewPolicyAssignment(t)
 
-	identitySubjectID := model.IdentitySubjectID(uuid.New())
+	externalCustomerID := model.ExternalCustomerID(uuid.New())
 	profileID := model.CustomerID(uuid.New())
 	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
 
@@ -195,7 +195,7 @@ func TestGetSummary_NoLimit_ReturnsNotAssigned(t *testing.T) {
 	customerProfileTx.EXPECT().
 		EnsureExists(
 			testifymock.Anything,
-			identitySubjectID,
+			externalCustomerID,
 			model.IRJurisdiction,
 			model.ActiveCustomerStatus,
 			now,
@@ -203,7 +203,7 @@ func TestGetSummary_NoLimit_ReturnsNotAssigned(t *testing.T) {
 		).
 		Return(model.CustomerProfile{
 			ID:                profileID,
-			IdentitySubjectID: identitySubjectID,
+			ExternalCustomerID: externalCustomerID,
 			UpdatedAt:         now,
 		}, true, nil).
 		Once()
@@ -222,7 +222,7 @@ func TestGetSummary_NoLimit_ReturnsNotAssigned(t *testing.T) {
 	uc := newSummaryUseCase(t, pool, customerProfile, creditAccount, policyAssignment, clk)
 
 	out, err := uc.GetSummary(context.Background(), customercredituc.Input{
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 	})
 	require.NoError(t, err)
 	require.Equal(t, customercredituc.SummaryStatusNotAssigned, out.Status)

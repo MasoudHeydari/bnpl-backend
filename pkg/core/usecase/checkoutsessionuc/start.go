@@ -22,12 +22,12 @@ func (uc *UseCase) Start(ctx context.Context, input StartInput) (StartOutput, er
 		return StartOutput{}, err
 	}
 
-	session, err := uc.bindCustomerToSession(ctx, input.CheckoutSessionID, input.IdentitySubjectID)
+	session, err := uc.bindCustomerToSession(ctx, input.CheckoutSessionID, input.ExternalCustomerID)
 	if err != nil {
 		return StartOutput{}, err
 	}
 
-	prepared, offer, err := uc.prepareOfferForBoundSession(ctx, session, input.IdentitySubjectID)
+	prepared, offer, err := uc.prepareOfferForBoundSession(ctx, session, input.ExternalCustomerID)
 	if err != nil {
 		return StartOutput{}, err
 	}
@@ -43,14 +43,14 @@ func (uc *UseCase) Start(ctx context.Context, input StartInput) (StartOutput, er
 func (uc *UseCase) prepareOfferForBoundSession(
 	ctx context.Context,
 	session model.CheckoutSession,
-	identitySubjectID model.IdentitySubjectID,
+	externalCustomerID model.ExternalCustomerID,
 ) (model.CheckoutSession, Offer, error) {
 	if session.ContractID != nil {
 		// Payment retry must present the original accepted terms. The Decision
 		// and allocation cannot be regenerated after Contract creation.
 		existing, getErr := uc.Get(ctx, GetInput{
 			CheckoutSessionID: session.ID,
-			IdentitySubjectID: identitySubjectID,
+			ExternalCustomerID: externalCustomerID,
 		})
 		if getErr != nil {
 			return model.CheckoutSession{}, Offer{}, getErr
@@ -65,7 +65,7 @@ func (uc *UseCase) prepareOfferForBoundSession(
 		return existing.Session, *existing.Offer, nil
 	}
 
-	evaluated, offer, err := uc.evaluateSession(ctx, session, identitySubjectID)
+	evaluated, offer, err := uc.evaluateSession(ctx, session, externalCustomerID)
 	if err != nil {
 		return model.CheckoutSession{}, Offer{}, err
 	}
@@ -81,7 +81,7 @@ func (uc *UseCase) prepareOfferForBoundSession(
 func (uc *UseCase) bindCustomerToSession(
 	ctx context.Context,
 	id model.CheckoutSessionID,
-	identitySubjectID model.IdentitySubjectID,
+	externalCustomerID model.ExternalCustomerID,
 ) (model.CheckoutSession, error) {
 	const op = "checkoutsessionuc.UseCase.bindCustomerToSession"
 
@@ -125,7 +125,7 @@ func (uc *UseCase) bindCustomerToSession(
 						return nil
 					}
 
-					profile, profileErr := customerProfileQ.LockByIdentitySubjectID(ctx, identitySubjectID)
+					profile, profileErr := customerProfileQ.LockByExternalCustomerID(ctx, externalCustomerID)
 					if profileErr != nil {
 						return profileErr
 					}

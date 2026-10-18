@@ -28,12 +28,12 @@ type assignmentPrepareState struct {
 func (uc *UseCase) AssignInitialLimit(ctx context.Context, input AssignInitialLimitInput) (AssignInitialLimitOutput, error) {
 	const op = "customercredituc.UseCase.AssignInitialLimit"
 
-	if input.IdentitySubjectID.IsZero() {
-		return AssignInitialLimitOutput{}, identitySubjectIDRequiredError()
+	if input.ExternalCustomerID.IsZero() {
+		return AssignInitialLimitOutput{}, externalCustomerIDRequiredError()
 	}
 
 	now := uc.clock.Now().UTC()
-	prepare, err := uc.prepareInitialLimitAssignment(ctx, input.IdentitySubjectID, now)
+	prepare, err := uc.prepareInitialLimitAssignment(ctx, input.ExternalCustomerID, now)
 	if err != nil {
 		return AssignInitialLimitOutput{}, err
 	}
@@ -79,7 +79,7 @@ func (uc *UseCase) AssignInitialLimit(ctx context.Context, input AssignInitialLi
 
 func (uc *UseCase) prepareInitialLimitAssignment(
 	ctx context.Context,
-	identitySubjectID model.IdentitySubjectID,
+	externalCustomerID model.ExternalCustomerID,
 	now time.Time,
 ) (assignmentPrepareState, error) {
 	var state assignmentPrepareState
@@ -90,7 +90,7 @@ func (uc *UseCase) prepareInitialLimitAssignment(
 			profileQ := uc.customerProfile.Tx(tx)
 			accountQ := uc.creditAccount.Tx(tx)
 
-			profile, err := uc.ensureCustomerProfileForInitialCredit(ctx, profileQ, identitySubjectID, now)
+			profile, err := uc.ensureCustomerProfileForInitialCredit(ctx, profileQ, externalCustomerID, now)
 			if err != nil {
 				return err
 			}
@@ -98,7 +98,7 @@ func (uc *UseCase) prepareInitialLimitAssignment(
 			state.profile = profile
 
 			policyAssignmentQ := uc.policyAssignment.Tx(tx)
-			selectedPolicy, err := uc.resolveInitialLimitPolicy(ctx, policyAssignmentQ, identitySubjectID, now)
+			selectedPolicy, err := uc.resolveInitialLimitPolicy(ctx, policyAssignmentQ, externalCustomerID, now)
 			if err != nil {
 				return err
 			}
@@ -318,23 +318,23 @@ func blockedCustomerProfileStatus(profile model.CustomerProfile) (string, bool) 
 func (uc *UseCase) ensureCustomerProfileForInitialCredit(
 	ctx context.Context,
 	profileQ repo.CustomerProfileTxQueryer,
-	identitySubjectID model.IdentitySubjectID,
+	externalCustomerID model.ExternalCustomerID,
 	now time.Time,
 ) (model.CustomerProfile, error) {
-	profile, _, err := profileQ.EnsureExists(ctx, identitySubjectID, model.IRJurisdiction, model.ActiveCustomerStatus, now, now)
+	profile, _, err := profileQ.EnsureExists(ctx, externalCustomerID, model.IRJurisdiction, model.ActiveCustomerStatus, now, now)
 	return profile, err
 }
 
 func buildInitialLimitAssessmentInput(profile model.CustomerProfile, now time.Time) InitialLimitAssessmentInput {
 	return InitialLimitAssessmentInput{
-		CustomerID: profile.ID, IdentitySubjectID: profile.IdentitySubjectID,
+		CustomerID: profile.ID, ExternalCustomerID: profile.ExternalCustomerID,
 		Jurisdiction: profile.Jurisdiction, RequestedAt: now,
 	}
 }
 
 func sameAssessmentInput(current, expected InitialLimitAssessmentInput) bool {
 	return current.CustomerID == expected.CustomerID &&
-		current.IdentitySubjectID == expected.IdentitySubjectID &&
+		current.ExternalCustomerID == expected.ExternalCustomerID &&
 		current.Jurisdiction == expected.Jurisdiction
 }
 

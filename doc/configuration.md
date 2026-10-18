@@ -470,7 +470,7 @@ Identity owns `ResolveSubjectByMobile` only (merchant-asserted phone → subject
 | `EXTERNAL_NOTIFICATION_GRPC_TIMEOUT` | env | When grpc | `5s` | Must be positive |
 | `EXTERNAL_NOTIFICATION_GRPC_INSECURE` | env | When grpc | `true` | Local development only; must be `false` in production |
 
-Notification owns durable `SubmitNotification` acceptance for hosted external checkout OTP. BNPL still generates and verifies OTP codes.
+Notification owns durable `SubmitNotification` acceptance for customer token checkout OTP. BNPL still generates and verifies OTP codes.
 
 ### Checkout session OTP
 
@@ -482,7 +482,7 @@ Code length, lifetime (2m), wrong-code attempt budget (5), send cooldown (60s), 
 | `CHECKOUT_SESSION_OTP_ACTIVE_PEPPER_KEY_ID` | env | When more than one key | only key | Must exist in the pepper ring |
 | `CHECKOUT_SESSION_OTP_PEPPER_KEYS` | env | Yes | — | `id:secret,...`; each secret at least 32 bytes, no commas |
 
-Cross-checkout OTP send budgets (5 / 10m per phone fingerprint, provisional 30,000 / 10m per merchant as a V1 runaway-abuse ceiling) live in `checkoutotp.V1` with the per-checkout terms. External Partner `TenantID`/`ContextID` come from the merchant's server-owned `MerchantProfile` payment scope at Partner Create time (trusted BNPL provisioning; not JWT headers; not merchant-selected).
+Cross-checkout OTP send budgets (5 / 10m per phone fingerprint, provisional 30,000 / 10m per merchant as a V1 runaway-abuse ceiling) live in `checkoutotp.V1` with the per-checkout terms. Partner Create and customer token checkout do not use gateway JWT tenant/context headers. Checkout payment submission uses Financial Core v2 without FinancialScope/tenant/context on the new payment RPCs; `financial_delegation` is unresolved (FIXME) — customer payment fails closed until defined.
 
 Checkout and installment repayment flows set `success_return_url`, `failure_return_url`, and `cancel_return_url` from this single configured URL when creating a Financial Core payment session.
 

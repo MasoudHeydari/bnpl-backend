@@ -5,7 +5,7 @@
 // Start (on_start) before OTP. OTP verification later proves phone possession
 // and authorizes confirmation of the exact offer generation the customer saw.
 // The Customer Reference Service is the sole authority that maps a mobile to an
-// external customer_id stored in customer_profiles.identity_subject_id.
+// external customer_id stored in customer_profiles.external_customer_id.
 //
 // Customer status is evaluated for the current checkout resolution only and is
 // never synchronized into BNPL CustomerProfile.status.

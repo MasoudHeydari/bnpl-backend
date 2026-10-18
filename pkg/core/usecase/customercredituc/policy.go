@@ -15,7 +15,7 @@ import (
 func (uc *UseCase) resolveInitialLimitPolicy(
 	ctx context.Context,
 	assignmentQ repo.PolicyAssignmentQueryer,
-	identitySubjectID model.IdentitySubjectID,
+	externalCustomerID model.ExternalCustomerID,
 	now time.Time,
 ) (initialcreditlimit.Policy, error) {
 	const op = "customercredituc.UseCase.resolveInitialLimitPolicy"
@@ -24,7 +24,7 @@ func (uc *UseCase) resolveInitialLimitPolicy(
 	assignment, err := assignmentQ.GetActive(
 		ctx,
 		model.CustomerPolicySubjectType,
-		identitySubjectID.String(),
+		externalCustomerID.String(),
 		model.InitialCreditLimitPolicyFamily,
 		now,
 	)

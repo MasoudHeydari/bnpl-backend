@@ -143,7 +143,7 @@ func (c *Client) ResolveByMobile(
 		return extcustomer.ResolveByMobileOutput{}, fmt.Errorf("%s: customer id has surrounding whitespace", op)
 	}
 
-	externalCustomerID, err := model.ParseIdentitySubjectID(customerIDRaw)
+	externalCustomerID, err := model.ParseExternalCustomerID(customerIDRaw)
 	if err != nil {
 		return extcustomer.ResolveByMobileOutput{}, fmt.Errorf("%s: parse customer id: %w", op, err)
 	}

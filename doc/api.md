@@ -39,7 +39,7 @@ Entry: `cmd/bnpl/command/root.go` → `bootstrap.Boot`.
 | --- | --- | --- | --- |
 | `/healthz/live` | `GET` | `healthcheckuc.Liveness` | Process alive; no dependency checks |
 | `/healthz/ready` | `GET` | `healthcheckuc.Readiness` | Draining state + configured dependency checks |
-| `/api/v1/partner/checkout-sessions` | `POST` | `checkoutsessionuc.CreatePartner` | External-merchant hosted handoff; does not expose personalized credit/offer data |
+| `/api/v1/partner/checkout-sessions` | `POST` | `checkoutsessionuc.CreatePartner` | Partner checkout create (all merchants); `customer_phone` + terminal auth; merchant-safe response (no offer/credit) |
 | `/api/v1/partner/checkout-sessions/:checkout_session_id` | `GET` | `checkoutsessionuc.GetPartnerStatus` | Merchant-safe checkout status for the owning merchant |
 | `/api/v1/partner/checkout-sessions/:checkout_session_id/cancel` | `POST` | `checkoutsessionuc.CancelByMerchant` | Idempotent partner cancellation while no submitted/ambiguous payment exists |
 | `/api/v1/partner/return-destinations/:destination_name` | `PUT` | `checkoutsessionuc.UpsertReturnDestination` | Partner-managed return destination; requires `bnpl:checkout-return-destinations:manage:merchant` |
@@ -63,7 +63,7 @@ Unmatched paths receive Gin's default 404 behavior.
 
 ### Partner terminal authentication
 
-Everything under `/api/v1/partner` is authenticated by `middleware.PartnerTerminalAuth` (terminal credentials), **not** by the full gateway `AuthContext.Attach` middleware. Customer checkout under `/api/v1/checkout-sessions/:token` is a sibling of the Attach group (no JWT). Partner Create uses trusted `merchant_profiles.offer_preparation_mode` (`on_create` prepares immediately; `on_start` defers to customer START). Gateway tenant/context headers are not used on token confirm.
+Everything under `/api/v1/partner` is authenticated by `middleware.PartnerTerminalAuth` (terminal credentials), **not** by the full gateway `AuthContext.Attach` middleware. Customer checkout under `/api/v1/checkout-sessions/:token` is a sibling of the Attach group (no JWT). Partner Create accepts `customer_phone` (not `identity_subject_id`). `OfferPreparationMode` lives on `merchant_branch_profiles.offer_preparation_mode`, is snapshotted on the session (`on_create` \| `on_start`, default `on_start`), and controls when Decision/Offer preparation runs relative to create vs customer `start`. Gateway tenant/context headers are not used on token routes.
 
 | Header | Constant | Meaning |
 | --- | --- | --- |
@@ -82,16 +82,24 @@ Configuration: `usecases.merchant_terminal` (`MERCHANT_TERMINAL_*` variables in 
 
 ### Checkout flow
 
-### Partner hosted checkout
+### Partner checkout + token customer lifecycle
 
-External and first-party merchant integrations use `CheckoutSession` as their public boundary. External partner creation requires a merchant-asserted `customer_phone`, resolves that phone through Identity, prepares and persists the financing Decision/Offer, and returns only a hosted `checkout_url` whose id is an opaque public token (`cs_<64 hex>`). Partner Create never exposes personalized credit/offer data to the merchant and never sends OTP. Hosted GET projects the persisted safe offer read-only. Hosted START requests an SMS OTP for the exact `evaluation_generation` the customer saw. Hosted CONFIRM verifies OTP (phone possession + authorization of that generation) and then enters Contract fulfillment. Trusted internal partners use a separate route protected by the stronger on-behalf capability and may receive available BNPL credit plus offer economics immediately on create.
+All merchant integrations (Digikala, Technolife, Damz, …) share the same boundary:
 
-Return destinations are pre-registered during merchant onboarding/configuration and selected by symbolic name per checkout; arbitrary return URLs are not accepted. `merchant_state` is an opaque, non-sensitive correlation value echoed on browser return.
+1. **Merchant Backend** — `POST /api/v1/partner/checkout-sessions` with `X-Terminal-Id` + `X-API-Key` only (no JWT tenant/context). Body includes required `customer_phone` (Iranian mobile; not `verified_phone_number`). BNPL resolves the phone through Customer Reference Service when preparing an Offer (`on_create`), binds the BNPL customer profile, and returns a merchant-safe payload: public token (`cs_<64 hex>`), `checkout_url`, status, expiry. When the branch snapshotted mode is `on_create`, Create also returns the full financing Offer; when `on_start`, Offer is omitted until customer START. Create never sends OTP.
+2. **Customer browser** — BNPL checkout UI calls unauthenticated token routes under `/api/v1/checkout-sessions/:token` (`GET`, `POST .../start`, `.../confirm`, `.../cancel`, `GET .../return`). No gateway JWT.
+3. **Offer timing** — Branch `offer_preparation_mode` (`merchant_branch_profiles`, snapshotted on the session): `on_create` prepares Decision/Offer before a successful create response when policy allows; `on_start` (default) defers preparation to customer `POST .../start` after they continue on the displayed `evaluation_generation`. Customer `GET` projects persisted safe offer state read-only; `start` issues SMS OTP; `confirm` verifies OTP and enters contract/payment fulfillment.
+
+`ExternalCustomerID` is the Customer Reference Service `customer_id` stored as `customer_profiles.external_customer_id`. It is distinct from BNPL internal `CustomerID` / `customer_profiles.id`.
+
+Checkout customer payment uses Financial Core v2 RPCs without FinancialScope/tenant/context on the request. `financial_delegation` is unresolved (FIXME) — customer payment paths fail closed until delegation is defined.
+
+Return destinations are pre-registered during merchant onboarding/configuration and selected by symbolic name per checkout; arbitrary return URLs are not accepted. `merchant_state` is an opaque, non-sensitive correlation value echoed on browser return and webhooks.
 
 Integration contracts:
 
-- External partners (Digikala, Technolife, …): [external-partner-checkout.md](integration/external-partner-checkout.md) — `POST /api/v1/partner/checkout-sessions` with terminal credentials
-- Internal / first-party partners (Damz, …): [internal-partner-checkout.md](integration/internal-partner-checkout.md) — `POST /api/v1/internal/checkout-sessions` with gateway auth + on-behalf
+- External-style partners: [external-partner-checkout.md](integration/external-partner-checkout.md)
+- First-party partners (Damz): [internal-partner-checkout.md](integration/internal-partner-checkout.md) — same Partner Create API; branch `offer_preparation_mode` is the main product difference
 
 **Create checkout decision** — `POST /api/v1/checkout-decisions`
 

@@ -27,7 +27,6 @@ const merchantProfileColumns = `
 	max_tenure_months,
 	requires_branch_mode,
 	jurisdiction,
-	offer_preparation_mode,
 	created_at,
 	updated_at
 `

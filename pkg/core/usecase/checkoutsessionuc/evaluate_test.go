@@ -104,7 +104,7 @@ func TestStart_UnavailableSessionIsNotReEvaluatedAndEmitsNoEvent(t *testing.T) {
 
 	_, err := h.uc.Start(h.ctx, StartInput{
 		CheckoutSessionID: h.sessionID,
-		IdentitySubjectID: h.profileID,
+		ExternalCustomerID: h.profileID,
 	})
 	requireCerr(t, err, cerr.CodeConflict, "error.checkout_session_cannot_continue_in_its_current_state")
 	require.Empty(t, h.decisions.calls)

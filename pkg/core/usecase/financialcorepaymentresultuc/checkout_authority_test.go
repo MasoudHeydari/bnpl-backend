@@ -14,21 +14,20 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
-func TestResolveAuthoritativeCheckoutResult_ProcessingIgnoresStaleSucceededWakeup(t *testing.T) {
+func TestResolveAuthoritativeCheckoutResult_ProcessingIsNotFailure(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	intentID := "fc-checkout-intent-processing"
-	tenantID := "tenant-1"
-	contextID := "context-1"
-	attemptID := model.PaymentAttemptID(uuid.New())
-	contractID := model.ContractID(uuid.New())
-
 	pool := mock.NewPool(t)
 	conn := mock.NewConn(t)
 	paymentAttempt := mock.NewPaymentAttempt(t)
 	paymentAttemptCQ := mock.NewPaymentAttemptConnQueryer(t)
 	checkoutClient := mock.NewCheckoutPaymentClient(t)
+
+	contractID := model.ContractID(uuid.New())
+	attemptID := model.PaymentAttemptID(uuid.New())
+	intentID := "pi-checkout-1"
+	sourceVersion := int64(1)
 
 	pool.EXPECT().Conn(ctx, testifymock.Anything).RunAndReturn(
 		func(ctx context.Context, handler repo.ConnHandler) error {
@@ -41,18 +40,13 @@ func TestResolveAuthoritativeCheckoutResult_ProcessingIgnoresStaleSucceededWakeu
 		ContractID:               contractID,
 		Purpose:                  model.CheckoutFirstInstallmentFinancialCorePaymentPurpose,
 		State:                    model.SubmittedPaymentAttemptState,
-		TenantID:                 &tenantID,
-		ContextID:                &contextID,
 		FinancialPaymentIntentID: &intentID,
 	}, nil).Once()
 
 	checkoutClient.EXPECT().GetPaymentStatus(ctx, extcheckoutpayment.GetPaymentStatusInput{
-		TenantID:        tenantID,
-		ContextID:       contextID,
-		SourceService:   financialCoreBNPLSourceService,
 		SourceType:      financialCoreBNPLContractType,
 		SourceID:        contractID.String(),
-		SourceVersion:   1,
+		SourceVersion:   &sourceVersion,
 		PaymentIntentID: intentID,
 	}).Return(extcheckoutpayment.GetPaymentStatusResult{
 		PaymentIntentID: intentID,

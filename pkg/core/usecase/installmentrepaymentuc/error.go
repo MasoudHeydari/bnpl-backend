@@ -88,13 +88,13 @@ func installmentIDRequiredError() error {
 	)
 }
 
-// identitySubjectIDRequiredError returns a public validation error when the
-// authenticated Identity Service subject (IdentitySubjectID) is missing from
+// externalCustomerIDRequiredError returns a public validation error when the
+// authenticated Identity Service subject (ExternalCustomerID) is missing from
 // use-case input. REST maps this from x-auth-subject-id; clients must not
 // supply an internal customer_id.
 //
 // Detected locally from input, so cause is intentionally nil.
-func identitySubjectIDRequiredError() error {
+func externalCustomerIDRequiredError() error {
 	return cerr.NewPublic(
 		cerr.CodeInvalidArgument,
 		"error.identity_subject_id_required",

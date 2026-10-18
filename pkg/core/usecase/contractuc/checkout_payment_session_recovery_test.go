@@ -134,7 +134,7 @@ func TestEnsureCheckoutPaymentSession_RecoversFromReconciliationRequired(t *test
 	contractID := model.ContractID(uuid.New())
 	customerID := model.CustomerID(uuid.New())
 	merchantProfileID := model.MerchantProfileID(uuid.New())
-	identitySubjectID := model.IdentitySubjectID(uuid.New())
+	externalCustomerID := model.ExternalCustomerID(uuid.New())
 	merchantID := model.MerchantID(uuid.New())
 	expiresAt := now.Add(30 * time.Minute)
 	returnURL := "https://bnpl.example/payments/return"
@@ -180,7 +180,7 @@ func TestEnsureCheckoutPaymentSession_RecoversFromReconciliationRequired(t *test
 	deps.customerProfile.EXPECT().Conn(deps.conn).Return(deps.customerProfileCQ).Once()
 	deps.customerProfileCQ.EXPECT().GetByID(ctx, customerID).Return(model.CustomerProfile{
 		ID:                customerID,
-		IdentitySubjectID: identitySubjectID,
+		ExternalCustomerID: externalCustomerID,
 	}, nil).Once()
 	deps.merchantProfile.EXPECT().Conn(deps.conn).Return(deps.merchantProfileCQ).Once()
 	deps.merchantProfileCQ.EXPECT().GetByID(ctx, merchantProfileID).Return(model.MerchantProfile{

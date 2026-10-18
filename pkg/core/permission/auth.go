@@ -9,7 +9,7 @@ import (
 // AuthContext holds trusted authentication metadata for one request.
 //
 // SubjectID is the external stable identity issued by Identity Service and
-// received through x-auth-subject-id. It maps to customer_profiles.identity_subject_id.
+// received through x-auth-subject-id. It maps to customer_profiles.external_customer_id.
 // It is never customer_profiles.id (the internal BNPL profile primary key).
 //
 // Named AuthContext (rather than Context) so call sites read clearly as

@@ -33,7 +33,7 @@ const checkoutDecisionFingerprintVersion = "checkout-decision:v3:"
 // therefore participate in idempotency conflict detection.
 func (uc *UseCase) checkoutFingerprint(
 	checkoutKey string,
-	identitySubjectID model.IdentitySubjectID,
+	externalCustomerID model.ExternalCustomerID,
 	purchaseContext PurchaseContext,
 	requestedAmountMinor uint64,
 	currency string,
@@ -42,7 +42,7 @@ func (uc *UseCase) checkoutFingerprint(
 ) (string, error) {
 	raw := strings.Join([]string{
 		checkoutKey,
-		identitySubjectID.String(),
+		externalCustomerID.String(),
 		string(purchaseContext.Channel),
 		purchaseContext.sourceID().String(),
 		purchaseContext.MerchantOrderID,

@@ -19,7 +19,7 @@ func (h *harness) expectReturnLookup(session model.CheckoutSession, sessionErr e
 
 func (h *harness) expectCustomerLookup() {
 	h.customerCQ.EXPECT().
-		GetByIdentitySubjectID(h.ctx, h.profileID).
+		GetByExternalCustomerID(h.ctx, h.profileID).
 		Return(h.customerProfile(), nil).Once()
 }
 
@@ -64,7 +64,7 @@ func TestGetReturn_CustomerOwnership(t *testing.T) {
 
 			output, err := h.uc.GetReturn(h.ctx, GetReturnInput{
 				CheckoutSessionID: h.sessionID,
-				IdentitySubjectID: h.profileID,
+				ExternalCustomerID: h.profileID,
 			})
 
 			if tt.wantErr {
@@ -90,7 +90,7 @@ func TestGetReturn_MissingSessionIsNotFound(t *testing.T) {
 
 	_, err := h.uc.GetReturn(h.ctx, GetReturnInput{
 		CheckoutSessionID: h.sessionID,
-		IdentitySubjectID: h.profileID,
+		ExternalCustomerID: h.profileID,
 	})
 	requireCerr(t, err, cerr.CodeResourceNotFound, "error.checkout_session_not_found")
 }
@@ -100,7 +100,7 @@ func TestGetReturn_RequiresIdentifiers(t *testing.T) {
 
 	h := newHarness(t)
 
-	_, err := h.uc.GetReturn(h.ctx, GetReturnInput{IdentitySubjectID: h.profileID})
+	_, err := h.uc.GetReturn(h.ctx, GetReturnInput{ExternalCustomerID: h.profileID})
 	require.Error(t, err)
 
 	_, err = h.uc.GetReturn(h.ctx, GetReturnInput{CheckoutSessionID: h.sessionID})
@@ -119,7 +119,7 @@ func TestGetReturn_CompletedReturnURLCarriesOnlyCheckoutIdentityAndState(t *test
 
 	output, err := h.uc.GetReturn(h.ctx, GetReturnInput{
 		CheckoutSessionID: h.sessionID,
-		IdentitySubjectID: h.profileID,
+		ExternalCustomerID: h.profileID,
 	})
 	require.NoError(t, err)
 	require.Equal(t, model.CompletedCheckoutSessionStatus, output.Session.Status)

@@ -79,7 +79,7 @@ func (uc *UseCase) prepareExternalOffer(
 		return model.CheckoutSession{}, Offer{}, err
 	}
 
-	identitySubjectID, usable, err := uc.resolveExternalIdentitySubjectID(ctx, session, phone)
+	externalCustomerID, usable, err := uc.resolveExternalExternalCustomerID(ctx, session, phone)
 	if err != nil {
 		return model.CheckoutSession{}, Offer{}, err
 	}
@@ -96,12 +96,12 @@ func (uc *UseCase) prepareExternalOffer(
 		return unavailable, Offer{}, nil
 	}
 
-	bound, err := uc.bindExternalCustomer(ctx, session.PublicToken, identitySubjectID)
+	bound, err := uc.bindExternalCustomer(ctx, session.PublicToken, externalCustomerID)
 	if err != nil {
 		return model.CheckoutSession{}, Offer{}, err
 	}
 
-	prepared, offer, err := uc.prepareOfferForBoundSession(ctx, bound, identitySubjectID)
+	prepared, offer, err := uc.prepareOfferForBoundSession(ctx, bound, externalCustomerID)
 	if err != nil {
 		return model.CheckoutSession{}, Offer{}, err
 	}
@@ -114,7 +114,7 @@ func (uc *UseCase) prepareExternalOffer(
 	return clamped, offer, nil
 }
 
-// resolveExternalIdentitySubjectID returns the already-bound external customer
+// resolveExternalExternalCustomerID returns the already-bound external customer
 // id, or resolves the merchant-asserted mobile through the Customer Reference
 // Service.
 //
@@ -122,15 +122,15 @@ func (uc *UseCase) prepareExternalOffer(
 // (NOT_FOUND or suspended). Unknown or unspecified Customer Reference statuses
 // fail closed as integration/protocol errors and never bind a customer.
 // Customer Reference status is never written into CustomerProfile.status.
-func (uc *UseCase) resolveExternalIdentitySubjectID(
+func (uc *UseCase) resolveExternalExternalCustomerID(
 	ctx context.Context,
 	session model.CheckoutSession,
 	phone string,
-) (model.IdentitySubjectID, bool, error) {
-	const op = "checkoutsessionuc.UseCase.resolveExternalIdentitySubjectID"
+) (model.ExternalCustomerID, bool, error) {
+	const op = "checkoutsessionuc.UseCase.resolveExternalExternalCustomerID"
 
 	if session.CustomerID != nil {
-		var profileID model.IdentitySubjectID
+		var profileID model.ExternalCustomerID
 
 		err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 			customerQ := uc.customerProfile.Conn(conn)
@@ -139,11 +139,11 @@ func (uc *UseCase) resolveExternalIdentitySubjectID(
 				return getErr
 			}
 
-			profileID = profile.IdentitySubjectID
+			profileID = profile.ExternalCustomerID
 			return nil
 		})
 		if err != nil {
-			return model.IdentitySubjectID{}, false, fmt.Errorf("%s: load bound customer: %w", op, err)
+			return model.ExternalCustomerID{}, false, fmt.Errorf("%s: load bound customer: %w", op, err)
 		}
 
 		return profileID, true, nil
@@ -155,14 +155,14 @@ func (uc *UseCase) resolveExternalIdentitySubjectID(
 	)
 	if err != nil {
 		if cerr.IsCode(err, cerr.CodeResourceNotFound) {
-			return model.IdentitySubjectID{}, false, nil
+			return model.ExternalCustomerID{}, false, nil
 		}
 
-		return model.IdentitySubjectID{}, false, fmt.Errorf("%s: resolve customer by mobile: %w", op, err)
+		return model.ExternalCustomerID{}, false, fmt.Errorf("%s: resolve customer by mobile: %w", op, err)
 	}
 
 	if resolved.ExternalCustomerID.IsZero() {
-		return model.IdentitySubjectID{}, false, cerr.InternalError(
+		return model.ExternalCustomerID{}, false, cerr.InternalError(
 			fmt.Errorf("%s: customer reference service returned an empty customer id", op),
 		)
 	}
@@ -172,18 +172,21 @@ func (uc *UseCase) resolveExternalIdentitySubjectID(
 		return resolved.ExternalCustomerID, true, nil
 
 	case customer.SuspendedStatus:
-		return model.IdentitySubjectID{}, false, nil
+		return model.ExternalCustomerID{}, false, nil
 
 	default:
-		return model.IdentitySubjectID{}, false, cerr.InternalError(
+		return model.ExternalCustomerID{}, false, cerr.InternalError(
 			fmt.Errorf("%s: unsupported customer reference status", op),
 		)
 	}
 }
 
-// loadPreparedExternalOffer checks the durable Decision linked to session for
-// CreatePartner replay. An expired initial offer does not regenerate terms:
-// the checkout is expired. Full Hosted offer economics are projected by GET.
+// loadPreparedExternalOffer reconstructs the durable financing Offer linked to
+// session for Partner Create replay and START reuse.
+//
+// An expired initial offer does not regenerate terms: the checkout is expired.
+// Approved offers are projected in full (allocation, installments, charges) so
+// an idempotent Create response matches the original persisted economics.
 func (uc *UseCase) loadPreparedExternalOffer(
 	ctx context.Context,
 	session model.CheckoutSession,
@@ -209,10 +212,8 @@ func (uc *UseCase) loadPreparedExternalOffer(
 	}
 
 	outcome := offerOutcome(decision.Outcome)
-	offer := Offer{Outcome: outcome, OfferExpiresAt: decision.ExpiresAt}
-
 	if outcome == DeniedOfferOutcome {
-		return session, offer, nil
+		return session, Offer{Outcome: DeniedOfferOutcome, OfferExpiresAt: decision.ExpiresAt}, nil
 	}
 
 	if decision.ExpiresAt != nil && !decision.ExpiresAt.After(now) {
@@ -222,6 +223,11 @@ func (uc *UseCase) loadPreparedExternalOffer(
 		}
 
 		return expired, Offer{}, checkoutSessionExpiredError()
+	}
+
+	offer, projectErr := uc.projectPersistedOffer(ctx, session)
+	if projectErr != nil {
+		return model.CheckoutSession{}, Offer{}, fmt.Errorf("%s: project persisted offer: %w", op, projectErr)
 	}
 
 	return session, offer, nil

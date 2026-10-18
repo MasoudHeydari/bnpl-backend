@@ -66,7 +66,7 @@ func buildAssignInitialLimitAuditEvent(
 	serviceName := audit.ProducerName
 	reasonCodes := append([]string(nil), output.Decision.ReasonCodes...)
 	metadata := map[string]any{
-		"customer_id": profile.ID.String(), "identity_subject_id": profile.IdentitySubjectID.String(),
+		"customer_id": profile.ID.String(), "identity_subject_id": profile.ExternalCustomerID.String(),
 		"decision_id": output.Decision.ID.String(), "policy_id": assessment.PolicyID,
 		"policy_version": assessment.PolicyVersion, "decision_outcome": output.Decision.Outcome,
 		"reason_codes": reasonCodes, "currency": assessment.Currency,

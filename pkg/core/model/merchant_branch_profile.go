@@ -344,9 +344,27 @@ type MerchantBranchProfile struct {
 	// BNPL activity.
 	Jurisdiction Jurisdiction `db:"jurisdiction" json:"jurisdiction,omitempty"`
 
+	// OfferPreparationMode controls when Partner Create prepares the financing
+	// offer for checkouts at this online/physical selling point.
+	//
+	// Trusted provisioning sets this value. Merchants cannot select it through
+	// Checkout Create input or terminal credentials. CheckoutSession snapshots
+	// the effective mode at create time.
+	OfferPreparationMode OfferPreparationMode `db:"offer_preparation_mode" json:"-"`
+
 	// CreatedAt is when the profile was created.
 	CreatedAt time.Time `db:"created_at" json:"created_at,omitempty"`
 
 	// UpdatedAt is when the profile was last modified.
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at,omitempty"`
+}
+
+// EffectiveOfferPreparationMode returns the branch preparation mode, defaulting
+// to on_start when unset or invalid.
+func (p MerchantBranchProfile) EffectiveOfferPreparationMode() OfferPreparationMode {
+	if p.OfferPreparationMode.IsValid() {
+		return p.OfferPreparationMode
+	}
+
+	return DefaultOfferPreparationMode
 }

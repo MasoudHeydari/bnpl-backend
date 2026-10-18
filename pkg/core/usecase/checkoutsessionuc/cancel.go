@@ -43,7 +43,13 @@ func (uc *UseCase) CancelByMerchant(
 	)
 }
 
-// CancelByToken cancels a checkout the customer abandoned from the hosted page.
+// CancelByToken cancels a checkout abandoned from the hosted page.
+//
+// FIXME(checkout-cancel-attribution): Possession of the public checkout
+// token does not prove the caller is the customer; the merchant also
+// receives this token at Create. Therefore customer_canceled is currently
+// an inferred channel reason, not authenticated actor attribution.
+// Revisit cancellation authorization and audit semantics separately.
 func (uc *UseCase) CancelByToken(
 	ctx context.Context,
 	input CancelByTokenInput,
@@ -253,11 +259,11 @@ func (uc *UseCase) merchantAuthorizer(merchantID model.MerchantID) sessionAuthor
 	}
 }
 
-func (uc *UseCase) customerAuthorizer(identitySubjectID model.IdentitySubjectID) sessionAuthorizer {
+func (uc *UseCase) customerAuthorizer(externalCustomerID model.ExternalCustomerID) sessionAuthorizer {
 	return func(ctx context.Context, tx repo.Tx, session model.CheckoutSession) error {
 		customerProfileQ := uc.customerProfile.Tx(tx)
 
-		profile, err := customerProfileQ.LockByIdentitySubjectID(ctx, identitySubjectID)
+		profile, err := customerProfileQ.LockByExternalCustomerID(ctx, externalCustomerID)
 		if err != nil {
 			return err
 		}

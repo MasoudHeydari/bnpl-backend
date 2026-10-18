@@ -19,7 +19,7 @@ type GetSuccessSchema struct {
 //
 //	@Summary		Get customer credit summary
 //	@Description	Returns the authenticated customer's current BNPL credit summary.
-//	@Description	x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.identity_subject_id), not the internal BNPL profile primary key.
+//	@Description	x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id), not the internal BNPL profile primary key.
 //	@Description	BNPL resolves or provisions the local customer profile automatically when missing. Profile provisioning is idempotent and does not assign initial credit.
 //	@Description	Requires only an authenticated customer subject; no BNPL profile eligibility or credit limit precondition applies.
 //	@Description	No request body.
@@ -32,7 +32,7 @@ type GetSuccessSchema struct {
 //	@Description	For an active limit, available_amount_minor is an integer minor-unit amount in the response currency.
 //	@Tags			Credit Limits
 //	@Produce		json
-//	@Param			x-auth-subject-id	header		string				true	"Stable authenticated subject identifier issued by Identity Service (customer_profiles.identity_subject_id)"	format(uuid)
+//	@Param			x-auth-subject-id	header		string				true	"Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)"	format(uuid)
 //	@Param			x-auth-tenant-id	header		string				true	"Authenticated tenant UUID"																						format(uuid)
 //	@Param			x-auth-context-id	header		string				true	"Authenticated business-context UUID"																			format(uuid)
 //	@Param			x-auth-permissions	header		string				true	"Comma-separated gateway permissions"																			example(bnpl:credit-limits:read:self)

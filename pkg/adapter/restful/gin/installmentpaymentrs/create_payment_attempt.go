@@ -13,7 +13,7 @@ import (
 //
 //	@Summary		Create installment payment attempt
 //	@Description	Queues an installment repayment attempt. When browser action is required, the BNPL payment attempt projection includes redirect_url and expires_at.
-//	@Description	x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.identity_subject_id). Do not send customer_id or payment provider selection in the body.
+//	@Description	x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Do not send customer_id or payment provider selection in the body.
 //	@Description	Installments must be paid in sequence: only the earliest unpaid schedule installment for the contract may be paid.
 //	@Description	Payment success is determined by authoritative backend processing, never by browser redirect alone. Requires Idempotency-Key.
 //	@Description	Returns 202 when newly queued and 200 on idempotent replay.
@@ -21,7 +21,7 @@ import (
 //	@Tags			Payments
 //	@Accept			json
 //	@Produce		json
-//	@Param			x-auth-subject-id	header		string								true	"Stable authenticated subject identifier issued by Identity Service (customer_profiles.identity_subject_id)"	format(uuid)
+//	@Param			x-auth-subject-id	header		string								true	"Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)"	format(uuid)
 //	@Param			x-auth-tenant-id	header		string								true	"Authenticated tenant UUID"																						format(uuid)
 //	@Param			x-auth-context-id	header		string								true	"Authenticated business-context UUID"																			format(uuid)
 //	@Param			x-auth-permissions	header		string								true	"Comma-separated gateway permissions"																			example(bnpl:payments:start:self)

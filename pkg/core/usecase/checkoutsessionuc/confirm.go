@@ -66,7 +66,7 @@ func (uc *UseCase) Confirm(ctx context.Context, input ConfirmInput) (ConfirmOutp
 
 	created, err := uc.contractUC.PrepareCheckoutContract(ctx, contractuc.CreateContractInput{
 		DecisionID:        *prepared.Session.DecisionID,
-		IdentitySubjectID: input.IdentitySubjectID,
+		ExternalCustomerID: input.ExternalCustomerID,
 		TenantID:          input.TenantID,
 		ContextID:         input.ContextID,
 	})
@@ -179,7 +179,7 @@ func (uc *UseCase) beginConfirm(
 						return nil
 					}
 
-					profile, profileErr := customerProfileQ.LockByIdentitySubjectID(ctx, input.IdentitySubjectID)
+					profile, profileErr := customerProfileQ.LockByExternalCustomerID(ctx, input.ExternalCustomerID)
 					if profileErr != nil {
 						return profileErr
 					}
@@ -288,7 +288,7 @@ func (uc *UseCase) beginConfirm(
 		refreshed, offer, refreshErr := uc.refreshOfferForReconfirm(
 			ctx,
 			result.Session,
-			input.IdentitySubjectID,
+			input.ExternalCustomerID,
 			result.forceNewGeneration,
 		)
 		if refreshErr != nil {
@@ -358,7 +358,7 @@ func (uc *UseCase) claimConfirmingAfterRevalidation(
 		refreshed, offer, refreshErr := uc.refreshOfferForReconfirm(
 			ctx,
 			session,
-			input.IdentitySubjectID,
+			input.ExternalCustomerID,
 			true,
 		)
 		if refreshErr != nil {
@@ -469,7 +469,7 @@ func (uc *UseCase) markConfirmingOpenSession(
 func (uc *UseCase) refreshOfferForReconfirm(
 	ctx context.Context,
 	session model.CheckoutSession,
-	identitySubjectID model.IdentitySubjectID,
+	externalCustomerID model.ExternalCustomerID,
 	forceNewGeneration bool,
 ) (model.CheckoutSession, Offer, error) {
 	const op = "checkoutsessionuc.UseCase.refreshOfferForReconfirm"
@@ -489,7 +489,7 @@ func (uc *UseCase) refreshOfferForReconfirm(
 		return model.CheckoutSession{}, Offer{}, err
 	}
 
-	evaluated, offer, err := uc.evaluateSession(ctx, bumped, identitySubjectID)
+	evaluated, offer, err := uc.evaluateSession(ctx, bumped, externalCustomerID)
 	if err != nil {
 		return model.CheckoutSession{}, Offer{}, err
 	}
@@ -548,7 +548,7 @@ func (uc *UseCase) refreshAfterDeterministicContractReject(
 	refreshed, offer, refreshErr := uc.refreshOfferForReconfirm(
 		ctx,
 		reopened,
-		input.IdentitySubjectID,
+		input.ExternalCustomerID,
 		true,
 	)
 	if refreshErr != nil {

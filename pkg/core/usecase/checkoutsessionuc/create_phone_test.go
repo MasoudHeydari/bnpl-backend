@@ -125,7 +125,6 @@ func TestCreatePartner_UnsupportedMerchantJurisdictionFailsClosed(t *testing.T) 
 			MerchantID:       h.merchantID,
 			Status:           model.ActiveMerchantStatus,
 			Jurisdiction:     model.Jurisdiction("TR"),
-			OfferPreparationMode: model.OfferPreparationOnCreate,
 		}, nil).Once()
 	h.expectNoExistingSession()
 
@@ -141,7 +140,7 @@ func TestCreatePartner_IdempotentReplayDifferentRawSameCanonical(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	h.expectPool(1, 1)
+	h.expectPool(2, 1)
 	h.expectActiveMerchant()
 
 	existing := h.session(func(s *model.CheckoutSession) { s.IdempotencyKey = testAttemptKey })
@@ -164,7 +163,7 @@ func TestCreatePartner_IdempotentReplayReverseRawForms(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	h.expectPool(1, 1)
+	h.expectPool(2, 1)
 	h.expectActiveMerchant()
 
 	// Stored ciphertext is for +989121234567; replay with E.164 must also match.
@@ -192,8 +191,8 @@ func TestCreatePartner_ConflictRecoveryCanonicalizesBeforePhoneCompare(t *testin
 	t.Parallel()
 
 	h := newHarness(t)
-	// Create race: Tx Create returns Conflict, Conn recovery, then Conn prepare.
-	h.expectPool(2, 1)
+	// Create race: Tx Create returns Conflict, Conn recovery, then 2 Conn prepare.
+	h.expectPool(3, 1)
 	h.expectActiveMerchant()
 	h.expectKeyNotFound()
 
@@ -208,7 +207,7 @@ func TestCreatePartner_ConflictRecoveryCanonicalizesBeforePhoneCompare(t *testin
 	branchID := model.MerchantBranchProfileID{}
 	h.branchTx.EXPECT().
 		LockByOnlineStoreID(h.ctx, h.storeID).
-		Return(model.MerchantBranchProfile{ID: branchID, MerchantID: h.merchantID}, nil).Once()
+		Return(model.MerchantBranchProfile{ID: branchID, MerchantID: h.merchantID, OfferPreparationMode: model.OfferPreparationOnCreate}, nil).Once()
 	h.sessionTx.EXPECT().
 		GetReturnDestination(h.ctx, h.merchantID, testReturnDestination).
 		Return(model.MerchantReturnDestination{
@@ -252,7 +251,6 @@ func TestCreatePartner_ConflictRecoveryCanonicalizesBeforePhoneCompare(t *testin
 			MerchantID:       h.merchantID,
 			Status:           model.ActiveMerchantStatus,
 			Jurisdiction:     model.IRJurisdiction,
-			OfferPreparationMode: model.OfferPreparationOnCreate,
 		}, nil).Once()
 	h.sessionCQ.EXPECT().
 		GetByMerchantIdempotencyKey(h.ctx, h.merchantPID, testAttemptKey).
@@ -365,7 +363,6 @@ func TestCreatePartner_DisabledJurisdictionFailsBeforePhoneCanonicalize(t *testi
 			MerchantID:       h.merchantID,
 			Status:           model.ActiveMerchantStatus,
 			Jurisdiction:     model.Jurisdiction("TR"),
-			OfferPreparationMode: model.OfferPreparationOnCreate,
 		}, nil).Once()
 	h.expectNoExistingSession()
 
@@ -383,7 +380,7 @@ func TestCreatePartner_IdempotentReplayAfterOriginationDisabled(t *testing.T) {
 	h := newHarness(t)
 	// Replay must succeed without consulting origination admission.
 	h.uc.jurisdictions = mock.NewOriginationJurisdictions(t)
-	h.expectPool(1, 1)
+	h.expectPool(2, 1)
 	h.expectActiveMerchant()
 
 	existing := h.session(func(s *model.CheckoutSession) { s.IdempotencyKey = testAttemptKey })
@@ -434,8 +431,8 @@ func TestCreatePartner_ConflictRecoveryDoesNotRequireOriginationAdmission(t *tes
 	h := newHarness(t)
 	// Create race uses origination-enabled IR; recovery must still resolve the
 	// winner even if origination is later blocked before the Conn recovery path.
-	// Conn calls: create Tx, conflict recovery Conn, then external offer reload Conn.
-	h.expectPool(2, 1)
+	// Conn calls: create Tx, conflict recovery Conn, then two Conns for offer reload.
+	h.expectPool(3, 1)
 	h.expectActiveMerchant()
 	h.expectKeyNotFound()
 
@@ -450,7 +447,7 @@ func TestCreatePartner_ConflictRecoveryDoesNotRequireOriginationAdmission(t *tes
 	branchID := model.MerchantBranchProfileID{}
 	h.branchTx.EXPECT().
 		LockByOnlineStoreID(h.ctx, h.storeID).
-		Return(model.MerchantBranchProfile{ID: branchID, MerchantID: h.merchantID}, nil).Once()
+		Return(model.MerchantBranchProfile{ID: branchID, MerchantID: h.merchantID, OfferPreparationMode: model.OfferPreparationOnCreate}, nil).Once()
 	h.sessionTx.EXPECT().
 		GetReturnDestination(h.ctx, h.merchantID, testReturnDestination).
 		Return(model.MerchantReturnDestination{
@@ -524,7 +521,6 @@ func TestCreatePartner_ConflictRecoveryDoesNotRequireOriginationAdmission(t *tes
 			MerchantID:       h.merchantID,
 			Status:           model.ActiveMerchantStatus,
 			Jurisdiction:     model.IRJurisdiction,
-			OfferPreparationMode: model.OfferPreparationOnCreate,
 		}, nil).Once()
 	h.sessionCQ.EXPECT().
 		GetByMerchantIdempotencyKey(h.ctx, h.merchantPID, testAttemptKey).

@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	paymentv1 "github.com/parstis/bnpl-backend/gen/proto/payment/v1"
+	paymentv1 "github.com/parstis/bnpl-backend/gen/proto/checkoutpayment/v1"
 	extcheckoutpayment "github.com/parstis/bnpl-backend/pkg/core/external/checkoutpayment"
 )
 

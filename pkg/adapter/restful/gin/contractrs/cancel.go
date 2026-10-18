@@ -13,13 +13,13 @@ import (
 //
 //	@Summary		Start contract cancellation
 //	@Description	Starts cancellation of an active BNPL contract owned by the authenticated customer (active → canceling).
-//	@Description	x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.identity_subject_id). Do not send customer identity in path or body.
+//	@Description	x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Do not send customer identity in path or body.
 //	@Description	Financial Core remains authoritative for canceling → canceled. This endpoint never marks a contract canceled.
 //	@Description	Requires Idempotency-Key. A new request returns 202 only after Financial Core synchronously accepts the cancellation for processing; temporary handoff failures return 503 while durable retry remains scheduled. Exact replay returns 200.
 //	@Tags			Contracts
 //	@Accept			json
 //	@Produce		json
-//	@Param			x-auth-subject-id	header		string				true	"Stable authenticated subject identifier issued by Identity Service (customer_profiles.identity_subject_id)"	format(uuid)
+//	@Param			x-auth-subject-id	header		string				true	"Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)"	format(uuid)
 //	@Param			x-auth-tenant-id	header		string				true	"Authenticated tenant UUID"																						format(uuid)
 //	@Param			x-auth-context-id	header		string				true	"Authenticated business-context UUID"																			format(uuid)
 //	@Param			x-auth-permissions	header		string				true	"Comma-separated gateway permissions"																			example(bnpl:contracts:cancel:self)

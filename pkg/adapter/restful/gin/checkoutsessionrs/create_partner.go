@@ -12,8 +12,8 @@ import (
 // CreatePartner handles POST /api/v1/partner/checkout-sessions.
 //
 //	@Summary		Create partner checkout session
-//	@Description	Creates an idempotent merchant checkout handoff authenticated by terminal credentials (X-Terminal-Id, X-API-Key). Requires verified_phone_number. JWT and gateway Subject/Tenant/Context headers are not required.
-//	@Description	Offer preparation timing follows trusted merchant_profiles.offer_preparation_mode (on_create returns the Offer; on_start returns handoff metadata only). Every customer must complete BNPL SMS OTP on the unified token Confirm path.
+//	@Description	Creates an idempotent merchant checkout handoff authenticated by terminal credentials (X-Terminal-Id, X-API-Key). Requires customer_phone. JWT and gateway Subject/Tenant/Context headers are not required.
+//	@Description	Offer preparation timing follows the trusted merchant_branch_profiles.offer_preparation_mode for the selected online_store_id (on_create returns the Offer; on_start returns handoff metadata only). The mode is snapshotted onto the CheckoutSession. Every customer must complete BNPL SMS OTP on the unified token Confirm path.
 //	@Tags			Checkout Sessions
 //	@Accept			json
 //	@Produce		json

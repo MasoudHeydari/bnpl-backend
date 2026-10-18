@@ -13,13 +13,13 @@ import (
 //
 //	@Summary		Assign initial customer credit limit
 //	@Description	Assigns the configured initial credit limit to an eligible customer profile identified by x-auth-subject-id.
-//	@Description	Subject is the customer identity ID (customer_profiles.identity_subject_id).
+//	@Description	Subject is the customer identity ID (customer_profiles.external_customer_id).
 //	@Description	The customer profile is created automatically when it does not exist; the profile primary key is assigned by the database.
 //	@Description	Requires only an authenticated customer subject. No request body.
 //	@Description	Returns 201 when a new limit is created, and 200 for already-assigned or denied outcomes.
 //	@Tags			Credit Limits
 //	@Produce		json
-//	@Param			x-auth-subject-id	header		string							true	"Stable authenticated subject identifier issued by Identity Service (customer_profiles.identity_subject_id)"	format(uuid)
+//	@Param			x-auth-subject-id	header		string							true	"Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)"	format(uuid)
 //	@Param			x-auth-tenant-id	header		string							true	"Authenticated tenant UUID"																						format(uuid)
 //	@Param			x-auth-context-id	header		string							true	"Authenticated business-context UUID"																			format(uuid)
 //	@Param			x-auth-permissions	header		string							true	"Comma-separated gateway permissions"																			example(bnpl:credit-limits:create:self)

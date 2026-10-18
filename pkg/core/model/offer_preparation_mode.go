@@ -7,6 +7,9 @@ import (
 
 // OfferPreparationMode controls when Partner Create prepares the financing offer.
 //
+// Ownership is MerchantBranchProfile (per online/physical selling point).
+// CheckoutSession snapshots the effective mode at create time.
+//
 // on_create prepares during Partner Create; on_start defers preparation to the
 // customer's POST .../start call.
 type OfferPreparationMode string

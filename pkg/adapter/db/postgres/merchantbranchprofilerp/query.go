@@ -27,6 +27,7 @@ const merchantBranchProfileColumns = `
 	max_amount_override_currency,
 	max_tenure_months_override,
 	jurisdiction,
+	offer_preparation_mode,
 	created_at,
 	updated_at
 `
@@ -46,6 +47,7 @@ const merchantBranchProfileJoinColumns = `
 	b.max_amount_override_currency,
 	b.max_tenure_months_override,
 	b.jurisdiction,
+	b.offer_preparation_mode,
 	b.created_at,
 	b.updated_at
 `
@@ -66,6 +68,7 @@ func Create[Q postgres.Queryer](
 	maxAmountOverrideCurrency *model.Currency,
 	maxTenureMonthsOverride *uint,
 	jurisdiction model.Jurisdiction,
+	offerPreparationMode model.OfferPreparationMode,
 	createdAt time.Time,
 	updatedAt time.Time,
 ) (model.MerchantBranchProfile, error) {
@@ -74,6 +77,10 @@ func Create[Q postgres.Queryer](
 		"updated_at": updatedAt,
 	}); err != nil {
 		return model.MerchantBranchProfile{}, err
+	}
+
+	if !offerPreparationMode.IsValid() {
+		offerPreparationMode = model.DefaultOfferPreparationMode
 	}
 
 	const query = `
@@ -90,10 +97,11 @@ INSERT INTO merchant_branch_profiles (
 	max_amount_override_currency,
 	max_tenure_months_override,
 	jurisdiction,
+	offer_preparation_mode,
 	created_at,
 	updated_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 RETURNING` + merchantBranchProfileColumns
 
 	return postgres.QueryOne[model.MerchantBranchProfile](
@@ -113,7 +121,44 @@ RETURNING` + merchantBranchProfileColumns
 		maxAmountOverrideCurrency,
 		maxTenureMonthsOverride,
 		jurisdiction,
+		offerPreparationMode,
 		createdAt,
+		updatedAt,
+	)
+}
+
+// UpdateOfferPreparationMode updates the trusted Offer preparation policy for a branch.
+func UpdateOfferPreparationMode[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	id model.MerchantBranchProfileID,
+	mode model.OfferPreparationMode,
+	updatedAt time.Time,
+) (model.MerchantBranchProfile, error) {
+	const op = "merchantbranchprofilerp.UpdateOfferPreparationMode"
+
+	if !mode.IsValid() {
+		return model.MerchantBranchProfile{}, fmt.Errorf("%s: invalid offer preparation mode %q", op, mode)
+	}
+
+	if err := postgres.RequiredTimes(map[string]time.Time{"updated_at": updatedAt}); err != nil {
+		return model.MerchantBranchProfile{}, err
+	}
+
+	const query = `
+UPDATE merchant_branch_profiles
+SET offer_preparation_mode = $2,
+	updated_at = $3
+WHERE id = $1
+RETURNING` + merchantBranchProfileColumns
+
+	return postgres.QueryOne[model.MerchantBranchProfile](
+		ctx,
+		q,
+		"update merchant branch offer preparation mode",
+		query,
+		id,
+		mode,
 		updatedAt,
 	)
 }

@@ -17,8 +17,8 @@ type Client interface {
 type FetchSignalsInput struct {
 	// CustomerID is the internal BNPL customer primary key.
 	CustomerID model.CustomerID
-	// IdentitySubjectID is the external Identity Service subject identifier.
-	IdentitySubjectID model.IdentitySubjectID
+	// ExternalCustomerID is the external Identity Service subject identifier.
+	ExternalCustomerID model.ExternalCustomerID
 	// Jurisdiction is the regulatory jurisdiction governing the assessment.
 	Jurisdiction model.Jurisdiction
 	// RequestedAt is when the signal fetch was requested.

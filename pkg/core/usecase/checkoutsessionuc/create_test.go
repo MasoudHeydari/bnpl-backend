@@ -51,11 +51,10 @@ func (h *harness) expectActiveMerchant() {
 	h.merchantTx.EXPECT().
 		GetByMerchantID(h.ctx, h.merchantID).
 		Return(model.MerchantProfile{
-			ID:                     h.merchantPID,
-			MerchantID:             h.merchantID,
-			Status:                 model.ActiveMerchantStatus,
-			Jurisdiction:           model.IRJurisdiction,
-			OfferPreparationMode:   model.OfferPreparationOnCreate,
+			ID:           h.merchantPID,
+			MerchantID:   h.merchantID,
+			Status:       model.ActiveMerchantStatus,
+			Jurisdiction: model.IRJurisdiction,
 		}, nil).Once()
 }
 
@@ -81,7 +80,11 @@ func (h *harness) expectNewAttemptCreated() model.CheckoutSession {
 
 	h.branchTx.EXPECT().
 		LockByOnlineStoreID(h.ctx, h.storeID).
-		Return(model.MerchantBranchProfile{ID: branchID, MerchantID: h.merchantID}, nil).Once()
+		Return(model.MerchantBranchProfile{
+			ID:                   branchID,
+			MerchantID:           h.merchantID,
+			OfferPreparationMode: h.branchOfferMode,
+		}, nil).Once()
 	h.sessionTx.EXPECT().
 		GetReturnDestination(h.ctx, h.merchantID, testReturnDestination).
 		Return(model.MerchantReturnDestination{
@@ -106,7 +109,7 @@ func (h *harness) expectNewAttemptCreated() model.CheckoutSession {
 	created.Origin = model.ExternalPartnerCheckoutSessionOrigin
 	created.CustomerPhoneCiphertext = &phoneCiphertext
 	created.CustomerPhoneKeyID = &phoneKeyID
-	created.OfferPreparationMode = model.OfferPreparationOnCreate
+	created.OfferPreparationMode = h.branchOfferMode
 
 	h.sessionTx.EXPECT().
 		Create(
@@ -121,7 +124,7 @@ func (h *harness) expectNewAttemptCreated() model.CheckoutSession {
 			testCustomerReference,
 			testifymock.AnythingOfType("*string"),
 			testifymock.AnythingOfType("*string"),
-			model.OfferPreparationOnCreate,
+			h.branchOfferMode,
 			(*model.CustomerID)(nil),
 			testReturnDestination,
 			"https://shop.example/return",
@@ -142,7 +145,7 @@ func TestCreatePartner_SameIdempotencyKeyReplaysExistingSession(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	h.expectPool(1, 1)
+	h.expectPool(2, 1)
 	h.expectActiveMerchant()
 
 	existing := h.session(func(s *model.CheckoutSession) { s.IdempotencyKey = testAttemptKey })
@@ -262,7 +265,7 @@ func TestCreatePartner_LegacyActiveAttemptForSameOrderIsReplayed(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	h.expectPool(1, 1)
+	h.expectPool(2, 1)
 	h.expectActiveMerchant()
 	h.expectKeyNotFound()
 
@@ -303,24 +306,31 @@ func TestCreatePartner_ActiveAttemptWithDifferentTermsConflicts(t *testing.T) {
 	requireCerr(t, err, cerr.CodeIdempotencyConflict, merchantOrderConflict)
 }
 
-func TestCreatePartner_IdempotentReplayDifferentAuthScopeConflicts(t *testing.T) {
+func TestCreatePartner_IdempotentReplayIgnoresLaterBranchPolicyChange(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	h.expectPool(0, 1)
+	h.expectPool(2, 1)
 	h.expectActiveMerchant()
 
-	// Session snapshotted a different payment scope than the merchant's
-	// current provisioned scope — immutable scope matching must conflict.
+	// Session was created under on_create. The branch may now be on_start;
+	// replay must preserve the snapshotted mode and must not conflict.
 	existing := h.session(func(s *model.CheckoutSession) {
-		s.OfferPreparationMode = model.OfferPreparationOnStart
+		s.OfferPreparationMode = model.OfferPreparationOnCreate
+		s.CustomerID = &h.customerID
+		s.DecisionID = &h.decisionID
 	})
+	h.branchOfferMode = model.OfferPreparationOnStart
 	h.sessionTx.EXPECT().
 		LockByMerchantIdempotencyKey(h.ctx, h.merchantPID, testAttemptKey).
 		Return(existing, nil).Once()
+	h.expectPreparedExternalOfferReload(existing)
 
-	_, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
-	requireCerr(t, err, cerr.CodeIdempotencyConflict, merchantOrderConflict)
+	output, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
+	require.NoError(t, err)
+	require.Equal(t, CreateResultAlreadyExists, output.Result)
+	require.Equal(t, model.OfferPreparationOnCreate, output.Session.EffectiveOfferPreparationMode())
+	require.NotNil(t, output.Offer)
 }
 
 func TestCreatePartner_SnapshotsOfferPreparationModeOntoSession(t *testing.T) {
@@ -481,4 +491,27 @@ func TestCreatePartner_PreparesOfferWithoutSendingOTP(t *testing.T) {
 	require.Len(t, h.identityCalls, 1)
 	require.Len(t, h.decisions.calls, 1)
 	require.Empty(t, h.notificationCalls)
+}
+
+func TestCreatePartner_BranchOfferPreparationModeIsAuthoritative(t *testing.T) {
+	t.Parallel()
+
+	t.Run("on_start defers offer", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		h.branchOfferMode = model.OfferPreparationOnStart
+		h.expectPool(0, 1)
+		h.expectActiveMerchant()
+		h.expectNoExistingSession()
+		created := h.expectNewAttemptCreated()
+
+		output, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
+		require.NoError(t, err)
+		require.Equal(t, CreateResultCreated, output.Result)
+		require.Equal(t, model.OfferPreparationOnStart, output.Session.EffectiveOfferPreparationMode())
+		require.Nil(t, output.Offer)
+		require.Equal(t, created.ID, output.Session.ID)
+		require.Empty(t, h.identityCalls)
+	})
 }

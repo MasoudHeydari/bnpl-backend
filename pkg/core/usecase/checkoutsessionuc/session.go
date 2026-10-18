@@ -95,8 +95,6 @@ func (uc *UseCase) createOrReplaySessionTx(
 		)
 	}
 
-	offerPreparationMode := profile.EffectiveOfferPreparationMode()
-
 	existing, err := sessionQ.LockByMerchantIdempotencyKey(ctx, profile.ID, request.EffectiveIdempotencyKey())
 	if cerr.IsCode(err, cerr.CodeResourceNotFound) {
 		// No attempt under this key; an active attempt for the same order
@@ -120,6 +118,10 @@ func (uc *UseCase) createOrReplaySessionTx(
 		// Pure idempotent replay of an already-created session. Do not require
 		// origination admission: disabling a jurisdiction must not make prior
 		// checkouts unreplayable.
+		//
+		// The snapshotted OfferPreparationMode on the session is authoritative.
+		// A later change to the branch's current mode must not fail or rewrite
+		// this replay.
 		canonicalCustomerPhone, canErr := uc.canonicalizeCustomerPhoneForCreate(
 			customerID,
 			profile.Jurisdiction,
@@ -144,10 +146,6 @@ func (uc *UseCase) createOrReplaySessionTx(
 		}
 
 		if err := uc.assertReplayCustomerPhone(existing, canonicalCustomerPhone); err != nil {
-			return model.CheckoutSession{}, "", err
-		}
-
-		if err := assertReplayOfferPreparationMode(existing, offerPreparationMode); err != nil {
 			return model.CheckoutSession{}, "", err
 		}
 
@@ -183,6 +181,10 @@ func (uc *UseCase) createOrReplaySessionTx(
 			fmt.Errorf("%s: online store resolves to another merchant", op),
 		)
 	}
+
+	// Offer preparation mode is owned by the trusted MerchantBranchProfile for
+	// this online store — never by terminal credentials or request body.
+	offerPreparationMode := branchProfile.EffectiveOfferPreparationMode()
 
 	destination, err := sessionQ.GetReturnDestination(ctx, profile.MerchantID, request.ReturnDestination)
 	if err != nil {
@@ -261,10 +263,10 @@ func (uc *UseCase) resolveSessionAfterConflict(
 				return profileErr
 			}
 
-			offerPreparationMode := profile.EffectiveOfferPreparationMode()
-
 			// Conflict recovery resolves an already-created winner. It is not
 			// new origination, so do not require origination admission here.
+			// The session's snapshotted OfferPreparationMode remains authoritative
+			// even if the branch policy changed after the original create.
 			canonicalCustomerPhone, canErr := uc.canonicalizeCustomerPhoneForCreate(
 				nil,
 				profile.Jurisdiction,
@@ -308,10 +310,6 @@ func (uc *UseCase) resolveSessionAfterConflict(
 
 			if phoneErr := uc.assertReplayCustomerPhone(existing, canonicalCustomerPhone); phoneErr != nil {
 				return phoneErr
-			}
-
-			if replayModeErr := assertReplayOfferPreparationMode(existing, offerPreparationMode); replayModeErr != nil {
-				return replayModeErr
 			}
 
 			session = existing
@@ -522,26 +520,4 @@ func (uc *UseCase) decryptCustomerPhone(session model.CheckoutSession) (string, 
 	}
 
 	return plaintext, nil
-}
-
-// assertReplayOfferPreparationMode reports an idempotency conflict when the
-// trusted merchant preparation mode changed since the session was created.
-func assertReplayOfferPreparationMode(
-	session model.CheckoutSession,
-	mode model.OfferPreparationMode,
-) error {
-	const op = "checkoutsessionuc.assertReplayOfferPreparationMode"
-
-	effective := session.OfferPreparationMode
-	if !effective.IsValid() {
-		effective = model.DefaultOfferPreparationMode
-	}
-
-	if effective != mode {
-		return merchantOrderConflictError(
-			fmt.Errorf("%s: idempotent replay under a different offer preparation mode", op),
-		)
-	}
-
-	return nil
 }

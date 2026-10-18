@@ -3,6 +3,7 @@ package noop
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	extcheckoutpayment "github.com/parstis/bnpl-backend/pkg/core/external/checkoutpayment"
@@ -37,6 +38,9 @@ func (c *Client) PrepareCollectionObligation(
 }
 
 // CreateCheckoutPayment returns a local checkout payment session without calling Financial Core.
+//
+// Local/dev harnesses may still synthesize a payment session. This is not a
+// production Financial Core path and does not assert Identity financial_delegation.
 func (c *Client) CreateCheckoutPayment(
 	_ context.Context,
 	input extcheckoutpayment.CreateCheckoutPaymentInput,
@@ -49,6 +53,10 @@ func (c *Client) CreateCheckoutPayment(
 
 	if input.Currency == "" {
 		return extcheckoutpayment.CreateCheckoutPaymentResult{}, fmt.Errorf("%s: payment currency is required", op)
+	}
+
+	if strings.TrimSpace(input.CollectionObligationID) == "" {
+		return extcheckoutpayment.CreateCheckoutPaymentResult{}, fmt.Errorf("%s: collection obligation target is required", op)
 	}
 
 	sourceID := input.SourceID
@@ -98,6 +106,5 @@ func (c *Client) RecordMerchantEntitlement(
 
 	return extcheckoutpayment.RecordMerchantEntitlementResult{
 		MerchantEntitlementID: fmt.Sprintf("entitlement-%s", input.SourceID),
-		ReceivableID:          fmt.Sprintf("receivable-%s", input.SourceID),
 	}, nil
 }
