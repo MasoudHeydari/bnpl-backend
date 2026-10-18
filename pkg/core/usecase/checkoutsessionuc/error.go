@@ -358,6 +358,13 @@ func isDeterministicOfferNoLongerHonorable(err error) bool {
 		return false
 	}
 
+	switch appErr.MessageKey {
+	case "error.insufficient_credit_for_contract",
+		"error.credit_account_not_usable_for_contract",
+		"error.checkout_decision_allocation_expired":
+		return true
+	}
+
 	for _, violation := range appErr.Details.Violations {
 		switch violation.Code {
 		case "INSUFFICIENT_CREDIT",

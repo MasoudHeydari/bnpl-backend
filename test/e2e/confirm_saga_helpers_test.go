@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -105,9 +104,9 @@ func updateCreditAccountLimit(t *testing.T, customerID model.CustomerID, limitMi
 	require.NoError(t, err)
 }
 
-// bumpCheckoutEvaluationGeneration advances evaluation_generation while
-// retaining the linked Decision so Confirm can be exercised with a still-valid
-// positive stale generation (Confirm rejects evaluation_generation < 1).
+// bumpCheckoutEvaluationGeneration mirrors production BumpEvaluationGenerationCAS:
+// advances evaluation_generation and clears decision_id so Confirm can be
+// exercised with a still-valid positive stale generation.
 func bumpCheckoutEvaluationGeneration(t *testing.T, sessionID model.CheckoutSessionID) {
 	t.Helper()
 
@@ -117,6 +116,12 @@ func bumpCheckoutEvaluationGeneration(t *testing.T, sessionID model.CheckoutSess
 	tag, err := testDB.Exec(ctx, `
 		UPDATE bnpl.checkout_sessions
 		SET evaluation_generation = evaluation_generation + 1,
+			decision_id = NULL,
+			otp_issue_id = NULL,
+			otp_verifier = NULL,
+			otp_expires_at = NULL,
+			otp_verified_at = NULL,
+			otp_attempt_count = 0,
 			updated_at = now()
 		WHERE id = $1
 		  AND status = 'open'
@@ -177,11 +182,23 @@ func (h *confirmSagaHarness) buildCheckoutPaymentProcessInput(
 	h.t.Helper()
 
 	require.NotNil(h.t, attempt.FinancialPaymentIntentID)
-	require.NotNil(h.t, attempt.FinancialPaymentSessionID)
-	require.NotNil(h.t, attempt.FinancialPaymentAttemptID)
 	intentID := *attempt.FinancialPaymentIntentID
-	sessionID := *attempt.FinancialPaymentSessionID
-	fcAttemptID := *attempt.FinancialPaymentAttemptID
+
+	// Checkout payment identifiers are durably snapshotted on the Contract
+	// after CreateCheckoutPayment; the attempt may only hold the intent id.
+	require.NotNil(h.t, contract.FinancialPaymentSessionID)
+	require.NotNil(h.t, contract.FinancialInvoiceID)
+	sessionID := *contract.FinancialPaymentSessionID
+	invoiceID := *contract.FinancialInvoiceID
+
+	fcAttemptID := ""
+	if attempt.FinancialPaymentAttemptID != nil {
+		fcAttemptID = *attempt.FinancialPaymentAttemptID
+	} else if contract.FinancialPaymentAttemptID != nil {
+		fcAttemptID = *contract.FinancialPaymentAttemptID
+	}
+
+	require.NotEmpty(h.t, fcAttemptID)
 
 	h.fc.setPaymentAuthoritativeSucceeded(
 		intentID,
@@ -189,13 +206,6 @@ func (h *confirmSagaHarness) buildCheckoutPaymentProcessInput(
 		string(attempt.Currency),
 		h.clock.Now().UTC(),
 	)
-
-	// Invoice id is not persisted on PaymentAttempt; mirror the FC fake's
-	// CreateCheckoutPayment shape (invoice-<idempotency-key>).
-	invoiceID := "invoice-" + intentID
-	if strings.HasPrefix(intentID, "intent-") {
-		invoiceID = "invoice-" + strings.TrimPrefix(intentID, "intent-")
-	}
 
 	return financialcorepaymentresultuc.ProcessInput{
 		EventID:          eventID,

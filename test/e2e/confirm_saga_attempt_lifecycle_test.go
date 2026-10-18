@@ -3,7 +3,9 @@
 package e2e_test
 
 import (
+	"context"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -79,26 +81,53 @@ func TestE2E_ConfirmSaga_N_NewConfirmAfterCompensateUsesNewAttemptAndFencesOldSa
 	resetDatabase(t)
 
 	externalCustomerID := newExternalCustomer(t)
-	h := newConfirmSagaHarness(t, confirmSagaHarnessOptions{externalCustomerID: externalCustomerID})
-	seed := seedMerchantFundingCheckout(t, h, externalCustomerID)
 
-	// Zero credit after offer acceptance so Confirm still claims the attempt,
-	// then PrepareCheckoutContract rejects deterministically and compensates.
-	updateCreditAccountLimit(t, seed.CustomerID, 0)
+	var (
+		customerID    model.CustomerID
+		preparePasses atomic.Int32
+	)
+	h := newConfirmSagaHarness(t, confirmSagaHarnessOptions{
+		externalCustomerID: externalCustomerID,
+		hooks: checkoutsessionuc.ConfirmationSagaHooks{
+			BeforePrepareContract: func(context.Context) error {
+				// Zero credit only after the confirmation attempt/Saga exist so
+				// compensation (not pre-claim revalidation) owns the reopen.
+				if preparePasses.Add(1) == 1 && !customerID.IsZero() {
+					updateCreditAccountLimit(t, customerID, 0)
+				}
+
+				return nil
+			},
+		},
+	})
+	seed := seedMerchantFundingCheckout(t, h, externalCustomerID)
+	customerID = seed.CustomerID
 
 	firstOut, err := h.CheckoutSession.Confirm(h.ctx, confirmInputForSeed(seed))
 	if err == nil {
-		require.True(t, firstOut.ReconfirmRequired)
+		require.True(t, firstOut.ReconfirmRequired, "insufficient credit must compensate and require reconfirm")
 	}
 
 	firstAttemptSession := h.querySession(seed.Session.ID)
 	if firstAttemptSession.Status != model.OpenCheckoutSessionStatus {
+		require.Equal(t, 1, h.countConfirmationSagasForSession(seed.Session.ID),
+			"confirming without a saga after prepare rejection")
 		compensatingSaga := h.oldestConfirmationSagaForSession(seed.Session.ID)
+		t.Logf("after Confirm: session=%s saga status=%s phase=%s step=%s reason=%v confirmErr=%v reconfirm=%v",
+			firstAttemptSession.Status,
+			compensatingSaga.Status,
+			compensatingSaga.Phase,
+			compensatingSaga.CurrentStep,
+			compensatingSaga.LastError,
+			err,
+			firstOut.ReconfirmRequired,
+		)
 		h.driveSagaUntilIdle(compensatingSaga.ID)
 		firstAttemptSession = h.querySession(seed.Session.ID)
 	}
 
-	require.Equal(t, model.OpenCheckoutSessionStatus, firstAttemptSession.Status)
+	require.Equal(t, model.OpenCheckoutSessionStatus, firstAttemptSession.Status,
+		"compensated confirmation must reopen checkout for a later attempt")
 	require.True(t, firstAttemptSession.ConfirmationAttemptID == nil || firstAttemptSession.ConfirmationAttemptID.IsZero())
 
 	oldInstance := h.oldestConfirmationSagaForSession(seed.Session.ID)
@@ -161,8 +190,8 @@ func TestE2E_ConfirmSaga_P_StaleEvaluationGenerationDoesNotConfirm(t *testing.T)
 	currentGen := seed.Session.EvaluationGeneration
 	require.GreaterOrEqual(t, currentGen, 1)
 
-	// Bump the durable generation so a still-valid positive stale generation
-	// can be presented (Confirm rejects evaluation_generation < 1).
+	// Advance durable generation (and clear Decision like production bump) so a
+	// still-valid positive stale generation can be presented.
 	bumpCheckoutEvaluationGeneration(t, seed.Session.ID)
 
 	stale := confirmInputForSeed(seed)
@@ -176,4 +205,5 @@ func TestE2E_ConfirmSaga_P_StaleEvaluationGenerationDoesNotConfirm(t *testing.T)
 	session := h.querySession(seed.Session.ID)
 	require.Equal(t, model.OpenCheckoutSessionStatus, session.Status)
 	require.Nil(t, session.ContractID)
+	require.Greater(t, session.EvaluationGeneration, currentGen)
 }

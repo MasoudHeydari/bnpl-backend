@@ -306,30 +306,22 @@ func TestE2E_ConfirmSaga_K_StaleWorkerFencedAfterLeaseExpiry(t *testing.T) {
 
 	externalCustomerID := newExternalCustomer(t)
 	blockA := make(chan struct{})
-	contractPrepared := make(chan struct{}, 1)
-	linkEntered := make(chan struct{}, 1)
-	var staleLinkBarrier atomic.Bool
-	staleLinkBarrier.Store(true)
+	staleEntered := make(chan struct{}, 1)
+	var stalePrepareBarrier atomic.Bool
+	stalePrepareBarrier.Store(true)
 
 	h := newConfirmSagaHarness(t, confirmSagaHarnessOptions{
 		externalCustomerID: externalCustomerID,
 		hooks: checkoutsessionuc.ConfirmationSagaHooks{
+			// Park only inside the external prepare step. Blocking a
+			// TransactionalStep (BeforeLink) holds a DB row lock and deadlocks
+			// Worker B when it tries to continue under a new lease.
 			AfterPrepareContract: func(context.Context) error {
-				select {
-				case contractPrepared <- struct{}{}:
-				default:
-				}
-
-				return nil
-			},
-			BeforeLink: func(context.Context) error {
-				// Only the first (stale) worker parks inside the mutation boundary.
-				// Worker B must not re-enter the same barrier or the test deadlocks.
-				if !staleLinkBarrier.CompareAndSwap(true, false) {
+				if !stalePrepareBarrier.CompareAndSwap(true, false) {
 					return nil
 				}
 
-				linkEntered <- struct{}{}
+				staleEntered <- struct{}{}
 				<-blockA
 
 				return nil
@@ -347,20 +339,15 @@ func TestE2E_ConfirmSaga_K_StaleWorkerFencedAfterLeaseExpiry(t *testing.T) {
 	}()
 
 	select {
-	case <-contractPrepared:
+	case <-staleEntered:
 	case <-time.After(30 * time.Second):
-		t.Fatal("contract prepare barrier was not entered")
-	}
-
-	select {
-	case <-linkEntered:
-	case <-time.After(30 * time.Second):
-		t.Fatal("link barrier was not entered")
+		t.Fatal("stale prepare barrier was not entered")
 	}
 
 	require.Equal(t, 1, h.countContractsForDecision(*seed.Session.DecisionID))
 
-	// Expire Worker A's lease while it holds the link-step boundary, then finish on B.
+	// Expire Worker A's lease while it is still inside the external prepare
+	// boundary, then let Worker B own forward progress.
 	h.advanceClock(h.SagaExecutor.LeaseDuration + time.Second)
 	sagaID := h.findSagaID(seed.Session.ID)
 	require.NoError(t, workerB.ExecuteByID(h.ctx, sagaID))

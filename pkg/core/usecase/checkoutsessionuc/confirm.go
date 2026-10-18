@@ -200,20 +200,21 @@ func (uc *UseCase) beginConfirm(
 						)
 					}
 
-					if locked.DecisionID == nil || locked.DecisionID.IsZero() {
-						return checkoutOfferNotReadyError(
-							fmt.Errorf("%s: checkout session has no decision; call start first", op),
-						)
-					}
-
 					if locked.EvaluationGeneration != input.EvaluationGeneration {
-						// Client presented a superseded generation. Refresh
-						// projects the current offer; bump only if the linked
-						// Decision itself expired.
+						// Client presented a superseded generation. Check this
+						// before Decision presence so a bump that cleared the
+						// Decision still returns reconfirm_required instead of
+						// a misleading "call start first" conflict.
 						result.Session = locked
 						result.ReconfirmRequired = true
 
 						return nil
+					}
+
+					if locked.DecisionID == nil || locked.DecisionID.IsZero() {
+						return checkoutOfferNotReadyError(
+							fmt.Errorf("%s: checkout session has no decision; call start first", op),
+						)
 					}
 
 					decisionQ := uc.decisionRepo.Tx(tx)
