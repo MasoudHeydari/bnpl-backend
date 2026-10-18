@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
@@ -26,9 +28,11 @@ func (uc *UseCase) startConfirmSagaTx(
 
 	definition := uc.confirmationSagaDefinition
 
+	attemptID := model.ConfirmationAttemptID(uuid.New())
+
 	subjectType := checkoutConfirmationSagaSubjectType
 	subjectID := session.ID.String()
-	businessKey := model.SagaBusinessKey(session.ID.String())
+	businessKey := model.SagaBusinessKey(attemptID.String())
 
 	var correlationID *string
 	if value := strings.TrimSpace(trace.CorrelationID(ctx)); value != "" {
@@ -61,7 +65,7 @@ func (uc *UseCase) startConfirmSagaTx(
 		return model.CheckoutSession{}, model.SagaID{}, cerr.InternalError(fmt.Errorf("%s: %w", op, transitionErr))
 	}
 
-	claimed, err := sessionQ.MarkConfirming(ctx, session.ID, now)
+	claimed, err := sessionQ.MarkConfirming(ctx, session.ID, attemptID, now)
 	if err != nil {
 		return model.CheckoutSession{}, model.SagaID{}, err
 	}

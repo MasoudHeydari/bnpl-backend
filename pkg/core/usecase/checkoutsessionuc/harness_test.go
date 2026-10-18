@@ -196,8 +196,10 @@ type harness struct {
 	customerID  model.CustomerID
 	profileID   model.ExternalCustomerID
 	merchantPID model.MerchantProfileID
-	merchantID  model.MerchantID
-	storeID     model.OnlineStoreID
+	merchantID              model.MerchantID
+	storeID                 model.OnlineStoreID
+	confirmationAttemptID   model.ConfirmationAttemptID
+	idGenerator             *mock.IdentifierGenerator
 }
 
 func newHarness(t *testing.T) *harness {
@@ -252,6 +254,10 @@ func newHarness(t *testing.T) *harness {
 		merchantID:         model.MerchantID(uuid.New()),
 		storeID:            model.OnlineStoreID(uuid.New()),
 	}
+
+	h.confirmationAttemptID = model.ConfirmationAttemptID(uuid.New())
+	h.idGenerator = mock.NewIdentifierGenerator(t)
+	h.idGenerator.EXPECT().Generate().Return(h.confirmationAttemptID.String()).Maybe()
 
 	jurisdictions, err := domaincapability.NewJurisdictions([]model.Jurisdiction{model.IRJurisdiction})
 	if err != nil {
@@ -343,6 +349,7 @@ func newHarness(t *testing.T) *harness {
 		phoneCanonicalizer:         h.phoneCanonicalizer,
 		otpPolicy:                  checkoutotppolicy.V1(),
 		otpTemplateID:              testOTPTemplateID,
+		idGenerator:                h.idGenerator,
 	}
 
 	installHarnessSaga(h)
@@ -509,6 +516,42 @@ func (h *harness) session(mods ...func(*model.CheckoutSession)) model.CheckoutSe
 
 func withStatus(status model.CheckoutSessionStatus) func(*model.CheckoutSession) {
 	return func(s *model.CheckoutSession) { s.Status = status }
+}
+
+func withConfirmationAttempt(id model.ConfirmationAttemptID) func(*model.CheckoutSession) {
+	return func(s *model.CheckoutSession) { s.ConfirmationAttemptID = &id }
+}
+
+func (h *harness) confirmingSession(mods ...func(*model.CheckoutSession)) model.CheckoutSession {
+	mods = append([]func(*model.CheckoutSession){
+		withStatus(model.ConfirmingCheckoutSessionStatus),
+		withConfirmationAttempt(h.confirmationAttemptID),
+	}, mods...)
+
+	return h.session(mods...)
+}
+
+func (h *harness) expectMarkConfirming(mods ...func(*model.CheckoutSession)) {
+	h.t.Helper()
+
+	h.sessionTx.EXPECT().MarkConfirming(
+		h.ctx,
+		h.sessionID,
+		testifymock.MatchedBy(func(id model.ConfirmationAttemptID) bool {
+			return !id.IsZero()
+		}),
+		h.now,
+	).RunAndReturn(func(
+		_ context.Context,
+		_ model.CheckoutSessionID,
+		attempt model.ConfirmationAttemptID,
+		_ time.Time,
+	) (model.CheckoutSession, error) {
+		h.confirmationAttemptID = attempt
+		allMods := append([]func(*model.CheckoutSession){withConfirmationAttempt(attempt)}, mods...)
+
+		return h.confirmingSession(allMods...), nil
+	}).Once()
 }
 
 func withContract(id model.ContractID) func(*model.CheckoutSession) {

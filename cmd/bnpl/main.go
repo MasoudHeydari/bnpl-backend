@@ -33,7 +33,7 @@ func main() {
 	command.Execute()
 }
 
-/* cc_yTG79xsXTYj840rOdWlxJodEETfQUwq4TXBCjli4aICrqJJw
+/*
 TODO:
 	1. Create a Response log middleware.
 	2. Review All source code and find the broken patterns and solve them.
@@ -42,5 +42,4 @@ TODO:
 	 each use case? It could be a service to have several proto files for each use case or aggregate all RPCs into on file.
 	8. Test the whole process of buying a product.
 	9. Remove the x-subject/tenant/context-id from checkout session endpoints.
-
 */

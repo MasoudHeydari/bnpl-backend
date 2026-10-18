@@ -37,6 +37,13 @@ type fcEntitlementBehavior struct {
 // controllableCheckoutPaymentClient is a thread-safe Financial Core test double
 // for checkout confirmation E2E. It tracks calls and enforces idempotent
 // RecordMerchantEntitlement / PrepareCollectionObligation semantics.
+type paymentAuthoritativeStatus struct {
+	status      extcheckoutpayment.PaymentStatus
+	amountMinor int64
+	currency    string
+	completedAt time.Time
+}
+
 type controllableCheckoutPaymentClient struct {
 	mu sync.Mutex
 
@@ -46,8 +53,11 @@ type controllableCheckoutPaymentClient struct {
 	entitlementsBySource map[string]extcheckoutpayment.RecordMerchantEntitlementResult
 	obligationsBySource  map[string]extcheckoutpayment.PrepareCollectionObligationResult
 	paymentsByKey        map[string]extcheckoutpayment.CreateCheckoutPaymentResult
+	paymentByIntent      map[string]extcheckoutpayment.CreateCheckoutPaymentResult
+	authoritativeStatus  map[string]paymentAuthoritativeStatus
 
 	inFlightEntitlement map[string]struct{}
+	inFlightPaymentKey  map[string]struct{}
 
 	calls []fcCallRecord
 }
@@ -57,7 +67,10 @@ func newControllableCheckoutPaymentClient() *controllableCheckoutPaymentClient {
 		entitlementsBySource: make(map[string]extcheckoutpayment.RecordMerchantEntitlementResult),
 		obligationsBySource:  make(map[string]extcheckoutpayment.PrepareCollectionObligationResult),
 		paymentsByKey:        make(map[string]extcheckoutpayment.CreateCheckoutPaymentResult),
+		paymentByIntent:      make(map[string]extcheckoutpayment.CreateCheckoutPaymentResult),
+		authoritativeStatus:  make(map[string]paymentAuthoritativeStatus),
 		inFlightEntitlement:  make(map[string]struct{}),
+		inFlightPaymentKey:   make(map[string]struct{}),
 	}
 }
 
@@ -70,7 +83,10 @@ func (c *controllableCheckoutPaymentClient) reset() {
 	c.entitlementsBySource = make(map[string]extcheckoutpayment.RecordMerchantEntitlementResult)
 	c.obligationsBySource = make(map[string]extcheckoutpayment.PrepareCollectionObligationResult)
 	c.paymentsByKey = make(map[string]extcheckoutpayment.CreateCheckoutPaymentResult)
+	c.paymentByIntent = make(map[string]extcheckoutpayment.CreateCheckoutPaymentResult)
+	c.authoritativeStatus = make(map[string]paymentAuthoritativeStatus)
 	c.inFlightEntitlement = make(map[string]struct{})
+	c.inFlightPaymentKey = make(map[string]struct{})
 	c.calls = nil
 }
 
@@ -107,6 +123,95 @@ func (c *controllableCheckoutPaymentClient) setEntitlementLostAfterCommit() {
 	defer c.mu.Unlock()
 
 	c.entitlementBehavior.lostAfterCommit = true
+}
+
+func (c *controllableCheckoutPaymentClient) setPaymentSuccess() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.paymentBehavior = fcEntitlementBehavior{}
+}
+
+func (c *controllableCheckoutPaymentClient) setPaymentLostAfterCommit() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.paymentBehavior.lostAfterCommit = true
+}
+
+func (c *controllableCheckoutPaymentClient) setPaymentError(err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.paymentBehavior.err = err
+}
+
+func (c *controllableCheckoutPaymentClient) setPaymentAuthoritativeSucceeded(intentID string, amountMinor uint64, currency string, completedAt time.Time) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.authoritativeStatus[intentID] = paymentAuthoritativeStatus{
+		status:      extcheckoutpayment.SucceededPaymentStatus,
+		amountMinor: int64(amountMinor),
+		currency:    currency,
+		completedAt: completedAt,
+	}
+}
+
+func (c *controllableCheckoutPaymentClient) setPaymentAuthoritativeFailed(intentID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.authoritativeStatus[intentID] = paymentAuthoritativeStatus{
+		status: extcheckoutpayment.FailedPaymentStatus,
+	}
+}
+
+func (c *controllableCheckoutPaymentClient) committedPaymentCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return len(c.paymentsByKey)
+}
+
+func (c *controllableCheckoutPaymentClient) createCheckoutPaymentCallCount(idempotencyKey string) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	n := 0
+	for _, call := range c.calls {
+		if call.Kind != fcCallCreateCheckoutPayment {
+			continue
+		}
+
+		if idempotencyKey != "" && call.SourceID != idempotencyKey {
+			continue
+		}
+
+		n++
+	}
+
+	return n
+}
+
+func (c *controllableCheckoutPaymentClient) callCount(kind fcCallKind, sourceID string) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	n := 0
+	for _, call := range c.calls {
+		if call.Kind != kind {
+			continue
+		}
+
+		if sourceID != "" && call.SourceID != sourceID {
+			continue
+		}
+
+		n++
+	}
+
+	return n
 }
 
 func (c *controllableCheckoutPaymentClient) callRecords() []fcCallRecord {
@@ -190,7 +295,7 @@ func (c *controllableCheckoutPaymentClient) PrepareCollectionObligation(
 }
 
 func (c *controllableCheckoutPaymentClient) CreateCheckoutPayment(
-	_ context.Context,
+	ctx context.Context,
 	input extcheckoutpayment.CreateCheckoutPaymentInput,
 ) (extcheckoutpayment.CreateCheckoutPaymentResult, error) {
 	const op = "e2e.controllableCheckoutPaymentClient.CreateCheckoutPayment"
@@ -201,7 +306,6 @@ func (c *controllableCheckoutPaymentClient) CreateCheckoutPayment(
 	}
 
 	c.mu.Lock()
-	behavior := c.paymentBehavior
 	if existing, ok := c.paymentsByKey[key]; ok {
 		c.mu.Unlock()
 		c.recordCall(fcCallCreateCheckoutPayment, input.SourceID, false)
@@ -209,13 +313,33 @@ func (c *controllableCheckoutPaymentClient) CreateCheckoutPayment(
 
 		return existing, nil
 	}
-	c.mu.Unlock()
 
-	if behavior.delay > 0 {
-		time.Sleep(behavior.delay)
+	if _, busy := c.inFlightPaymentKey[key]; busy {
+		c.mu.Unlock()
+		c.recordCall(fcCallCreateCheckoutPayment, input.SourceID, true)
+		return extcheckoutpayment.CreateCheckoutPaymentResult{}, fmt.Errorf("%s: concurrent checkout payment for %s", op, key)
 	}
 
-	if behavior.err != nil {
+	c.inFlightPaymentKey[key] = struct{}{}
+	behavior := c.paymentBehavior
+	c.mu.Unlock()
+
+	defer func() {
+		c.mu.Lock()
+		delete(c.inFlightPaymentKey, key)
+		c.mu.Unlock()
+	}()
+
+	if behavior.delay > 0 {
+		select {
+		case <-ctx.Done():
+			return extcheckoutpayment.CreateCheckoutPaymentResult{}, ctx.Err()
+
+		case <-time.After(behavior.delay):
+		}
+	}
+
+	if behavior.err != nil && !behavior.lostAfterCommit {
 		c.recordCall(fcCallCreateCheckoutPayment, input.SourceID, false)
 		return extcheckoutpayment.CreateCheckoutPaymentResult{}, behavior.err
 	}
@@ -233,20 +357,29 @@ func (c *controllableCheckoutPaymentClient) CreateCheckoutPayment(
 	}
 
 	result := extcheckoutpayment.CreateCheckoutPaymentResult{
-		InvoiceID:        fmt.Sprintf("invoice-%s", sourceID),
-		PaymentIntentID:  fmt.Sprintf("intent-%s", sourceID),
-		PaymentAttemptID: fmt.Sprintf("attempt-%s", sourceID),
-		PaymentSessionID: fmt.Sprintf("session-%s", sourceID),
+		InvoiceID:        fmt.Sprintf("invoice-%s", key),
+		PaymentIntentID:  fmt.Sprintf("intent-%s", key),
+		PaymentAttemptID: fmt.Sprintf("fc-attempt-%s", key),
+		PaymentSessionID: fmt.Sprintf("session-%s", key),
 		Status:           extcheckoutpayment.RequiresActionPaymentStatus,
 		AmountMinor:      input.AmountMinor,
 		Currency:         input.Currency,
-		PaymentLink:      fmt.Sprintf("https://example.test/payments/%s", sourceID),
+		PaymentLink:      fmt.Sprintf("https://example.test/payments/%s", key),
 		ExpiresAt:        expiresAt,
 	}
 
 	c.mu.Lock()
 	c.paymentsByKey[key] = result
+	c.paymentByIntent[result.PaymentIntentID] = result
 	c.mu.Unlock()
+
+	if behavior.lostAfterCommit {
+		return extcheckoutpayment.CreateCheckoutPaymentResult{}, context.DeadlineExceeded
+	}
+
+	if behavior.err != nil {
+		return extcheckoutpayment.CreateCheckoutPaymentResult{}, behavior.err
+	}
 
 	return result, nil
 }
@@ -257,9 +390,34 @@ func (c *controllableCheckoutPaymentClient) GetPaymentStatus(
 ) (extcheckoutpayment.GetPaymentStatusResult, error) {
 	c.recordCall(fcCallGetPaymentStatus, input.SourceID, false)
 
+	intentID := input.PaymentIntentID
+	c.mu.Lock()
+	if authoritative, ok := c.authoritativeStatus[intentID]; ok {
+		c.mu.Unlock()
+
+		return extcheckoutpayment.GetPaymentStatusResult{
+			PaymentIntentID: intentID,
+			Status:          authoritative.status,
+			AmountMinor:     authoritative.amountMinor,
+			Currency:        authoritative.currency,
+			CompletedAt:     authoritative.completedAt,
+		}, nil
+	}
+
+	stored, ok := c.paymentByIntent[intentID]
+	c.mu.Unlock()
+	if !ok {
+		return extcheckoutpayment.GetPaymentStatusResult{
+			PaymentIntentID: intentID,
+			Status:          extcheckoutpayment.RequiresActionPaymentStatus,
+		}, nil
+	}
+
 	return extcheckoutpayment.GetPaymentStatusResult{
-		PaymentIntentID: input.PaymentIntentID,
-		Status:          extcheckoutpayment.RequiresActionPaymentStatus,
+		PaymentIntentID: intentID,
+		Status:          stored.Status,
+		AmountMinor:     stored.AmountMinor,
+		Currency:        stored.Currency,
 	}, nil
 }
 

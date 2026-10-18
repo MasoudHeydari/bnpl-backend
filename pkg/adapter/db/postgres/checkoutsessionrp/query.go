@@ -39,6 +39,7 @@ const checkoutSessionColumns = `
 	requested_amount_minor,
 	currency,
 	status,
+	confirmation_attempt_id,
 	decision_id,
 	contract_id,
 	cancellation_reason,
@@ -1003,6 +1004,7 @@ func MarkConfirming[Q postgres.Queryer](
 	ctx context.Context,
 	q Q,
 	id model.CheckoutSessionID,
+	attemptID model.ConfirmationAttemptID,
 	updatedAt time.Time,
 ) (model.CheckoutSession, error) {
 	const op = "checkoutsessionrp.MarkConfirming"
@@ -1011,11 +1013,17 @@ func MarkConfirming[Q postgres.Queryer](
 		return model.CheckoutSession{}, err
 	}
 
+	if attemptID.IsZero() {
+		return model.CheckoutSession{}, cerr.InvalidArgument(
+			fmt.Errorf("%s: confirmation attempt id is required", op),
+		)
+	}
+
 	const query = `
 UPDATE checkout_sessions
-SET status = $2, updated_at = $3
+SET status = $2, confirmation_attempt_id = $3, updated_at = $4
 WHERE id = $1
-  AND status = $4
+  AND status = $5
   AND decision_id IS NOT NULL
 RETURNING` + checkoutSessionColumns
 
@@ -1026,12 +1034,63 @@ RETURNING` + checkoutSessionColumns
 		query,
 		id,
 		model.ConfirmingCheckoutSessionStatus,
+		attemptID,
 		updatedAt,
 		model.OpenCheckoutSessionStatus,
 	)
 	if err != nil && cerr.IsCode(err, cerr.CodeResourceNotFound) {
 		return model.CheckoutSession{}, cerr.Conflict(
 			fmt.Errorf("%s: checkout session is not open with a linked decision", op),
+		)
+	}
+
+	return row, err
+}
+
+// ReopenConfirmingToOpen returns confirming → open and clears the active
+// confirmation attempt atomically when no contract is linked.
+func ReopenConfirmingToOpen[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	id model.CheckoutSessionID,
+	expectedAttemptID model.ConfirmationAttemptID,
+	updatedAt time.Time,
+) (model.CheckoutSession, error) {
+	const op = "checkoutsessionrp.ReopenConfirmingToOpen"
+
+	if err := postgres.RequiredTime("updated_at", updatedAt); err != nil {
+		return model.CheckoutSession{}, err
+	}
+
+	if expectedAttemptID.IsZero() {
+		return model.CheckoutSession{}, cerr.InvalidArgument(
+			fmt.Errorf("%s: expected confirmation attempt id is required", op),
+		)
+	}
+
+	const query = `
+UPDATE checkout_sessions
+SET status = $2, confirmation_attempt_id = NULL, updated_at = $3
+WHERE id = $1
+  AND status = $4
+  AND contract_id IS NULL
+  AND confirmation_attempt_id = $5
+RETURNING` + checkoutSessionColumns
+
+	row, err := postgres.QueryOne[model.CheckoutSession](
+		ctx,
+		q,
+		"reopen confirming checkout session to open",
+		query,
+		id,
+		model.OpenCheckoutSessionStatus,
+		updatedAt,
+		model.ConfirmingCheckoutSessionStatus,
+		expectedAttemptID,
+	)
+	if err != nil && cerr.IsCode(err, cerr.CodeResourceNotFound) {
+		return model.CheckoutSession{}, cerr.Conflict(
+			fmt.Errorf("%s: checkout session is not confirming for the expected attempt", op),
 		)
 	}
 

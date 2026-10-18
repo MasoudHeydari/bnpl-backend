@@ -20,8 +20,7 @@ func TestConfirm_RevalidationHonorableContinuesWithoutGenerationBump(t *testing.
 	h.expectPool(0, 3)
 
 	open := h.session()
-	confirming := h.session(withStatus(model.ConfirmingCheckoutSessionStatus))
-	linked := h.session(withStatus(model.ConfirmingCheckoutSessionStatus), withContract(h.contractID))
+	linked := h.confirmingSession(withContract(h.contractID))
 	processing := h.session(withStatus(model.ProcessingCheckoutSessionStatus), withContract(h.contractID))
 
 	h.decisions.revalidateOutput = decisionuc.RevalidateCheckoutOfferOutput{StillHonorable: true}
@@ -30,7 +29,8 @@ func TestConfirm_RevalidationHonorableContinuesWithoutGenerationBump(t *testing.
 	h.expectCustomerLock()
 	h.decisionTx.EXPECT().GetByID(h.ctx, h.decisionID).Return(model.Decision{ID: h.decisionID}, nil).Once()
 	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(open, nil).Once()
-	h.sessionTx.EXPECT().MarkConfirming(h.ctx, h.sessionID, h.now).Return(confirming, nil).Once()
+	h.expectMarkConfirming()
+	confirming := h.confirmingSession()
 	h.expectConfirmClaimStepLock(confirming)
 
 	prepared := h.createdContract(true)
@@ -152,34 +152,21 @@ func TestConfirm_DeterministicInsufficientCreditRefreshesOffer(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	// begin + claim + reopen + bump + recordEvaluation
-	h.expectPool(0, 5)
+	// begin + claim + reopen + bump (no immediate re-evaluate; unavailable is terminal)
+	h.expectPool(0, 4)
 
 	open := h.session()
-	confirming := h.session(withStatus(model.ConfirmingCheckoutSessionStatus))
 	reopened := h.session()
 	bumped := h.session(withGeneration(2), withoutDecision())
-	newDecisionID := model.DecisionID(uuid.New())
-	relinked := h.session(withGeneration(2), func(s *model.CheckoutSession) {
-		s.DecisionID = &newDecisionID
-	})
 
 	h.decisions.revalidateOutput = decisionuc.RevalidateCheckoutOfferOutput{StillHonorable: true}
-	expiresAt := h.now.Add(15 * time.Minute)
-	h.decisions.output = decisionuc.CreateOutput{
-		Decision:                    model.Decision{ID: newDecisionID, Outcome: model.ApprovedDecisionOutcome},
-		RequestedAmountMinor:        150000000,
-		ApprovedFinancedAmountMinor: 100000000,
-		UpfrontAmountMinor:          50000000,
-		Currency:                    model.IRRCurrency,
-		ExpiresAt:                   &expiresAt,
-	}
 
 	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(open, nil).Once()
 	h.expectCustomerLock()
 	h.decisionTx.EXPECT().GetByID(h.ctx, h.decisionID).Return(model.Decision{ID: h.decisionID}, nil).Once()
 	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(open, nil).Once()
-	h.sessionTx.EXPECT().MarkConfirming(h.ctx, h.sessionID, h.now).Return(confirming, nil).Once()
+	h.expectMarkConfirming()
+	confirming := h.confirmingSession()
 	h.expectConfirmClaimStepLock(confirming)
 	h.expectConfirmSagaDriveLock(confirming)
 
@@ -195,22 +182,22 @@ func TestConfirm_DeterministicInsufficientCreditRefreshesOffer(t *testing.T) {
 	h.contractTx.EXPECT().GetByDecisionID(h.ctx, h.decisionID).
 		Return(model.Contract{}, cerr.ResourceNotFound(nil)).Once()
 	h.sessionTx.EXPECT().
-		UpdateStatus(h.ctx, h.sessionID, model.OpenCheckoutSessionStatus, h.now).
+		ReopenConfirmingToOpen(h.ctx, h.sessionID, h.confirmationAttemptID, h.now).
 		Return(reopened, nil).Once()
 
 	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(reopened, nil).Once()
 	h.sessionTx.EXPECT().
 		BumpEvaluationGenerationCAS(h.ctx, h.sessionID, 1, reopened.DecisionID, h.now).
 		Return(bumped, nil).Once()
-	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(bumped, nil).Once()
-	h.sessionTx.EXPECT().LinkDecision(h.ctx, h.sessionID, newDecisionID, 2, h.now).Return(relinked, nil).Once()
 
 	output, err := h.uc.Confirm(h.ctx, h.confirmInput(1))
 	require.NoError(t, err)
 	require.True(t, output.ReconfirmRequired)
 	require.Equal(t, 2, output.Session.EvaluationGeneration)
 	require.Equal(t, model.OpenCheckoutSessionStatus, output.Session.Status)
+	require.Nil(t, output.Session.DecisionID)
 	require.Len(t, h.contracts.calls, 1)
+	require.Empty(t, h.decisions.calls, "post-compensation refresh must not evaluate under the failing credit state")
 }
 
 func TestConfirm_AmbiguousContractFailureDoesNotReopen(t *testing.T) {
@@ -220,13 +207,13 @@ func TestConfirm_AmbiguousContractFailureDoesNotReopen(t *testing.T) {
 	h.expectPool(0, 2)
 
 	open := h.session()
-	confirming := h.session(withStatus(model.ConfirmingCheckoutSessionStatus))
 
 	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(open, nil).Once()
 	h.expectCustomerLock()
 	h.decisionTx.EXPECT().GetByID(h.ctx, h.decisionID).Return(model.Decision{ID: h.decisionID}, nil).Once()
 	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(open, nil).Once()
-	h.sessionTx.EXPECT().MarkConfirming(h.ctx, h.sessionID, h.now).Return(confirming, nil).Once()
+	h.expectMarkConfirming()
+	confirming := h.confirmingSession()
 	h.expectConfirmClaimStepLock(confirming)
 	h.expectConfirmSagaDriveLock(confirming)
 

@@ -17,7 +17,7 @@ func TestRecoverStaleConfirming_DoesNotReleaseUnfencedClaim(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	h.expectPool(0, 1)
-	confirming := h.session(withStatus(model.ConfirmingCheckoutSessionStatus))
+	confirming := h.confirmingSession()
 
 	h.sessionTx.EXPECT().ReopenStaleConfirmingWithoutContract(
 		h.ctx, h.now, h.now.Add(-DefaultConfirmingClaimTimeout), h.uc.expiryBatchSize,
@@ -39,8 +39,8 @@ func TestRecoverStaleConfirming_RelinksAndFinalizesRecognizedContract(t *testing
 	h := newHarness(t)
 	h.expectPool(1, 2) // relink TX, policy read, separate completion TX
 
-	confirming := h.session(withStatus(model.ConfirmingCheckoutSessionStatus))
-	linked := h.session(withStatus(model.ConfirmingCheckoutSessionStatus), withContract(h.contractID))
+	confirming := h.confirmingSession()
+	linked := h.confirmingSession(withContract(h.contractID))
 	processing := h.session(withStatus(model.ProcessingCheckoutSessionStatus), withContract(h.contractID))
 	completed := h.session(withStatus(model.CompletedCheckoutSessionStatus), withContract(h.contractID))
 

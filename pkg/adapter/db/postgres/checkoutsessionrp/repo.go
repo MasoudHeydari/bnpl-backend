@@ -382,9 +382,19 @@ func (q txQueryer) ReopenStaleConfirmingWithoutContract(
 func (q txQueryer) MarkConfirming(
 	ctx context.Context,
 	id model.CheckoutSessionID,
+	attemptID model.ConfirmationAttemptID,
 	updatedAt time.Time,
 ) (model.CheckoutSession, error) {
-	return MarkConfirming(ctx, q.Tx, id, updatedAt)
+	return MarkConfirming(ctx, q.Tx, id, attemptID, updatedAt)
+}
+
+func (q txQueryer) ReopenConfirmingToOpen(
+	ctx context.Context,
+	id model.CheckoutSessionID,
+	expectedAttemptID model.ConfirmationAttemptID,
+	updatedAt time.Time,
+) (model.CheckoutSession, error) {
+	return ReopenConfirmingToOpen(ctx, q.Tx, id, expectedAttemptID, updatedAt)
 }
 
 func (q txQueryer) BumpEvaluationGenerationCAS(

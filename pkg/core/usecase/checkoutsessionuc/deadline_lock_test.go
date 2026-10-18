@@ -222,10 +222,7 @@ func TestReopenUnlinkedConfirming_ExpiresInSameTransactionAfterDeadline(t *testi
 	h.expectPool(0, 1)
 
 	deadline := h.now.Add(-time.Second)
-	confirming := h.session(
-		withExpiresAt(deadline),
-		withStatus(model.ConfirmingCheckoutSessionStatus),
-	)
+	confirming := h.confirmingSession(withExpiresAt(deadline))
 	reopened := h.session(withExpiresAt(deadline))
 	expired := h.session(withExpiresAt(deadline), withStatus(model.ExpiredCheckoutSessionStatus))
 
@@ -233,7 +230,7 @@ func TestReopenUnlinkedConfirming_ExpiresInSameTransactionAfterDeadline(t *testi
 	h.contractTx.EXPECT().GetByDecisionID(h.ctx, h.decisionID).
 		Return(model.Contract{}, cerr.ResourceNotFound(nil)).Once()
 	h.sessionTx.EXPECT().
-		UpdateStatus(h.ctx, h.sessionID, model.OpenCheckoutSessionStatus, h.now).
+		ReopenConfirmingToOpen(h.ctx, h.sessionID, h.confirmationAttemptID, h.now).
 		Return(reopened, nil).Once()
 	h.sessionTx.EXPECT().
 		UpdateStatus(h.ctx, h.sessionID, model.ExpiredCheckoutSessionStatus, h.now).
@@ -270,7 +267,7 @@ func TestRefreshOfferForReconfirm_UnavailableSessionNeverReturnsApprovedOffer(t 
 
 	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(unavailable, nil).Once()
 
-	got, offer, err := h.uc.refreshOfferForReconfirm(h.ctx, open, h.profileID, false)
+	got, offer, err := h.uc.refreshOfferForReconfirm(h.ctx, open, h.profileID, false, true)
 	requireCerr(t, err, cerr.CodeConflict, "error.checkout_offer_unavailable")
 	require.Equal(t, model.UnavailableCheckoutSessionStatus, got.Status)
 	require.Equal(t, DeniedOfferOutcome, offer.Outcome)

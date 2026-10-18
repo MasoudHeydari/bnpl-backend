@@ -96,10 +96,16 @@ func (uc *UseCase) RecoverStaleConfirmingSessions(ctx context.Context) (RecoverS
 						existing, findErr := contractQ.GetByDecisionID(ctx, *session.DecisionID)
 						if findErr != nil {
 							if cerr.IsCode(findErr, cerr.CodeResourceNotFound) {
+								businessKey, keyErr := confirmationSagaBusinessKey(session)
+								if keyErr != nil {
+									output.UnresolvedCount++
+									continue
+								}
+
 								instance, sagaErr := sagaQ.GetByTypeAndBusinessKey(
 									ctx,
 									checkoutConfirmationSagaType,
-									model.SagaBusinessKey(session.ID.String()),
+									businessKey,
 								)
 								if sagaErr != nil {
 									if cerr.IsCode(sagaErr, cerr.CodeResourceNotFound) {

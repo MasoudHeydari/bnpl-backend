@@ -2,7 +2,6 @@ package checkoutsessionuc
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -386,6 +385,10 @@ func (s *confirmClaimedStep) ExecuteTx(
 		return saga.StepResult{}, fmt.Errorf("%s: confirming session %s already has a contract", op, sessionID)
 	}
 
+	if mismatch, ok := sessionMatchesConfirmationAttempt(session, instance); !ok {
+		return mismatch, nil
+	}
+
 	next := checkoutContractPreparedStep
 	return saga.StepResult{Outcome: saga.StepOutcomeCompleted, NextStep: &next}, nil
 }
@@ -434,12 +437,26 @@ func (s *confirmClaimedStep) CompensateTx(
 			return saga.StepResult{}, findErr
 		}
 
-		now := s.def.clock.Now().UTC()
-		if transitionErr := session.Status.ValidateTransitionTo(model.OpenCheckoutSessionStatus); transitionErr != nil {
-			return saga.StepResult{}, fmt.Errorf("%s: %w", op, transitionErr)
+		attemptID, attemptErr := confirmationAttemptFromSagaBusinessKey(instance)
+		if attemptErr != nil {
+			reason := boundedConfirmationSagaReason(attemptErr.Error())
+			return saga.StepResult{Outcome: saga.StepOutcomeReconcile, Reason: &reason}, nil
 		}
 
-		if _, err := sessionQ.UpdateStatus(ctx, session.ID, model.OpenCheckoutSessionStatus, now); err != nil {
+		if session.ConfirmationAttemptID == nil || *session.ConfirmationAttemptID != attemptID {
+			reason := boundedConfirmationSagaReason(
+				fmt.Sprintf("session %s attempt mismatch during claim compensation", sessionID),
+			)
+			return saga.StepResult{Outcome: saga.StepOutcomeReconcile, Reason: &reason}, nil
+		}
+
+		now := s.def.clock.Now().UTC()
+		if _, err := sessionQ.ReopenConfirmingToOpen(ctx, session.ID, attemptID, now); err != nil {
+			if cerr.IsCode(err, cerr.CodeConflict) {
+				reason := boundedConfirmationSagaReason(err.Error())
+				return saga.StepResult{Outcome: saga.StepOutcomeReconcile, Reason: &reason}, nil
+			}
+
 			return saga.StepResult{}, err
 		}
 
@@ -472,6 +489,10 @@ func (s *confirmContractPreparedStep) Execute(
 	session, err := s.def.loadSession(ctx, instance)
 	if err != nil {
 		return saga.StepResult{}, err
+	}
+
+	if mismatch, ok := sessionMatchesConfirmationAttempt(session, instance); !ok {
+		return mismatch, nil
 	}
 
 	if session.DecisionID == nil || session.DecisionID.IsZero() {
@@ -514,22 +535,21 @@ func (s *confirmContractPreparedStep) Execute(
 			return saga.StepResult{Outcome: saga.StepOutcomeCompensate, Reason: &reason}, nil
 		}
 
-		if errors.Is(err, context.Canceled) {
-			return saga.StepResult{}, err
+		// Prepare is convergent on DecisionID; a lost response may already have
+		// committed a Contract. Prefer retry/discovery over dead-end reconcile.
+		now := s.def.clock.Now().UTC()
+		if classified, ok := classifyConfirmationExternalError(
+			err,
+			instance.StepAttemptCount,
+			s.def.retryBaseDelay,
+			s.def.retryMaxDelay,
+			now,
+			true,
+		); ok {
+			return classified, nil
 		}
 
-		if errors.Is(err, context.DeadlineExceeded) {
-			retryAt := s.def.clock.Now().UTC().Add(
-				confirmationSagaRetryDelay(instance.StepAttemptCount, s.def.retryBaseDelay, s.def.retryMaxDelay),
-			)
-			reason := boundedConfirmationSagaReason(err.Error())
-			return saga.StepResult{Outcome: saga.StepOutcomeRetry, RetryAt: &retryAt, Reason: &reason}, nil
-		}
-
-		// Ambiguous prepare: Contract may have committed. Keep confirming and
-		// reconcile rather than reopen.
-		reason := boundedConfirmationSagaReason(err.Error())
-		return saga.StepResult{Outcome: saga.StepOutcomeReconcile, Reason: &reason}, nil
+		return saga.StepResult{}, err
 	}
 
 	if hook := s.def.hooks.AfterPrepareContract; hook != nil {
@@ -570,6 +590,10 @@ func (s *confirmSessionLinkedStep) ExecuteTx(
 	session, err := sessionQ.LockByID(ctx, sessionID)
 	if err != nil {
 		return saga.StepResult{}, err
+	}
+
+	if mismatch, ok := sessionMatchesConfirmationAttempt(session, instance); !ok {
+		return mismatch, nil
 	}
 
 	if session.DecisionID == nil || session.DecisionID.IsZero() {
@@ -637,6 +661,10 @@ func (s *confirmFCFulfillmentStep) Execute(
 		return saga.StepResult{}, err
 	}
 
+	if mismatch, ok := sessionMatchesConfirmationAttempt(session, instance); !ok {
+		return mismatch, nil
+	}
+
 	if session.ContractID == nil || session.ContractID.IsZero() {
 		return saga.StepResult{}, fmt.Errorf("%s: session has no linked contract", op)
 	}
@@ -697,20 +725,19 @@ func (s *confirmFCFulfillmentStep) Execute(
 
 	_, err = s.def.contractUC.SubmitPreparedCheckoutFulfillment(ctx, prepared)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
-			return saga.StepResult{}, err
+		now := s.def.clock.Now().UTC()
+		if classified, ok := classifyConfirmationExternalError(
+			err,
+			instance.StepAttemptCount,
+			s.def.retryBaseDelay,
+			s.def.retryMaxDelay,
+			now,
+			true,
+		); ok {
+			return classified, nil
 		}
 
-		if errors.Is(err, context.DeadlineExceeded) {
-			retryAt := s.def.clock.Now().UTC().Add(
-				confirmationSagaRetryDelay(instance.StepAttemptCount, s.def.retryBaseDelay, s.def.retryMaxDelay),
-			)
-			reason := boundedConfirmationSagaReason(err.Error())
-			return saga.StepResult{Outcome: saga.StepOutcomeRetry, RetryAt: &retryAt, Reason: &reason}, nil
-		}
-
-		reason := boundedConfirmationSagaReason(err.Error())
-		return saga.StepResult{Outcome: saga.StepOutcomeReconcile, Reason: &reason}, nil
+		return saga.StepResult{}, err
 	}
 
 	if paymentRequired {
@@ -744,6 +771,10 @@ func (s *confirmPaymentSubmittedStep) ExecuteTx(
 	session, err := sessionQ.LockByID(ctx, sessionID)
 	if err != nil {
 		return saga.StepResult{}, err
+	}
+
+	if mismatch, ok := sessionMatchesConfirmationAttempt(session, instance); !ok {
+		return mismatch, nil
 	}
 
 	if session.ContractID == nil || session.ContractID.IsZero() {
@@ -782,6 +813,10 @@ func (s *confirmMerchantRecognizedStep) ExecuteTx(
 	session, err := sessionQ.LockByID(ctx, sessionID)
 	if err != nil {
 		return saga.StepResult{}, err
+	}
+
+	if mismatch, ok := sessionMatchesConfirmationAttempt(session, instance); !ok {
+		return mismatch, nil
 	}
 
 	if session.ContractID == nil || session.ContractID.IsZero() {

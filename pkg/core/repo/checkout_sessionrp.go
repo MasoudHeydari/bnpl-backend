@@ -146,10 +146,21 @@ type CheckoutSessionTxQueryer interface {
 	) (model.CheckoutSession, error)
 
 	// MarkConfirming atomically moves an open checkout session with a linked
-	// Decision to confirming so Confirm owns it. Any other state is a cerr.Conflict.
+	// Decision to confirming, mints confirmation_attempt_id, so Confirm owns it.
+	// Any other state is a cerr.Conflict.
 	MarkConfirming(
 		ctx context.Context,
 		id model.CheckoutSessionID,
+		attemptID model.ConfirmationAttemptID,
+		updatedAt time.Time,
+	) (model.CheckoutSession, error)
+
+	// ReopenConfirmingToOpen returns confirming → open and clears
+	// confirmation_attempt_id when the row still matches expectedAttemptID.
+	ReopenConfirmingToOpen(
+		ctx context.Context,
+		id model.CheckoutSessionID,
+		expectedAttemptID model.ConfirmationAttemptID,
 		updatedAt time.Time,
 	) (model.CheckoutSession, error)
 

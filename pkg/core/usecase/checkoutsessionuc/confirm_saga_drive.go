@@ -11,11 +11,14 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/contractuc"
 )
 
-const confirmSagaDriveMaxSteps = 8
+const confirmSagaDriveMaxSteps = 12
 
-// driveConfirmSaga runs ExecuteByID until the Saga leaves the running forward
-// path or the step budget is exhausted. HTTP Confirm is a low-latency first
-// attempt; the background saga_executor remains the durable progress owner.
+// driveConfirmSaga runs ExecuteByID until the Saga is no longer runnable or the
+// step budget is exhausted. Both forward and compensating phases are driven
+// while status remains running so deterministic prepare rejections can reopen
+// the checkout inside the HTTP Confirm path. Waiting and terminal statuses
+// stop the drive; the background saga_executor remains the durable owner for
+// retries after lease expiry or scheduled Waiting backoff.
 func (uc *UseCase) driveConfirmSaga(ctx context.Context, sagaID model.SagaID) error {
 	const op = "checkoutsessionuc.UseCase.driveConfirmSaga"
 
@@ -25,13 +28,9 @@ func (uc *UseCase) driveConfirmSaga(ctx context.Context, sagaID model.SagaID) er
 			return fmt.Errorf("%s: load saga: %w", op, loadErr)
 		}
 
-		if instance.Phase != model.ForwardSagaPhase {
-			return nil
-		}
-
 		switch instance.Status {
 		case model.RunningSagaStatus:
-			// Continue driving.
+			// Drive forward and compensating phases while the instance is runnable.
 
 		case model.WaitingSagaStatus,
 			model.ReconciliationRequiredSagaStatus,
@@ -82,15 +81,24 @@ func (uc *UseCase) loadConfirmationSaga(
 
 func (uc *UseCase) findConfirmationSagaBySession(
 	ctx context.Context,
-	sessionID model.CheckoutSessionID,
+	session model.CheckoutSession,
 ) (model.SagaInstance, error) {
+	const op = "checkoutsessionuc.UseCase.findConfirmationSagaBySession"
+
+	businessKey, keyErr := confirmationSagaBusinessKey(session)
+	if keyErr != nil {
+		return model.SagaInstance{}, checkoutPaymentInProgressError(
+			fmt.Errorf("%s: %w", op, keyErr),
+		)
+	}
+
 	var instance model.SagaInstance
 	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 		sagaQ := uc.confirmationSagaRepo.Conn(conn)
 		row, getErr := sagaQ.GetByTypeAndBusinessKey(
 			ctx,
 			checkoutConfirmationSagaType,
-			model.SagaBusinessKey(sessionID.String()),
+			businessKey,
 		)
 		if getErr != nil {
 			return getErr
@@ -112,7 +120,7 @@ func (uc *UseCase) resumeConfirmSaga(
 ) (ConfirmOutput, error) {
 	const op = "checkoutsessionuc.UseCase.resumeConfirmSaga"
 
-	instance, err := uc.findConfirmationSagaBySession(ctx, session.ID)
+	instance, err := uc.findConfirmationSagaBySession(ctx, session)
 	if err != nil {
 		if cerr.IsCode(err, cerr.CodeResourceNotFound) {
 			// Orphan confirming without a Saga should not happen after atomic
@@ -129,12 +137,13 @@ func (uc *UseCase) resumeConfirmSaga(
 		return ConfirmOutput{}, err
 	}
 
-	return uc.projectConfirmAfterSaga(ctx, session.ID, input)
+	return uc.projectConfirmAfterSaga(ctx, session.ID, instance.ID, input)
 }
 
 func (uc *UseCase) projectConfirmAfterSaga(
 	ctx context.Context,
 	sessionID model.CheckoutSessionID,
+	sagaID model.SagaID,
 	input ConfirmInput,
 ) (ConfirmOutput, error) {
 	const op = "checkoutsessionuc.UseCase.projectConfirmAfterSaga"
@@ -156,12 +165,19 @@ func (uc *UseCase) projectConfirmAfterSaga(
 		return ConfirmOutput{}, err
 	}
 
-	instance, err := uc.findConfirmationSagaBySession(ctx, sessionID)
-	if err != nil && !cerr.IsCode(err, cerr.CodeResourceNotFound) {
-		return ConfirmOutput{}, err
+	var instance model.SagaInstance
+	if !sagaID.IsZero() {
+		loaded, loadErr := uc.loadConfirmationSaga(ctx, sagaID)
+		if loadErr != nil && !cerr.IsCode(loadErr, cerr.CodeResourceNotFound) {
+			return ConfirmOutput{}, loadErr
+		}
+
+		if loadErr == nil {
+			instance = loaded
+		}
 	}
 
-	if err == nil && instance.Status == model.CompensatedSagaStatus {
+	if !instance.ID.IsZero() && instance.Status == model.CompensatedSagaStatus {
 		// Deterministic prepare rejection reopened the claim; refresh offer.
 		return uc.refreshAfterDeterministicContractReject(ctx, session, input)
 	}

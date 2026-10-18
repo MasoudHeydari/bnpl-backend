@@ -264,23 +264,7 @@ func TestE2E_ConfirmSaga_J_ConcurrentConfirmSingleContract(t *testing.T) {
 	resetDatabase(t)
 
 	externalCustomerID := newExternalCustomer(t)
-	var entered atomic.Int32
-	release := make(chan struct{})
-	enteredCh := make(chan struct{}, 2)
-
-	h := newConfirmSagaHarness(t, confirmSagaHarnessOptions{
-		externalCustomerID: externalCustomerID,
-		hooks: checkoutsessionuc.ConfirmationSagaHooks{
-			BeforePrepareContract: func(context.Context) error {
-				if entered.Add(1) <= 2 {
-					enteredCh <- struct{}{}
-					<-release
-				}
-
-				return nil
-			},
-		},
-	})
+	h := newConfirmSagaHarness(t, confirmSagaHarnessOptions{externalCustomerID: externalCustomerID})
 	seed := seedMerchantFundingCheckout(t, h, externalCustomerID)
 
 	var (
@@ -297,9 +281,6 @@ func TestE2E_ConfirmSaga_J_ConcurrentConfirmSingleContract(t *testing.T) {
 		defer wg.Done()
 		_, errB = h.CheckoutSession.Confirm(h.ctx, confirmInputForSeed(seed))
 	}()
-
-	<-enteredCh
-	close(release)
 	wg.Wait()
 
 	// One caller may observe IN_PROGRESS while the other completes, or both may
@@ -324,21 +305,32 @@ func TestE2E_ConfirmSaga_K_StaleWorkerFencedAfterLeaseExpiry(t *testing.T) {
 	resetDatabase(t)
 
 	externalCustomerID := newExternalCustomer(t)
-	var prepareHits atomic.Int32
 	blockA := make(chan struct{})
-	aEntered := make(chan struct{}, 1)
+	contractPrepared := make(chan struct{}, 1)
+	linkEntered := make(chan struct{}, 1)
+	var staleLinkBarrier atomic.Bool
+	staleLinkBarrier.Store(true)
 
 	h := newConfirmSagaHarness(t, confirmSagaHarnessOptions{
 		externalCustomerID: externalCustomerID,
 		hooks: checkoutsessionuc.ConfirmationSagaHooks{
-			BeforePrepareContract: func(context.Context) error {
-				n := prepareHits.Add(1)
-				if n == 1 {
-					aEntered <- struct{}{}
-					<-blockA
-					// Stale worker resumes after B completed; fail closed.
-					return context.Canceled
+			AfterPrepareContract: func(context.Context) error {
+				select {
+				case contractPrepared <- struct{}{}:
+				default:
 				}
+
+				return nil
+			},
+			BeforeLink: func(context.Context) error {
+				// Only the first (stale) worker parks inside the mutation boundary.
+				// Worker B must not re-enter the same barrier or the test deadlocks.
+				if !staleLinkBarrier.CompareAndSwap(true, false) {
+					return nil
+				}
+
+				linkEntered <- struct{}{}
+				<-blockA
 
 				return nil
 			},
@@ -354,16 +346,32 @@ func TestE2E_ConfirmSaga_K_StaleWorkerFencedAfterLeaseExpiry(t *testing.T) {
 		_, confirmErr = h.CheckoutSession.Confirm(h.ctx, confirmInputForSeed(seed))
 	}()
 
-	<-aEntered
+	select {
+	case <-contractPrepared:
+	case <-time.After(30 * time.Second):
+		t.Fatal("contract prepare barrier was not entered")
+	}
 
-	// Expire Worker A's lease, then let Worker B claim and finish.
+	select {
+	case <-linkEntered:
+	case <-time.After(30 * time.Second):
+		t.Fatal("link barrier was not entered")
+	}
+
+	require.Equal(t, 1, h.countContractsForDecision(*seed.Session.DecisionID))
+
+	// Expire Worker A's lease while it holds the link-step boundary, then finish on B.
 	h.advanceClock(h.SagaExecutor.LeaseDuration + time.Second)
 	sagaID := h.findSagaID(seed.Session.ID)
 	require.NoError(t, workerB.ExecuteByID(h.ctx, sagaID))
 	h.driveWithExecutor(workerB, sagaID)
 
 	close(blockA)
-	<-done
+	select {
+	case <-done:
+	case <-time.After(30 * time.Second):
+		t.Fatal("stale Confirm worker did not return")
+	}
 
 	session := h.querySession(seed.Session.ID)
 	if session.Status != model.CompletedCheckoutSessionStatus {
@@ -376,6 +384,6 @@ func TestE2E_ConfirmSaga_K_StaleWorkerFencedAfterLeaseExpiry(t *testing.T) {
 	require.Equal(t, 1, h.countContractsForDecision(*session.DecisionID))
 	assert.Equal(t, 1, h.fc.committedEntitlementCount())
 
-	// Stale Confirm is allowed to error; it must not create a second Contract.
+	// Stale worker resume must converge idempotently, not create a second Contract.
 	_ = confirmErr
 }

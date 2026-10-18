@@ -99,6 +99,84 @@ func insertCreditAccount(t *testing.T, customerID model.CustomerID, limitMinor u
 	require.NoError(t, err)
 }
 
+func seedInitialPaymentCheckout(
+	t *testing.T,
+	h *confirmSagaHarness,
+	externalCustomerID model.ExternalCustomerID,
+) confirmSagaSeed {
+	t.Helper()
+
+	customerID := insertCustomerProfile(t, externalCustomerID, model.ActiveCustomerStatus)
+	// Partial credit forces v1 upfront cash so RequiredDownPaymentAmountMinor > 0
+	// and CheckoutFirstInstallment payment is exercised.
+	insertCreditAccount(t, customerID, confirmSagaTestAmountMinor/2)
+	insertCheckoutPolicyV1Assignment(t, externalCustomerID)
+
+	merchantID := model.MerchantID(uuid.New())
+	onlineStoreID := model.OnlineStoreID(uuid.New())
+	merchantProfileID, branchProfileID := insertMerchantOnlineStack(
+		t,
+		merchantID,
+		onlineStoreID,
+		confirmSagaReturnDest,
+	)
+
+	_ = merchantProfileID
+	_ = branchProfileID
+
+	out, err := h.CheckoutSession.CreatePartner(h.ctx, checkoutsessionuc.CreatePartnerInput{
+		CheckoutSessionRequest: checkoutsessionuc.CheckoutSessionRequest{
+			MerchantID:           merchantID,
+			OnlineStoreID:        onlineStoreID,
+			MerchantOrderID:      "order-" + uuid.NewString(),
+			IdempotencyKey:       "idem-" + uuid.NewString(),
+			CustomerReference:    "cust-ref",
+			ReturnDestination:    confirmSagaReturnDest,
+			MerchantState:        "state",
+			RequestedAmountMinor: confirmSagaTestAmountMinor,
+			Currency:             model.IRRCurrency,
+		},
+		CustomerPhone: "+989121111111",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, out.Offer)
+	require.Equal(t, checkoutsessionuc.ApprovedOfferOutcome, out.Offer.Outcome)
+	require.Greater(t, out.Offer.RequiredDownPaymentAmountMinor, uint64(0), "v1 policy requires upfront initial payment")
+
+	session := h.querySession(out.Session.ID)
+	require.NotNil(t, session.DecisionID)
+
+	decision := queryDecisionByID(t, *session.DecisionID)
+	require.Equal(t, "checkout_contract_approval", decision.PolicyID)
+	require.Equal(t, "v1", decision.PolicyVersion)
+
+	return confirmSagaSeed{
+		MerchantID:         merchantID,
+		OnlineStoreID:      onlineStoreID,
+		ExternalCustomerID: externalCustomerID,
+		CustomerID:         customerID,
+		Session:            session,
+	}
+}
+
+func insertCheckoutPolicyV1Assignment(t *testing.T, externalCustomerID model.ExternalCustomerID) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	_, err := testDB.Exec(ctx, `
+		INSERT INTO bnpl.policy_assignments (
+			id, subject_type, subject_id, policy_family, policy_id, policy_version,
+			reason, source, valid_from, created_by, created_at, updated_at
+		) VALUES (
+			$1, 'customer', $2, 'checkout', 'checkout_contract_approval', 'v1',
+			'e2e_trusted', 'manual', now() - interval '1 day', 'e2e', now(), now()
+		)
+	`, uuid.New(), externalCustomerID.String())
+	require.NoError(t, err)
+}
+
 func insertCheckoutPolicyV2Assignment(t *testing.T, externalCustomerID model.ExternalCustomerID) {
 	t.Helper()
 

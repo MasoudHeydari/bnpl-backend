@@ -1923,8 +1923,8 @@ func (_c *CheckoutSessionTxQueryer_MarkCanceled_Call) RunAndReturn(run func(ctx 
 }
 
 // MarkConfirming provides a mock function for the type CheckoutSessionTxQueryer
-func (_mock *CheckoutSessionTxQueryer) MarkConfirming(ctx context.Context, id model.CheckoutSessionID, updatedAt time.Time) (model.CheckoutSession, error) {
-	ret := _mock.Called(ctx, id, updatedAt)
+func (_mock *CheckoutSessionTxQueryer) MarkConfirming(ctx context.Context, id model.CheckoutSessionID, attemptID model.ConfirmationAttemptID, updatedAt time.Time) (model.CheckoutSession, error) {
+	ret := _mock.Called(ctx, id, attemptID, updatedAt)
 
 	if len(ret) == 0 {
 		panic("no return value specified for MarkConfirming")
@@ -1932,16 +1932,16 @@ func (_mock *CheckoutSessionTxQueryer) MarkConfirming(ctx context.Context, id mo
 
 	var r0 model.CheckoutSession
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CheckoutSessionID, time.Time) (model.CheckoutSession, error)); ok {
-		return returnFunc(ctx, id, updatedAt)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CheckoutSessionID, model.ConfirmationAttemptID, time.Time) (model.CheckoutSession, error)); ok {
+		return returnFunc(ctx, id, attemptID, updatedAt)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CheckoutSessionID, time.Time) model.CheckoutSession); ok {
-		r0 = returnFunc(ctx, id, updatedAt)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CheckoutSessionID, model.ConfirmationAttemptID, time.Time) model.CheckoutSession); ok {
+		r0 = returnFunc(ctx, id, attemptID, updatedAt)
 	} else {
 		r0 = ret.Get(0).(model.CheckoutSession)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, model.CheckoutSessionID, time.Time) error); ok {
-		r1 = returnFunc(ctx, id, updatedAt)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.CheckoutSessionID, model.ConfirmationAttemptID, time.Time) error); ok {
+		r1 = returnFunc(ctx, id, attemptID, updatedAt)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -1956,12 +1956,13 @@ type CheckoutSessionTxQueryer_MarkConfirming_Call struct {
 // MarkConfirming is a helper method to define mock.On call
 //   - ctx context.Context
 //   - id model.CheckoutSessionID
+//   - attemptID model.ConfirmationAttemptID
 //   - updatedAt time.Time
-func (_e *CheckoutSessionTxQueryer_Expecter) MarkConfirming(ctx any, id any, updatedAt any) *CheckoutSessionTxQueryer_MarkConfirming_Call {
-	return &CheckoutSessionTxQueryer_MarkConfirming_Call{Call: _e.mock.On("MarkConfirming", ctx, id, updatedAt)}
+func (_e *CheckoutSessionTxQueryer_Expecter) MarkConfirming(ctx any, id any, attemptID any, updatedAt any) *CheckoutSessionTxQueryer_MarkConfirming_Call {
+	return &CheckoutSessionTxQueryer_MarkConfirming_Call{Call: _e.mock.On("MarkConfirming", ctx, id, attemptID, updatedAt)}
 }
 
-func (_c *CheckoutSessionTxQueryer_MarkConfirming_Call) Run(run func(ctx context.Context, id model.CheckoutSessionID, updatedAt time.Time)) *CheckoutSessionTxQueryer_MarkConfirming_Call {
+func (_c *CheckoutSessionTxQueryer_MarkConfirming_Call) Run(run func(ctx context.Context, id model.CheckoutSessionID, attemptID model.ConfirmationAttemptID, updatedAt time.Time)) *CheckoutSessionTxQueryer_MarkConfirming_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -1971,14 +1972,19 @@ func (_c *CheckoutSessionTxQueryer_MarkConfirming_Call) Run(run func(ctx context
 		if args[1] != nil {
 			arg1 = args[1].(model.CheckoutSessionID)
 		}
-		var arg2 time.Time
+		var arg2 model.ConfirmationAttemptID
 		if args[2] != nil {
-			arg2 = args[2].(time.Time)
+			arg2 = args[2].(model.ConfirmationAttemptID)
+		}
+		var arg3 time.Time
+		if args[3] != nil {
+			arg3 = args[3].(time.Time)
 		}
 		run(
 			arg0,
 			arg1,
 			arg2,
+			arg3,
 		)
 	})
 	return _c
@@ -1989,7 +1995,7 @@ func (_c *CheckoutSessionTxQueryer_MarkConfirming_Call) Return(checkoutSession m
 	return _c
 }
 
-func (_c *CheckoutSessionTxQueryer_MarkConfirming_Call) RunAndReturn(run func(ctx context.Context, id model.CheckoutSessionID, updatedAt time.Time) (model.CheckoutSession, error)) *CheckoutSessionTxQueryer_MarkConfirming_Call {
+func (_c *CheckoutSessionTxQueryer_MarkConfirming_Call) RunAndReturn(run func(ctx context.Context, id model.CheckoutSessionID, attemptID model.ConfirmationAttemptID, updatedAt time.Time) (model.CheckoutSession, error)) *CheckoutSessionTxQueryer_MarkConfirming_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -2230,6 +2236,84 @@ func (_c *CheckoutSessionTxQueryer_RecordOTPFailure_Call) Return(checkoutSession
 }
 
 func (_c *CheckoutSessionTxQueryer_RecordOTPFailure_Call) RunAndReturn(run func(ctx context.Context, id model.CheckoutSessionID, updatedAt time.Time) (model.CheckoutSession, error)) *CheckoutSessionTxQueryer_RecordOTPFailure_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ReopenConfirmingToOpen provides a mock function for the type CheckoutSessionTxQueryer
+func (_mock *CheckoutSessionTxQueryer) ReopenConfirmingToOpen(ctx context.Context, id model.CheckoutSessionID, expectedAttemptID model.ConfirmationAttemptID, updatedAt time.Time) (model.CheckoutSession, error) {
+	ret := _mock.Called(ctx, id, expectedAttemptID, updatedAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ReopenConfirmingToOpen")
+	}
+
+	var r0 model.CheckoutSession
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CheckoutSessionID, model.ConfirmationAttemptID, time.Time) (model.CheckoutSession, error)); ok {
+		return returnFunc(ctx, id, expectedAttemptID, updatedAt)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CheckoutSessionID, model.ConfirmationAttemptID, time.Time) model.CheckoutSession); ok {
+		r0 = returnFunc(ctx, id, expectedAttemptID, updatedAt)
+	} else {
+		r0 = ret.Get(0).(model.CheckoutSession)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.CheckoutSessionID, model.ConfirmationAttemptID, time.Time) error); ok {
+		r1 = returnFunc(ctx, id, expectedAttemptID, updatedAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// CheckoutSessionTxQueryer_ReopenConfirmingToOpen_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ReopenConfirmingToOpen'
+type CheckoutSessionTxQueryer_ReopenConfirmingToOpen_Call struct {
+	*mock.Call
+}
+
+// ReopenConfirmingToOpen is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id model.CheckoutSessionID
+//   - expectedAttemptID model.ConfirmationAttemptID
+//   - updatedAt time.Time
+func (_e *CheckoutSessionTxQueryer_Expecter) ReopenConfirmingToOpen(ctx any, id any, expectedAttemptID any, updatedAt any) *CheckoutSessionTxQueryer_ReopenConfirmingToOpen_Call {
+	return &CheckoutSessionTxQueryer_ReopenConfirmingToOpen_Call{Call: _e.mock.On("ReopenConfirmingToOpen", ctx, id, expectedAttemptID, updatedAt)}
+}
+
+func (_c *CheckoutSessionTxQueryer_ReopenConfirmingToOpen_Call) Run(run func(ctx context.Context, id model.CheckoutSessionID, expectedAttemptID model.ConfirmationAttemptID, updatedAt time.Time)) *CheckoutSessionTxQueryer_ReopenConfirmingToOpen_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.CheckoutSessionID
+		if args[1] != nil {
+			arg1 = args[1].(model.CheckoutSessionID)
+		}
+		var arg2 model.ConfirmationAttemptID
+		if args[2] != nil {
+			arg2 = args[2].(model.ConfirmationAttemptID)
+		}
+		var arg3 time.Time
+		if args[3] != nil {
+			arg3 = args[3].(time.Time)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *CheckoutSessionTxQueryer_ReopenConfirmingToOpen_Call) Return(checkoutSession model.CheckoutSession, err error) *CheckoutSessionTxQueryer_ReopenConfirmingToOpen_Call {
+	_c.Call.Return(checkoutSession, err)
+	return _c
+}
+
+func (_c *CheckoutSessionTxQueryer_ReopenConfirmingToOpen_Call) RunAndReturn(run func(ctx context.Context, id model.CheckoutSessionID, expectedAttemptID model.ConfirmationAttemptID, updatedAt time.Time) (model.CheckoutSession, error)) *CheckoutSessionTxQueryer_ReopenConfirmingToOpen_Call {
 	_c.Call.Return(run)
 	return _c
 }

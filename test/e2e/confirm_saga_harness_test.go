@@ -27,6 +27,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/saga"
 	"github.com/parstis/bnpl-backend/pkg/core/trace"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/checkoutsessionuc"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/financialcorepaymentresultuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/sagaexecutoruc"
 )
 
@@ -57,6 +58,7 @@ type confirmSagaHarness struct {
 	repos bootstrap.Repos
 
 	CheckoutSession            *checkoutsessionuc.UseCase
+	PaymentResult              *financialcorepaymentresultuc.UseCase
 	SagaExecutor               *sagaexecutoruc.UseCase
 	confirmationSagaDefinition *checkoutsessionuc.ConfirmationSagaDefinition
 	cancellationSagaDefinition saga.Definition
@@ -241,6 +243,25 @@ func newConfirmSagaHarness(t *testing.T, opts confirmSagaHarnessOptions) *confir
 	)
 	require.NoError(t, err)
 
+	paymentResultUC, err := cfg.NewFinancialCorePaymentResultUseCase(
+		pool,
+		contractUC,
+		checkoutUC,
+		fc,
+		repos.Inbox,
+		repos.Outbox,
+		repos.PaymentAttempt,
+		repos.Contract,
+		repos.Installment,
+		repos.InstallmentCharge,
+		repos.CreditAccount,
+		infra.IdentifierGenerator,
+		infra.FingerprintHasher,
+		fixedClock,
+		businessMetrics,
+	)
+	require.NoError(t, err)
+
 	ctx := trace.WithTraceID(context.Background(), uuid.NewString())
 	ctx = trace.WithCorrelationID(ctx, uuid.NewString())
 
@@ -255,6 +276,7 @@ func newConfirmSagaHarness(t *testing.T, opts confirmSagaHarnessOptions) *confir
 		clock:                      fixedClock,
 		repos:                      repos,
 		CheckoutSession:            checkoutUC,
+		PaymentResult:              paymentResultUC,
 		SagaExecutor:               sagaExecutor,
 		confirmationSagaDefinition: confirmationSagaDefinition,
 		cancellationSagaDefinition: cancellationSagaDefinition,
@@ -312,13 +334,17 @@ func (h *confirmSagaHarness) advanceClock(d time.Duration) {
 func (h *confirmSagaHarness) findSagaID(sessionID model.CheckoutSessionID) model.SagaID {
 	h.t.Helper()
 
+	session := h.querySession(sessionID)
+	require.NotNil(h.t, session.ConfirmationAttemptID)
+	require.False(h.t, session.ConfirmationAttemptID.IsZero())
+
 	var sagaID model.SagaID
 	err := h.pool.Conn(h.ctx, func(ctx context.Context, conn repo.Conn) error {
 		sagaQ := h.repos.Saga.Conn(conn)
 		instance, getErr := sagaQ.GetByTypeAndBusinessKey(
 			ctx,
 			model.SagaType("checkout_confirmation"),
-			model.SagaBusinessKey(sessionID.String()),
+			model.SagaBusinessKey(session.ConfirmationAttemptID.String()),
 		)
 		if getErr != nil {
 			return getErr
@@ -359,20 +385,56 @@ func (h *confirmSagaHarness) driveSagaUntilIdle(sagaID model.SagaID) {
 func (h *confirmSagaHarness) driveWithExecutor(executor *sagaexecutoruc.UseCase, sagaID model.SagaID) {
 	h.t.Helper()
 
-	const maxSteps = 12
+	const maxSteps = 24
 	for i := 0; i < maxSteps; i++ {
 		instance := h.loadSaga(sagaID)
-		if instance.Status != model.RunningSagaStatus || instance.Phase != model.ForwardSagaPhase {
-			return
-		}
 
-		err := executor.ExecuteByID(h.ctx, sagaID)
-		if err != nil {
-			if errors.Is(err, repo.ErrSagaNotRunnable) || errors.Is(err, repo.ErrSagaVersionConflict) {
-				return
+		switch instance.Status {
+		case model.CompletedSagaStatus,
+			model.CompensatedSagaStatus,
+			model.FailedSagaStatus,
+			model.ReconciliationRequiredSagaStatus,
+			model.ManualReviewRequiredSagaStatus:
+			return
+
+		case model.WaitingSagaStatus:
+			if instance.NextAttemptAt != nil && instance.NextAttemptAt.After(h.clock.Now()) {
+				h.advanceClock(instance.NextAttemptAt.Sub(h.clock.Now()) + time.Second)
 			}
 
-			require.NoError(h.t, err)
+			err := executor.ProcessDue(h.ctx)
+			if err != nil {
+				require.NoError(h.t, err)
+			}
+
+			continue
+
+		case model.RunningSagaStatus:
+			if instance.NextAttemptAt != nil && instance.NextAttemptAt.After(h.clock.Now()) {
+				h.advanceClock(instance.NextAttemptAt.Sub(h.clock.Now()) + time.Second)
+			}
+
+			err := executor.ExecuteByID(h.ctx, sagaID)
+			if err != nil {
+				if errors.Is(err, repo.ErrSagaNotRunnable) {
+					instance = h.loadSaga(sagaID)
+					if instance.NextAttemptAt != nil && instance.NextAttemptAt.After(h.clock.Now()) {
+						h.advanceClock(instance.NextAttemptAt.Sub(h.clock.Now()) + time.Second)
+						continue
+					}
+
+					return
+				}
+
+				if errors.Is(err, repo.ErrSagaVersionConflict) {
+					return
+				}
+
+				require.NoError(h.t, err)
+			}
+
+		default:
+			return
 		}
 	}
 

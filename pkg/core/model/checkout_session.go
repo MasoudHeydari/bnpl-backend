@@ -83,6 +83,63 @@ func (id *CheckoutSessionID) Scan(src any) error {
 // Value implements driver.Valuer.
 func (id CheckoutSessionID) Value() (driver.Value, error) { return uuid.UUID(id).Value() }
 
+// ConfirmationAttemptID identifies one durable checkout confirmation attempt
+// (checkout_sessions.confirmation_attempt_id).
+//
+// A new attempt is minted when Confirm claims open → confirming. The checkout
+// confirmation Saga business key is the attempt id so a compensated prior
+// attempt does not block a fresh Confirm after offer refresh.
+type ConfirmationAttemptID uuid.UUID
+
+// ParseConfirmationAttemptID parses a ConfirmationAttemptID from its canonical UUID string form.
+func ParseConfirmationAttemptID(value string) (ConfirmationAttemptID, error) {
+	id, err := uuid.Parse(value)
+	if err != nil {
+		return ConfirmationAttemptID{}, fmt.Errorf("parse confirmation attempt id: %w", err)
+	}
+
+	return ConfirmationAttemptID(id), nil
+}
+
+// UUID returns the underlying uuid.UUID value for boundary conversions.
+func (id ConfirmationAttemptID) UUID() uuid.UUID { return uuid.UUID(id) }
+
+// String returns the canonical UUID string representation.
+func (id ConfirmationAttemptID) String() string { return uuid.UUID(id).String() }
+
+// IsZero reports whether id is the zero (nil) UUID.
+func (id ConfirmationAttemptID) IsZero() bool { return uuid.UUID(id) == uuid.Nil }
+
+// MarshalText implements encoding.TextMarshaler.
+func (id ConfirmationAttemptID) MarshalText() ([]byte, error) { return uuid.UUID(id).MarshalText() }
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (id *ConfirmationAttemptID) UnmarshalText(data []byte) error {
+	var u uuid.UUID
+	if err := u.UnmarshalText(data); err != nil {
+		return err
+	}
+
+	*id = ConfirmationAttemptID(u)
+
+	return nil
+}
+
+// Scan implements sql.Scanner.
+func (id *ConfirmationAttemptID) Scan(src any) error {
+	var u uuid.UUID
+	if err := u.Scan(src); err != nil {
+		return err
+	}
+
+	*id = ConfirmationAttemptID(u)
+
+	return nil
+}
+
+// Value implements driver.Valuer.
+func (id ConfirmationAttemptID) Value() (driver.Value, error) { return uuid.UUID(id).Value() }
+
 // CheckoutSessionStatus is the lifecycle state of a merchant checkout handoff.
 //
 // The status describes the checkout conversation, not payment authority.
@@ -364,6 +421,10 @@ type CheckoutSession struct {
 
 	// Status is the current checkout session lifecycle state.
 	Status CheckoutSessionStatus `db:"status" json:"status"`
+
+	// ConfirmationAttemptID is the active durable confirmation attempt while
+	// Status is confirming. Cleared on safe confirming → open reopen.
+	ConfirmationAttemptID *ConfirmationAttemptID `db:"confirmation_attempt_id" json:"-"`
 
 	// DecisionID links the personalized checkout Decision created for the bound customer.
 	DecisionID *DecisionID `db:"decision_id" json:"decision_id,omitempty"`

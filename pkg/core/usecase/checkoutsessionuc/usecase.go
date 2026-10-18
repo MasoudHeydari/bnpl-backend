@@ -91,6 +91,7 @@ type UseCase struct {
 	confirmationSagaRepo       repo.Saga
 	confirmationSagaExecutor   saga.Executor
 	confirmationSagaDefinition *ConfirmationSagaDefinition
+	idGenerator                identifier.Generator
 }
 
 // New constructs a checkout session use case.
@@ -328,5 +329,6 @@ func New(
 		confirmationSagaRepo:       confirmationSagaRepo,
 		confirmationSagaExecutor:   confirmationSagaExecutor,
 		confirmationSagaDefinition: confirmationSagaDefinition,
+		idGenerator:                idGenerator,
 	}, nil
 }

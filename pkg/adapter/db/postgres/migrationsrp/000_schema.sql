@@ -1824,6 +1824,10 @@ CREATE TABLE IF NOT EXISTS checkout_sessions (
     -- Current checkout session lifecycle state.
     status text NOT NULL,
 
+    -- Durable confirmation attempt identity; set when entering confirming and
+    -- cleared on safe confirming → open reopen.
+    confirmation_attempt_id uuid NULL,
+
     -- Personalized checkout Decision created for the bound customer.
     decision_id uuid NULL,
 
@@ -1925,6 +1929,9 @@ CREATE TABLE IF NOT EXISTS checkout_sessions (
         'expired',
         'unavailable'
     )),
+
+    CONSTRAINT chk_checkout_sessions_confirming_attempt
+    CHECK (status <> 'confirming' OR confirmation_attempt_id IS NOT NULL),
 
     CONSTRAINT chk_checkout_sessions_currency
     CHECK (currency IN ('IRR', 'EUR', 'USD')),

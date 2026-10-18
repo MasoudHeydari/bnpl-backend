@@ -2,7 +2,6 @@ package checkoutsessionuc
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -70,7 +69,7 @@ func (uc *UseCase) Confirm(ctx context.Context, input ConfirmInput) (ConfirmOutp
 		return ConfirmOutput{}, err
 	}
 
-	return uc.projectConfirmAfterSaga(ctx, prepared.Session.ID, input)
+	return uc.projectConfirmAfterSaga(ctx, prepared.Session.ID, prepared.SagaID, input)
 }
 
 type beginConfirmResult struct {
@@ -169,6 +168,12 @@ func (uc *UseCase) beginConfirm(
 							return nil
 						}
 
+						if locked.ConfirmationAttemptID == nil || locked.ConfirmationAttemptID.IsZero() {
+							return checkoutPaymentInProgressError(
+								fmt.Errorf("%s: confirming session %s has no confirmation attempt", op, locked.ID),
+							)
+						}
+
 						// An unlinked confirming claim is owned by the durable
 						// confirmation Saga. Concurrent callers resume that Saga
 						// rather than starting a second prepare.
@@ -249,6 +254,7 @@ func (uc *UseCase) beginConfirm(
 			result.Session,
 			input.ExternalCustomerID,
 			result.forceNewGeneration,
+			true,
 		)
 		if refreshErr != nil {
 			return beginConfirmResult{}, refreshErr
@@ -326,6 +332,7 @@ func (uc *UseCase) claimConfirmingAfterRevalidation(
 			session,
 			input.ExternalCustomerID,
 			true,
+			true,
 		)
 		if refreshErr != nil {
 			return beginConfirmResult{}, refreshErr
@@ -368,6 +375,12 @@ func (uc *UseCase) claimConfirmingWithSaga(
 			now := uc.clock.Now().UTC()
 
 			if locked.Status == model.ConfirmingCheckoutSessionStatus && locked.ContractID == nil {
+				if locked.ConfirmationAttemptID == nil || locked.ConfirmationAttemptID.IsZero() {
+					return checkoutPaymentInProgressError(
+						fmt.Errorf("%s: confirming session %s has no confirmation attempt", op, locked.ID),
+					)
+				}
+
 				confirming = locked
 				resume = true
 				return nil
@@ -402,12 +415,6 @@ func (uc *UseCase) claimConfirmingWithSaga(
 
 			claimed, startedSagaID, startErr := uc.startConfirmSagaTx(ctx, tx, locked, now)
 			if startErr != nil {
-				if errors.Is(startErr, repo.ErrSagaAlreadyExists) {
-					confirming = locked
-					resume = true
-					return nil
-				}
-
 				return startErr
 			}
 
@@ -453,14 +460,23 @@ func (uc *UseCase) markConfirmingOpenSession(
 // only if prepareEvaluationGeneration detects Decision expiry (client presented
 // a stale generation against a still-valid current Decision merely replays it).
 //
-// A denied fresh evaluation transitions the session to unavailable and returns
-// checkoutOfferUnavailableError — never reconfirm_required with a denied offer.
+// When evaluateNow is false (post-compensation recovery), only the superseded
+// Decision/generation is cleared. Evaluating immediately can terminalize the
+// session as unavailable while credit is still zero; unavailable is permanent,
+// but a compensated confirmation must leave the checkout confirmable so a later
+// Start/Confirm can succeed after conditions recover.
+//
+// When evaluateNow is true, a denied fresh evaluation transitions the session
+// to unavailable and returns checkoutOfferUnavailableError — never
+// reconfirm_required with a denied offer.
+//
 // Reconfirmation never extends CheckoutSession.expires_at (ClampExpiresAt is LEAST).
 func (uc *UseCase) refreshOfferForReconfirm(
 	ctx context.Context,
 	session model.CheckoutSession,
 	externalCustomerID model.ExternalCustomerID,
 	forceNewGeneration bool,
+	evaluateNow bool,
 ) (model.CheckoutSession, Offer, error) {
 	const op = "checkoutsessionuc.UseCase.refreshOfferForReconfirm"
 
@@ -477,6 +493,10 @@ func (uc *UseCase) refreshOfferForReconfirm(
 
 	if err != nil {
 		return model.CheckoutSession{}, Offer{}, err
+	}
+
+	if !evaluateNow {
+		return bumped, Offer{}, nil
 	}
 
 	evaluated, offer, err := uc.evaluateSession(ctx, bumped, externalCustomerID)
@@ -518,28 +538,35 @@ func (uc *UseCase) forceNewEvaluationGeneration(
 	return uc.bumpEvaluationGenerationCAS(ctx, session)
 }
 
-// refreshAfterDeterministicContractReject reopens an unlinked confirming claim
-// after PrepareCheckoutContract rejected with a known deterministic pre-contract
-// rejection (insufficient credit, unusable credit account, or Decision/
-// allocation no longer live), then refreshes the offer for reconfirm.
+// refreshAfterDeterministicContractReject ensures the checkout is confirmable
+// after PrepareCheckoutContract rejected with a known deterministic
+// pre-contract rejection (insufficient credit, unusable credit account, or
+// Decision/allocation no longer live), then refreshes the offer for reconfirm.
+//
+// Claim compensation may already have reopened confirming → open and cleared
+// the active confirmation_attempt_id; this path must not require the session to
+// still be confirming. A temporary financing denial after compensation must
+// leave the session open (confirmable) rather than terminal unavailable —
+// credit and eligibility can recover for a later confirmation attempt.
 // Ambiguous failures must not call this.
 func (uc *UseCase) refreshAfterDeterministicContractReject(
 	ctx context.Context,
 	session model.CheckoutSession,
 	input ConfirmInput,
 ) (ConfirmOutput, error) {
-	const op = "checkoutsessionuc.UseCase.refreshAfterDeterministicContractReject"
-
-	reopened, err := uc.reopenUnlinkedConfirming(ctx, session)
+	openSession, err := uc.ensureOpenAfterCompensatedConfirmation(ctx, session)
 	if err != nil {
 		return ConfirmOutput{}, err
 	}
 
-	refreshed, offer, refreshErr := uc.refreshOfferForReconfirm(
+	// Do not evaluate while the condition that caused compensation (for example
+	// zero available credit) may still hold — unavailable is terminal.
+	refreshed, _, refreshErr := uc.refreshOfferForReconfirm(
 		ctx,
-		reopened,
+		openSession,
 		input.ExternalCustomerID,
 		true,
+		false,
 	)
 	if refreshErr != nil {
 		return ConfirmOutput{}, refreshErr
@@ -548,8 +575,36 @@ func (uc *UseCase) refreshAfterDeterministicContractReject(
 	return ConfirmOutput{
 		ReconfirmRequired: true,
 		Session:           refreshed,
-		Offer:             offer,
 	}, nil
+}
+
+// ensureOpenAfterCompensatedConfirmation returns an open, unlinked session after
+// a compensated confirmation attempt. Compensation may already have reopened
+// the row; otherwise this reopens confirming → open under the attempt fence.
+func (uc *UseCase) ensureOpenAfterCompensatedConfirmation(
+	ctx context.Context,
+	session model.CheckoutSession,
+) (model.CheckoutSession, error) {
+	const op = "checkoutsessionuc.UseCase.ensureOpenAfterCompensatedConfirmation"
+
+	switch session.Status {
+	case model.OpenCheckoutSessionStatus:
+		if session.ContractID != nil && !session.ContractID.IsZero() {
+			return model.CheckoutSession{}, checkoutPaymentInProgressError(
+				fmt.Errorf("%s: open session %s already has a contract", op, session.ID),
+			)
+		}
+
+		return session, nil
+
+	case model.ConfirmingCheckoutSessionStatus:
+		return uc.reopenUnlinkedConfirming(ctx, session)
+
+	default:
+		return model.CheckoutSession{}, checkoutPaymentInProgressError(
+			fmt.Errorf("%s: checkout session status is %q", op, session.Status),
+		)
+	}
 }
 
 // reopenUnlinkedConfirming returns confirming → open only when durable state
@@ -604,11 +659,18 @@ func (uc *UseCase) reopenUnlinkedConfirming(
 				}
 			}
 
-			if transitionErr := locked.Status.ValidateTransitionTo(model.OpenCheckoutSessionStatus); transitionErr != nil {
-				return cerr.InternalError(fmt.Errorf("%s: %w", op, transitionErr))
+			if locked.ConfirmationAttemptID == nil || locked.ConfirmationAttemptID.IsZero() {
+				return checkoutPaymentInProgressError(
+					fmt.Errorf("%s: confirming session %s has no confirmation attempt", op, locked.ID),
+				)
 			}
 
-			updated, statusErr := sessionQ.UpdateStatus(ctx, locked.ID, model.OpenCheckoutSessionStatus, now)
+			updated, statusErr := sessionQ.ReopenConfirmingToOpen(
+				ctx,
+				locked.ID,
+				*locked.ConfirmationAttemptID,
+				now,
+			)
 			if statusErr != nil {
 				return statusErr
 			}

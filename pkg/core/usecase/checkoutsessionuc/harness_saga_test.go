@@ -340,16 +340,24 @@ func installHarnessSaga(h *harness) {
 
 // expectConfirmClaimStepLock expects LockByID after MarkConfirming for the
 // in-TX checkout_confirm_claimed step.
-func (h *harness) expectConfirmClaimStepLock(confirming model.CheckoutSession) {
+func (h *harness) expectConfirmClaimStepLock(_ model.CheckoutSession) {
 	h.t.Helper()
-	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(confirming, nil).Once()
+	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).RunAndReturn(
+		func(context.Context, model.CheckoutSessionID) (model.CheckoutSession, error) {
+			return h.confirmingSession(), nil
+		},
+	).Once()
 }
 
 // expectConfirmSagaDriveLock expects LockByID at the start of the collapsed
 // harness saga executor.
-func (h *harness) expectConfirmSagaDriveLock(confirming model.CheckoutSession) {
+func (h *harness) expectConfirmSagaDriveLock(_ model.CheckoutSession) {
 	h.t.Helper()
-	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(confirming, nil).Once()
+	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).RunAndReturn(
+		func(context.Context, model.CheckoutSessionID) (model.CheckoutSession, error) {
+			return h.confirmingSession(), nil
+		},
+	).Once()
 }
 
 // expectConfirmProjectionLock expects LockByID after saga drive for HTTP

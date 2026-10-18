@@ -46,8 +46,7 @@ func TestConfirm_MatchingGenerationClaimsSessionAndLinksContract(t *testing.T) {
 			h.expectPool(0, txCalls+1)
 
 			open := h.session()
-			confirming := h.session(withStatus(model.ConfirmingCheckoutSessionStatus))
-			linked := h.session(withStatus(model.ConfirmingCheckoutSessionStatus), withContract(h.contractID))
+			linked := h.confirmingSession(withContract(h.contractID))
 			processing := h.session(withStatus(model.ProcessingCheckoutSessionStatus), withContract(h.contractID))
 			final := h.session(withStatus(tt.wantStatus), withContract(h.contractID))
 
@@ -58,7 +57,8 @@ func TestConfirm_MatchingGenerationClaimsSessionAndLinksContract(t *testing.T) {
 
 			// After Decision-domain revalidation succeeds, claim confirming.
 			h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(open, nil).Once()
-			h.sessionTx.EXPECT().MarkConfirming(h.ctx, h.sessionID, h.now).Return(confirming, nil).Once()
+			h.expectMarkConfirming()
+			confirming := h.confirmingSession()
 			h.expectConfirmClaimStepLock(confirming)
 
 			h.contracts.output = h.createdContract(tt.paymentRequired)
@@ -215,7 +215,7 @@ func TestConfirm_RetryWhileConfirmingWithContractResumesLinkageAndPayment(t *tes
 	// beginConfirm TX, load contract Conn, policy Conn, load attempt TX, finishConfirm TX.
 	h.expectPool(2, 3)
 
-	confirming := h.session(withStatus(model.ConfirmingCheckoutSessionStatus), withContract(h.contractID))
+	confirming := h.confirmingSession(withContract(h.contractID))
 	processing := h.session(withStatus(model.ProcessingCheckoutSessionStatus), withContract(h.contractID))
 	prepared := h.createdContract(true)
 	prepared.Contract.DecisionID = h.decisionID
@@ -249,7 +249,7 @@ func TestConfirm_RetryWhileConfirmingWithoutContractIsInProgress(t *testing.T) {
 	h := newHarness(t)
 	h.expectPool(0, 1)
 
-	confirming := h.session(withStatus(model.ConfirmingCheckoutSessionStatus))
+	confirming := h.confirmingSession()
 
 	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(confirming, nil).Once()
 	h.expectCustomerLock()
@@ -266,7 +266,7 @@ func TestConfirm_RetryWhileConfirmingWithoutContractStaleGenerationIsInProgress(
 	h := newHarness(t)
 	h.expectPool(0, 1)
 
-	confirming := h.session(withStatus(model.ConfirmingCheckoutSessionStatus), withGeneration(2))
+	confirming := h.confirmingSession(withGeneration(2))
 
 	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(confirming, nil).Once()
 	h.expectCustomerLock()
@@ -283,7 +283,7 @@ func TestConfirm_RetryWhileConfirmingWithoutDecisionOrContractIsRejected(t *test
 	h := newHarness(t)
 	h.expectPool(0, 1)
 
-	confirming := h.session(withStatus(model.ConfirmingCheckoutSessionStatus), withoutDecision())
+	confirming := h.confirmingSession(withoutDecision())
 
 	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(confirming, nil).Once()
 	h.expectCustomerLock()
@@ -389,13 +389,13 @@ func TestConfirm_ContractFailureReleasesConfirmingClaim(t *testing.T) {
 	h.expectPool(0, 2)
 
 	open := h.session()
-	confirming := h.session(withStatus(model.ConfirmingCheckoutSessionStatus))
 
 	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(open, nil).Once()
 	h.expectCustomerLock()
 	h.decisionTx.EXPECT().GetByID(h.ctx, h.decisionID).Return(model.Decision{ID: h.decisionID}, nil).Once()
 	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(open, nil).Once()
-	h.sessionTx.EXPECT().MarkConfirming(h.ctx, h.sessionID, h.now).Return(confirming, nil).Once()
+	h.expectMarkConfirming()
+	confirming := h.confirmingSession()
 	h.expectConfirmClaimStepLock(confirming)
 	h.expectConfirmSagaDriveLock(confirming)
 
@@ -416,14 +416,14 @@ func TestConfirm_MerchantFundingFinancialCoreUnavailableStaysProcessing(t *testi
 	h.expectPool(0, 3)
 
 	open := h.session()
-	confirming := h.session(withStatus(model.ConfirmingCheckoutSessionStatus))
-	linked := h.session(withStatus(model.ConfirmingCheckoutSessionStatus), withContract(h.contractID))
+	linked := h.confirmingSession(withContract(h.contractID))
 	processing := h.session(withStatus(model.ProcessingCheckoutSessionStatus), withContract(h.contractID))
 	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(open, nil).Once()
 	h.expectCustomerLock()
 	h.decisionTx.EXPECT().GetByID(h.ctx, h.decisionID).Return(model.Decision{ID: h.decisionID}, nil).Once()
 	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(open, nil).Once()
-	h.sessionTx.EXPECT().MarkConfirming(h.ctx, h.sessionID, h.now).Return(confirming, nil).Once()
+	h.expectMarkConfirming()
+	confirming := h.confirmingSession()
 	h.expectConfirmClaimStepLock(confirming)
 	h.expectConfirmSagaDriveLock(confirming)
 	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(confirming, nil).Once()
