@@ -40,6 +40,7 @@ func TestCheckoutFingerprint_DeterministicAndSensitiveToInputs(t *testing.T) {
 		mock.NewIdentifierGenerator(t),
 		mustTestJurisdictions(t),
 		metricsnoop.New(),
+		AllowAllNewCreditUsage{},
 	)
 	require.NoError(t, err)
 

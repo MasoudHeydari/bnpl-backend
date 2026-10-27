@@ -99,18 +99,6 @@ func protectedRoutePermissions() []protectedRoutePermission {
 		},
 		{
 			Method:      http.MethodGet,
-			GinPath:     "/api/v1/repayment-overview",
-			SwaggerPath: "/api/v1/repayment-overview",
-			Permission:  permission.InstallmentsReadSelf,
-		},
-		{
-			Method:      http.MethodPost,
-			GinPath:     "/api/v1/repayments/priority-pay",
-			SwaggerPath: "/api/v1/repayments/priority-pay",
-			Permission:  permission.PaymentsStartSelf,
-		},
-		{
-			Method:      http.MethodGet,
 			GinPath:     "/api/v1/payments",
 			SwaggerPath: "/api/v1/payments",
 			Permission:  permission.PaymentsReadSelf,

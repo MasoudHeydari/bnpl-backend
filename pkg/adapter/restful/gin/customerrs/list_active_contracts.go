@@ -101,7 +101,7 @@ func toListActiveContractsInput(c *gin.Context) (customeraccountuc.ListActiveCon
 
 	return customeraccountuc.ListActiveContractsInput{
 		ExternalCustomerID: authCtx.SubjectID.AsExternalCustomerID(),
-		Page:              page,
+		Page:               page,
 	}, true
 }
 

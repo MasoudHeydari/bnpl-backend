@@ -119,6 +119,7 @@ func (d cancelDeps) newUseCase(t *testing.T) *UseCase {
 		mustTestOriginationJurisdictions(t),
 		lognoop.New(),
 		metricsnoop.New(),
+		AllowAllNewCreditUsage{},
 	)
 	if err != nil {
 		panic(err)

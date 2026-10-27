@@ -7,7 +7,7 @@ import (
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
-	"github.com/parstis/bnpl-backend/pkg/core/pagination"
+	repaymentpriorityv1 "github.com/parstis/bnpl-backend/pkg/core/policy/repaymentpriority/v1"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
@@ -36,12 +36,6 @@ type CreatePaymentAttemptInput struct {
 	Channel model.PaymentChannel
 	// ProviderCode optionally selects the Financial Core checkout payment provider.
 	ProviderCode string
-
-	// SelectPriority, when true, ignores ContractID and InstallmentID and
-	// selects the current cross-contract priority installment after locking the
-	// customer profile inside the payment transaction. Used by the reminder
-	// repayment flow so selection and attempt creation share one lock scope.
-	SelectPriority bool
 }
 
 // CreatePaymentAttemptOutput reports installment repayment initiation results.
@@ -94,26 +88,9 @@ func (uc *UseCase) CreatePaymentAttempt(
 
 					customerID := profile.ID
 
-					if input.SelectPriority {
-						page := pagination.KeysetRequest{Limit: 200, Order: pagination.OrderAsc}
-						page.Normalize()
-
-						unpaid, unpaidErr := installmentQ.ListUnpaidByCustomerID(ctx, customerID, page)
-						if unpaidErr != nil {
-							return unpaidErr
-						}
-
-						selected := selectPriorityInstallment(unpaid, now)
-						if selected == nil || selected.ContractID == nil {
-							return cerr.ResourceNotFound(
-								fmt.Errorf("%s: no payable installment", op),
-							)
-						}
-
-						input.ContractID = *selected.ContractID
-						input.InstallmentID = selected.ID
-					}
-
+					// Exact idempotent replay takes precedence over dynamic
+					// priority eligibility so a previously accepted attempt is
+					// returned even when another installment is now priority.
 					existing, existingErr := paymentAttemptQ.GetByInstallmentIDAndIdempotencyKeyWithItems(
 						ctx,
 						input.InstallmentID,
@@ -198,6 +175,26 @@ func (uc *UseCase) CreatePaymentAttempt(
 
 					if !model.IsNextPayableInSequence(installmentRow, siblings) {
 						return installmentNotNextPayableError()
+					}
+
+					nextPerContract, nextErr := installmentQ.ListNextPayablePerContractByCustomerID(
+						ctx,
+						customerID,
+					)
+					if nextErr != nil {
+						return nextErr
+					}
+
+					priorityCandidates := make([]repaymentpriorityv1.Candidate, 0, len(nextPerContract))
+					for _, row := range nextPerContract {
+						priorityCandidates = append(priorityCandidates, repaymentpriorityv1.Candidate{
+							Installment: row,
+						})
+					}
+
+					selection := repaymentpriorityv1.New().Select(priorityCandidates, now)
+					if !selection.IsSelected(input.InstallmentID) {
+						return installmentIsNotCurrentPriorityRepaymentError()
 					}
 
 					charges, chargesErr := installmentChargeQ.ListByInstallmentIDs(
@@ -299,9 +296,9 @@ func (uc *UseCase) CreatePaymentAttempt(
 						created,
 						installmentRepaymentAuditFacts{
 							ExternalCustomerID: input.ExternalCustomerID,
-							CustomerID:        customerID,
-							Installment:       installmentRow,
-							Charges:           charges,
+							CustomerID:         customerID,
+							Installment:        installmentRow,
+							Charges:            charges,
 						},
 						now,
 					); err != nil {
@@ -344,14 +341,12 @@ func validateCreatePaymentAttemptInput(input CreatePaymentAttemptInput) error {
 		return contextIDRequiredError()
 	}
 
-	if !input.SelectPriority {
-		if input.ContractID.IsZero() {
-			return contractIDRequiredError()
-		}
+	if input.ContractID.IsZero() {
+		return contractIDRequiredError()
+	}
 
-		if input.InstallmentID.IsZero() {
-			return installmentIDRequiredError()
-		}
+	if input.InstallmentID.IsZero() {
+		return installmentIDRequiredError()
 	}
 
 	if input.ExternalCustomerID.IsZero() {

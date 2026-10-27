@@ -267,6 +267,72 @@ func (_c *InstallmentTxQueryer_ClaimScheduledDue_Call) RunAndReturn(run func(ctx
 	return _c
 }
 
+// CountUnpaidByCustomerID provides a mock function for the type InstallmentTxQueryer
+func (_mock *InstallmentTxQueryer) CountUnpaidByCustomerID(ctx context.Context, customerID model.CustomerID) (int, error) {
+	ret := _mock.Called(ctx, customerID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CountUnpaidByCustomerID")
+	}
+
+	var r0 int
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CustomerID) (int, error)); ok {
+		return returnFunc(ctx, customerID)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CustomerID) int); ok {
+		r0 = returnFunc(ctx, customerID)
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.CustomerID) error); ok {
+		r1 = returnFunc(ctx, customerID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// InstallmentTxQueryer_CountUnpaidByCustomerID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CountUnpaidByCustomerID'
+type InstallmentTxQueryer_CountUnpaidByCustomerID_Call struct {
+	*mock.Call
+}
+
+// CountUnpaidByCustomerID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - customerID model.CustomerID
+func (_e *InstallmentTxQueryer_Expecter) CountUnpaidByCustomerID(ctx any, customerID any) *InstallmentTxQueryer_CountUnpaidByCustomerID_Call {
+	return &InstallmentTxQueryer_CountUnpaidByCustomerID_Call{Call: _e.mock.On("CountUnpaidByCustomerID", ctx, customerID)}
+}
+
+func (_c *InstallmentTxQueryer_CountUnpaidByCustomerID_Call) Run(run func(ctx context.Context, customerID model.CustomerID)) *InstallmentTxQueryer_CountUnpaidByCustomerID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.CustomerID
+		if args[1] != nil {
+			arg1 = args[1].(model.CustomerID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *InstallmentTxQueryer_CountUnpaidByCustomerID_Call) Return(n int, err error) *InstallmentTxQueryer_CountUnpaidByCustomerID_Call {
+	_c.Call.Return(n, err)
+	return _c
+}
+
+func (_c *InstallmentTxQueryer_CountUnpaidByCustomerID_Call) RunAndReturn(run func(ctx context.Context, customerID model.CustomerID) (int, error)) *InstallmentTxQueryer_CountUnpaidByCustomerID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Create provides a mock function for the type InstallmentTxQueryer
 func (_mock *InstallmentTxQueryer) Create(ctx context.Context, decisionID model.DecisionID, contractID *model.ContractID, customerID model.CustomerID, merchantProfileID model.MerchantProfileID, merchantBranchProfileID *model.MerchantBranchProfileID, installmentOrder int, currency model.Currency, principalAmountMinor uint64, upfrontAmountMinor uint64, baseFeeAmountMinor uint64, totalAmountMinor uint64, dueAt time.Time, gracePeriodDays uint, status model.InstallmentStatus, paidAmountMinor uint64, paidAt *time.Time, createdAt time.Time, updatedAt time.Time) (model.Installment, error) {
 	ret := _mock.Called(ctx, decisionID, contractID, customerID, merchantProfileID, merchantBranchProfileID, installmentOrder, currency, principalAmountMinor, upfrontAmountMinor, baseFeeAmountMinor, totalAmountMinor, dueAt, gracePeriodDays, status, paidAmountMinor, paidAt, createdAt, updatedAt)
@@ -857,6 +923,296 @@ func (_c *InstallmentTxQueryer_ListByDecisionID_Call) Return(installments []mode
 }
 
 func (_c *InstallmentTxQueryer_ListByDecisionID_Call) RunAndReturn(run func(ctx context.Context, decisionID model.DecisionID) ([]model.Installment, error)) *InstallmentTxQueryer_ListByDecisionID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListCollectionsAssessmentCustomerPage provides a mock function for the type InstallmentTxQueryer
+func (_mock *InstallmentTxQueryer) ListCollectionsAssessmentCustomerPage(ctx context.Context, asOf time.Time, afterCustomerID model.CustomerID, customerLimit int) ([]model.CustomerID, error) {
+	ret := _mock.Called(ctx, asOf, afterCustomerID, customerLimit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListCollectionsAssessmentCustomerPage")
+	}
+
+	var r0 []model.CustomerID
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, time.Time, model.CustomerID, int) ([]model.CustomerID, error)); ok {
+		return returnFunc(ctx, asOf, afterCustomerID, customerLimit)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, time.Time, model.CustomerID, int) []model.CustomerID); ok {
+		r0 = returnFunc(ctx, asOf, afterCustomerID, customerLimit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]model.CustomerID)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, time.Time, model.CustomerID, int) error); ok {
+		r1 = returnFunc(ctx, asOf, afterCustomerID, customerLimit)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// InstallmentTxQueryer_ListCollectionsAssessmentCustomerPage_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListCollectionsAssessmentCustomerPage'
+type InstallmentTxQueryer_ListCollectionsAssessmentCustomerPage_Call struct {
+	*mock.Call
+}
+
+// ListCollectionsAssessmentCustomerPage is a helper method to define mock.On call
+//   - ctx context.Context
+//   - asOf time.Time
+//   - afterCustomerID model.CustomerID
+//   - customerLimit int
+func (_e *InstallmentTxQueryer_Expecter) ListCollectionsAssessmentCustomerPage(ctx any, asOf any, afterCustomerID any, customerLimit any) *InstallmentTxQueryer_ListCollectionsAssessmentCustomerPage_Call {
+	return &InstallmentTxQueryer_ListCollectionsAssessmentCustomerPage_Call{Call: _e.mock.On("ListCollectionsAssessmentCustomerPage", ctx, asOf, afterCustomerID, customerLimit)}
+}
+
+func (_c *InstallmentTxQueryer_ListCollectionsAssessmentCustomerPage_Call) Run(run func(ctx context.Context, asOf time.Time, afterCustomerID model.CustomerID, customerLimit int)) *InstallmentTxQueryer_ListCollectionsAssessmentCustomerPage_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 time.Time
+		if args[1] != nil {
+			arg1 = args[1].(time.Time)
+		}
+		var arg2 model.CustomerID
+		if args[2] != nil {
+			arg2 = args[2].(model.CustomerID)
+		}
+		var arg3 int
+		if args[3] != nil {
+			arg3 = args[3].(int)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *InstallmentTxQueryer_ListCollectionsAssessmentCustomerPage_Call) Return(customerIDs []model.CustomerID, err error) *InstallmentTxQueryer_ListCollectionsAssessmentCustomerPage_Call {
+	_c.Call.Return(customerIDs, err)
+	return _c
+}
+
+func (_c *InstallmentTxQueryer_ListCollectionsAssessmentCustomerPage_Call) RunAndReturn(run func(ctx context.Context, asOf time.Time, afterCustomerID model.CustomerID, customerLimit int) ([]model.CustomerID, error)) *InstallmentTxQueryer_ListCollectionsAssessmentCustomerPage_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListCollectionsObligationsByCustomerID provides a mock function for the type InstallmentTxQueryer
+func (_mock *InstallmentTxQueryer) ListCollectionsObligationsByCustomerID(ctx context.Context, customerID model.CustomerID) ([]repo.CollectionsObligation, error) {
+	ret := _mock.Called(ctx, customerID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListCollectionsObligationsByCustomerID")
+	}
+
+	var r0 []repo.CollectionsObligation
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CustomerID) ([]repo.CollectionsObligation, error)); ok {
+		return returnFunc(ctx, customerID)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CustomerID) []repo.CollectionsObligation); ok {
+		r0 = returnFunc(ctx, customerID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]repo.CollectionsObligation)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.CustomerID) error); ok {
+		r1 = returnFunc(ctx, customerID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// InstallmentTxQueryer_ListCollectionsObligationsByCustomerID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListCollectionsObligationsByCustomerID'
+type InstallmentTxQueryer_ListCollectionsObligationsByCustomerID_Call struct {
+	*mock.Call
+}
+
+// ListCollectionsObligationsByCustomerID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - customerID model.CustomerID
+func (_e *InstallmentTxQueryer_Expecter) ListCollectionsObligationsByCustomerID(ctx any, customerID any) *InstallmentTxQueryer_ListCollectionsObligationsByCustomerID_Call {
+	return &InstallmentTxQueryer_ListCollectionsObligationsByCustomerID_Call{Call: _e.mock.On("ListCollectionsObligationsByCustomerID", ctx, customerID)}
+}
+
+func (_c *InstallmentTxQueryer_ListCollectionsObligationsByCustomerID_Call) Run(run func(ctx context.Context, customerID model.CustomerID)) *InstallmentTxQueryer_ListCollectionsObligationsByCustomerID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.CustomerID
+		if args[1] != nil {
+			arg1 = args[1].(model.CustomerID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *InstallmentTxQueryer_ListCollectionsObligationsByCustomerID_Call) Return(collectionsObligations []repo.CollectionsObligation, err error) *InstallmentTxQueryer_ListCollectionsObligationsByCustomerID_Call {
+	_c.Call.Return(collectionsObligations, err)
+	return _c
+}
+
+func (_c *InstallmentTxQueryer_ListCollectionsObligationsByCustomerID_Call) RunAndReturn(run func(ctx context.Context, customerID model.CustomerID) ([]repo.CollectionsObligation, error)) *InstallmentTxQueryer_ListCollectionsObligationsByCustomerID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListDueUnpaidByCustomerID provides a mock function for the type InstallmentTxQueryer
+func (_mock *InstallmentTxQueryer) ListDueUnpaidByCustomerID(ctx context.Context, customerID model.CustomerID, asOf time.Time) ([]model.Installment, error) {
+	ret := _mock.Called(ctx, customerID, asOf)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListDueUnpaidByCustomerID")
+	}
+
+	var r0 []model.Installment
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CustomerID, time.Time) ([]model.Installment, error)); ok {
+		return returnFunc(ctx, customerID, asOf)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CustomerID, time.Time) []model.Installment); ok {
+		r0 = returnFunc(ctx, customerID, asOf)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]model.Installment)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.CustomerID, time.Time) error); ok {
+		r1 = returnFunc(ctx, customerID, asOf)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// InstallmentTxQueryer_ListDueUnpaidByCustomerID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListDueUnpaidByCustomerID'
+type InstallmentTxQueryer_ListDueUnpaidByCustomerID_Call struct {
+	*mock.Call
+}
+
+// ListDueUnpaidByCustomerID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - customerID model.CustomerID
+//   - asOf time.Time
+func (_e *InstallmentTxQueryer_Expecter) ListDueUnpaidByCustomerID(ctx any, customerID any, asOf any) *InstallmentTxQueryer_ListDueUnpaidByCustomerID_Call {
+	return &InstallmentTxQueryer_ListDueUnpaidByCustomerID_Call{Call: _e.mock.On("ListDueUnpaidByCustomerID", ctx, customerID, asOf)}
+}
+
+func (_c *InstallmentTxQueryer_ListDueUnpaidByCustomerID_Call) Run(run func(ctx context.Context, customerID model.CustomerID, asOf time.Time)) *InstallmentTxQueryer_ListDueUnpaidByCustomerID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.CustomerID
+		if args[1] != nil {
+			arg1 = args[1].(model.CustomerID)
+		}
+		var arg2 time.Time
+		if args[2] != nil {
+			arg2 = args[2].(time.Time)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *InstallmentTxQueryer_ListDueUnpaidByCustomerID_Call) Return(installments []model.Installment, err error) *InstallmentTxQueryer_ListDueUnpaidByCustomerID_Call {
+	_c.Call.Return(installments, err)
+	return _c
+}
+
+func (_c *InstallmentTxQueryer_ListDueUnpaidByCustomerID_Call) RunAndReturn(run func(ctx context.Context, customerID model.CustomerID, asOf time.Time) ([]model.Installment, error)) *InstallmentTxQueryer_ListDueUnpaidByCustomerID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListNextPayablePerContractByCustomerID provides a mock function for the type InstallmentTxQueryer
+func (_mock *InstallmentTxQueryer) ListNextPayablePerContractByCustomerID(ctx context.Context, customerID model.CustomerID) ([]model.Installment, error) {
+	ret := _mock.Called(ctx, customerID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListNextPayablePerContractByCustomerID")
+	}
+
+	var r0 []model.Installment
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CustomerID) ([]model.Installment, error)); ok {
+		return returnFunc(ctx, customerID)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CustomerID) []model.Installment); ok {
+		r0 = returnFunc(ctx, customerID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]model.Installment)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.CustomerID) error); ok {
+		r1 = returnFunc(ctx, customerID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// InstallmentTxQueryer_ListNextPayablePerContractByCustomerID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListNextPayablePerContractByCustomerID'
+type InstallmentTxQueryer_ListNextPayablePerContractByCustomerID_Call struct {
+	*mock.Call
+}
+
+// ListNextPayablePerContractByCustomerID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - customerID model.CustomerID
+func (_e *InstallmentTxQueryer_Expecter) ListNextPayablePerContractByCustomerID(ctx any, customerID any) *InstallmentTxQueryer_ListNextPayablePerContractByCustomerID_Call {
+	return &InstallmentTxQueryer_ListNextPayablePerContractByCustomerID_Call{Call: _e.mock.On("ListNextPayablePerContractByCustomerID", ctx, customerID)}
+}
+
+func (_c *InstallmentTxQueryer_ListNextPayablePerContractByCustomerID_Call) Run(run func(ctx context.Context, customerID model.CustomerID)) *InstallmentTxQueryer_ListNextPayablePerContractByCustomerID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.CustomerID
+		if args[1] != nil {
+			arg1 = args[1].(model.CustomerID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *InstallmentTxQueryer_ListNextPayablePerContractByCustomerID_Call) Return(installments []model.Installment, err error) *InstallmentTxQueryer_ListNextPayablePerContractByCustomerID_Call {
+	_c.Call.Return(installments, err)
+	return _c
+}
+
+func (_c *InstallmentTxQueryer_ListNextPayablePerContractByCustomerID_Call) RunAndReturn(run func(ctx context.Context, customerID model.CustomerID) ([]model.Installment, error)) *InstallmentTxQueryer_ListNextPayablePerContractByCustomerID_Call {
 	_c.Call.Return(run)
 	return _c
 }

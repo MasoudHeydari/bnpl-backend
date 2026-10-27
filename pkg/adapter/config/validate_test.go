@@ -140,6 +140,9 @@ func validConfig() *Config {
 				RetryBaseDelay: time.Second,
 				RetryMaxDelay:  time.Minute,
 			},
+			Collections: Collections{
+				BatchSize: 100,
+			},
 			MerchantTerminal: MerchantTerminal{
 				APIKeyPepper: model.NewSecret("test-merchant-terminal-api-key-pepper-32b"),
 				Rotation: MerchantTerminalRotation{

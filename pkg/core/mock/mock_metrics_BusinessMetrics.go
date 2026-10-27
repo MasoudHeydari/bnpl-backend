@@ -84,6 +84,282 @@ func (_c *BusinessMetrics_CheckoutDecisionCreated_Call) RunAndReturn(run func(ct
 	return _c
 }
 
+// CollectionsAssessmentCustomersObserved provides a mock function for the type BusinessMetrics
+func (_mock *BusinessMetrics) CollectionsAssessmentCustomersObserved(ctx context.Context, count int) {
+	_mock.Called(ctx, count)
+	return
+}
+
+// BusinessMetrics_CollectionsAssessmentCustomersObserved_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CollectionsAssessmentCustomersObserved'
+type BusinessMetrics_CollectionsAssessmentCustomersObserved_Call struct {
+	*mock.Call
+}
+
+// CollectionsAssessmentCustomersObserved is a helper method to define mock.On call
+//   - ctx context.Context
+//   - count int
+func (_e *BusinessMetrics_Expecter) CollectionsAssessmentCustomersObserved(ctx any, count any) *BusinessMetrics_CollectionsAssessmentCustomersObserved_Call {
+	return &BusinessMetrics_CollectionsAssessmentCustomersObserved_Call{Call: _e.mock.On("CollectionsAssessmentCustomersObserved", ctx, count)}
+}
+
+func (_c *BusinessMetrics_CollectionsAssessmentCustomersObserved_Call) Run(run func(ctx context.Context, count int)) *BusinessMetrics_CollectionsAssessmentCustomersObserved_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int
+		if args[1] != nil {
+			arg1 = args[1].(int)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *BusinessMetrics_CollectionsAssessmentCustomersObserved_Call) Return() *BusinessMetrics_CollectionsAssessmentCustomersObserved_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *BusinessMetrics_CollectionsAssessmentCustomersObserved_Call) RunAndReturn(run func(ctx context.Context, count int)) *BusinessMetrics_CollectionsAssessmentCustomersObserved_Call {
+	_c.Run(run)
+	return _c
+}
+
+// CollectionsAssessmentJobCompleted provides a mock function for the type BusinessMetrics
+func (_mock *BusinessMetrics) CollectionsAssessmentJobCompleted(ctx context.Context, outcome string) {
+	_mock.Called(ctx, outcome)
+	return
+}
+
+// BusinessMetrics_CollectionsAssessmentJobCompleted_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CollectionsAssessmentJobCompleted'
+type BusinessMetrics_CollectionsAssessmentJobCompleted_Call struct {
+	*mock.Call
+}
+
+// CollectionsAssessmentJobCompleted is a helper method to define mock.On call
+//   - ctx context.Context
+//   - outcome string
+func (_e *BusinessMetrics_Expecter) CollectionsAssessmentJobCompleted(ctx any, outcome any) *BusinessMetrics_CollectionsAssessmentJobCompleted_Call {
+	return &BusinessMetrics_CollectionsAssessmentJobCompleted_Call{Call: _e.mock.On("CollectionsAssessmentJobCompleted", ctx, outcome)}
+}
+
+func (_c *BusinessMetrics_CollectionsAssessmentJobCompleted_Call) Run(run func(ctx context.Context, outcome string)) *BusinessMetrics_CollectionsAssessmentJobCompleted_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *BusinessMetrics_CollectionsAssessmentJobCompleted_Call) Return() *BusinessMetrics_CollectionsAssessmentJobCompleted_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *BusinessMetrics_CollectionsAssessmentJobCompleted_Call) RunAndReturn(run func(ctx context.Context, outcome string)) *BusinessMetrics_CollectionsAssessmentJobCompleted_Call {
+	_c.Run(run)
+	return _c
+}
+
+// CollectionsAssessmentJobDuration provides a mock function for the type BusinessMetrics
+func (_mock *BusinessMetrics) CollectionsAssessmentJobDuration(ctx context.Context, duration time.Duration) {
+	_mock.Called(ctx, duration)
+	return
+}
+
+// BusinessMetrics_CollectionsAssessmentJobDuration_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CollectionsAssessmentJobDuration'
+type BusinessMetrics_CollectionsAssessmentJobDuration_Call struct {
+	*mock.Call
+}
+
+// CollectionsAssessmentJobDuration is a helper method to define mock.On call
+//   - ctx context.Context
+//   - duration time.Duration
+func (_e *BusinessMetrics_Expecter) CollectionsAssessmentJobDuration(ctx any, duration any) *BusinessMetrics_CollectionsAssessmentJobDuration_Call {
+	return &BusinessMetrics_CollectionsAssessmentJobDuration_Call{Call: _e.mock.On("CollectionsAssessmentJobDuration", ctx, duration)}
+}
+
+func (_c *BusinessMetrics_CollectionsAssessmentJobDuration_Call) Run(run func(ctx context.Context, duration time.Duration)) *BusinessMetrics_CollectionsAssessmentJobDuration_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 time.Duration
+		if args[1] != nil {
+			arg1 = args[1].(time.Duration)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *BusinessMetrics_CollectionsAssessmentJobDuration_Call) Return() *BusinessMetrics_CollectionsAssessmentJobDuration_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *BusinessMetrics_CollectionsAssessmentJobDuration_Call) RunAndReturn(run func(ctx context.Context, duration time.Duration)) *BusinessMetrics_CollectionsAssessmentJobDuration_Call {
+	_c.Run(run)
+	return _c
+}
+
+// CollectionsAssessmentSkipped provides a mock function for the type BusinessMetrics
+func (_mock *BusinessMetrics) CollectionsAssessmentSkipped(ctx context.Context, count int) {
+	_mock.Called(ctx, count)
+	return
+}
+
+// BusinessMetrics_CollectionsAssessmentSkipped_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CollectionsAssessmentSkipped'
+type BusinessMetrics_CollectionsAssessmentSkipped_Call struct {
+	*mock.Call
+}
+
+// CollectionsAssessmentSkipped is a helper method to define mock.On call
+//   - ctx context.Context
+//   - count int
+func (_e *BusinessMetrics_Expecter) CollectionsAssessmentSkipped(ctx any, count any) *BusinessMetrics_CollectionsAssessmentSkipped_Call {
+	return &BusinessMetrics_CollectionsAssessmentSkipped_Call{Call: _e.mock.On("CollectionsAssessmentSkipped", ctx, count)}
+}
+
+func (_c *BusinessMetrics_CollectionsAssessmentSkipped_Call) Run(run func(ctx context.Context, count int)) *BusinessMetrics_CollectionsAssessmentSkipped_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int
+		if args[1] != nil {
+			arg1 = args[1].(int)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *BusinessMetrics_CollectionsAssessmentSkipped_Call) Return() *BusinessMetrics_CollectionsAssessmentSkipped_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *BusinessMetrics_CollectionsAssessmentSkipped_Call) RunAndReturn(run func(ctx context.Context, count int)) *BusinessMetrics_CollectionsAssessmentSkipped_Call {
+	_c.Run(run)
+	return _c
+}
+
+// CollectionsDefaulted provides a mock function for the type BusinessMetrics
+func (_mock *BusinessMetrics) CollectionsDefaulted(ctx context.Context, count int) {
+	_mock.Called(ctx, count)
+	return
+}
+
+// BusinessMetrics_CollectionsDefaulted_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CollectionsDefaulted'
+type BusinessMetrics_CollectionsDefaulted_Call struct {
+	*mock.Call
+}
+
+// CollectionsDefaulted is a helper method to define mock.On call
+//   - ctx context.Context
+//   - count int
+func (_e *BusinessMetrics_Expecter) CollectionsDefaulted(ctx any, count any) *BusinessMetrics_CollectionsDefaulted_Call {
+	return &BusinessMetrics_CollectionsDefaulted_Call{Call: _e.mock.On("CollectionsDefaulted", ctx, count)}
+}
+
+func (_c *BusinessMetrics_CollectionsDefaulted_Call) Run(run func(ctx context.Context, count int)) *BusinessMetrics_CollectionsDefaulted_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int
+		if args[1] != nil {
+			arg1 = args[1].(int)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *BusinessMetrics_CollectionsDefaulted_Call) Return() *BusinessMetrics_CollectionsDefaulted_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *BusinessMetrics_CollectionsDefaulted_Call) RunAndReturn(run func(ctx context.Context, count int)) *BusinessMetrics_CollectionsDefaulted_Call {
+	_c.Run(run)
+	return _c
+}
+
+// CollectionsRecovered provides a mock function for the type BusinessMetrics
+func (_mock *BusinessMetrics) CollectionsRecovered(ctx context.Context, count int) {
+	_mock.Called(ctx, count)
+	return
+}
+
+// BusinessMetrics_CollectionsRecovered_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CollectionsRecovered'
+type BusinessMetrics_CollectionsRecovered_Call struct {
+	*mock.Call
+}
+
+// CollectionsRecovered is a helper method to define mock.On call
+//   - ctx context.Context
+//   - count int
+func (_e *BusinessMetrics_Expecter) CollectionsRecovered(ctx any, count any) *BusinessMetrics_CollectionsRecovered_Call {
+	return &BusinessMetrics_CollectionsRecovered_Call{Call: _e.mock.On("CollectionsRecovered", ctx, count)}
+}
+
+func (_c *BusinessMetrics_CollectionsRecovered_Call) Run(run func(ctx context.Context, count int)) *BusinessMetrics_CollectionsRecovered_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int
+		if args[1] != nil {
+			arg1 = args[1].(int)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *BusinessMetrics_CollectionsRecovered_Call) Return() *BusinessMetrics_CollectionsRecovered_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *BusinessMetrics_CollectionsRecovered_Call) RunAndReturn(run func(ctx context.Context, count int)) *BusinessMetrics_CollectionsRecovered_Call {
+	_c.Run(run)
+	return _c
+}
+
 // ContractCreated provides a mock function for the type BusinessMetrics
 func (_mock *BusinessMetrics) ContractCreated(ctx context.Context, status string) {
 	_mock.Called(ctx, status)

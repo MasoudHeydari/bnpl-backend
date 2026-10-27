@@ -68,7 +68,6 @@ type MerchantProfileTxQueryer interface {
 		ctx context.Context,
 		merchantID model.MerchantID,
 	) (model.MerchantProfile, error)
-
 }
 
 // MerchantProfile persists BNPL-specific merchant profile records.

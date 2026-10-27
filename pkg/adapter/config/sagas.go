@@ -14,10 +14,10 @@ import (
 
 // Default Saga executor and domain-saga settings used when YAML/env values are unset.
 const (
-	DefaultSagaExecutorWorkerID             = "saga-executor"
-	DefaultSagaExecutorBatchSize            = 10
-	DefaultSagaExecutorLeaseDuration        = 2 * time.Minute
-	DefaultSagaExecutorPersistenceTimeout   = 5 * time.Second
+	DefaultSagaExecutorWorkerID              = "saga-executor"
+	DefaultSagaExecutorBatchSize             = 10
+	DefaultSagaExecutorLeaseDuration         = 2 * time.Minute
+	DefaultSagaExecutorPersistenceTimeout    = 5 * time.Second
 	DefaultCheckoutConfirmationSagaRetryBase = time.Second
 	DefaultCheckoutConfirmationSagaRetryMax  = time.Minute
 	DefaultCheckoutConfirmationSagaMaxRetry  = 8

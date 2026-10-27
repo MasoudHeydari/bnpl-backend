@@ -34,9 +34,4 @@ func Register(
 		authMW.RequireAny(permission.PaymentsStartSelf),
 		rs.CreatePaymentAttempt,
 	)
-	router.POST(
-		"/repayments/priority-pay",
-		authMW.RequireAny(permission.PaymentsStartSelf),
-		rs.CreatePriorityPaymentAttempt,
-	)
 }

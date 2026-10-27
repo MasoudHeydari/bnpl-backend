@@ -62,6 +62,44 @@ func (q connQueryer) ListUnpaidByCustomerID(
 	return ListUnpaidByCustomerID(ctx, q.Conn, customerID, page)
 }
 
+func (q connQueryer) ListNextPayablePerContractByCustomerID(
+	ctx context.Context,
+	customerID model.CustomerID,
+) ([]model.Installment, error) {
+	return ListNextPayablePerContractByCustomerID(ctx, q.Conn, customerID)
+}
+
+func (q connQueryer) ListDueUnpaidByCustomerID(
+	ctx context.Context,
+	customerID model.CustomerID,
+	asOf time.Time,
+) ([]model.Installment, error) {
+	return ListDueUnpaidByCustomerID(ctx, q.Conn, customerID, asOf)
+}
+
+func (q connQueryer) CountUnpaidByCustomerID(
+	ctx context.Context,
+	customerID model.CustomerID,
+) (int, error) {
+	return CountUnpaidByCustomerID(ctx, q.Conn, customerID)
+}
+
+func (q connQueryer) ListCollectionsObligationsByCustomerID(
+	ctx context.Context,
+	customerID model.CustomerID,
+) ([]repo.CollectionsObligation, error) {
+	return ListCollectionsObligationsByCustomerID(ctx, q.Conn, customerID)
+}
+
+func (q connQueryer) ListCollectionsAssessmentCustomerPage(
+	ctx context.Context,
+	asOf time.Time,
+	afterCustomerID model.CustomerID,
+	customerLimit int,
+) ([]model.CustomerID, error) {
+	return ListCollectionsAssessmentCustomerPage(ctx, q.Conn, asOf, afterCustomerID, customerLimit)
+}
+
 func (q connQueryer) ListReminderCandidatePage(
 	ctx context.Context,
 	dueAtFrom time.Time,
@@ -111,6 +149,44 @@ func (q txQueryer) ListUnpaidByCustomerID(
 	page pagination.KeysetRequest,
 ) ([]model.Installment, error) {
 	return ListUnpaidByCustomerID(ctx, q.Tx, customerID, page)
+}
+
+func (q txQueryer) ListNextPayablePerContractByCustomerID(
+	ctx context.Context,
+	customerID model.CustomerID,
+) ([]model.Installment, error) {
+	return ListNextPayablePerContractByCustomerID(ctx, q.Tx, customerID)
+}
+
+func (q txQueryer) ListDueUnpaidByCustomerID(
+	ctx context.Context,
+	customerID model.CustomerID,
+	asOf time.Time,
+) ([]model.Installment, error) {
+	return ListDueUnpaidByCustomerID(ctx, q.Tx, customerID, asOf)
+}
+
+func (q txQueryer) CountUnpaidByCustomerID(
+	ctx context.Context,
+	customerID model.CustomerID,
+) (int, error) {
+	return CountUnpaidByCustomerID(ctx, q.Tx, customerID)
+}
+
+func (q txQueryer) ListCollectionsObligationsByCustomerID(
+	ctx context.Context,
+	customerID model.CustomerID,
+) ([]repo.CollectionsObligation, error) {
+	return ListCollectionsObligationsByCustomerID(ctx, q.Tx, customerID)
+}
+
+func (q txQueryer) ListCollectionsAssessmentCustomerPage(
+	ctx context.Context,
+	asOf time.Time,
+	afterCustomerID model.CustomerID,
+	customerLimit int,
+) ([]model.CustomerID, error) {
+	return ListCollectionsAssessmentCustomerPage(ctx, q.Tx, asOf, afterCustomerID, customerLimit)
 }
 
 func (q txQueryer) ListReminderCandidatePage(

@@ -49,7 +49,7 @@ func (uc *UseCase) prepareOfferForBoundSession(
 		// Payment retry must present the original accepted terms. The Decision
 		// and allocation cannot be regenerated after Contract creation.
 		existing, getErr := uc.Get(ctx, GetInput{
-			CheckoutSessionID: session.ID,
+			CheckoutSessionID:  session.ID,
 			ExternalCustomerID: externalCustomerID,
 		})
 		if getErr != nil {

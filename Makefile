@@ -192,7 +192,8 @@ swagger:
 
 .PHONY: swagger-fmt
 swagger-fmt:
-	@swag fmt
+	@swag fmt \
+		--exclude gen/proto
 
 # -----------------------------------------------------------------------------
 # Docker / Local Infrastructure

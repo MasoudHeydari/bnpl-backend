@@ -32,7 +32,7 @@ var schemaDDLStatements string
 // a fresh database and an upgraded database traverse the same incremental
 // changes. Editing 000_schema.sql requires an explicit code change here and is
 // therefore intentionally review-visible.
-const baselineSchemaSHA256 = "0938b58297a7eee0820bfd43997718ad92bbb1164f47bb4536e15a93586741f3"
+const baselineSchemaSHA256 = "4d8805ab961058ae6052a296aa2c51f76cc618c16559066c673226671cbed223"
 
 func validateBaselineSchema() error {
 	digest := sha256.Sum256([]byte(schemaDDLStatements))

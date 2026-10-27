@@ -36,10 +36,10 @@ func toCreateContractInput(c *gin.Context) (contractuc.CreateContractInput, bool
 	// Public callers never select a payment provider. Any request body is ignored.
 
 	return contractuc.CreateContractInput{
-		DecisionID:        decisionID,
+		DecisionID:         decisionID,
 		ExternalCustomerID: authCtx.SubjectID.AsExternalCustomerID(),
-		TenantID:          authCtx.TenantID,
-		ContextID:         authCtx.ContextID,
+		TenantID:           authCtx.TenantID,
+		ContextID:          authCtx.ContextID,
 	}, true
 }
 
@@ -110,12 +110,12 @@ func toCancelInput(c *gin.Context) (contractuc.CancelInput, bool) {
 	}
 
 	return contractuc.CancelInput{
-		TenantID:          authCtx.TenantID,
-		ContextID:         authCtx.ContextID,
-		ContractID:        contractID,
+		TenantID:           authCtx.TenantID,
+		ContextID:          authCtx.ContextID,
+		ContractID:         contractID,
 		ExternalCustomerID: authCtx.SubjectID.AsExternalCustomerID(),
-		IdempotencyKey:    idempotencyKey,
-		Reason:            model.ContractCancellationReason(strings.TrimSpace(req.Reason)),
+		IdempotencyKey:     idempotencyKey,
+		Reason:             model.ContractCancellationReason(strings.TrimSpace(req.Reason)),
 	}, true
 }
 

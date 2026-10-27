@@ -58,7 +58,17 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 				return err
 			}
 
-			output = summaryFromAccount(account)
+			decisionQ := uc.decision.Tx(tx)
+			newCreditBlocked, blockErr := collectionsBlocksNewCredit(
+				ctx,
+				decisionQ,
+				profile.ID,
+			)
+			if blockErr != nil {
+				return blockErr
+			}
+
+			output = summaryFromAccount(account, newCreditBlocked)
 			return nil
 		})
 	})
@@ -69,11 +79,17 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 	return output, nil
 }
 
-func summaryFromAccount(account model.CreditAccount) Output {
+func summaryFromAccount(account model.CreditAccount, newCreditBlocked bool) Output {
 	status := SummaryStatusActive
 	available := account.AvailableAmountMinor()
 	if !account.Status.IsActive() {
 		status = SummaryStatusExpired
+		available = 0
+	}
+
+	// Stored capacity/exposure remain authoritative on CreditAccount; usable
+	// capacity is zero while an active collections restriction Decision stands.
+	if newCreditBlocked {
 		available = 0
 	}
 

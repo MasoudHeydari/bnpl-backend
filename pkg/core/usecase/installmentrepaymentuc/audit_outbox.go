@@ -19,9 +19,9 @@ const (
 
 type installmentRepaymentAuditFacts struct {
 	ExternalCustomerID model.ExternalCustomerID
-	CustomerID        model.CustomerID
-	Installment       model.Installment
-	Charges           []model.InstallmentCharge
+	CustomerID         model.CustomerID
+	Installment        model.Installment
+	Charges            []model.InstallmentCharge
 }
 
 func (uc *UseCase) insertCreatePaymentAttemptAuditOutbox(

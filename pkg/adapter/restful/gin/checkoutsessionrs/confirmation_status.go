@@ -41,7 +41,7 @@ func toHostedConfirmationStatusResponse(
 //	@Description	Unauthenticated token API. Read-only projection of durable confirmation state after an inconclusive Confirm. Never starts a Saga, creates a Contract/PaymentAttempt, calls Financial Core, or mutates state. Does not expose payment URLs, Contract IDs, Saga IDs, or Financial Core identifiers.
 //	@Tags			Checkout Sessions
 //	@Produce		json
-//	@Param			token	path		string	true	"Public checkout session token (cs_<64 hex>)"
+//	@Param			token	path		string									true	"Public checkout session token (cs_<64 hex>)"
 //	@Success		200		{object}	HostedConfirmationStatusSuccessSchema	"Success"
 //	@Failure		400		{object}	serdser.ErrorResponse
 //	@Failure		404		{object}	serdser.ErrorResponse

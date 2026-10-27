@@ -67,4 +67,23 @@ type BusinessMetrics interface {
 
 	// RepaymentReminderSkipped records a skipped reminder by bounded reason.
 	RepaymentReminderSkipped(ctx context.Context, reason string)
+
+	// CollectionsAssessmentJobCompleted records one collections assessment job
+	// execution outcome (success or failure).
+	CollectionsAssessmentJobCompleted(ctx context.Context, outcome string)
+
+	// CollectionsAssessmentJobDuration records collections assessment job duration.
+	CollectionsAssessmentJobDuration(ctx context.Context, duration time.Duration)
+
+	// CollectionsAssessmentCustomersObserved records assessed customer count.
+	CollectionsAssessmentCustomersObserved(ctx context.Context, count int)
+
+	// CollectionsDefaulted records newly opened default episodes in one run.
+	CollectionsDefaulted(ctx context.Context, count int)
+
+	// CollectionsRecovered records recovered default episodes in one run.
+	CollectionsRecovered(ctx context.Context, count int)
+
+	// CollectionsAssessmentSkipped records assessments with no state transition.
+	CollectionsAssessmentSkipped(ctx context.Context, count int)
 }

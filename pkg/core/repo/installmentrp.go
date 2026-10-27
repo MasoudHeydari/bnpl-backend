@@ -49,6 +49,65 @@ type InstallmentQueryer interface {
 		afterCustomerID model.CustomerID,
 		customerLimit int,
 	) ([]ReminderCandidate, error)
+
+	// ListNextPayablePerContractByCustomerID returns the earliest unpaid
+	// installment (by installment_order) for each active contract owned by the
+	// customer. Results are ordered by due_at ASC, id ASC.
+	//
+	// This is the authoritative candidate set for cross-contract repayment
+	// priority selection and is not page-scoped.
+	ListNextPayablePerContractByCustomerID(
+		ctx context.Context,
+		customerID model.CustomerID,
+	) ([]model.Installment, error)
+
+	// ListDueUnpaidByCustomerID returns every unpaid installment for the
+	// customer whose contractual due_at is at or before asOf, or whose status
+	// is already due/overdue. Results are ordered by due_at ASC, id ASC and
+	// are not artificially truncated.
+	ListDueUnpaidByCustomerID(
+		ctx context.Context,
+		customerID model.CustomerID,
+		asOf time.Time,
+	) ([]model.Installment, error)
+
+	// CountUnpaidByCustomerID returns the number of unpaid active-contract
+	// installments owned by the customer.
+	CountUnpaidByCustomerID(
+		ctx context.Context,
+		customerID model.CustomerID,
+	) (int, error)
+
+	// ListCollectionsObligationsByCustomerID returns every unpaid installment on
+	// active contracts for the customer, enriched with whether a non-terminal
+	// payment attempt currently exists. Results are not artificially truncated.
+	ListCollectionsObligationsByCustomerID(
+		ctx context.Context,
+		customerID model.CustomerID,
+	) ([]CollectionsObligation, error)
+
+	// ListCollectionsAssessmentCustomerPage returns the next customerLimit
+	// distinct customer IDs that need collections assessment after
+	// afterCustomerID (exclusive keyset). Candidates include customers with
+	// unpaid active-contract installments that are due or grace-elapsed as of
+	// asOf, and customers with an active default episode.
+	ListCollectionsAssessmentCustomerPage(
+		ctx context.Context,
+		asOf time.Time,
+		afterCustomerID model.CustomerID,
+		customerLimit int,
+	) ([]model.CustomerID, error)
+}
+
+// CollectionsObligation is an unpaid installment considered for collections
+// default entry / recovery evaluation.
+type CollectionsObligation struct {
+	// Installment is the unpaid schedule installment.
+	Installment model.Installment
+
+	// HasUnresolvedPayment is true when a non-terminal payment attempt exists
+	// for the installment.
+	HasUnresolvedPayment bool
 }
 
 // ReminderCandidate is an unpaid installment considered for repayment reminder

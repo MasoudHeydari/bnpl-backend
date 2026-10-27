@@ -1,10 +1,10 @@
 package routes
 
 import (
-	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/customercreditrs"
-	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/customerrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/checkoutsessionrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/contractrs"
+	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/customercreditrs"
+	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/customerrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/decisionrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/healthrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/installmentpaymentrs"

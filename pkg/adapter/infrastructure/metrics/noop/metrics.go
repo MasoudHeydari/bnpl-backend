@@ -62,6 +62,24 @@ func (BusinessMetrics) RepaymentReminderCreated(context.Context, string) {}
 // RepaymentReminderSkipped intentionally discards the observation.
 func (BusinessMetrics) RepaymentReminderSkipped(context.Context, string) {}
 
+// CollectionsAssessmentJobCompleted intentionally discards the observation.
+func (BusinessMetrics) CollectionsAssessmentJobCompleted(context.Context, string) {}
+
+// CollectionsAssessmentJobDuration intentionally discards the observation.
+func (BusinessMetrics) CollectionsAssessmentJobDuration(context.Context, time.Duration) {}
+
+// CollectionsAssessmentCustomersObserved intentionally discards the observation.
+func (BusinessMetrics) CollectionsAssessmentCustomersObserved(context.Context, int) {}
+
+// CollectionsDefaulted intentionally discards the observation.
+func (BusinessMetrics) CollectionsDefaulted(context.Context, int) {}
+
+// CollectionsRecovered intentionally discards the observation.
+func (BusinessMetrics) CollectionsRecovered(context.Context, int) {}
+
+// CollectionsAssessmentSkipped intentionally discards the observation.
+func (BusinessMetrics) CollectionsAssessmentSkipped(context.Context, int) {}
+
 // OutboundHTTPInFlightChanged intentionally discards the gauge delta.
 func (BusinessMetrics) OutboundHTTPInFlightChanged(context.Context, int) {}
 

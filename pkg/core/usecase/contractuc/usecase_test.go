@@ -97,6 +97,7 @@ func TestNew_ConfigValidation(t *testing.T) {
 			mustTestOriginationJurisdictions(t),
 			lognoop.New(),
 			metricsnoop.New(),
+		AllowAllNewCreditUsage{},
 		)
 	}
 
@@ -201,6 +202,7 @@ func TestNew_ConfigValidation(t *testing.T) {
 			mustTestOriginationJurisdictions(t),
 			lognoop.New(),
 			metricsnoop.New(),
+		AllowAllNewCreditUsage{},
 		)
 		require.NoError(t, err)
 		require.Equal(t, settings, uc.CancellationSaga)
@@ -240,6 +242,7 @@ func TestNew_ConfigValidation(t *testing.T) {
 			mustTestOriginationJurisdictions(t),
 			lognoop.New(),
 			metricsnoop.New(),
+		AllowAllNewCreditUsage{},
 		)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "retry max delay")
@@ -284,6 +287,7 @@ func TestNew_ConfigValidation(t *testing.T) {
 			nil,
 			lognoop.New(),
 			metricsnoop.New(),
+		AllowAllNewCreditUsage{},
 		)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "origination jurisdictions is required")
@@ -320,6 +324,7 @@ func TestNew_ConfigValidation(t *testing.T) {
 			mustTestOriginationJurisdictions(t),
 			lognoop.New(),
 			metricsnoop.New(),
+		AllowAllNewCreditUsage{},
 		)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cancellation saga repository is required")

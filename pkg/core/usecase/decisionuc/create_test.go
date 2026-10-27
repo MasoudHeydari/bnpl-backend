@@ -129,6 +129,7 @@ func (d createDeps) newUseCase(t *testing.T) *decisionuc.UseCase {
 		d.idGenerator,
 		jurisdictions,
 		metricsnoop.New(),
+		decisionuc.AllowAllNewCreditUsage{},
 	)
 	if err != nil {
 		panic(err)

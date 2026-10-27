@@ -46,9 +46,6 @@ const (
 	// SuccessCodeUnpaidInstallmentsListed indicates that unpaid installments were listed.
 	SuccessCodeUnpaidInstallmentsListed SuccessCode = "UNPAID_INSTALLMENTS_LISTED"
 
-	// SuccessCodeRepaymentOverviewRetrieved indicates that the repayment overview was returned.
-	SuccessCodeRepaymentOverviewRetrieved SuccessCode = "REPAYMENT_OVERVIEW_RETRIEVED"
-
 	// SuccessCodeActiveContractsListed indicates that active contracts were listed.
 	SuccessCodeActiveContractsListed SuccessCode = "ACTIVE_CONTRACTS_LISTED"
 
@@ -225,8 +222,6 @@ var (
 	SuccessMessageContractCancellationAlreadyExists = SuccessMessageKey{value: "success.contract_cancellation_already_exists"}
 	// SuccessMessageUnpaidInstallmentsListed reports a successful unpaid-installment listing.
 	SuccessMessageUnpaidInstallmentsListed = SuccessMessageKey{value: "success.unpaid_installments_listed"}
-	// SuccessMessageRepaymentOverviewRetrieved reports a successful repayment overview read.
-	SuccessMessageRepaymentOverviewRetrieved = SuccessMessageKey{value: "success.repayment_overview_retrieved"}
 )
 
 // SuccessResponse is the platform-wide successful response envelope.
@@ -445,22 +440,43 @@ func SerKeyset[T any](
 	messageKey SuccessMessageKey,
 	page corepagination.KeysetPage[T],
 ) {
-	m := page.Meta
+	SerKeysetData(
+		c,
+		statusCode,
+		code,
+		messageKey,
+		page.Data,
+		page.Meta,
+		len(page.Data),
+	)
+}
 
+// SerKeysetData writes a keyset-paginated successful REST response whose Data
+// may be a structured object (for example installments plus a repayment
+// summary) rather than a bare array.
+func SerKeysetData(
+	c *gin.Context,
+	statusCode int,
+	code SuccessCode,
+	messageKey SuccessMessageKey,
+	data any,
+	meta corepagination.KeysetMeta,
+	returned int,
+) {
 	pagination := &PaginationMeta{
 		Type:     "keyset",
-		Returned: len(page.Data),
-		HasNext:  m.HasNext,
+		Returned: returned,
+		HasNext:  meta.HasNext,
 		Keyset: &KeysetInfo{
-			Limit:              m.Limit,
-			NextAfterID:        m.NextAfterID,
-			NextAfterCreatedAt: m.NextAfterCreatedAt,
-			NextAfterDueAt:     m.NextAfterDueAt,
+			Limit:              meta.Limit,
+			NextAfterID:        meta.NextAfterID,
+			NextAfterCreatedAt: meta.NextAfterCreatedAt,
+			NextAfterDueAt:     meta.NextAfterDueAt,
 		},
 	}
 
 	c.JSON(statusCode, SuccessResponse{
-		Data: page.Data,
+		Data: data,
 		Meta: buildMeta(
 			c,
 			statusCode,

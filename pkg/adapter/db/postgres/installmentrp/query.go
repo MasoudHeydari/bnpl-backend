@@ -243,6 +243,348 @@ ORDER BY due_at ASC, id ASC
 	)
 }
 
+// ListNextPayablePerContractByCustomerID returns the earliest unpaid installment
+// per active contract for the customer (installment_order ASC).
+func ListNextPayablePerContractByCustomerID[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	customerID model.CustomerID,
+) ([]model.Installment, error) {
+	const op = "installmentrp.ListNextPayablePerContractByCustomerID"
+
+	if customerID.IsZero() {
+		return nil, cerr.InternalError(fmt.Errorf("%s: customer id is required", op))
+	}
+
+	const query = `
+SELECT` + installmentColumns + `
+FROM (
+	SELECT DISTINCT ON (contract_id)` + installmentColumns + `
+	FROM installments
+	WHERE customer_id = $1
+	  AND contract_id IS NOT NULL
+	  AND status IN ($2, $3, $4)
+	  AND EXISTS (
+		SELECT 1
+		FROM contracts c
+		WHERE c.id = installments.contract_id
+		  AND c.status = $5
+	  )
+	ORDER BY contract_id ASC, installment_order ASC, id ASC
+) AS next_per_contract
+ORDER BY due_at ASC, id ASC
+`
+
+	return postgres.QueryAll[model.Installment](
+		ctx,
+		q,
+		"list next payable installments per contract by customer id",
+		query,
+		customerID,
+		model.ScheduledInstallmentStatus,
+		model.DueInstallmentStatus,
+		model.OverdueInstallmentStatus,
+		model.ActiveContractStatus,
+	)
+}
+
+// ListDueUnpaidByCustomerID returns unpaid installments that are contractually
+// due as of asOf (due_at <= asOf or status due/overdue).
+func ListDueUnpaidByCustomerID[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	customerID model.CustomerID,
+	asOf time.Time,
+) ([]model.Installment, error) {
+	const op = "installmentrp.ListDueUnpaidByCustomerID"
+
+	if customerID.IsZero() {
+		return nil, cerr.InternalError(fmt.Errorf("%s: customer id is required", op))
+	}
+
+	const query = `
+SELECT` + installmentColumns + `
+FROM installments
+WHERE customer_id = $1
+  AND contract_id IS NOT NULL
+  AND status IN ($2, $3, $4)
+  AND (
+	due_at <= $5
+	OR status IN ($3, $4)
+  )
+  AND EXISTS (
+	SELECT 1
+	FROM contracts c
+	WHERE c.id = installments.contract_id
+	  AND c.status = $6
+  )
+ORDER BY due_at ASC, id ASC
+`
+
+	return postgres.QueryAll[model.Installment](
+		ctx,
+		q,
+		"list due unpaid installments by customer id",
+		query,
+		customerID,
+		model.ScheduledInstallmentStatus,
+		model.DueInstallmentStatus,
+		model.OverdueInstallmentStatus,
+		asOf.UTC(),
+		model.ActiveContractStatus,
+	)
+}
+
+// CountUnpaidByCustomerID counts unpaid active-contract installments.
+func CountUnpaidByCustomerID[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	customerID model.CustomerID,
+) (int, error) {
+	const op = "installmentrp.CountUnpaidByCustomerID"
+
+	if customerID.IsZero() {
+		return 0, cerr.InternalError(fmt.Errorf("%s: customer id is required", op))
+	}
+
+	const query = `
+SELECT COUNT(*)::int AS count
+FROM installments
+WHERE customer_id = $1
+  AND contract_id IS NOT NULL
+  AND status IN ($2, $3, $4)
+  AND EXISTS (
+	SELECT 1
+	FROM contracts c
+	WHERE c.id = installments.contract_id
+	  AND c.status = $5
+  )
+`
+
+	type countRow struct {
+		Count int `db:"count"`
+	}
+
+	row, err := postgres.QueryOne[countRow](
+		ctx,
+		q,
+		"count unpaid installments by customer id",
+		query,
+		customerID,
+		model.ScheduledInstallmentStatus,
+		model.DueInstallmentStatus,
+		model.OverdueInstallmentStatus,
+		model.ActiveContractStatus,
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	return row.Count, nil
+}
+
+type collectionsObligationRow struct {
+	ID                      model.InstallmentID            `db:"id"`
+	DecisionID              model.DecisionID               `db:"decision_id"`
+	ContractID              *model.ContractID              `db:"contract_id"`
+	CustomerID              model.CustomerID               `db:"customer_id"`
+	MerchantProfileID       model.MerchantProfileID        `db:"merchant_profile_id"`
+	MerchantBranchProfileID *model.MerchantBranchProfileID `db:"merchant_branch_profile_id"`
+	InstallmentOrder        int                            `db:"installment_order"`
+	Currency                model.Currency                 `db:"currency"`
+	PrincipalAmountMinor    uint64                         `db:"principal_amount_minor"`
+	UpfrontAmountMinor      uint64                         `db:"upfront_amount_minor"`
+	BaseFeeAmountMinor      uint64                         `db:"base_fee_amount_minor"`
+	TotalAmountMinor        uint64                         `db:"total_amount_minor"`
+	DueAt                   time.Time                      `db:"due_at"`
+	GracePeriodDays         uint                           `db:"grace_period_days"`
+	Status                  model.InstallmentStatus        `db:"status"`
+	PaidAmountMinor         uint64                         `db:"paid_amount_minor"`
+	PaidAt                  *time.Time                     `db:"paid_at"`
+	CreatedAt               time.Time                      `db:"created_at"`
+	UpdatedAt               time.Time                      `db:"updated_at"`
+	HasUnresolvedPayment    bool                           `db:"has_unresolved_payment"`
+}
+
+// ListCollectionsObligationsByCustomerID returns unpaid active-contract
+// installments for collections assessment, with unresolved-payment enrichment.
+func ListCollectionsObligationsByCustomerID[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	customerID model.CustomerID,
+) ([]repo.CollectionsObligation, error) {
+	const op = "installmentrp.ListCollectionsObligationsByCustomerID"
+
+	if customerID.IsZero() {
+		return nil, cerr.InternalError(fmt.Errorf("%s: customer id is required", op))
+	}
+
+	const query = `
+SELECT
+	i.id,
+	i.decision_id,
+	i.contract_id,
+	i.customer_id,
+	i.merchant_profile_id,
+	i.merchant_branch_profile_id,
+	i.installment_order,
+	i.currency,
+	i.principal_amount_minor,
+	i.upfront_amount_minor,
+	i.base_fee_amount_minor,
+	i.total_amount_minor,
+	i.due_at,
+	i.grace_period_days,
+	i.status,
+	i.paid_amount_minor,
+	i.paid_at,
+	i.created_at,
+	i.updated_at,
+	EXISTS (
+		SELECT 1
+		FROM payment_attempts pa
+		WHERE pa.installment_id = i.id
+		  AND pa.state IN ($5, $6, $7)
+	) AS has_unresolved_payment
+FROM installments i
+WHERE i.customer_id = $1
+  AND i.contract_id IS NOT NULL
+  AND i.status IN ($2, $3, $4)
+  AND EXISTS (
+	SELECT 1
+	FROM contracts c
+	WHERE c.id = i.contract_id
+	  AND c.status = $8
+  )
+ORDER BY i.due_at ASC, i.id ASC
+`
+
+	rows, err := postgres.QueryAll[collectionsObligationRow](
+		ctx,
+		q,
+		"list collections obligations by customer id",
+		query,
+		customerID,
+		model.ScheduledInstallmentStatus,
+		model.DueInstallmentStatus,
+		model.OverdueInstallmentStatus,
+		model.CreatedPaymentAttemptState,
+		model.SubmittedPaymentAttemptState,
+		model.ReconciliationRequiredPaymentAttemptState,
+		model.ActiveContractStatus,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]repo.CollectionsObligation, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, repo.CollectionsObligation{
+			Installment: model.Installment{
+				ID:                      row.ID,
+				DecisionID:              row.DecisionID,
+				ContractID:              row.ContractID,
+				CustomerID:              row.CustomerID,
+				MerchantProfileID:       row.MerchantProfileID,
+				MerchantBranchProfileID: row.MerchantBranchProfileID,
+				InstallmentOrder:        row.InstallmentOrder,
+				Currency:                row.Currency,
+				PrincipalAmountMinor:    row.PrincipalAmountMinor,
+				UpfrontAmountMinor:      row.UpfrontAmountMinor,
+				BaseFeeAmountMinor:      row.BaseFeeAmountMinor,
+				TotalAmountMinor:        row.TotalAmountMinor,
+				DueAt:                   row.DueAt,
+				GracePeriodDays:         row.GracePeriodDays,
+				Status:                  row.Status,
+				PaidAmountMinor:         row.PaidAmountMinor,
+				PaidAt:                  row.PaidAt,
+				CreatedAt:               row.CreatedAt,
+				UpdatedAt:               row.UpdatedAt,
+			},
+			HasUnresolvedPayment: row.HasUnresolvedPayment,
+		})
+	}
+
+	return out, nil
+}
+
+// ListCollectionsAssessmentCustomerPage returns distinct customers needing
+// collections assessment in deterministic keyset order.
+func ListCollectionsAssessmentCustomerPage[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	asOf time.Time,
+	afterCustomerID model.CustomerID,
+	customerLimit int,
+) ([]model.CustomerID, error) {
+	const op = "installmentrp.ListCollectionsAssessmentCustomerPage"
+
+	if customerLimit <= 0 {
+		return nil, cerr.InternalError(fmt.Errorf("%s: customer limit must be positive", op))
+	}
+
+	// Grace eligibility uses due_at + LEAST(grace_period_days, max) * 24h, matching
+	// model.Installment.OverdueEligibleAt and collections/v1.
+	const query = `
+SELECT customer_id
+FROM (
+	SELECT DISTINCT i.customer_id
+	FROM installments i
+	WHERE i.contract_id IS NOT NULL
+	  AND i.status IN ($1, $2, $3)
+	  AND (
+		i.due_at <= $4
+		OR (i.due_at + (LEAST(i.grace_period_days, $5) * INTERVAL '1 day')) <= $4
+	  )
+	  AND EXISTS (
+		SELECT 1
+		FROM contracts c
+		WHERE c.id = i.contract_id
+		  AND c.status = $6
+	  )
+
+	UNION
+
+	SELECT de.customer_id
+	FROM default_episodes de
+	WHERE de.status = $7
+) AS candidates
+WHERE ($8::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR customer_id > $8)
+ORDER BY customer_id ASC
+LIMIT $9
+`
+
+	type customerRow struct {
+		CustomerID model.CustomerID `db:"customer_id"`
+	}
+
+	rows, err := postgres.QueryAll[customerRow](
+		ctx,
+		q,
+		"list collections assessment customer page",
+		query,
+		model.ScheduledInstallmentStatus,
+		model.DueInstallmentStatus,
+		model.OverdueInstallmentStatus,
+		asOf.UTC(),
+		int(model.MaxInstallmentGracePeriodDays),
+		model.ActiveContractStatus,
+		model.ActiveDefaultEpisodeStatus,
+		afterCustomerID,
+		customerLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]model.CustomerID, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, row.CustomerID)
+	}
+
+	return out, nil
+}
+
 // LockByID returns and locks an installment row for update.
 func LockByID[Q postgres.Queryer](
 	ctx context.Context,

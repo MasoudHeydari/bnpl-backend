@@ -104,42 +104,64 @@ func TestListUnpaidInstallments_OrdersByDueAtAndBuildsDueAtCursor(t *testing.T) 
 	customerProfileQ.EXPECT().
 		GetByExternalCustomerID(testifymock.Anything, externalCustomerID).
 		Return(model.CustomerProfile{ID: profileID, ExternalCustomerID: externalCustomerID}, nil)
+	paymentAttempt := mock.NewPaymentAttempt(t)
+	paymentAttemptQ := mock.NewPaymentAttemptConnQueryer(t)
+	installmentCharge := mock.NewInstallmentCharge(t)
+	installmentChargeQ := mock.NewInstallmentChargeConnQueryer(t)
+
+	row1 := model.Installment{
+		ID:                id1,
+		ContractID:        &contractID,
+		MerchantProfileID: model.MerchantProfileID(uuid.New()),
+		InstallmentOrder:  1,
+		TotalAmountMinor:  1000,
+		Currency:          model.IRRCurrency,
+		DueAt:             due1,
+		Status:            model.DueInstallmentStatus,
+	}
+	row2 := model.Installment{
+		ID:                id2,
+		ContractID:        &contractID,
+		MerchantProfileID: model.MerchantProfileID(uuid.New()),
+		InstallmentOrder:  2,
+		TotalAmountMinor:  1000,
+		Currency:          model.IRRCurrency,
+		DueAt:             due2,
+		Status:            model.ScheduledInstallmentStatus,
+	}
+
 	installment.EXPECT().Conn(testifymock.Anything).Return(installmentQ)
 	installmentQ.EXPECT().
 		ListUnpaidByCustomerID(testifymock.Anything, profileID, testifymock.MatchedBy(func(page pagination.KeysetRequest) bool {
 			return page.Limit == 2 && page.Order == pagination.OrderAsc
 		})).
-		Return([]model.Installment{
-			{
-				ID:                id1,
-				ContractID:        &contractID,
-				MerchantProfileID: model.MerchantProfileID(uuid.New()),
-				InstallmentOrder:  1,
-				TotalAmountMinor:  1000,
-				Currency:          model.IRRCurrency,
-				DueAt:             due1,
-				Status:            model.DueInstallmentStatus,
-			},
-			{
-				ID:                id2,
-				ContractID:        &contractID,
-				MerchantProfileID: model.MerchantProfileID(uuid.New()),
-				InstallmentOrder:  2,
-				TotalAmountMinor:  1000,
-				Currency:          model.IRRCurrency,
-				DueAt:             due2,
-				Status:            model.ScheduledInstallmentStatus,
-			},
-		}, nil)
+		Return([]model.Installment{row1, row2}, nil)
+	installmentQ.EXPECT().CountUnpaidByCustomerID(testifymock.Anything, profileID).Return(2, nil)
+	installmentQ.EXPECT().
+		ListDueUnpaidByCustomerID(testifymock.Anything, profileID, testifymock.Anything).
+		Return([]model.Installment{row1}, nil)
+	installmentQ.EXPECT().
+		ListNextPayablePerContractByCustomerID(testifymock.Anything, profileID).
+		Return([]model.Installment{row1}, nil)
+
+	paymentAttempt.EXPECT().Conn(testifymock.Anything).Return(paymentAttemptQ)
+	paymentAttemptQ.EXPECT().
+		ListInstallmentIDsWithNonTerminalAttempts(testifymock.Anything, profileID, testifymock.Anything).
+		Return(nil, nil)
+
+	installmentCharge.EXPECT().Conn(testifymock.Anything).Return(installmentChargeQ)
+	installmentChargeQ.EXPECT().
+		ListByInstallmentIDs(testifymock.Anything, []model.InstallmentID{id1}).
+		Return(nil, nil)
 
 	uc, err := customeraccountuc.New(
 		pool,
 		customerProfile,
 		mock.NewContract(t),
 		installment,
-		mock.NewInstallmentCharge(t),
-		mock.NewPaymentAttempt(t),
-		adapterclock.NewFixed(time.Now().UTC(), time.UTC),
+		installmentCharge,
+		paymentAttempt,
+		adapterclock.NewFixed(due1.Add(12*time.Hour), time.UTC),
 	)
 	require.NoError(t, err)
 

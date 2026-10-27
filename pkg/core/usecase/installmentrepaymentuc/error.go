@@ -351,6 +351,27 @@ func installmentNotNextPayableError() error {
 	)
 }
 
+// installmentIsNotCurrentPriorityRepaymentError returns a public conflict when
+// the requested installment is not the customer's current cross-contract
+// repayment priority target.
+func installmentIsNotCurrentPriorityRepaymentError() error {
+	return cerr.NewPublic(
+		cerr.CodeConflict,
+		"error.installment_is_not_the_current_priority_repayment_target",
+		nil,
+		cerr.Details{
+			Fields: []string{"installment_id"},
+			Violations: []cerr.Violation{
+				{
+					Code:       "CONFLICT",
+					MessageKey: "error.installment_is_not_the_current_priority_repayment_target",
+					Fields:     []string{"installment_id"},
+				},
+			},
+		},
+	)
+}
+
 // installmentPayableAmountZeroError returns a public conflict when there is no
 // remaining customer-payable amount on the installment.
 func installmentPayableAmountZeroError() error {

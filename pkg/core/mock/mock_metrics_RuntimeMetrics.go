@@ -84,6 +84,282 @@ func (_c *RuntimeMetrics_CheckoutDecisionCreated_Call) RunAndReturn(run func(ctx
 	return _c
 }
 
+// CollectionsAssessmentCustomersObserved provides a mock function for the type RuntimeMetrics
+func (_mock *RuntimeMetrics) CollectionsAssessmentCustomersObserved(ctx context.Context, count int) {
+	_mock.Called(ctx, count)
+	return
+}
+
+// RuntimeMetrics_CollectionsAssessmentCustomersObserved_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CollectionsAssessmentCustomersObserved'
+type RuntimeMetrics_CollectionsAssessmentCustomersObserved_Call struct {
+	*mock.Call
+}
+
+// CollectionsAssessmentCustomersObserved is a helper method to define mock.On call
+//   - ctx context.Context
+//   - count int
+func (_e *RuntimeMetrics_Expecter) CollectionsAssessmentCustomersObserved(ctx any, count any) *RuntimeMetrics_CollectionsAssessmentCustomersObserved_Call {
+	return &RuntimeMetrics_CollectionsAssessmentCustomersObserved_Call{Call: _e.mock.On("CollectionsAssessmentCustomersObserved", ctx, count)}
+}
+
+func (_c *RuntimeMetrics_CollectionsAssessmentCustomersObserved_Call) Run(run func(ctx context.Context, count int)) *RuntimeMetrics_CollectionsAssessmentCustomersObserved_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int
+		if args[1] != nil {
+			arg1 = args[1].(int)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *RuntimeMetrics_CollectionsAssessmentCustomersObserved_Call) Return() *RuntimeMetrics_CollectionsAssessmentCustomersObserved_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *RuntimeMetrics_CollectionsAssessmentCustomersObserved_Call) RunAndReturn(run func(ctx context.Context, count int)) *RuntimeMetrics_CollectionsAssessmentCustomersObserved_Call {
+	_c.Run(run)
+	return _c
+}
+
+// CollectionsAssessmentJobCompleted provides a mock function for the type RuntimeMetrics
+func (_mock *RuntimeMetrics) CollectionsAssessmentJobCompleted(ctx context.Context, outcome string) {
+	_mock.Called(ctx, outcome)
+	return
+}
+
+// RuntimeMetrics_CollectionsAssessmentJobCompleted_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CollectionsAssessmentJobCompleted'
+type RuntimeMetrics_CollectionsAssessmentJobCompleted_Call struct {
+	*mock.Call
+}
+
+// CollectionsAssessmentJobCompleted is a helper method to define mock.On call
+//   - ctx context.Context
+//   - outcome string
+func (_e *RuntimeMetrics_Expecter) CollectionsAssessmentJobCompleted(ctx any, outcome any) *RuntimeMetrics_CollectionsAssessmentJobCompleted_Call {
+	return &RuntimeMetrics_CollectionsAssessmentJobCompleted_Call{Call: _e.mock.On("CollectionsAssessmentJobCompleted", ctx, outcome)}
+}
+
+func (_c *RuntimeMetrics_CollectionsAssessmentJobCompleted_Call) Run(run func(ctx context.Context, outcome string)) *RuntimeMetrics_CollectionsAssessmentJobCompleted_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *RuntimeMetrics_CollectionsAssessmentJobCompleted_Call) Return() *RuntimeMetrics_CollectionsAssessmentJobCompleted_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *RuntimeMetrics_CollectionsAssessmentJobCompleted_Call) RunAndReturn(run func(ctx context.Context, outcome string)) *RuntimeMetrics_CollectionsAssessmentJobCompleted_Call {
+	_c.Run(run)
+	return _c
+}
+
+// CollectionsAssessmentJobDuration provides a mock function for the type RuntimeMetrics
+func (_mock *RuntimeMetrics) CollectionsAssessmentJobDuration(ctx context.Context, duration time.Duration) {
+	_mock.Called(ctx, duration)
+	return
+}
+
+// RuntimeMetrics_CollectionsAssessmentJobDuration_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CollectionsAssessmentJobDuration'
+type RuntimeMetrics_CollectionsAssessmentJobDuration_Call struct {
+	*mock.Call
+}
+
+// CollectionsAssessmentJobDuration is a helper method to define mock.On call
+//   - ctx context.Context
+//   - duration time.Duration
+func (_e *RuntimeMetrics_Expecter) CollectionsAssessmentJobDuration(ctx any, duration any) *RuntimeMetrics_CollectionsAssessmentJobDuration_Call {
+	return &RuntimeMetrics_CollectionsAssessmentJobDuration_Call{Call: _e.mock.On("CollectionsAssessmentJobDuration", ctx, duration)}
+}
+
+func (_c *RuntimeMetrics_CollectionsAssessmentJobDuration_Call) Run(run func(ctx context.Context, duration time.Duration)) *RuntimeMetrics_CollectionsAssessmentJobDuration_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 time.Duration
+		if args[1] != nil {
+			arg1 = args[1].(time.Duration)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *RuntimeMetrics_CollectionsAssessmentJobDuration_Call) Return() *RuntimeMetrics_CollectionsAssessmentJobDuration_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *RuntimeMetrics_CollectionsAssessmentJobDuration_Call) RunAndReturn(run func(ctx context.Context, duration time.Duration)) *RuntimeMetrics_CollectionsAssessmentJobDuration_Call {
+	_c.Run(run)
+	return _c
+}
+
+// CollectionsAssessmentSkipped provides a mock function for the type RuntimeMetrics
+func (_mock *RuntimeMetrics) CollectionsAssessmentSkipped(ctx context.Context, count int) {
+	_mock.Called(ctx, count)
+	return
+}
+
+// RuntimeMetrics_CollectionsAssessmentSkipped_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CollectionsAssessmentSkipped'
+type RuntimeMetrics_CollectionsAssessmentSkipped_Call struct {
+	*mock.Call
+}
+
+// CollectionsAssessmentSkipped is a helper method to define mock.On call
+//   - ctx context.Context
+//   - count int
+func (_e *RuntimeMetrics_Expecter) CollectionsAssessmentSkipped(ctx any, count any) *RuntimeMetrics_CollectionsAssessmentSkipped_Call {
+	return &RuntimeMetrics_CollectionsAssessmentSkipped_Call{Call: _e.mock.On("CollectionsAssessmentSkipped", ctx, count)}
+}
+
+func (_c *RuntimeMetrics_CollectionsAssessmentSkipped_Call) Run(run func(ctx context.Context, count int)) *RuntimeMetrics_CollectionsAssessmentSkipped_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int
+		if args[1] != nil {
+			arg1 = args[1].(int)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *RuntimeMetrics_CollectionsAssessmentSkipped_Call) Return() *RuntimeMetrics_CollectionsAssessmentSkipped_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *RuntimeMetrics_CollectionsAssessmentSkipped_Call) RunAndReturn(run func(ctx context.Context, count int)) *RuntimeMetrics_CollectionsAssessmentSkipped_Call {
+	_c.Run(run)
+	return _c
+}
+
+// CollectionsDefaulted provides a mock function for the type RuntimeMetrics
+func (_mock *RuntimeMetrics) CollectionsDefaulted(ctx context.Context, count int) {
+	_mock.Called(ctx, count)
+	return
+}
+
+// RuntimeMetrics_CollectionsDefaulted_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CollectionsDefaulted'
+type RuntimeMetrics_CollectionsDefaulted_Call struct {
+	*mock.Call
+}
+
+// CollectionsDefaulted is a helper method to define mock.On call
+//   - ctx context.Context
+//   - count int
+func (_e *RuntimeMetrics_Expecter) CollectionsDefaulted(ctx any, count any) *RuntimeMetrics_CollectionsDefaulted_Call {
+	return &RuntimeMetrics_CollectionsDefaulted_Call{Call: _e.mock.On("CollectionsDefaulted", ctx, count)}
+}
+
+func (_c *RuntimeMetrics_CollectionsDefaulted_Call) Run(run func(ctx context.Context, count int)) *RuntimeMetrics_CollectionsDefaulted_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int
+		if args[1] != nil {
+			arg1 = args[1].(int)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *RuntimeMetrics_CollectionsDefaulted_Call) Return() *RuntimeMetrics_CollectionsDefaulted_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *RuntimeMetrics_CollectionsDefaulted_Call) RunAndReturn(run func(ctx context.Context, count int)) *RuntimeMetrics_CollectionsDefaulted_Call {
+	_c.Run(run)
+	return _c
+}
+
+// CollectionsRecovered provides a mock function for the type RuntimeMetrics
+func (_mock *RuntimeMetrics) CollectionsRecovered(ctx context.Context, count int) {
+	_mock.Called(ctx, count)
+	return
+}
+
+// RuntimeMetrics_CollectionsRecovered_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CollectionsRecovered'
+type RuntimeMetrics_CollectionsRecovered_Call struct {
+	*mock.Call
+}
+
+// CollectionsRecovered is a helper method to define mock.On call
+//   - ctx context.Context
+//   - count int
+func (_e *RuntimeMetrics_Expecter) CollectionsRecovered(ctx any, count any) *RuntimeMetrics_CollectionsRecovered_Call {
+	return &RuntimeMetrics_CollectionsRecovered_Call{Call: _e.mock.On("CollectionsRecovered", ctx, count)}
+}
+
+func (_c *RuntimeMetrics_CollectionsRecovered_Call) Run(run func(ctx context.Context, count int)) *RuntimeMetrics_CollectionsRecovered_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int
+		if args[1] != nil {
+			arg1 = args[1].(int)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *RuntimeMetrics_CollectionsRecovered_Call) Return() *RuntimeMetrics_CollectionsRecovered_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *RuntimeMetrics_CollectionsRecovered_Call) RunAndReturn(run func(ctx context.Context, count int)) *RuntimeMetrics_CollectionsRecovered_Call {
+	_c.Run(run)
+	return _c
+}
+
 // ContractCreated provides a mock function for the type RuntimeMetrics
 func (_mock *RuntimeMetrics) ContractCreated(ctx context.Context, status string) {
 	_mock.Called(ctx, status)

@@ -188,23 +188,23 @@ func toHostedExternalConfirmResponse(output checkoutsessionuc.ConfirmOutput) hos
 //	@Description	Unauthenticated read-only hosted page projection. Returns merchant display name, amount, evaluation_generation, the prepared privacy-safe offer (when available), and the masked verification destination. Never creates a Decision, binds a customer, sends OTP, or calls Financial Core.
 //	@Tags			Checkout Sessions
 //	@Produce		json
-//	@Param			token				path		string							true	"Public checkout session token (cs_<64 hex>)"
-//	@Success		200					{object}	HostedExternalGetSuccessSchema	"Success"
-//	@Failure		400					{object}	serdser.ErrorResponse
-//	@Failure		404					{object}	serdser.ErrorResponse
-//	@Failure		500					{object}	serdser.ErrorResponse
-//	@Header			200					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
-//	@Header			200					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
-//	@Header			200					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
-//	@Header			400					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
-//	@Header			400					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
-//	@Header			400					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
-//	@Header			404					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
-//	@Header			404					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
-//	@Header			404					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
-//	@Header			500					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
-//	@Header			500					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
-//	@Header			500					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
+//	@Param			token	path		string							true	"Public checkout session token (cs_<64 hex>)"
+//	@Success		200		{object}	HostedExternalGetSuccessSchema	"Success"
+//	@Failure		400		{object}	serdser.ErrorResponse
+//	@Failure		404		{object}	serdser.ErrorResponse
+//	@Failure		500		{object}	serdser.ErrorResponse
+//	@Header			200		{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
+//	@Header			200		{string}	X-Request-Id		"Always set: reuse inbound value or generate"
+//	@Header			200		{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
+//	@Header			400		{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
+//	@Header			400		{string}	X-Request-Id		"Always set: reuse inbound value or generate"
+//	@Header			400		{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
+//	@Header			404		{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
+//	@Header			404		{string}	X-Request-Id		"Always set: reuse inbound value or generate"
+//	@Header			404		{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
+//	@Header			500		{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
+//	@Header			500		{string}	X-Request-Id		"Always set: reuse inbound value or generate"
+//	@Header			500		{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
 //	@Router			/api/v1/checkout-sessions/{token} [get]
 func (rs *resource) GetHostedExternal(c *gin.Context) {
 	token, ok := checkoutTokenParam(c)
@@ -237,32 +237,32 @@ func (rs *resource) GetHostedExternal(c *gin.Context) {
 //	@Tags			Checkout Sessions
 //	@Accept			json
 //	@Produce		json
-//	@Param			token				path		string								true	"Public checkout session token (cs_<64 hex>)"
-//	@Param			body				body		HostedExternalStartRequestSchema	false	"Optional. Omit or send {} on first START before an offer exists; send evaluation_generation when GET already returned one"
-//	@Success		200					{object}	HostedExternalStartSuccessSchema	"Success"
-//	@Failure		400					{object}	serdser.ErrorResponse
-//	@Failure		403					{object}	serdser.ErrorResponse
-//	@Failure		404					{object}	serdser.ErrorResponse
-//	@Failure		409					{object}	serdser.ErrorResponse
-//	@Failure		500					{object}	serdser.ErrorResponse
-//	@Header			200					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
-//	@Header			200					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
-//	@Header			200					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
-//	@Header			400					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
-//	@Header			400					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
-//	@Header			400					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
-//	@Header			403					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
-//	@Header			403					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
-//	@Header			403					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
-//	@Header			404					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
-//	@Header			404					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
-//	@Header			404					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
-//	@Header			409					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
-//	@Header			409					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
-//	@Header			409					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
-//	@Header			500					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
-//	@Header			500					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
-//	@Header			500					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
+//	@Param			token	path		string								true	"Public checkout session token (cs_<64 hex>)"
+//	@Param			body	body		HostedExternalStartRequestSchema	false	"Optional. Omit or send {} on first START before an offer exists; send evaluation_generation when GET already returned one"
+//	@Success		200		{object}	HostedExternalStartSuccessSchema	"Success"
+//	@Failure		400		{object}	serdser.ErrorResponse
+//	@Failure		403		{object}	serdser.ErrorResponse
+//	@Failure		404		{object}	serdser.ErrorResponse
+//	@Failure		409		{object}	serdser.ErrorResponse
+//	@Failure		500		{object}	serdser.ErrorResponse
+//	@Header			200		{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
+//	@Header			200		{string}	X-Request-Id		"Always set: reuse inbound value or generate"
+//	@Header			200		{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
+//	@Header			400		{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
+//	@Header			400		{string}	X-Request-Id		"Always set: reuse inbound value or generate"
+//	@Header			400		{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
+//	@Header			403		{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
+//	@Header			403		{string}	X-Request-Id		"Always set: reuse inbound value or generate"
+//	@Header			403		{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
+//	@Header			404		{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
+//	@Header			404		{string}	X-Request-Id		"Always set: reuse inbound value or generate"
+//	@Header			404		{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
+//	@Header			409		{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
+//	@Header			409		{string}	X-Request-Id		"Always set: reuse inbound value or generate"
+//	@Header			409		{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
+//	@Header			500		{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
+//	@Header			500		{string}	X-Request-Id		"Always set: reuse inbound value or generate"
+//	@Header			500		{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
 //	@Router			/api/v1/checkout-sessions/{token}/start [post]
 func (rs *resource) StartHostedExternal(c *gin.Context) {
 	token, ok := checkoutTokenParam(c)
@@ -322,36 +322,36 @@ func bindHostedExternalStartRequest(c *gin.Context) (hostedExternalStartRequest,
 //	@Tags			Checkout Sessions
 //	@Accept			json
 //	@Produce		json
-//	@Param			token				path		string								true	"Public checkout session token (cs_<64 hex>)"
-//	@Param			body				body		HostedExternalConfirmRequestSchema	true	"Offer version and SMS verification code"
-//	@Success		200					{object}	HostedExternalConfirmSuccessSchema	"Success"
-//	@Failure		400					{object}	serdser.ErrorResponse
-//	@Failure		403					{object}	serdser.ErrorResponse
-//	@Failure		404					{object}	serdser.ErrorResponse
-//	@Failure		409					{object}	serdser.ErrorResponse
-//	@Failure		422					{object}	serdser.ErrorResponse
-//	@Failure		500					{object}	serdser.ErrorResponse
-//	@Header			200					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
-//	@Header			200					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
-//	@Header			200					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
-//	@Header			400					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
-//	@Header			400					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
-//	@Header			400					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
-//	@Header			403					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
-//	@Header			403					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
-//	@Header			403					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
-//	@Header			404					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
-//	@Header			404					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
-//	@Header			404					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
-//	@Header			409					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
-//	@Header			409					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
-//	@Header			409					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
-//	@Header			422					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
-//	@Header			422					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
-//	@Header			422					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
-//	@Header			500					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
-//	@Header			500					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
-//	@Header			500					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
+//	@Param			token	path		string								true	"Public checkout session token (cs_<64 hex>)"
+//	@Param			body	body		HostedExternalConfirmRequestSchema	true	"Offer version and SMS verification code"
+//	@Success		200		{object}	HostedExternalConfirmSuccessSchema	"Success"
+//	@Failure		400		{object}	serdser.ErrorResponse
+//	@Failure		403		{object}	serdser.ErrorResponse
+//	@Failure		404		{object}	serdser.ErrorResponse
+//	@Failure		409		{object}	serdser.ErrorResponse
+//	@Failure		422		{object}	serdser.ErrorResponse
+//	@Failure		500		{object}	serdser.ErrorResponse
+//	@Header			200		{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
+//	@Header			200		{string}	X-Request-Id		"Always set: reuse inbound value or generate"
+//	@Header			200		{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
+//	@Header			400		{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
+//	@Header			400		{string}	X-Request-Id		"Always set: reuse inbound value or generate"
+//	@Header			400		{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
+//	@Header			403		{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
+//	@Header			403		{string}	X-Request-Id		"Always set: reuse inbound value or generate"
+//	@Header			403		{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
+//	@Header			404		{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
+//	@Header			404		{string}	X-Request-Id		"Always set: reuse inbound value or generate"
+//	@Header			404		{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
+//	@Header			409		{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
+//	@Header			409		{string}	X-Request-Id		"Always set: reuse inbound value or generate"
+//	@Header			409		{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
+//	@Header			422		{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
+//	@Header			422		{string}	X-Request-Id		"Always set: reuse inbound value or generate"
+//	@Header			422		{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
+//	@Header			500		{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
+//	@Header			500		{string}	X-Request-Id		"Always set: reuse inbound value or generate"
+//	@Header			500		{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
 //	@Router			/api/v1/checkout-sessions/{token}/confirm [post]
 func (rs *resource) ConfirmHostedExternal(c *gin.Context) {
 	token, ok := checkoutTokenParam(c)
@@ -404,23 +404,23 @@ func (rs *resource) ConfirmHostedExternal(c *gin.Context) {
 //	@Description	Unauthenticated browser navigation only. Redirects to the merchant ReturnURL persisted at checkout creation. Never accepts a destination URL from the request. Browser arrival is NOT payment or order-fulfillment authority — merchants must trust Partner Inquiry status=completed or the verified bnpl.checkout.completed.v1 webhook.
 //	@Tags			Checkout Sessions
 //	@Produce		json
-//	@Param			token				path		string	true	"Public checkout session token (cs_<64 hex>)"
-//	@Success		302					{string}	string	"Redirect to the pre-registered merchant return URL"
-//	@Failure		400					{object}	serdser.ErrorResponse
-//	@Failure		404					{object}	serdser.ErrorResponse
-//	@Failure		500					{object}	serdser.ErrorResponse
-//	@Header			302					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
-//	@Header			302					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
-//	@Header			302					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
-//	@Header			400					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
-//	@Header			400					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
-//	@Header			400					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
-//	@Header			404					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
-//	@Header			404					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
-//	@Header			404					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
-//	@Header			500					{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
-//	@Header			500					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
-//	@Header			500					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
+//	@Param			token	path		string	true	"Public checkout session token (cs_<64 hex>)"
+//	@Success		302		{string}	string	"Redirect to the pre-registered merchant return URL"
+//	@Failure		400		{object}	serdser.ErrorResponse
+//	@Failure		404		{object}	serdser.ErrorResponse
+//	@Failure		500		{object}	serdser.ErrorResponse
+//	@Header			302		{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
+//	@Header			302		{string}	X-Request-Id		"Always set: reuse inbound value or generate"
+//	@Header			302		{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
+//	@Header			400		{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
+//	@Header			400		{string}	X-Request-Id		"Always set: reuse inbound value or generate"
+//	@Header			400		{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
+//	@Header			404		{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
+//	@Header			404		{string}	X-Request-Id		"Always set: reuse inbound value or generate"
+//	@Header			404		{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
+//	@Header			500		{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
+//	@Header			500		{string}	X-Request-Id		"Always set: reuse inbound value or generate"
+//	@Header			500		{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
 //	@Router			/api/v1/checkout-sessions/{token}/return [get]
 func (rs *resource) ReturnHostedExternal(c *gin.Context) {
 	token, ok := checkoutTokenParam(c)

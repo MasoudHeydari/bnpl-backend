@@ -422,6 +422,7 @@ func (c *Config) NewDecisionUseCase(
 	idGenerator identifier.Generator,
 	jurisdictions domaincapability.OriginationJurisdictions,
 	businessMetrics coremetrics.BusinessMetrics,
+	newCreditUsageGuard decisionuc.NewCreditUsageGuard,
 ) (*decisionuc.UseCase, error) {
 	return c.Usecases.Decision.newUseCase(
 		pool,
@@ -443,6 +444,7 @@ func (c *Config) NewDecisionUseCase(
 		idGenerator,
 		jurisdictions,
 		businessMetrics,
+		newCreditUsageGuard,
 	)
 }
 
@@ -599,6 +601,7 @@ func (c *Config) NewContractUseCase(
 	jurisdictions domaincapability.OriginationJurisdictions,
 	logger corelog.Logger,
 	businessMetrics coremetrics.BusinessMetrics,
+	newCreditUsageGuard contractuc.NewCreditUsageGuard,
 ) (*contractuc.UseCase, error) {
 	return c.Usecases.Contract.newUseCase(
 		pool,
@@ -626,6 +629,7 @@ func (c *Config) NewContractUseCase(
 		logger,
 		businessMetrics,
 		c.Usecases.Sagas.ContractCancellation,
+		newCreditUsageGuard,
 	)
 }
 

@@ -30,6 +30,8 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/saga"
 	"github.com/parstis/bnpl-backend/pkg/core/trace"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/checkoutsessionuc"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/contractuc"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/decisionuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/financialcorepaymentresultuc"
 	otpusecase "github.com/parstis/bnpl-backend/pkg/core/usecase/otp"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/sagaexecutoruc"
@@ -141,6 +143,7 @@ func newConfirmSagaHarness(t *testing.T, opts confirmSagaHarnessOptions) *confir
 		infra.IdentifierGenerator,
 		jurisdictions,
 		businessMetrics,
+		decisionuc.AllowAllNewCreditUsage{},
 	)
 	require.NoError(t, err)
 
@@ -185,6 +188,7 @@ func newConfirmSagaHarness(t *testing.T, opts confirmSagaHarnessOptions) *confir
 		jurisdictions,
 		infra.Logger,
 		businessMetrics,
+		contractuc.AllowAllNewCreditUsage{},
 	)
 	require.NoError(t, err)
 

@@ -21,4 +21,16 @@ const (
 	InstallmentCountNotSupportedDecisionReason              = "INSTALLMENT_COUNT_NOT_SUPPORTED"
 	JurisdictionMismatchDecisionReason                      = "JURISDICTION_MISMATCH"
 	FinancedAmountTooSmallForInstallmentCountDecisionReason = "FINANCED_AMOUNT_TOO_SMALL_FOR_INSTALLMENT_COUNT"
+
+	// CollectionsGracePeriodExceededDecisionReason is used when at least one
+	// outstanding installment has crossed its contractual grace boundary.
+	CollectionsGracePeriodExceededDecisionReason = "COLLECTIONS_GRACE_PERIOD_EXCEEDED"
+
+	// CollectionsDueInstallmentsSettledDecisionReason is used when every
+	// installment whose contractual due date has arrived is fully settled.
+	CollectionsDueInstallmentsSettledDecisionReason = "COLLECTIONS_DUE_INSTALLMENTS_SETTLED"
+
+	// CollectionsDefaultBlocksNewCreditDecisionReason denies new financing while
+	// the customer is effectively in collections default.
+	CollectionsDefaultBlocksNewCreditDecisionReason = "COLLECTIONS_DEFAULT_BLOCKS_NEW_CREDIT"
 )

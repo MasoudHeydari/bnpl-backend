@@ -46,6 +46,13 @@ type Metrics struct {
 	repaymentRemindersCreated          map[string]uint64
 	repaymentRemindersSkipped          map[string]uint64
 
+	collectionsAssessmentJobs        map[string]uint64
+	collectionsAssessmentJobDuration durationSummary
+	collectionsAssessmentCustomers   uint64
+	collectionsDefaulted             uint64
+	collectionsRecovered             uint64
+	collectionsAssessmentSkipped     uint64
+
 	outboundHTTPInFlight   int64
 	outboundHTTPQueueDepth int64
 	outboundHTTPQueueWait  durationSummary
@@ -94,6 +101,7 @@ func New() *Metrics {
 		repaymentReminderJobs:     make(map[string]uint64),
 		repaymentRemindersCreated: make(map[string]uint64),
 		repaymentRemindersSkipped: make(map[string]uint64),
+		collectionsAssessmentJobs: make(map[string]uint64),
 		outboundHTTPRequests:      make(map[outboundHTTPLabels]uint64),
 		outboundHTTPDuration:      make(map[outboundHTTPLabels]durationSummary),
 	}
@@ -252,6 +260,71 @@ func (m *Metrics) RepaymentReminderSkipped(_ context.Context, reason string) {
 	defer m.mu.Unlock()
 
 	m.repaymentRemindersSkipped[normalizeLabel(reason)]++
+}
+
+// CollectionsAssessmentJobCompleted increments bnpl_business_collections_assessment_jobs_total.
+func (m *Metrics) CollectionsAssessmentJobCompleted(_ context.Context, outcome string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.collectionsAssessmentJobs[normalizeLabel(outcome)]++
+}
+
+// CollectionsAssessmentJobDuration records bnpl_business_collections_assessment_job_duration_seconds.
+func (m *Metrics) CollectionsAssessmentJobDuration(_ context.Context, duration time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.collectionsAssessmentJobDuration.count++
+	m.collectionsAssessmentJobDuration.sum += duration.Seconds()
+}
+
+// CollectionsAssessmentCustomersObserved adds to bnpl_business_collections_assessment_customers_total.
+func (m *Metrics) CollectionsAssessmentCustomersObserved(_ context.Context, count int) {
+	if count <= 0 {
+		return
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.collectionsAssessmentCustomers += uint64(count)
+}
+
+// CollectionsDefaulted adds to bnpl_business_collections_defaulted_total.
+func (m *Metrics) CollectionsDefaulted(_ context.Context, count int) {
+	if count <= 0 {
+		return
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.collectionsDefaulted += uint64(count)
+}
+
+// CollectionsRecovered adds to bnpl_business_collections_recovered_total.
+func (m *Metrics) CollectionsRecovered(_ context.Context, count int) {
+	if count <= 0 {
+		return
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.collectionsRecovered += uint64(count)
+}
+
+// CollectionsAssessmentSkipped adds to bnpl_business_collections_assessment_skipped_total.
+func (m *Metrics) CollectionsAssessmentSkipped(_ context.Context, count int) {
+	if count <= 0 {
+		return
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.collectionsAssessmentSkipped += uint64(count)
 }
 
 // OutboundHTTPInFlightChanged updates the current in-flight outbound request gauge.
@@ -483,6 +556,43 @@ func (m *Metrics) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 		"reason",
 		m.repaymentRemindersSkipped,
 	)
+
+	writeSingleLabelCounter(
+		w,
+		"bnpl_business_collections_assessment_jobs_total",
+		"Total collections assessment job executions by outcome.",
+		"outcome",
+		m.collectionsAssessmentJobs,
+	)
+
+	_, _ = io.WriteString(w, "# HELP bnpl_business_collections_assessment_job_duration_seconds Collections assessment job duration.\n")
+	_, _ = io.WriteString(w, "# TYPE bnpl_business_collections_assessment_job_duration_seconds summary\n")
+	_, _ = fmt.Fprintf(
+		w,
+		"bnpl_business_collections_assessment_job_duration_seconds_sum %s\n",
+		strconv.FormatFloat(m.collectionsAssessmentJobDuration.sum, 'g', -1, 64),
+	)
+	_, _ = fmt.Fprintf(
+		w,
+		"bnpl_business_collections_assessment_job_duration_seconds_count %d\n",
+		m.collectionsAssessmentJobDuration.count,
+	)
+
+	_, _ = io.WriteString(w, "# HELP bnpl_business_collections_assessment_customers_total Total customers assessed by collections.\n")
+	_, _ = io.WriteString(w, "# TYPE bnpl_business_collections_assessment_customers_total counter\n")
+	_, _ = fmt.Fprintf(w, "bnpl_business_collections_assessment_customers_total %d\n", m.collectionsAssessmentCustomers)
+
+	_, _ = io.WriteString(w, "# HELP bnpl_business_collections_defaulted_total Total newly opened default episodes.\n")
+	_, _ = io.WriteString(w, "# TYPE bnpl_business_collections_defaulted_total counter\n")
+	_, _ = fmt.Fprintf(w, "bnpl_business_collections_defaulted_total %d\n", m.collectionsDefaulted)
+
+	_, _ = io.WriteString(w, "# HELP bnpl_business_collections_recovered_total Total recovered default episodes.\n")
+	_, _ = io.WriteString(w, "# TYPE bnpl_business_collections_recovered_total counter\n")
+	_, _ = fmt.Fprintf(w, "bnpl_business_collections_recovered_total %d\n", m.collectionsRecovered)
+
+	_, _ = io.WriteString(w, "# HELP bnpl_business_collections_assessment_skipped_total Total assessments with no state transition.\n")
+	_, _ = io.WriteString(w, "# TYPE bnpl_business_collections_assessment_skipped_total counter\n")
+	_, _ = fmt.Fprintf(w, "bnpl_business_collections_assessment_skipped_total %d\n", m.collectionsAssessmentSkipped)
 
 	_, _ = io.WriteString(w, "# HELP bnpl_infrastructure_outbound_http_in_flight Current outbound HTTP requests holding an execution slot.\n")
 	_, _ = io.WriteString(w, "# TYPE bnpl_infrastructure_outbound_http_in_flight gauge\n")

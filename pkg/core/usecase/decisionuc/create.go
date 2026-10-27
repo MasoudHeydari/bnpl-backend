@@ -223,6 +223,55 @@ func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput,
 		merchantProfileID := merchantProfile.ID
 		merchantBranchProfileID := branchProfile.ID
 
+		// Fail-closed against collections default (materialized or live) after
+		// the customer row is locked and before a new financing Decision can
+		// approve. Idempotent replays of existing Decisions returned above.
+		if guardErr := uc.newCreditUsageGuard.AssertNewCreditAllowed(
+			ctx,
+			tx,
+			customerID,
+			now,
+		); guardErr != nil {
+			if !cerr.IsCode(guardErr, cerr.CodeConflict) {
+				return guardErr
+			}
+
+			collectionsDenial := checkout.EligibilityResult{
+				Outcome:      model.DeniedDecisionOutcome,
+				ReasonCodes:  []string{model.CollectionsDefaultBlocksNewCreditDecisionReason},
+				Jurisdiction: customerProfile.Jurisdiction,
+			}
+
+			return uc.persistCheckoutDecision(
+				ctx,
+				decisionQ,
+				allocationQ,
+				outboxQ,
+				input,
+				customerID,
+				merchantProfileID,
+				&merchantBranchProfileID,
+				fingerprint,
+				selectedPolicy,
+				collectionsDenial,
+				0,
+				installmentCount,
+				checkoutDecisionAuditFacts{
+					ExternalCustomerID:      input.ExternalCustomerID,
+					CustomerID:              customerProfile.ID,
+					MerchantProfileID:       merchantProfile.ID,
+					MerchantID:              merchantProfile.MerchantID,
+					MerchantBranchProfileID: branchProfile.ID,
+					BranchID:                branchProfile.BranchID,
+					PurchaseChannel:         input.PurchaseContext.Channel,
+					PurchaseSourceID:        input.PurchaseContext.sourceID(),
+					MerchantOrderID:         input.PurchaseContext.merchantOrderIDPointer(),
+				},
+				now,
+				&output,
+			)
+		}
+
 		prerequisiteEvaluation, evaluation := evaluateCheckoutTerms(
 			selectedPolicy,
 			now,

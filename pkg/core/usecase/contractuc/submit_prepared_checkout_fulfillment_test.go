@@ -95,6 +95,7 @@ func (d submitPreparedFulfillmentDeps) useCase(t *testing.T) *UseCase {
 		mustTestOriginationJurisdictions(t),
 		lognoop.New(),
 		metricsnoop.New(),
+		AllowAllNewCreditUsage{},
 	)
 	require.NoError(t, err)
 

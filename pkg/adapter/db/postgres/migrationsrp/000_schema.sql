@@ -2481,3 +2481,198 @@ CREATE INDEX IF NOT EXISTS repayment_reminders_external_customer_idx
 
 CREATE INDEX IF NOT EXISTS repayment_reminders_short_link_id_idx
     ON repayment_reminders (short_link_id);
+
+-- -----------------------------------------------------------------------------
+-- Collections: default episodes, customer restrictions, legal cases
+-- -----------------------------------------------------------------------------
+-- The general-purpose decisions table is intentionally unchanged. Specialized
+-- Collections records reference Decision IDs via foreign keys.
+
+CREATE TABLE IF NOT EXISTS default_episodes (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    customer_id uuid NOT NULL
+        REFERENCES customer_profiles (id),
+
+    status text NOT NULL,
+
+    opening_decision_id uuid NOT NULL
+        REFERENCES decisions (id),
+
+    closing_decision_id uuid
+        REFERENCES decisions (id),
+
+    started_at timestamptz NOT NULL,
+    recovered_at timestamptz,
+
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT default_episodes_status_check
+        CHECK (status IN ('active', 'recovered')),
+
+    CONSTRAINT default_episodes_recovered_consistency_check
+        CHECK (
+            (status = 'active' AND recovered_at IS NULL AND closing_decision_id IS NULL)
+            OR
+            (status = 'recovered' AND recovered_at IS NOT NULL AND closing_decision_id IS NOT NULL)
+        )
+);
+
+COMMENT ON TABLE default_episodes IS
+    'One continuous customer default period; recovered episodes are retained forever.';
+
+CREATE UNIQUE INDEX IF NOT EXISTS default_episodes_one_active_per_customer_idx
+    ON default_episodes (customer_id)
+    WHERE status = 'active';
+
+CREATE INDEX IF NOT EXISTS default_episodes_customer_started_idx
+    ON default_episodes (customer_id, started_at DESC);
+
+CREATE TABLE IF NOT EXISTS default_episode_triggers (
+    episode_id uuid NOT NULL
+        REFERENCES default_episodes (id) ON DELETE RESTRICT,
+
+    installment_id uuid NOT NULL
+        REFERENCES installments (id) ON DELETE RESTRICT,
+
+    due_at timestamptz NOT NULL,
+    grace_period_days integer NOT NULL,
+    overdue_eligible_at timestamptz NOT NULL,
+
+    PRIMARY KEY (episode_id, installment_id),
+
+    CONSTRAINT default_episode_triggers_grace_nonnegative
+        CHECK (grace_period_days >= 0)
+);
+
+COMMENT ON TABLE default_episode_triggers IS
+    'Historical installment evidence that justified opening a default episode.';
+
+CREATE TABLE IF NOT EXISTS customer_restrictions (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    customer_id uuid NOT NULL
+        REFERENCES customer_profiles (id),
+
+    restriction_type text NOT NULL,
+    reason text NOT NULL,
+    status text NOT NULL,
+
+    default_episode_id uuid
+        REFERENCES default_episodes (id) ON DELETE RESTRICT,
+
+    opening_decision_id uuid NOT NULL
+        REFERENCES decisions (id),
+
+    releasing_decision_id uuid
+        REFERENCES decisions (id),
+
+    applied_at timestamptz NOT NULL,
+    released_at timestamptz,
+
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT customer_restrictions_type_check
+        CHECK (restriction_type IN ('new_credit_usage')),
+
+    CONSTRAINT customer_restrictions_reason_check
+        CHECK (reason IN ('collections_default')),
+
+    CONSTRAINT customer_restrictions_status_check
+        CHECK (status IN ('active', 'released')),
+
+    CONSTRAINT customer_restrictions_released_consistency_check
+        CHECK (
+            (status = 'active' AND released_at IS NULL AND releasing_decision_id IS NULL)
+            OR
+            (status = 'released' AND released_at IS NOT NULL AND releasing_decision_id IS NOT NULL)
+        )
+);
+
+COMMENT ON TABLE customer_restrictions IS
+    'Durable customer capability restrictions; released rows are never deleted.';
+
+CREATE UNIQUE INDEX IF NOT EXISTS customer_restrictions_one_active_type_idx
+    ON customer_restrictions (customer_id, restriction_type)
+    WHERE status = 'active';
+
+CREATE INDEX IF NOT EXISTS customer_restrictions_customer_active_idx
+    ON customer_restrictions (customer_id)
+    WHERE status = 'active';
+
+CREATE TABLE IF NOT EXISTS collections_cases (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    customer_id uuid NOT NULL
+        REFERENCES customer_profiles (id),
+
+    default_episode_id uuid NOT NULL
+        REFERENCES default_episodes (id) ON DELETE RESTRICT,
+
+    opening_decision_id uuid NOT NULL
+        REFERENCES decisions (id),
+
+    status text NOT NULL,
+
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    resolved_at timestamptz,
+
+    CONSTRAINT collections_cases_status_check
+        CHECK (
+            status IN (
+                'pending_human_review',
+                'under_legal_review',
+                'legal_action_started',
+                'resolved'
+            )
+        ),
+
+    CONSTRAINT collections_cases_episode_unique
+        UNIQUE (default_episode_id)
+);
+
+COMMENT ON TABLE collections_cases IS
+    'Human/legal collections workflow for one default episode; independent of credit restriction recovery.';
+
+CREATE INDEX IF NOT EXISTS collections_cases_customer_created_idx
+    ON collections_cases (customer_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS collections_case_events (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    case_id uuid NOT NULL
+        REFERENCES collections_cases (id) ON DELETE RESTRICT,
+
+    event_type text NOT NULL,
+
+    decision_id uuid
+        REFERENCES decisions (id),
+
+    payload jsonb,
+
+    occurred_at timestamptz NOT NULL,
+
+    actor_type text NOT NULL,
+    actor_id uuid,
+
+    created_at timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT collections_case_events_event_type_check
+        CHECK (
+            event_type IN (
+                'case_opened',
+                'customer_recovered',
+                'status_changed',
+                'payment_uncertainty_noted'
+            )
+        )
+);
+
+COMMENT ON TABLE collections_case_events IS
+    'Append-only collections case history; never deleted.';
+
+CREATE INDEX IF NOT EXISTS collections_case_events_case_occurred_idx
+    ON collections_case_events (case_id, occurred_at ASC, id ASC);

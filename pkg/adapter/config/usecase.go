@@ -87,6 +87,9 @@ type Usecases struct {
 
 	// RepaymentReminder configures repayment reminder dispatch.
 	RepaymentReminder RepaymentReminder `yaml:"repayment_reminder"`
+
+	// Collections configures collections default assessment.
+	Collections Collections `yaml:"collections"`
 }
 
 // ShortLink configures the modular URL shortener use case and public redirects.
@@ -115,6 +118,12 @@ type ShortLink struct {
 type RepaymentReminder struct {
 	// BatchSize bounds the number of distinct customers loaded per dispatch
 	// page. Each page returns every eligible installment for those customers.
+	BatchSize int `yaml:"batch_size"`
+}
+
+// Collections configures collections default assessment operational settings.
+type Collections struct {
+	// BatchSize bounds the number of distinct customers assessed per page.
 	BatchSize int `yaml:"batch_size"`
 }
 
@@ -226,6 +235,7 @@ func (Decision) newUseCase(
 	idGenerator identifier.Generator,
 	jurisdictions domaincapability.OriginationJurisdictions,
 	businessMetrics coremetrics.BusinessMetrics,
+	newCreditUsageGuard decisionuc.NewCreditUsageGuard,
 ) (*decisionuc.UseCase, error) {
 	return decisionuc.New(
 		pool,
@@ -247,6 +257,7 @@ func (Decision) newUseCase(
 		idGenerator,
 		jurisdictions,
 		businessMetrics,
+		newCreditUsageGuard,
 	)
 }
 
@@ -561,6 +572,7 @@ func (c Contract) newUseCase(
 	logger log.Logger,
 	businessMetrics coremetrics.BusinessMetrics,
 	sagaConfig ContractCancellationSaga,
+	newCreditUsageGuard contractuc.NewCreditUsageGuard,
 ) (*contractuc.UseCase, error) {
 	sagaConfig.ApplyDefaults()
 
@@ -592,6 +604,7 @@ func (c Contract) newUseCase(
 		jurisdictions,
 		logger,
 		businessMetrics,
+		newCreditUsageGuard,
 	)
 }
 

@@ -24,6 +24,8 @@ import (
 //	@Description	x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Do not send customer identity in path or query.
 //	@Description	Only installments with status scheduled, due, or overdue and an attached contract_id are returned.
 //	@Description	Nearest due date first (due_at ASC, id ASC). Empty list is 200, not 404.
+//	@Description	data.repayment is the customer-wide repayment position and is never scoped to the current page.
+//	@Description	data.repayment.next_payable is the server-selected single installment the customer may pay next.
 //	@Description	total_amount_minor is an integer minor-unit monetary value in the response currency.
 //	@Description	Keyset pagination via limit, after_id, and after_due_at.
 //	@Tags			Installments
@@ -73,12 +75,14 @@ func (rs *resource) ListUnpaidInstallments(c *gin.Context) {
 		return
 	}
 
-	serdser.SerKeyset(
+	serdser.SerKeysetData(
 		c,
 		http.StatusOK,
 		serdser.SuccessCodeUnpaidInstallmentsListed,
 		serdser.SuccessMessageUnpaidInstallmentsListed,
-		toUnpaidInstallmentsKeysetPage(output),
+		toUnpaidInstallmentsListData(output),
+		output.Page,
+		len(output.Installments),
 	)
 }
 
@@ -102,7 +106,7 @@ func toListUnpaidInstallmentsInput(c *gin.Context) (customeraccountuc.ListUnpaid
 
 	return customeraccountuc.ListUnpaidInstallmentsInput{
 		ExternalCustomerID: authCtx.SubjectID.AsExternalCustomerID(),
-		Page:              page,
+		Page:               page,
 	}, true
 }
 
@@ -119,7 +123,45 @@ type unpaidInstallmentResponse struct {
 	PaidAt                  *time.Time                     `json:"paid_at,omitempty"`
 }
 
-func toUnpaidInstallmentsKeysetPage(output customeraccountuc.ListUnpaidInstallmentsOutput) corepagination.KeysetPage[unpaidInstallmentResponse] {
+type repaymentDueInstallmentResponse struct {
+	ID                uuid.UUID               `json:"id" format:"uuid"`
+	ContractID        uuid.UUID               `json:"contract_id" format:"uuid"`
+	InstallmentOrder  int                     `json:"installment_order"`
+	TotalAmountMinor  uint64                  `json:"total_amount_minor"`
+	Currency          model.Currency          `json:"currency"`
+	DueAt             time.Time               `json:"due_at"`
+	Status            model.InstallmentStatus `json:"status"`
+	HasPendingPayment bool                    `json:"has_pending_payment"`
+}
+
+type repaymentNextPayableResponse struct {
+	InstallmentID      uuid.UUID               `json:"installment_id" format:"uuid"`
+	ContractID         uuid.UUID               `json:"contract_id" format:"uuid"`
+	InstallmentOrder   int                     `json:"installment_order"`
+	PayableAmountMinor uint64                  `json:"payable_amount_minor"`
+	Currency           model.Currency          `json:"currency"`
+	DueAt              time.Time               `json:"due_at"`
+	Status             model.InstallmentStatus `json:"status"`
+	HasPendingPayment  bool                    `json:"has_pending_payment"`
+	PayableAmountKnown bool                    `json:"payable_amount_known"`
+}
+
+type repaymentSummaryResponse struct {
+	DueInstallments   []repaymentDueInstallmentResponse `json:"due_installments"`
+	DueCount          int                               `json:"due_count"`
+	UnpaidCount       int                               `json:"unpaid_count"`
+	NextPayable       *repaymentNextPayableResponse     `json:"next_payable"`
+	HasPendingPayment bool                              `json:"has_pending_payment"`
+}
+
+type unpaidInstallmentsListData struct {
+	Installments []unpaidInstallmentResponse `json:"installments"`
+	Repayment    repaymentSummaryResponse    `json:"repayment"`
+}
+
+func toUnpaidInstallmentsListData(
+	output customeraccountuc.ListUnpaidInstallmentsOutput,
+) unpaidInstallmentsListData {
 	items := make([]unpaidInstallmentResponse, 0, len(output.Installments))
 	for _, item := range output.Installments {
 		items = append(items, unpaidInstallmentResponse{
@@ -136,8 +178,44 @@ func toUnpaidInstallmentsKeysetPage(output customeraccountuc.ListUnpaidInstallme
 		})
 	}
 
-	return corepagination.KeysetPage[unpaidInstallmentResponse]{
-		Data: items,
-		Meta: output.Page,
+	dueItems := make([]repaymentDueInstallmentResponse, 0, len(output.Repayment.DueInstallments))
+	for _, item := range output.Repayment.DueInstallments {
+		dueItems = append(dueItems, repaymentDueInstallmentResponse{
+			ID:                item.ID.UUID(),
+			ContractID:        item.ContractID.UUID(),
+			InstallmentOrder:  item.InstallmentOrder,
+			TotalAmountMinor:  item.TotalAmountMinor,
+			Currency:          item.Currency,
+			DueAt:             item.DueAt.UTC(),
+			Status:            item.Status,
+			HasPendingPayment: item.HasPendingPayment,
+		})
+	}
+
+	var nextPayable *repaymentNextPayableResponse
+	if output.Repayment.NextPayable != nil {
+		np := output.Repayment.NextPayable
+		nextPayable = &repaymentNextPayableResponse{
+			InstallmentID:      np.InstallmentID.UUID(),
+			ContractID:         np.ContractID.UUID(),
+			InstallmentOrder:   np.InstallmentOrder,
+			PayableAmountMinor: np.PayableAmountMinor,
+			Currency:           np.Currency,
+			DueAt:              np.DueAt.UTC(),
+			Status:             np.Status,
+			HasPendingPayment:  np.HasPendingPayment,
+			PayableAmountKnown: np.PayableAmountKnown,
+		}
+	}
+
+	return unpaidInstallmentsListData{
+		Installments: items,
+		Repayment: repaymentSummaryResponse{
+			DueInstallments:   dueItems,
+			DueCount:          output.Repayment.DueCount,
+			UnpaidCount:       output.Repayment.UnpaidCount,
+			NextPayable:       nextPayable,
+			HasPendingPayment: output.Repayment.HasPendingPayment,
+		},
 	}
 }

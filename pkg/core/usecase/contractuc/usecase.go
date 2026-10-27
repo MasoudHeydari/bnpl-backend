@@ -78,6 +78,10 @@ type UseCase struct {
 	// replacement row is inserted, outside the database transaction.
 	// Production leaves it nil.
 	BeforeTerminalCheckoutPaymentReplacement func(context.Context) error
+
+	// newCreditUsageGuard fail-closes new credit commitments when collections
+	// default (or other) restrictions prohibit new credit usage.
+	newCreditUsageGuard NewCreditUsageGuard
 }
 
 // New constructs the checkout contract use case with payment-attempt persistence,
@@ -114,6 +118,7 @@ func New(
 	jurisdictions domaincapability.OriginationJurisdictions,
 	logger log.Logger,
 	businessMetrics coremetrics.BusinessMetrics,
+	newCreditUsageGuard NewCreditUsageGuard,
 ) (*UseCase, error) {
 	const op = "contractuc.New"
 
@@ -247,6 +252,10 @@ func New(
 		return nil, fmt.Errorf("%s: business metrics is required", op)
 	}
 
+	if newCreditUsageGuard == nil {
+		return nil, fmt.Errorf("%s: new credit usage guard is required", op)
+	}
+
 	return &UseCase{
 		pool:                               pool,
 		customerProfile:                    customerProfile,
@@ -275,5 +284,6 @@ func New(
 		ExpiryBatchSize:                    expiryBatchSize,
 		CancellationSaga:                   cancellationSaga,
 		businessMetrics:                    businessMetrics,
+		newCreditUsageGuard:                newCreditUsageGuard,
 	}, nil
 }

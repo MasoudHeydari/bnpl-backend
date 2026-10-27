@@ -8,6 +8,7 @@ import (
 	initialcreditcatalog "github.com/parstis/bnpl-backend/pkg/core/policy/initialcreditlimit/catalog"
 	"github.com/parstis/bnpl-backend/pkg/core/policy/shortlinkdestination"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/checkoutsessionuc"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/collectionsuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/contractuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/customeraccountuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/customercredituc"
@@ -95,6 +96,9 @@ type UseCases struct {
 
 	// RepaymentReminder dispatches repayment reminder SMS requests via outbox.
 	RepaymentReminder *repaymentreminderuc.UseCase
+
+	// Collections assesses default entry/recovery and credit-usage restrictions.
+	Collections *collectionsuc.UseCase
 }
 
 // NewUseCases constructs the use cases required by App.
@@ -145,6 +149,30 @@ func (a *App) NewUseCases() (UseCases, error) {
 		return UseCases{}, fmt.Errorf("%s: initialize jurisdiction capabilities: %w", op, err)
 	}
 
+	collectionsBatchSize := a.Config.Usecases.Collections.BatchSize
+	if collectionsBatchSize <= 0 {
+		collectionsBatchSize = 100
+	}
+
+	collectionsUseCase, err := collectionsuc.New(
+		a.Pool,
+		a.Repos.CustomerProfile,
+		a.Repos.Installment,
+		a.Repos.Decision,
+		a.Repos.DefaultEpisode,
+		a.Repos.CustomerRestriction,
+		a.Repos.CollectionsCase,
+		a.Repos.Outbox,
+		a.Infrastructure.Clock,
+		a.Infrastructure.IdentifierGenerator,
+		a.Infrastructure.Metrics,
+		a.Config.AuditEventsTopic(),
+		collectionsBatchSize,
+	)
+	if err != nil {
+		return UseCases{}, fmt.Errorf("%s: initialize collections use case: %w", op, err)
+	}
+
 	decisionUseCase, err := a.Config.NewDecisionUseCase(
 		a.Pool,
 		a.Repos.Decision,
@@ -164,6 +192,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Infrastructure.IdentifierGenerator,
 		jurisdictions,
 		a.Infrastructure.Metrics,
+		collectionsUseCase,
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize decision use case: %w", op, err)
@@ -259,6 +288,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		jurisdictions,
 		a.Infrastructure.Logger,
 		a.Infrastructure.Metrics,
+		collectionsUseCase,
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize contract use case: %w", op, err)
@@ -554,5 +584,6 @@ func (a *App) NewUseCases() (UseCases, error) {
 		CustomerCredit:                     customerCreditUseCase,
 		ShortLink:                          shortLinkUseCase,
 		RepaymentReminder:                  repaymentReminderUseCase,
+		Collections:                        collectionsUseCase,
 	}, nil
 }

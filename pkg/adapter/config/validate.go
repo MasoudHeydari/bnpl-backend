@@ -243,6 +243,14 @@ func (u *Usecases) validate(environment string) error {
 		return err
 	}
 
+	if u.Collections.BatchSize <= 0 {
+		u.Collections.BatchSize = 100
+	}
+
+	if u.RepaymentReminder.BatchSize <= 0 {
+		u.RepaymentReminder.BatchSize = 200
+	}
+
 	if u.PaymentAttemptReconciliation.BatchSize <= 0 {
 		return fmt.Errorf("%s: invalid usecases.payment_attempt_reconciliation.batch_size: must be positive", op)
 	}

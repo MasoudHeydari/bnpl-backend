@@ -465,11 +465,6 @@ RETURNING` + checkoutSessionColumns
 	return row, err
 }
 
-
-
-
-
-
 // LinkDecision attaches the personalized checkout Decision to a checkout session.
 func LinkDecision[Q postgres.Queryer](
 	ctx context.Context,
@@ -1124,4 +1119,3 @@ WHERE merchant_id = $1
 		merchantID,
 	)
 }
-

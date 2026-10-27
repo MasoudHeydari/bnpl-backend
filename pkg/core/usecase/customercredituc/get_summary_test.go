@@ -27,6 +27,7 @@ func newSummaryUseCase(
 	creditAccount *mock.CreditAccount,
 	policyAssignment *mock.PolicyAssignment,
 	clk *mock.Clock,
+	decision *mock.Decision,
 ) *customercredituc.UseCase {
 	t.Helper()
 
@@ -34,11 +35,15 @@ func newSummaryUseCase(
 	registry, err := initialcreditlimit.NewRegistry(policy)
 	require.NoError(t, err)
 
+	if decision == nil {
+		decision = mock.NewDecision(t)
+	}
+
 	uc, err := customercredituc.New(
 		pool,
 		customerProfile,
 		creditAccount,
-		mock.NewDecision(t),
+		decision,
 		mock.NewOutbox(t),
 		clk,
 		sha256fingerprint.New(),
@@ -159,6 +164,18 @@ func TestGetSummary_ExpiredLimit_ReturnsExpiredNotZeroAssigned(t *testing.T) {
 		Return(expiredAccount, nil).
 		Once()
 
+	decision := mock.NewDecision(t)
+	decisionTx := mock.NewDecisionTxQueryer(t)
+	decision.EXPECT().Tx(tx).Return(decisionTx).Once()
+	decisionTx.EXPECT().
+		ListByTarget(
+			testifymock.Anything,
+			model.CustomerProfileDecisionTargetType,
+			profileID.UUID(),
+		).
+		Return(nil, nil).
+		Once()
+
 	uc := newSummaryUseCase(
 		t,
 		pool,
@@ -166,6 +183,7 @@ func TestGetSummary_ExpiredLimit_ReturnsExpiredNotZeroAssigned(t *testing.T) {
 		creditAccount,
 		policyAssignment,
 		clk,
+		decision,
 	)
 
 	out, err := uc.GetSummary(context.Background(), customercredituc.Input{
@@ -251,6 +269,7 @@ func TestGetSummary_NoLimit_ReturnsNotAssigned(t *testing.T) {
 		creditAccount,
 		policyAssignment,
 		clk,
+		nil,
 	)
 
 	out, err := uc.GetSummary(context.Background(), customercredituc.Input{

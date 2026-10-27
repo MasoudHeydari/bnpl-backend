@@ -17,6 +17,7 @@ import (
 	checkoutcatalog "github.com/parstis/bnpl-backend/pkg/core/policy/checkout/catalog"
 	initialcreditcatalog "github.com/parstis/bnpl-backend/pkg/core/policy/initialcreditlimit/catalog"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/contractuc"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/decisionuc"
 )
 
 func TestMigrations_newUseCase(t *testing.T) {
@@ -183,6 +184,7 @@ func TestContract_newUseCase_Validation(t *testing.T) {
 			lognoop.New(),
 			metricsnoop.New(),
 			ContractCancellationSaga{},
+			contractuc.AllowAllNewCreditUsage{},
 		)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "must not exceed")
@@ -234,6 +236,7 @@ func TestContract_newUseCase_Validation(t *testing.T) {
 			lognoop.New(),
 			metricsnoop.New(),
 			ContractCancellationSaga{},
+			contractuc.AllowAllNewCreditUsage{},
 		)
 		require.NoError(t, err)
 		require.NotNil(t, uc)
@@ -344,6 +347,7 @@ func TestDecision_newUseCase_WiresCheckoutPolicy(t *testing.T) {
 		idGen,
 		mustTestJurisdictions(t),
 		metricsnoop.New(),
+		decisionuc.AllowAllNewCreditUsage{},
 	)
 	require.NoError(t, err)
 	require.NotNil(t, uc)

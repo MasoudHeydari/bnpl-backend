@@ -145,10 +145,72 @@ type UnpaidInstallment struct {
 	PaidAt *time.Time
 }
 
-// ListUnpaidInstallmentsOutput carries the unpaid installment page and keyset pagination metadata.
+// RepaymentDueInstallment is one contractually due unpaid installment in the
+// customer-wide repayment summary.
+type RepaymentDueInstallment struct {
+	// ID uniquely identifies the installment.
+	ID model.InstallmentID
+	// ContractID identifies the owning contract.
+	ContractID model.ContractID
+	// InstallmentOrder is the 1-based order in the contract schedule.
+	InstallmentOrder int
+	// TotalAmountMinor is the installment total in minor units.
+	TotalAmountMinor uint64
+	// Currency is the ISO currency.
+	Currency model.Currency
+	// DueAt is when the installment became or becomes due.
+	DueAt time.Time
+	// Status is the current lifecycle status.
+	Status model.InstallmentStatus
+	// HasPendingPayment is true when a non-terminal payment attempt exists.
+	HasPendingPayment bool
+}
+
+// RepaymentNextPayable identifies the server-selected next payment target.
+type RepaymentNextPayable struct {
+	// InstallmentID identifies the priority installment.
+	InstallmentID model.InstallmentID
+	// ContractID identifies the owning contract.
+	ContractID model.ContractID
+	// InstallmentOrder is the 1-based order in the contract schedule.
+	InstallmentOrder int
+	// PayableAmountMinor is the customer-payable amount when known.
+	PayableAmountMinor uint64
+	// Currency is the ISO currency.
+	Currency model.Currency
+	// DueAt is when the installment became or becomes due.
+	DueAt time.Time
+	// Status is the current lifecycle status.
+	Status model.InstallmentStatus
+	// HasPendingPayment is true when a non-terminal payment attempt exists.
+	HasPendingPayment bool
+	// PayableAmountKnown is false when charge-recognition rules prevent
+	// advertising a Financial Core payable amount (for example unrecognized fees).
+	PayableAmountKnown bool
+}
+
+// RepaymentSummary is the customer-wide repayment position, independent of the
+// current unpaid-installments page.
+type RepaymentSummary struct {
+	// DueInstallments lists every currently due unpaid installment.
+	DueInstallments []RepaymentDueInstallment
+	// DueCount is the number of currently due unpaid installments.
+	DueCount int
+	// UnpaidCount is the total unpaid installment count across active contracts.
+	UnpaidCount int
+	// NextPayable is the globally highest-priority payable installment when one exists.
+	NextPayable *RepaymentNextPayable
+	// HasPendingPayment is true when the next payable target has a non-terminal attempt.
+	HasPendingPayment bool
+}
+
+// ListUnpaidInstallmentsOutput carries the unpaid installment page, customer-wide
+// repayment summary, and keyset pagination metadata.
 type ListUnpaidInstallmentsOutput struct {
-	// Installments lists the installment views or records.
+	// Installments lists the installment views or records for the current page.
 	Installments []UnpaidInstallment
+	// Repayment is the customer-wide repayment position (not page-scoped).
+	Repayment RepaymentSummary
 	// Page carries pagination request or response metadata.
 	Page pagination.KeysetMeta
 }

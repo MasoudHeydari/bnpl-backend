@@ -14,7 +14,7 @@ import (
 
 // GetInput reads a hosted checkout session for the authenticated customer.
 type GetInput struct {
-	CheckoutSessionID model.CheckoutSessionID
+	CheckoutSessionID  model.CheckoutSessionID
 	ExternalCustomerID model.ExternalCustomerID
 }
 

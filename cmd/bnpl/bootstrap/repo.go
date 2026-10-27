@@ -3,10 +3,13 @@ package bootstrap
 import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/checkoutdecisionallocationrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/checkoutsessionrp"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/collectionscaserp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/contractrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/creditaccountrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/customerprofilerp"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/customerrestrictionrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/decisionrp"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/defaultepisoderp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/healthrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/inboxrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/installmentchargerp"
@@ -97,6 +100,15 @@ type Repos struct {
 
 	// RepaymentReminder stores customer-day repayment reminder requests.
 	RepaymentReminder repo.RepaymentReminder
+
+	// DefaultEpisode stores continuous customer default periods.
+	DefaultEpisode repo.DefaultEpisode
+
+	// CustomerRestriction stores durable customer capability restrictions.
+	CustomerRestriction repo.CustomerRestriction
+
+	// CollectionsCase stores human/legal collections workflow records.
+	CollectionsCase repo.CollectionsCase
 }
 
 // NewRepos constructs the Postgres repository adapter set used by App.
@@ -124,5 +136,8 @@ func NewRepos() Repos {
 		Inbox:                      inboxrp.New(),
 		ShortLink:                  shortlinkrp.New(),
 		RepaymentReminder:          repaymentreminderrp.New(),
+		DefaultEpisode:             defaultepisoderp.New(),
+		CustomerRestriction:        customerrestrictionrp.New(),
+		CollectionsCase:            collectionscaserp.New(),
 	}
 }

@@ -116,6 +116,17 @@ func (uc *UseCase) createPaymentPending(
 						return existingErr
 					}
 
+					// New credit commitment boundary: existing-contract replay above
+					// remains possible after a collections restriction takes effect.
+					if guardErr := uc.newCreditUsageGuard.AssertNewCreditAllowed(
+						ctx,
+						tx,
+						profile.ID,
+						now,
+					); guardErr != nil {
+						return guardErr
+					}
+
 					// New first Contract for this Decision is origination.
 					// Existing-Contract replay above must remain possible after
 					// origination is later disabled for the merchant jurisdiction.

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	checkoutsessionjob "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task/jobs/checkoutsession"
+	collectionsjob "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task/jobs/collections"
 	contractjob "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task/jobs/contract"
 	installmentjob "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task/jobs/installment"
 	merchantterminaljob "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task/jobs/merchantterminal"
@@ -15,6 +16,7 @@ import (
 	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
 	coretask "github.com/parstis/bnpl-backend/pkg/core/task"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/checkoutsessionuc"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/collectionsuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/contractuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/installmentlifecycleuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/merchantterminaluc"
@@ -35,6 +37,7 @@ type Registry struct {
 	sagaexecutoruc                 *sagaexecutoruc.UseCase
 	merchantterminaluc             *merchantterminaluc.UseCase
 	repaymentreminderuc            *repaymentreminderuc.UseCase
+	collectionsuc                  *collectionsuc.UseCase
 }
 
 // NewRegistry creates a task job registry.
@@ -48,6 +51,7 @@ func NewRegistry(
 	sagaexecutoruc *sagaexecutoruc.UseCase,
 	merchantterminaluc *merchantterminaluc.UseCase,
 	repaymentreminderuc *repaymentreminderuc.UseCase,
+	collectionsuc *collectionsuc.UseCase,
 ) Registry {
 	return Registry{
 		logger:                         logger,
@@ -59,6 +63,7 @@ func NewRegistry(
 		sagaexecutoruc:                 sagaexecutoruc,
 		merchantterminaluc:             merchantterminaluc,
 		repaymentreminderuc:            repaymentreminderuc,
+		collectionsuc:                  collectionsuc,
 	}
 }
 
@@ -106,6 +111,13 @@ func (r Registry) Resolve(handler string) (coretask.Job, error) {
 		}
 
 		return repaymentreminderjob.Dispatch(r.logger, r.repaymentreminderuc), nil
+
+	case "collections_assessment":
+		if r.collectionsuc == nil {
+			return nil, fmt.Errorf("%s: collections use case is not configured", op)
+		}
+
+		return collectionsjob.Assess(r.logger, r.collectionsuc), nil
 
 	default:
 		return nil, fmt.Errorf("%s: unknown task handler: %q", op, handler)

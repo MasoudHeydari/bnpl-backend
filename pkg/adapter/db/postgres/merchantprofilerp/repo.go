@@ -138,4 +138,3 @@ func (q txQueryer) LockByMerchantID(
 ) (model.MerchantProfile, error) {
 	return LockByMerchantID(ctx, q.Tx, merchantID)
 }
-

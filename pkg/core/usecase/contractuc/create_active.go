@@ -225,6 +225,17 @@ func (uc *UseCase) prepareMerchantFunding(
 				return existingErr
 			}
 
+			// New credit commitment boundary: existing-contract replay above
+			// remains possible after a collections restriction takes effect.
+			if guardErr := uc.newCreditUsageGuard.AssertNewCreditAllowed(
+				ctx,
+				tx,
+				profile.ID,
+				now,
+			); guardErr != nil {
+				return guardErr
+			}
+
 			decision, err := decisionQ.LockLiveCheckoutDecisionByID(ctx, input.DecisionID, now)
 			if err != nil {
 				if cerr.IsCode(err, cerr.CodeResourceNotFound) {

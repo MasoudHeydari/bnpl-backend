@@ -94,21 +94,21 @@ func (uc *UseCase) acquireInboxEvent(
 }
 
 type reconciliationResultFingerprintPayload struct {
-	EventID                    string                                        `json:"event_id"`
-	RequestEventID             string                                        `json:"request_event_id"`
-	BNPLPaymentAttemptID       model.PaymentAttemptID                        `json:"bnpl_payment_attempt_id"`
-	ReconciliationGeneration   int                                           `json:"reconciliation_generation"`
-	Status                     installmentpaymentreconciliation.ResultStatus `json:"status"`
-	AmountMinor                uint64                                        `json:"amount_minor"`
-	Currency                   string                                        `json:"currency"`
-	FinancialPaymentIntentID   *string                                       `json:"financial_payment_intent_id"`
-	FinancialPaymentAttemptID  *string                                       `json:"financial_payment_attempt_id"`
-	FinancialPaymentSessionID  *string                                       `json:"financial_payment_session_id"`
-	PaymentURL                 *string                                       `json:"payment_url"`
-	ExpiresAt                  *string                                       `json:"expires_at"`
-	PaidAt                     *string                                       `json:"paid_at"`
-	FailureCode                *string                                       `json:"failure_code"`
-	OccurredAt                 string                                        `json:"occurred_at"`
+	EventID                   string                                        `json:"event_id"`
+	RequestEventID            string                                        `json:"request_event_id"`
+	BNPLPaymentAttemptID      model.PaymentAttemptID                        `json:"bnpl_payment_attempt_id"`
+	ReconciliationGeneration  int                                           `json:"reconciliation_generation"`
+	Status                    installmentpaymentreconciliation.ResultStatus `json:"status"`
+	AmountMinor               uint64                                        `json:"amount_minor"`
+	Currency                  string                                        `json:"currency"`
+	FinancialPaymentIntentID  *string                                       `json:"financial_payment_intent_id"`
+	FinancialPaymentAttemptID *string                                       `json:"financial_payment_attempt_id"`
+	FinancialPaymentSessionID *string                                       `json:"financial_payment_session_id"`
+	PaymentURL                *string                                       `json:"payment_url"`
+	ExpiresAt                 *string                                       `json:"expires_at"`
+	PaidAt                    *string                                       `json:"paid_at"`
+	FailureCode               *string                                       `json:"failure_code"`
+	OccurredAt                string                                        `json:"occurred_at"`
 }
 
 func (uc *UseCase) reconciliationResultPayloadFingerprint(input ProcessInput) (string, error) {

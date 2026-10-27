@@ -162,7 +162,7 @@ type HostedConfirmationStatusResponseSchema hostedConfirmationStatusResponse
 // the hosted confirmation-status poll.
 type HostedConfirmationStatusSuccessSchema struct {
 	Data HostedConfirmationStatusResponseSchema `json:"data"`
-	Meta serdser.SuccessMetaNoPagination          `json:"meta"`
+	Meta serdser.SuccessMetaNoPagination        `json:"meta"`
 }
 
 // HostedExternalOTPRequestSchema is a schema-only hosted OTP request body.

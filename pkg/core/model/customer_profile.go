@@ -233,12 +233,12 @@ func NewCustomerProfile(
 	}
 
 	return CustomerProfile{
-		ID:                id,
+		ID:                 id,
 		ExternalCustomerID: externalCustomerID,
-		Jurisdiction:      jurisdiction,
-		Status:            ActiveCustomerStatus,
-		CreatedAt:         now,
-		UpdatedAt:         now,
+		Jurisdiction:       jurisdiction,
+		Status:             ActiveCustomerStatus,
+		CreatedAt:          now,
+		UpdatedAt:          now,
 	}, nil
 }
 

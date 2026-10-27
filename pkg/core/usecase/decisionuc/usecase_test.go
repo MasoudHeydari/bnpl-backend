@@ -47,6 +47,7 @@ func TestNew_ConstructsWithValidDependencies(t *testing.T) {
 		mock.NewIdentifierGenerator(t),
 		mustTestJurisdictions(t),
 		metricsnoop.New(),
+		AllowAllNewCreditUsage{},
 	)
 	require.NoError(t, err)
 	require.NotNil(t, uc)
@@ -75,6 +76,7 @@ func TestNew_RequiresCreditAccount(t *testing.T) {
 		mock.NewIdentifierGenerator(t),
 		mustTestJurisdictions(t),
 		metricsnoop.New(),
+		AllowAllNewCreditUsage{},
 	)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "decision use case dependencies are required")
@@ -103,6 +105,7 @@ func TestNew_RequiresCheckoutPolicy(t *testing.T) {
 		mock.NewIdentifierGenerator(t),
 		mustTestJurisdictions(t),
 		metricsnoop.New(),
+		AllowAllNewCreditUsage{},
 	)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "decision use case dependencies are required")
@@ -131,6 +134,7 @@ func TestNew_RequiresJurisdictionCapability(t *testing.T) {
 		mock.NewIdentifierGenerator(t),
 		nil,
 		metricsnoop.New(),
+		AllowAllNewCreditUsage{},
 	)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "jurisdiction capability is required")

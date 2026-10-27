@@ -130,7 +130,7 @@ func toListPaymentsInput(c *gin.Context) (customeraccountuc.ListPaymentsInput, b
 
 	return customeraccountuc.ListPaymentsInput{
 		ExternalCustomerID: authCtx.SubjectID.AsExternalCustomerID(),
-		Page:              page,
+		Page:               page,
 	}, true
 }
 

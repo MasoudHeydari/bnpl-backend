@@ -28,7 +28,6 @@ const reminderColumns = `
 	created_at
 `
 
-
 type reminderRow struct {
 	ID                         model.RepaymentReminderID `db:"id"`
 	CustomerID                 model.CustomerID          `db:"customer_id"`

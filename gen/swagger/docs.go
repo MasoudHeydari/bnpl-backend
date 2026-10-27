@@ -2883,7 +2883,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Returns unpaid BNPL installments owned by the authenticated customer across contracts.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Do not send customer identity in path or query.\nOnly installments with status scheduled, due, or overdue and an attached contract_id are returned.\nNearest due date first (due_at ASC, id ASC). Empty list is 200, not 404.\ntotal_amount_minor is an integer minor-unit monetary value in the response currency.\nKeyset pagination via limit, after_id, and after_due_at.",
+                "description": "Returns unpaid BNPL installments owned by the authenticated customer across contracts.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Do not send customer identity in path or query.\nOnly installments with status scheduled, due, or overdue and an attached contract_id are returned.\nNearest due date first (due_at ASC, id ASC). Empty list is 200, not 404.\ndata.repayment is the customer-wide repayment position and is never scoped to the current page.\ndata.repayment.next_payable is the server-selected single installment the customer may pay next.\ntotal_amount_minor is an integer minor-unit monetary value in the response currency.\nKeyset pagination via limit, after_id, and after_due_at.",
                 "produces": [
                     "application/json"
                 ],
@@ -5798,427 +5798,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/repayment-overview": {
-            "get": {
-                "security": [
-                    {
-                        "PermissionAuth": []
-                    }
-                ],
-                "description": "Returns unpaid installments and the server-selected priority repayment target for the authenticated customer.\nx-auth-subject-id is the Identity Service subject ID (customer_profiles.external_customer_id).\nEmpty unpaid list is 200 with data.installments=[].",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Repayments"
-                ],
-                "summary": "Get repayment overview",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)",
-                        "name": "x-auth-subject-id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Authenticated tenant UUID",
-                        "name": "x-auth-tenant-id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Authenticated business-context UUID",
-                        "name": "x-auth-context-id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "example": "bnpl:installments:read:self",
-                        "description": "Comma-separated gateway permissions",
-                        "name": "x-auth-permissions",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Optional; reused when present otherwise generated. Always returned.",
-                        "name": "X-Trace-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Optional; reused when present otherwise generated. Always returned.",
-                        "name": "X-Request-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Optional; reused when present otherwise generated. Always returned.",
-                        "name": "X-Correlation-Id",
-                        "in": "header"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.SuccessResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/repayments/priority-pay": {
-            "post": {
-                "security": [
-                    {
-                        "PermissionAuth": []
-                    }
-                ],
-                "description": "Server-selects the earliest past-due next-payable installment across the customer's contracts and starts a single-installment repayment.\nDoes not accept installment_id from the client. Requires Idempotency-Key.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id).\nReturns 202 when newly queued and 200 on idempotent replay.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Payments"
-                ],
-                "summary": "Pay the current priority installment",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)",
-                        "name": "x-auth-subject-id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Authenticated tenant UUID",
-                        "name": "x-auth-tenant-id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Authenticated business-context UUID",
-                        "name": "x-auth-context-id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "example": "bnpl:payments:start:self",
-                        "description": "Comma-separated gateway permissions",
-                        "name": "x-auth-permissions",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Client idempotency token (max 256 characters)",
-                        "name": "Idempotency-Key",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Optional; reused when present otherwise generated. Always returned.",
-                        "name": "X-Trace-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Optional; reused when present otherwise generated. Always returned.",
-                        "name": "X-Request-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Optional; reused when present otherwise generated. Always returned.",
-                        "name": "X-Correlation-Id",
-                        "in": "header"
-                    },
-                    {
-                        "description": "Payment attempt request",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/installmentpaymentrs.CreatePaymentAttemptRequestSchema"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Idempotent replay of an existing payment attempt",
-                        "schema": {
-                            "$ref": "#/definitions/installmentpaymentrs.CreatePaymentAttemptSuccessSchema"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "202": {
-                        "description": "Payment attempt queued",
-                        "schema": {
-                            "$ref": "#/definitions/installmentpaymentrs.CreatePaymentAttemptSuccessSchema"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Unprocessable Entity",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/serdser.ErrorResponse"
-                        },
-                        "headers": {
-                            "X-Correlation-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Request-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            },
-                            "X-Trace-Id": {
-                                "type": "string",
-                                "description": "Always set: reuse inbound value or generate"
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/healthz/live": {
             "get": {
                 "description": "Reports whether the process is alive. Does not check external dependencies. Public endpoint outside /api/v1.",
@@ -7649,63 +7228,17 @@ const docTemplate = `{
                 }
             }
         },
-        "customerrs.UnpaidInstallmentSchema": {
+        "customerrs.UnpaidInstallmentsListDataSchema": {
             "type": "object",
             "properties": {
-                "contract_id": {
-                    "type": "string",
-                    "format": "uuid",
-                    "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                "installments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/customerrs.unpaidInstallmentResponse"
+                    }
                 },
-                "currency": {
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/model.Currency"
-                        }
-                    ],
-                    "example": "IRR"
-                },
-                "due_at": {
-                    "type": "string",
-                    "example": "2026-09-09T12:00:00Z"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid",
-                    "example": "0a1b2c3d-4e5f-6789-abcd-ef0123456789"
-                },
-                "installment_order": {
-                    "type": "integer",
-                    "example": 2
-                },
-                "merchant_branch_profile_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "merchant_profile_id": {
-                    "type": "string",
-                    "format": "uuid",
-                    "example": "8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c"
-                },
-                "paid_at": {
-                    "type": "string"
-                },
-                "status": {
-                    "enum": [
-                        "scheduled",
-                        "due",
-                        "overdue"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/model.InstallmentStatus"
-                        }
-                    ],
-                    "example": "due"
-                },
-                "total_amount_minor": {
-                    "type": "integer",
-                    "example": 25000000
+                "repayment": {
+                    "$ref": "#/definitions/customerrs.repaymentSummaryResponse"
                 }
             }
         },
@@ -7713,10 +7246,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/customerrs.UnpaidInstallmentSchema"
-                    }
+                    "$ref": "#/definitions/customerrs.UnpaidInstallmentsListDataSchema"
                 },
                 "meta": {
                     "$ref": "#/definitions/serdser.SuccessMetaKeyset"
@@ -7826,6 +7356,154 @@ const docTemplate = `{
                 "publicStatusFailed",
                 "publicStatusCanceled"
             ]
+        },
+        "customerrs.repaymentDueInstallmentResponse": {
+            "type": "object",
+            "properties": {
+                "contract_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "currency": {
+                    "$ref": "#/definitions/model.Currency"
+                },
+                "due_at": {
+                    "type": "string"
+                },
+                "has_pending_payment": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "installment_order": {
+                    "type": "integer"
+                },
+                "status": {
+                    "$ref": "#/definitions/model.InstallmentStatus"
+                },
+                "total_amount_minor": {
+                    "type": "integer"
+                }
+            }
+        },
+        "customerrs.repaymentNextPayableResponse": {
+            "type": "object",
+            "properties": {
+                "contract_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "currency": {
+                    "$ref": "#/definitions/model.Currency"
+                },
+                "due_at": {
+                    "type": "string"
+                },
+                "has_pending_payment": {
+                    "type": "boolean"
+                },
+                "installment_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "installment_order": {
+                    "type": "integer"
+                },
+                "payable_amount_known": {
+                    "type": "boolean"
+                },
+                "payable_amount_minor": {
+                    "type": "integer"
+                },
+                "status": {
+                    "$ref": "#/definitions/model.InstallmentStatus"
+                }
+            }
+        },
+        "customerrs.repaymentSummaryResponse": {
+            "type": "object",
+            "properties": {
+                "due_count": {
+                    "type": "integer"
+                },
+                "due_installments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/customerrs.repaymentDueInstallmentResponse"
+                    }
+                },
+                "has_pending_payment": {
+                    "type": "boolean"
+                },
+                "next_payable": {
+                    "$ref": "#/definitions/customerrs.repaymentNextPayableResponse"
+                },
+                "unpaid_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "customerrs.unpaidInstallmentResponse": {
+            "type": "object",
+            "properties": {
+                "contract_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                },
+                "currency": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.Currency"
+                        }
+                    ],
+                    "example": "IRR"
+                },
+                "due_at": {
+                    "type": "string",
+                    "example": "2026-09-09T12:00:00Z"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "0a1b2c3d-4e5f-6789-abcd-ef0123456789"
+                },
+                "installment_order": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "merchant_branch_profile_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "merchant_profile_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c"
+                },
+                "paid_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "enum": [
+                        "scheduled",
+                        "due",
+                        "overdue"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.InstallmentStatus"
+                        }
+                    ],
+                    "example": "due"
+                },
+                "total_amount_minor": {
+                    "type": "integer",
+                    "example": 25000000
+                }
+            }
         },
         "decisionrs.CreateRequestSchema": {
             "type": "object",
@@ -9311,15 +8989,6 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid",
                     "example": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-                }
-            }
-        },
-        "serdser.SuccessResponse": {
-            "type": "object",
-            "properties": {
-                "data": {},
-                "meta": {
-                    "$ref": "#/definitions/serdser.SuccessMeta"
                 }
             }
         }

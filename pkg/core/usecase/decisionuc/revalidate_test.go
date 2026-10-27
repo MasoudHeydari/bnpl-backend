@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	testifymock "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	testifymock "github.com/stretchr/testify/mock"
 
 	adapterclock "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/clock"
 	sha256fingerprint "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/fingerprint/sha256"
@@ -57,6 +57,11 @@ func TestRevalidateCheckoutOffer_UsesPersistedPolicySnapshotNotActiveAssignment(
 		"Conn",
 		testifymock.Anything,
 	)
+	h.assignment.AssertNotCalled(
+		t,
+		"Tx",
+		testifymock.Anything,
+	)
 
 	got, err := h.uc.RevalidateCheckoutOffer(h.ctx, decisionuc.RevalidateCheckoutOfferInput{
 		DecisionID: h.decisionID,
@@ -72,18 +77,19 @@ type revalidateHarness struct {
 	uc           *decisionuc.UseCase
 	pool         *mock.Pool
 	conn         *mock.Conn
+	tx           *mock.Tx
 	decision     *mock.Decision
-	decisionCQ   *mock.DecisionConnQueryer
+	decisionTQ   *mock.DecisionTxQueryer
 	allocation   *mock.CheckoutDecisionAllocation
-	allocationCQ *mock.CheckoutDecisionAllocationConnQueryer
+	allocationTQ *mock.CheckoutDecisionAllocationTxQueryer
 	customer     *mock.CustomerProfile
-	customerCQ   *mock.CustomerProfileConnQueryer
+	customerTQ   *mock.CustomerProfileTxQueryer
 	merchant     *mock.MerchantProfile
-	merchantCQ   *mock.MerchantProfileConnQueryer
+	merchantTQ   *mock.MerchantProfileTxQueryer
 	branch       *mock.MerchantBranchProfile
-	branchCQ     *mock.MerchantBranchProfileConnQueryer
+	branchTQ     *mock.MerchantBranchProfileTxQueryer
 	credit       *mock.CreditAccount
-	creditCQ     *mock.CreditAccountConnQueryer
+	creditTQ     *mock.CreditAccountTxQueryer
 	assignment   *mock.PolicyAssignment
 	decisionID   model.DecisionID
 	customerID   model.CustomerID
@@ -113,18 +119,19 @@ func newRevalidateHarness(t *testing.T) *revalidateHarness {
 		now:          now,
 		pool:         mock.NewPool(t),
 		conn:         mock.NewConn(t),
+		tx:           mock.NewTx(t),
 		decision:     mock.NewDecision(t),
-		decisionCQ:   mock.NewDecisionConnQueryer(t),
+		decisionTQ:   mock.NewDecisionTxQueryer(t),
 		allocation:   mock.NewCheckoutDecisionAllocation(t),
-		allocationCQ: mock.NewCheckoutDecisionAllocationConnQueryer(t),
+		allocationTQ: mock.NewCheckoutDecisionAllocationTxQueryer(t),
 		customer:     mock.NewCustomerProfile(t),
-		customerCQ:   mock.NewCustomerProfileConnQueryer(t),
+		customerTQ:   mock.NewCustomerProfileTxQueryer(t),
 		merchant:     mock.NewMerchantProfile(t),
-		merchantCQ:   mock.NewMerchantProfileConnQueryer(t),
+		merchantTQ:   mock.NewMerchantProfileTxQueryer(t),
 		branch:       mock.NewMerchantBranchProfile(t),
-		branchCQ:     mock.NewMerchantBranchProfileConnQueryer(t),
+		branchTQ:     mock.NewMerchantBranchProfileTxQueryer(t),
 		credit:       mock.NewCreditAccount(t),
-		creditCQ:     mock.NewCreditAccountConnQueryer(t),
+		creditTQ:     mock.NewCreditAccountTxQueryer(t),
 		assignment:   mock.NewPolicyAssignment(t),
 		decisionID:   model.DecisionID(uuid.New()),
 		customerID:   model.CustomerID(uuid.New()),
@@ -163,6 +170,7 @@ func newRevalidateHarness(t *testing.T) *revalidateHarness {
 		idGen,
 		mustTestJurisdictions(t),
 		metricsnoop.New(),
+		decisionuc.AllowAllNewCreditUsage{},
 	)
 	require.NoError(t, err)
 	h.uc = uc
@@ -178,12 +186,17 @@ func (h *revalidateHarness) wireProfilesAndCredit(limitMinor uint64) {
 			return handler(ctx, h.conn)
 		},
 	).Once()
-	h.decision.EXPECT().Conn(h.conn).Return(h.decisionCQ).Once()
-	h.allocation.EXPECT().Conn(h.conn).Return(h.allocationCQ).Once()
-	h.customer.EXPECT().Conn(h.conn).Return(h.customerCQ).Once()
-	h.merchant.EXPECT().Conn(h.conn).Return(h.merchantCQ).Once()
-	h.branch.EXPECT().Conn(h.conn).Return(h.branchCQ).Once()
-	h.credit.EXPECT().Conn(h.conn).Return(h.creditCQ).Once()
+	h.conn.EXPECT().Tx(h.ctx, testifymock.Anything).RunAndReturn(
+		func(ctx context.Context, handler repo.TxHandler) error {
+			return handler(ctx, h.tx)
+		},
+	).Once()
+	h.decision.EXPECT().Tx(h.tx).Return(h.decisionTQ).Once()
+	h.allocation.EXPECT().Tx(h.tx).Return(h.allocationTQ).Once()
+	h.customer.EXPECT().Tx(h.tx).Return(h.customerTQ).Once()
+	h.merchant.EXPECT().Tx(h.tx).Return(h.merchantTQ).Once()
+	h.branch.EXPECT().Tx(h.tx).Return(h.branchTQ).Once()
+	h.credit.EXPECT().Tx(h.tx).Return(h.creditTQ).Once()
 
 	decision := model.Decision{
 		ID:            h.decisionID,
@@ -234,10 +247,10 @@ func (h *revalidateHarness) wireProfilesAndCredit(limitMinor uint64) {
 		Status:              model.ActiveCreditAccountStatus,
 	}
 
-	h.decisionCQ.EXPECT().GetByID(h.ctx, h.decisionID).Return(decision, nil).Once()
-	h.allocationCQ.EXPECT().GetByDecisionID(h.ctx, h.decisionID).Return(allocation, nil).Once()
-	h.customerCQ.EXPECT().GetByID(h.ctx, h.customerID).Return(customer, nil).Once()
-	h.merchantCQ.EXPECT().GetByID(h.ctx, h.merchantPID).Return(merchant, nil).Once()
-	h.branchCQ.EXPECT().GetByID(h.ctx, h.branchPID).Return(branch, nil).Once()
-	h.creditCQ.EXPECT().GetByCustomerIDAndCurrency(h.ctx, h.customerID, model.IRRCurrency).Return(account, nil).Once()
+	h.decisionTQ.EXPECT().GetByID(h.ctx, h.decisionID).Return(decision, nil).Once()
+	h.allocationTQ.EXPECT().GetByDecisionID(h.ctx, h.decisionID).Return(allocation, nil).Once()
+	h.customerTQ.EXPECT().LockByID(h.ctx, h.customerID).Return(customer, nil).Once()
+	h.merchantTQ.EXPECT().GetByID(h.ctx, h.merchantPID).Return(merchant, nil).Once()
+	h.branchTQ.EXPECT().GetByID(h.ctx, h.branchPID).Return(branch, nil).Once()
+	h.creditTQ.EXPECT().GetByCustomerIDAndCurrency(h.ctx, h.customerID, model.IRRCurrency).Return(account, nil).Once()
 }

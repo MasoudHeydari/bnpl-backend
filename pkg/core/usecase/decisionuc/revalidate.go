@@ -61,89 +61,106 @@ func (uc *UseCase) RevalidateCheckoutOffer(
 	var output RevalidateCheckoutOfferOutput
 
 	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
-		decisionQ := uc.decision.Conn(conn)
-		allocationQ := uc.checkoutDecisionAllocation.Conn(conn)
-		customerProfileQ := uc.customerProfile.Conn(conn)
-		creditAccountQ := uc.creditAccount.Conn(conn)
-		merchantProfileQ := uc.merchantProfile.Conn(conn)
-		merchantBranchProfileQ := uc.merchantBranchProfile.Conn(conn)
+		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
+			decisionQ := uc.decision.Tx(tx)
+			allocationQ := uc.checkoutDecisionAllocation.Tx(tx)
+			customerProfileQ := uc.customerProfile.Tx(tx)
+			creditAccountQ := uc.creditAccount.Tx(tx)
+			merchantProfileQ := uc.merchantProfile.Tx(tx)
+			merchantBranchProfileQ := uc.merchantBranchProfile.Tx(tx)
 
-		decision, err := decisionQ.GetByID(ctx, input.DecisionID)
-		if err != nil {
-			return fmt.Errorf("%s: load decision: %w", op, err)
-		}
-
-		if decision.ExpiresAt != nil && !decision.ExpiresAt.After(now) {
-			output.StillHonorable = false
-
-			return nil
-		}
-
-		if !outcomeCreatesInstallmentOffer(decision.Outcome) {
-			output.StillHonorable = false
-
-			return nil
-		}
-
-		allocation, err := allocationQ.GetByDecisionID(ctx, decision.ID)
-		if err != nil {
-			return fmt.Errorf("%s: load allocation: %w", op, err)
-		}
-
-		selectedPolicy, err := uc.resolveCheckoutPolicyRef(policy.Ref{
-			ID:      decision.PolicyID,
-			Version: decision.PolicyVersion,
-		})
-		if err != nil {
-			return err
-		}
-
-		customerProfile, err := customerProfileQ.GetByID(ctx, allocation.CustomerID)
-		if err != nil {
-			return fmt.Errorf("%s: load customer profile: %w", op, err)
-		}
-
-		merchantProfile, err := merchantProfileQ.GetByID(ctx, allocation.MerchantProfileID)
-		if err != nil {
-			return fmt.Errorf("%s: load merchant profile: %w", op, err)
-		}
-
-		var branchProfile *model.MerchantBranchProfile
-		if allocation.MerchantBranchProfileID != nil && !allocation.MerchantBranchProfileID.IsZero() {
-			branch, branchErr := merchantBranchProfileQ.GetByID(ctx, *allocation.MerchantBranchProfileID)
-			if branchErr != nil {
-				return fmt.Errorf("%s: load merchant branch profile: %w", op, branchErr)
+			decision, err := decisionQ.GetByID(ctx, input.DecisionID)
+			if err != nil {
+				return fmt.Errorf("%s: load decision: %w", op, err)
 			}
 
-			branchProfile = &branch
-		}
+			if decision.ExpiresAt != nil && !decision.ExpiresAt.After(now) {
+				output.StillHonorable = false
 
-		creditAccount, hasCreditAccount, err := loadCurrentCreditAccount(
-			ctx,
-			creditAccountQ,
-			customerProfile.ID,
-			allocation.Currency,
-			now,
-		)
-		if err != nil {
-			return fmt.Errorf("%s: load credit account: %w", op, err)
-		}
+				return nil
+			}
 
-		_, financing := evaluateCheckoutTerms(
-			selectedPolicy,
-			now,
-			allocation.RequestedAmountMinor,
-			allocation.Currency,
-			customerProfile,
-			merchantProfile,
-			branchProfile,
-			creditAccount,
-			hasCreditAccount,
-		)
+			if !outcomeCreatesInstallmentOffer(decision.Outcome) {
+				output.StillHonorable = false
 
-		output.StillHonorable = materialOfferTermsMatch(allocation, financing)
+				return nil
+			}
 
-		return nil
+			allocation, err := allocationQ.GetByDecisionID(ctx, decision.ID)
+			if err != nil {
+				return fmt.Errorf("%s: load allocation: %w", op, err)
+			}
+
+			selectedPolicy, err := uc.resolveCheckoutPolicyRef(policy.Ref{
+				ID:      decision.PolicyID,
+				Version: decision.PolicyVersion,
+			})
+			if err != nil {
+				return err
+			}
+
+			customerProfile, err := customerProfileQ.LockByID(ctx, allocation.CustomerID)
+			if err != nil {
+				return fmt.Errorf("%s: lock customer profile: %w", op, err)
+			}
+
+			if guardErr := uc.newCreditUsageGuard.AssertNewCreditAllowed(
+				ctx,
+				tx,
+				customerProfile.ID,
+				now,
+			); guardErr != nil {
+				if cerr.IsCode(guardErr, cerr.CodeConflict) {
+					output.StillHonorable = false
+
+					return nil
+				}
+
+				return guardErr
+			}
+
+			merchantProfile, err := merchantProfileQ.GetByID(ctx, allocation.MerchantProfileID)
+			if err != nil {
+				return fmt.Errorf("%s: load merchant profile: %w", op, err)
+			}
+
+			var branchProfile *model.MerchantBranchProfile
+			if allocation.MerchantBranchProfileID != nil && !allocation.MerchantBranchProfileID.IsZero() {
+				branch, branchErr := merchantBranchProfileQ.GetByID(ctx, *allocation.MerchantBranchProfileID)
+				if branchErr != nil {
+					return fmt.Errorf("%s: load merchant branch profile: %w", op, branchErr)
+				}
+
+				branchProfile = &branch
+			}
+
+			creditAccount, hasCreditAccount, err := loadCurrentCreditAccount(
+				ctx,
+				creditAccountQ,
+				customerProfile.ID,
+				allocation.Currency,
+				now,
+			)
+			if err != nil {
+				return fmt.Errorf("%s: load credit account: %w", op, err)
+			}
+
+			_, financing := evaluateCheckoutTerms(
+				selectedPolicy,
+				now,
+				allocation.RequestedAmountMinor,
+				allocation.Currency,
+				customerProfile,
+				merchantProfile,
+				branchProfile,
+				creditAccount,
+				hasCreditAccount,
+			)
+
+			output.StillHonorable = materialOfferTermsMatch(allocation, financing)
+
+			return nil
+		})
 	})
 	if err != nil {
 		return RevalidateCheckoutOfferOutput{}, err
