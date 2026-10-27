@@ -3,7 +3,9 @@ package repaymentreminderuc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -18,22 +20,26 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/pagination"
 	reminderv1 "github.com/parstis/bnpl-backend/pkg/core/policy/repaymentreminder/v1"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/shortlinkuc"
 )
 
 // UseCase evaluates installment due schedules and persists at most one reminder
 // SMS request per customer per business day via the transactional outbox.
 type UseCase struct {
-	pool              repo.Pool
-	installment       repo.Installment
-	repaymentReminder repo.RepaymentReminder
-	outbox            repo.Outbox
-	clock             clock.Clock
-	idGenerator       identifier.Generator
-	businessMetrics   metrics.BusinessMetrics
-	policy            reminderv1.Policy
-	notificationTopic string
-	paymentURL        string
-	batchSize         int
+	pool                 repo.Pool
+	installment          repo.Installment
+	repaymentReminder    repo.RepaymentReminder
+	paymentAttempt       repo.PaymentAttempt
+	outbox               repo.Outbox
+	shortLink            *shortlinkuc.UseCase
+	clock                clock.Clock
+	idGenerator          identifier.Generator
+	businessMetrics      metrics.BusinessMetrics
+	policy               reminderv1.Policy
+	notificationTopic    string
+	publicHost           string
+	repaymentDestination string
+	batchSize            int
 }
 
 // New constructs a repayment reminder use case.
@@ -41,12 +47,15 @@ func New(
 	pool repo.Pool,
 	installment repo.Installment,
 	repaymentReminder repo.RepaymentReminder,
+	paymentAttempt repo.PaymentAttempt,
 	outbox repo.Outbox,
+	shortLink *shortlinkuc.UseCase,
 	clk clock.Clock,
 	idGenerator identifier.Generator,
 	businessMetrics metrics.BusinessMetrics,
 	notificationTopic string,
-	paymentURL string,
+	publicHost string,
+	repaymentDestination string,
 	batchSize int,
 ) (*UseCase, error) {
 	const op = "repaymentreminderuc.New"
@@ -63,8 +72,16 @@ func New(
 		return nil, fmt.Errorf("%s: repayment reminder repository is required", op)
 	}
 
+	if paymentAttempt == nil {
+		return nil, fmt.Errorf("%s: payment attempt repository is required", op)
+	}
+
 	if outbox == nil {
 		return nil, fmt.Errorf("%s: outbox repository is required", op)
+	}
+
+	if shortLink == nil {
+		return nil, fmt.Errorf("%s: short link use case is required", op)
 	}
 
 	if clk == nil {
@@ -83,8 +100,12 @@ func New(
 		return nil, fmt.Errorf("%s: notification topic is required", op)
 	}
 
-	if strings.TrimSpace(paymentURL) == "" {
-		return nil, fmt.Errorf("%s: payment url is required", op)
+	if strings.TrimSpace(publicHost) == "" {
+		return nil, fmt.Errorf("%s: public host is required", op)
+	}
+
+	if strings.TrimSpace(repaymentDestination) == "" {
+		return nil, fmt.Errorf("%s: repayment destination url is required", op)
 	}
 
 	if batchSize <= 0 {
@@ -96,17 +117,20 @@ func New(
 	}
 
 	return &UseCase{
-		pool:              pool,
-		installment:       installment,
-		repaymentReminder: repaymentReminder,
-		outbox:            outbox,
-		clock:             clk,
-		idGenerator:       idGenerator,
-		businessMetrics:   businessMetrics,
-		policy:            reminderv1.New(),
-		notificationTopic: strings.TrimSpace(notificationTopic),
-		paymentURL:        strings.TrimSpace(paymentURL),
-		batchSize:         batchSize,
+		pool:                 pool,
+		installment:          installment,
+		repaymentReminder:    repaymentReminder,
+		paymentAttempt:       paymentAttempt,
+		outbox:               outbox,
+		shortLink:            shortLink,
+		clock:                clk,
+		idGenerator:          idGenerator,
+		businessMetrics:      businessMetrics,
+		policy:               reminderv1.New(),
+		notificationTopic:    strings.TrimSpace(notificationTopic),
+		publicHost:           strings.TrimSpace(strings.TrimSuffix(publicHost, "/")),
+		repaymentDestination: strings.TrimSpace(repaymentDestination),
+		batchSize:            batchSize,
 	}, nil
 }
 
@@ -126,6 +150,10 @@ type DispatchOutput struct {
 }
 
 // Dispatch evaluates due schedules and persists reminder outbox events.
+//
+// Customers are processed in deterministic keyset pages so every eligible
+// customer-day is eventually examined even when unpaid installments remain in
+// earlier pages across repeated scheduler executions.
 func (uc *UseCase) Dispatch(ctx context.Context) (DispatchOutput, error) {
 	const op = "repaymentreminderuc.UseCase.Dispatch"
 
@@ -148,61 +176,84 @@ func (uc *UseCase) Dispatch(ctx context.Context) (DispatchOutput, error) {
 	dueAtFrom := dueFromLocal.UTC()
 	dueAtTo := dueToLocal.UTC()
 
-	var (
-		output     DispatchOutput
-		candidates []repo.ReminderCandidate
-	)
+	var output DispatchOutput
+	afterCustomerID := model.CustomerID{}
 
-	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
-		installmentQ := uc.installment.Conn(conn)
-		rows, listErr := installmentQ.ListReminderCandidates(
-			ctx,
-			dueAtFrom,
-			dueAtTo,
-			uc.batchSize,
-		)
-		if listErr != nil {
-			return listErr
-		}
+	for {
+		var candidates []repo.ReminderCandidate
 
-		candidates = rows
-		return nil
-	})
-	if err != nil {
-		uc.businessMetrics.RepaymentReminderJobCompleted(ctx, "failure")
-		uc.businessMetrics.RepaymentReminderJobDuration(ctx, uc.clock.Now().UTC().Sub(started))
-		return DispatchOutput{}, fmt.Errorf("%s: list candidates: %w", op, err)
-	}
+		err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
+			installmentQ := uc.installment.Conn(conn)
+			rows, listErr := installmentQ.ListReminderCandidatePage(
+				ctx,
+				dueAtFrom,
+				dueAtTo,
+				businessDate,
+				afterCustomerID,
+				uc.batchSize,
+			)
+			if listErr != nil {
+				return listErr
+			}
 
-	output.CandidateCount = len(candidates)
-	uc.businessMetrics.RepaymentReminderCandidatesObserved(ctx, output.CandidateCount)
-
-	grouped := groupCandidatesByCustomer(candidates)
-	output.EligibleCustomerCount = len(grouped)
-	uc.businessMetrics.RepaymentReminderEligibleCustomersObserved(ctx, output.EligibleCustomerCount)
-
-	for customerID, group := range grouped {
-		created, skipReason, dispatchErr := uc.dispatchCustomer(
-			ctx,
-			nowLocal,
-			businessDate,
-			customerID,
-			group,
-		)
-		if dispatchErr != nil {
+			candidates = rows
+			return nil
+		})
+		if err != nil {
 			uc.businessMetrics.RepaymentReminderJobCompleted(ctx, "failure")
 			uc.businessMetrics.RepaymentReminderJobDuration(ctx, uc.clock.Now().UTC().Sub(started))
-			return output, fmt.Errorf("%s: dispatch customer: %w", op, dispatchErr)
+			return output, fmt.Errorf("%s: list candidates: %w", op, err)
 		}
 
-		if created {
-			output.CreatedCount++
-			continue
+		if len(candidates) == 0 {
+			break
 		}
 
-		output.SkippedCount++
-		if skipReason != "" {
-			uc.businessMetrics.RepaymentReminderSkipped(ctx, string(skipReason))
+		output.CandidateCount += len(candidates)
+		uc.businessMetrics.RepaymentReminderCandidatesObserved(ctx, len(candidates))
+
+		grouped := groupCandidatesByCustomer(candidates)
+		pageCustomerCount := len(grouped)
+		output.EligibleCustomerCount += pageCustomerCount
+		uc.businessMetrics.RepaymentReminderEligibleCustomersObserved(ctx, pageCustomerCount)
+
+		// Deterministic customer order for stable progress and testability.
+		customerIDs := make([]model.CustomerID, 0, pageCustomerCount)
+		for customerID := range grouped {
+			customerIDs = append(customerIDs, customerID)
+		}
+
+		sortCustomerIDs(customerIDs)
+
+		for _, customerID := range customerIDs {
+			group := grouped[customerID]
+			created, skipReason, dispatchErr := uc.dispatchCustomer(
+				ctx,
+				nowLocal,
+				businessDate,
+				customerID,
+				group,
+			)
+			if dispatchErr != nil {
+				uc.businessMetrics.RepaymentReminderJobCompleted(ctx, "failure")
+				uc.businessMetrics.RepaymentReminderJobDuration(ctx, uc.clock.Now().UTC().Sub(started))
+				return output, fmt.Errorf("%s: dispatch customer: %w", op, dispatchErr)
+			}
+
+			if created {
+				output.CreatedCount++
+				continue
+			}
+
+			output.SkippedCount++
+			if skipReason != "" {
+				uc.businessMetrics.RepaymentReminderSkipped(ctx, string(skipReason))
+			}
+		}
+
+		afterCustomerID = customerIDs[len(customerIDs)-1]
+		if pageCustomerCount < uc.batchSize {
+			break
 		}
 	}
 
@@ -232,6 +283,17 @@ func groupCandidatesByCustomer(
 	return grouped
 }
 
+func sortCustomerIDs(ids []model.CustomerID) {
+	sort.Slice(ids, func(i, j int) bool {
+		return ids[i].String() < ids[j].String()
+	})
+}
+
+// errConcurrentCustomerDayReminder forces a transaction rollback when another
+// worker already persisted the customer/day Reminder, so the Short Link insert
+// from the losing attempt is not committed as an orphan.
+var errConcurrentCustomerDayReminder = errors.New("concurrent customer-day reminder")
+
 func (uc *UseCase) dispatchCustomer(
 	ctx context.Context,
 	nowLocal time.Time,
@@ -251,6 +313,7 @@ func (uc *UseCase) dispatchCustomer(
 		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
 			reminderQ := uc.repaymentReminder.Tx(tx)
 			installmentQ := uc.installment.Tx(tx)
+			paymentAttemptQ := uc.paymentAttempt.Tx(tx)
 			outboxQ := uc.outbox.Tx(tx)
 
 			_, lockErr := reminderQ.LockByCustomerBusinessDate(ctx, customerID, businessDate)
@@ -271,7 +334,25 @@ func (uc *UseCase) dispatchCustomer(
 				return listErr
 			}
 
-			pendingByID := pendingPaymentByInstallmentID(group.Candidates)
+			installmentIDs := make([]model.InstallmentID, 0, len(rows))
+			for _, row := range rows {
+				installmentIDs = append(installmentIDs, row.ID)
+			}
+
+			pendingIDs, pendingErr := paymentAttemptQ.ListInstallmentIDsWithNonTerminalAttempts(
+				ctx,
+				customerID,
+				installmentIDs,
+			)
+			if pendingErr != nil {
+				return pendingErr
+			}
+
+			pendingByID := make(map[model.InstallmentID]bool, len(pendingIDs))
+			for _, id := range pendingIDs {
+				pendingByID[id] = true
+			}
+
 			facts := make([]reminderv1.InstallmentFact, 0, len(rows))
 			for _, row := range rows {
 				facts = append(facts, reminderv1.InstallmentFact{
@@ -289,6 +370,15 @@ func (uc *UseCase) dispatchCustomer(
 				return nil
 			}
 
+			linkOut, linkErr := uc.shortLink.CreateOnTx(ctx, tx, shortlinkuc.CreateInput{
+				DestinationURL: uc.repaymentDestination,
+			})
+			if linkErr != nil {
+				return fmt.Errorf("%s: create short link: %w", op, linkErr)
+			}
+
+			paymentURL := displayShortURL(uc.publicHost, linkOut.ShortLink.Code)
+
 			reminderID, idErr := parseReminderID(uc.idGenerator.Generate())
 			if idErr != nil {
 				return fmt.Errorf("%s: parse reminder id: %w", op, idErr)
@@ -297,7 +387,7 @@ func (uc *UseCase) dispatchCustomer(
 			idempotencyKey := "repayment-reminder:" + reminderID.String()
 			nowUTC := uc.clock.Now().UTC()
 
-			createdRow, createErr := reminderQ.Create(ctx, repo.CreateRepaymentReminder{
+			_, createErr := reminderQ.Create(ctx, repo.CreateRepaymentReminder{
 				ID:                         reminderID,
 				CustomerID:                 customerID,
 				ExternalCustomerID:         group.ExternalCustomerID,
@@ -305,15 +395,17 @@ func (uc *UseCase) dispatchCustomer(
 				ReminderType:               decision.ReminderType,
 				PolicyVersion:              decision.PolicyVersion,
 				TemplateID:                 decision.TemplateID,
-				PaymentURL:                 uc.paymentURL,
+				ShortLinkID:                linkOut.ShortLink.ID,
+				PaymentURL:                 paymentURL,
 				InstallmentIDs:             decision.InstallmentIDs,
 				NotificationIdempotencyKey: idempotencyKey,
 				CreatedAt:                  nowUTC,
 			})
 			if createErr != nil {
 				if cerr.IsCode(createErr, cerr.CodeConflict) {
-					skipReason = reminderv1.SuppressAlreadySentToday
-					return nil
+					// Concurrent worker won the customer/day race. Return an
+					// error so the transaction rolls back the Short Link insert.
+					return errConcurrentCustomerDayReminder
 				}
 
 				return createErr
@@ -327,7 +419,7 @@ func (uc *UseCase) dispatchCustomer(
 				group.ExternalCustomerID.String(),
 				decision.TemplateID,
 				map[string]string{
-					"payment_url": uc.paymentURL,
+					"payment_url": paymentURL,
 				},
 			)
 			if validateErr := notificationsms.ValidateEvent(event); validateErr != nil {
@@ -352,32 +444,31 @@ func (uc *UseCase) dispatchCustomer(
 				return outboxErr
 			}
 
-			_ = createdRow
 			created = true
 			reminderType = decision.ReminderType
 			return nil
 		})
 	})
 	if err != nil {
+		if errors.Is(err, errConcurrentCustomerDayReminder) {
+			return false, reminderv1.SuppressAlreadySentToday, nil
+		}
+
 		return false, "", err
 	}
 
 	if created {
+		uc.businessMetrics.ShortLinkCreated(ctx, "generated")
 		uc.businessMetrics.RepaymentReminderCreated(ctx, string(reminderType))
 	}
 
 	return created, skipReason, nil
 }
 
-func pendingPaymentByInstallmentID(
-	candidates []repo.ReminderCandidate,
-) map[model.InstallmentID]bool {
-	out := make(map[model.InstallmentID]bool, len(candidates))
-	for _, candidate := range candidates {
-		out[candidate.Installment.ID] = candidate.HasUnresolvedPayment
-	}
-
-	return out
+func displayShortURL(publicHost, code string) string {
+	host := strings.TrimSpace(strings.TrimSuffix(publicHost, "/"))
+	code = strings.TrimSpace(strings.TrimPrefix(code, "/"))
+	return host + "/" + code
 }
 
 func parseReminderID(raw string) (model.RepaymentReminderID, error) {

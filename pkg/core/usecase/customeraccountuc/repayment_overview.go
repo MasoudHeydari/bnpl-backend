@@ -92,6 +92,7 @@ func (uc *UseCase) GetRepaymentOverview(
 		if err != nil {
 			if cerr.IsCode(err, cerr.CodeResourceNotFound) {
 				installments = nil
+				pendingIDs = map[model.InstallmentID]bool{}
 				return nil
 			}
 
@@ -108,29 +109,29 @@ func (uc *UseCase) GetRepaymentOverview(
 		}
 
 		installments = rows
-
-		// Pending payment detection uses reminder-candidate enrichment when the
-		// due window overlaps; fall back to false when no candidate join is available
-		// on this read path. Overview still surfaces unpaid state correctly.
 		pendingIDs = map[model.InstallmentID]bool{}
-		if len(rows) > 0 {
-			dueFrom := rows[0].DueAt.AddDate(0, 0, -int(model.MaxInstallmentGracePeriodDays)-1)
-			dueTo := rows[len(rows)-1].DueAt.AddDate(0, 0, 2)
-			candidates, candErr := installmentQ.ListReminderCandidates(
-				ctx,
-				dueFrom,
-				dueTo,
-				len(rows)*2,
-			)
-			if candErr != nil {
-				return candErr
-			}
 
-			for _, candidate := range candidates {
-				if candidate.Installment.CustomerID == profile.ID {
-					pendingIDs[candidate.Installment.ID] = candidate.HasUnresolvedPayment
-				}
-			}
+		if len(rows) == 0 {
+			return nil
+		}
+
+		ids := make([]model.InstallmentID, 0, len(rows))
+		for _, row := range rows {
+			ids = append(ids, row.ID)
+		}
+
+		paymentAttemptQ := uc.paymentAttempt.Conn(conn)
+		pending, pendingErr := paymentAttemptQ.ListInstallmentIDsWithNonTerminalAttempts(
+			ctx,
+			profile.ID,
+			ids,
+		)
+		if pendingErr != nil {
+			return pendingErr
+		}
+
+		for _, id := range pending {
+			pendingIDs[id] = true
 		}
 
 		return nil

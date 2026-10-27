@@ -788,25 +788,54 @@ type reminderCandidateRow struct {
 	HasUnresolvedPayment    bool                           `db:"has_unresolved_payment"`
 }
 
-// ListReminderCandidates returns unpaid active-contract installments in a due_at window.
-func ListReminderCandidates[Q postgres.Queryer](
+// ListReminderCandidatePage returns all eligible reminder installments for the
+// next customerLimit customers after afterCustomerID (exclusive keyset).
+func ListReminderCandidatePage[Q postgres.Queryer](
 	ctx context.Context,
 	q Q,
 	dueAtFrom time.Time,
 	dueAtTo time.Time,
-	limit int,
+	businessDate time.Time,
+	afterCustomerID model.CustomerID,
+	customerLimit int,
 ) ([]repo.ReminderCandidate, error) {
-	const op = "installmentrp.ListReminderCandidates"
+	const op = "installmentrp.ListReminderCandidatePage"
 
-	if limit <= 0 {
-		return nil, cerr.InternalError(fmt.Errorf("%s: limit must be positive", op))
+	if customerLimit <= 0 {
+		return nil, cerr.InternalError(fmt.Errorf("%s: customer limit must be positive", op))
 	}
 
 	if !dueAtTo.After(dueAtFrom) {
 		return nil, cerr.InternalError(fmt.Errorf("%s: due_at window is empty", op))
 	}
 
+	// Page by distinct customers so a customer's full candidate set is never
+	// truncated mid-group. Exclude customers already reminded for businessDate
+	// so repeated runs advance past processed customer-days.
 	const query = `
+WITH page_customers AS (
+	SELECT DISTINCT i.customer_id
+	FROM installments i
+	WHERE i.contract_id IS NOT NULL
+	  AND i.status IN ($1, $2, $3)
+	  AND i.due_at >= $8
+	  AND i.due_at < $9
+	  AND ($10::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR i.customer_id > $10)
+	  AND EXISTS (
+		SELECT 1
+		FROM contracts c
+		WHERE c.id = i.contract_id
+		  AND c.status = $4
+	  )
+	  AND NOT EXISTS (
+		SELECT 1
+		FROM repayment_reminders rr
+		WHERE rr.customer_id = i.customer_id
+		  AND rr.business_date = $11::date
+	  )
+	ORDER BY i.customer_id ASC
+	LIMIT $12
+)
 SELECT
 	i.id,
 	i.decision_id,
@@ -835,6 +864,7 @@ SELECT
 		  AND pa.state IN ($5, $6, $7)
 	) AS has_unresolved_payment
 FROM installments i
+INNER JOIN page_customers pc ON pc.customer_id = i.customer_id
 INNER JOIN customer_profiles cp ON cp.id = i.customer_id
 WHERE i.contract_id IS NOT NULL
   AND i.status IN ($1, $2, $3)
@@ -847,13 +877,15 @@ WHERE i.contract_id IS NOT NULL
 	  AND c.status = $4
   )
 ORDER BY i.customer_id ASC, i.due_at ASC, i.id ASC
-LIMIT $10
 `
+
+	y, m, d := businessDate.Date()
+	businessDateUTC := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 
 	rows, err := postgres.QueryAll[reminderCandidateRow](
 		ctx,
 		q,
-		"list repayment reminder candidates",
+		"list repayment reminder candidate page",
 		query,
 		model.ScheduledInstallmentStatus,
 		model.DueInstallmentStatus,
@@ -864,7 +896,9 @@ LIMIT $10
 		model.ReconciliationRequiredPaymentAttemptState,
 		dueAtFrom.UTC(),
 		dueAtTo.UTC(),
-		limit,
+		afterCustomerID,
+		businessDateUTC,
+		customerLimit,
 	)
 	if err != nil {
 		return nil, err

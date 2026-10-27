@@ -21,16 +21,13 @@ const reminderColumns = `
 	reminder_type,
 	policy_version,
 	template_id,
+	short_link_id,
 	payment_url,
 	installment_ids,
 	notification_idempotency_key,
 	created_at
 `
 
-const (
-	customerBusinessDateUniqueConstraint = "repayment_reminders_customer_business_date_unique"
-	idempotencyKeyUniqueConstraint       = "repayment_reminders_idempotency_key_unique"
-)
 
 type reminderRow struct {
 	ID                         model.RepaymentReminderID `db:"id"`
@@ -40,6 +37,7 @@ type reminderRow struct {
 	ReminderType               model.ReminderType        `db:"reminder_type"`
 	PolicyVersion              string                    `db:"policy_version"`
 	TemplateID                 string                    `db:"template_id"`
+	ShortLinkID                model.ShortLinkID         `db:"short_link_id"`
 	PaymentURL                 string                    `db:"payment_url"`
 	InstallmentIDs             []uuid.UUID               `db:"installment_ids"`
 	NotificationIdempotencyKey string                    `db:"notification_idempotency_key"`
@@ -60,6 +58,7 @@ func (r reminderRow) toModel() model.RepaymentReminder {
 		ReminderType:               r.ReminderType,
 		PolicyVersion:              r.PolicyVersion,
 		TemplateID:                 r.TemplateID,
+		ShortLinkID:                r.ShortLinkID,
 		PaymentURL:                 r.PaymentURL,
 		InstallmentIDs:             ids,
 		NotificationIdempotencyKey: r.NotificationIdempotencyKey,
@@ -219,12 +218,21 @@ func Create[Q postgres.Queryer](
 		)
 	}
 
+	if message.ShortLinkID.IsZero() {
+		return model.RepaymentReminder{}, cerr.InternalError(
+			fmt.Errorf("%s: short link id is required", op),
+		)
+	}
+
 	if len(message.InstallmentIDs) == 0 {
 		return model.RepaymentReminder{}, cerr.InternalError(
 			fmt.Errorf("%s: installment ids are required", op),
 		)
 	}
 
+	// ON CONFLICT DO NOTHING keeps the surrounding transaction usable when a
+	// concurrent worker already persisted the customer/day row. Empty RETURNING
+	// maps to ResourceNotFound which we translate to Conflict.
 	const query = `
 INSERT INTO repayment_reminders (
 	id,
@@ -234,13 +242,15 @@ INSERT INTO repayment_reminders (
 	reminder_type,
 	policy_version,
 	template_id,
+	short_link_id,
 	payment_url,
 	installment_ids,
 	notification_idempotency_key,
 	created_at
 ) VALUES (
-	$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+	$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
 )
+ON CONFLICT DO NOTHING
 RETURNING` + reminderColumns
 
 	row, err := postgres.QueryOne[reminderRow](
@@ -255,14 +265,14 @@ RETURNING` + reminderColumns
 		message.ReminderType,
 		message.PolicyVersion,
 		message.TemplateID,
+		message.ShortLinkID,
 		message.PaymentURL,
 		installmentUUIDs(message.InstallmentIDs),
 		message.NotificationIdempotencyKey,
 		message.CreatedAt.UTC(),
 	)
 	if err != nil {
-		if postgres.IsUniqueViolation(err, customerBusinessDateUniqueConstraint) ||
-			postgres.IsUniqueViolation(err, idempotencyKeyUniqueConstraint) {
+		if cerr.IsCode(err, cerr.CodeResourceNotFound) {
 			return model.RepaymentReminder{}, cerr.Conflict(
 				fmt.Errorf("%s: repayment reminder already exists", op),
 			)

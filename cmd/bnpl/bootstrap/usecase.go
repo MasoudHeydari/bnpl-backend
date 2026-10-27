@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"fmt"
+	"strings"
 
 	checkoutcatalog "github.com/parstis/bnpl-backend/pkg/core/policy/checkout/catalog"
 	initialcreditcatalog "github.com/parstis/bnpl-backend/pkg/core/policy/initialcreditlimit/catalog"
@@ -496,11 +497,16 @@ func (a *App) NewUseCases() (UseCases, error) {
 		repaymentBatchSize = 200
 	}
 
-	paymentURL := a.Config.Usecases.ShortLink.DisplayPaymentURL()
-	if paymentURL == "" {
-		// Keep construction valid when short-link display settings are unset;
-		// the reminder job should remain disabled until operators configure them.
-		paymentURL = "dpay.ir/pay"
+	publicHost := strings.TrimSpace(a.Config.Usecases.ShortLink.PublicHost)
+	if publicHost == "" {
+		publicHost = "dpay.ir"
+	}
+
+	repaymentDestination := strings.TrimSpace(a.Config.Usecases.ShortLink.RepaymentDestinationURL)
+	if repaymentDestination == "" {
+		// Keep construction valid when destination is unset; the reminder job
+		// should remain disabled until operators configure a real destination.
+		repaymentDestination = "https://app.example/repayments"
 	}
 
 	notificationTopic := a.Config.Infrastructure.Messaging.Kafka.Topics.NotificationSMSRequests
@@ -512,12 +518,15 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Pool,
 		a.Repos.Installment,
 		a.Repos.RepaymentReminder,
+		a.Repos.PaymentAttempt,
 		a.Repos.Outbox,
+		shortLinkUseCase,
 		a.Infrastructure.Clock,
 		a.Infrastructure.IdentifierGenerator,
 		a.Infrastructure.Metrics,
 		notificationTopic,
-		paymentURL,
+		publicHost,
+		repaymentDestination,
 		repaymentBatchSize,
 	)
 	if err != nil {

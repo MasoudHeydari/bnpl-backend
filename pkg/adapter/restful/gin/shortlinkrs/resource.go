@@ -2,6 +2,7 @@ package shortlinkrs
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -18,10 +19,19 @@ type RegisterOptions struct {
 	// Enabled controls whether public redirect routes are mounted.
 	Enabled bool
 
+	// PublicHost, when non-empty, scopes redirect routes to requests whose Host
+	// header matches (without port). This prevents `/:code` from colliding with
+	// `/api/v1`, `/swagger`, and `/health` on the API host when Envoy routes the
+	// shortener domain to the same Gin engine.
+	PublicHost string
+
 	// AliasCodes lists stable public path codes to register explicitly
-	// (for example "pay"). Empty means no alias routes are mounted; callers
-	// that need generated codes can still register a constrained path later.
+	// (for example "pay"). Empty means no dedicated alias routes are mounted.
 	AliasCodes []string
+
+	// DynamicCodes registers `GET /:code` for generated short-link codes.
+	// Prefer enabling this only with PublicHost set.
+	DynamicCodes bool
 }
 
 // Register attaches unauthenticated short-link redirect routes on the root
@@ -38,15 +48,42 @@ func Register(
 	}
 
 	rs := &resource{shortLink: shortLink}
+
+	var r gin.IRouter = router
+	if host := strings.TrimSpace(opts.PublicHost); host != "" {
+		r = router.Group("/", requireHost(host))
+	}
+
 	for _, code := range opts.AliasCodes {
 		if code == "" {
 			continue
 		}
 
 		pathCode := code
-		router.GET("/"+pathCode, func(c *gin.Context) {
+		r.GET("/"+pathCode, func(c *gin.Context) {
 			rs.redirect(c, pathCode)
 		})
+	}
+
+	if opts.DynamicCodes {
+		r.GET("/:code", ResolveHandler(shortLink))
+	}
+}
+
+func requireHost(expectedHost string) gin.HandlerFunc {
+	expected := strings.ToLower(strings.TrimSpace(expectedHost))
+	return func(c *gin.Context) {
+		host := strings.ToLower(c.Request.Host)
+		if i := strings.IndexByte(host, ':'); i >= 0 {
+			host = host[:i]
+		}
+
+		if host != expected {
+			c.AbortWithStatus(http.StatusNotFound)
+			return
+		}
+
+		c.Next()
 	}
 }
 

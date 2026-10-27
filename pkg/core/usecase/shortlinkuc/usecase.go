@@ -99,7 +99,41 @@ type CreateOutput struct {
 
 // Create stores a new short link with a cryptographically unpredictable code.
 func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput, error) {
-	const op = "shortlinkuc.UseCase.Create"
+	var created CreateOutput
+
+	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
+		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
+			out, createErr := uc.CreateOnTx(ctx, tx, input)
+			if createErr != nil {
+				return createErr
+			}
+
+			created = out
+			return nil
+		})
+	})
+	if err != nil {
+		return CreateOutput{}, err
+	}
+
+	uc.businessMetrics.ShortLinkCreated(ctx, "generated")
+
+	return created, nil
+}
+
+// CreateOnTx stores a new short link inside an existing transaction so callers
+// (for example repayment reminder dispatch) can compose Short Link, Reminder,
+// and Outbox writes atomically.
+func (uc *UseCase) CreateOnTx(
+	ctx context.Context,
+	tx repo.Tx,
+	input CreateInput,
+) (CreateOutput, error) {
+	const op = "shortlinkuc.UseCase.CreateOnTx"
+
+	if tx == nil {
+		return CreateOutput{}, fmt.Errorf("%s: tx is required", op)
+	}
 
 	destination := strings.TrimSpace(input.DestinationURL)
 	if err := uc.destinationPolicy.ValidateDestination(destination); err != nil {
@@ -113,55 +147,41 @@ func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput,
 		)
 	}
 
-	var created model.ShortLink
+	shortLinkQ := uc.shortLink.Tx(tx)
 
-	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
-		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
-			shortLinkQ := uc.shortLink.Tx(tx)
+	for attempt := 0; attempt < maxCodeCreateRetries; attempt++ {
+		code, genErr := generateCode(uc.codeLength)
+		if genErr != nil {
+			return CreateOutput{}, fmt.Errorf("%s: generate code: %w", op, genErr)
+		}
 
-			for attempt := 0; attempt < maxCodeCreateRetries; attempt++ {
-				code, genErr := generateCode(uc.codeLength)
-				if genErr != nil {
-					return fmt.Errorf("%s: generate code: %w", op, genErr)
-				}
+		id, idErr := parseShortLinkID(uc.idGenerator.Generate())
+		if idErr != nil {
+			return CreateOutput{}, fmt.Errorf("%s: parse short link id: %w", op, idErr)
+		}
 
-				id, idErr := parseShortLinkID(uc.idGenerator.Generate())
-				if idErr != nil {
-					return fmt.Errorf("%s: parse short link id: %w", op, idErr)
-				}
-
-				row, createErr := shortLinkQ.Create(
-					ctx,
-					id,
-					code,
-					destination,
-					input.ExpiresAt,
-					now,
-					now,
-				)
-				if createErr != nil {
-					if cerr.IsCode(createErr, cerr.CodeConflict) {
-						uc.businessMetrics.ShortLinkCodeCollision(ctx)
-						continue
-					}
-
-					return createErr
-				}
-
-				created = row
-				return nil
+		row, createErr := shortLinkQ.Create(
+			ctx,
+			id,
+			code,
+			destination,
+			input.ExpiresAt,
+			now,
+			now,
+		)
+		if createErr != nil {
+			if cerr.IsCode(createErr, cerr.CodeConflict) {
+				uc.businessMetrics.ShortLinkCodeCollision(ctx)
+				continue
 			}
 
-			return fmt.Errorf("%s: exhausted short link code retries", op)
-		})
-	})
-	if err != nil {
-		return CreateOutput{}, err
+			return CreateOutput{}, createErr
+		}
+
+		return CreateOutput{ShortLink: row}, nil
 	}
 
-	uc.businessMetrics.ShortLinkCreated(ctx, "generated")
-
-	return CreateOutput{ShortLink: created}, nil
+	return CreateOutput{}, fmt.Errorf("%s: exhausted short link code retries", op)
 }
 
 // EnsureAliasInput carries static alias upsert inputs.

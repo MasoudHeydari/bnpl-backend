@@ -21,8 +21,6 @@ const shortLinkColumns = `
 	updated_at
 `
 
-const shortLinksCodeUniqueConstraint = "short_links_code_unique"
-
 // GetByCode returns a short link by its public code.
 func GetByCode[Q postgres.Queryer](
 	ctx context.Context,
@@ -104,6 +102,9 @@ func Create[Q postgres.Queryer](
 		return model.ShortLink{}, cerr.InternalError(fmt.Errorf("%s: destination url is required", op))
 	}
 
+	// ON CONFLICT DO NOTHING keeps the surrounding transaction usable when a
+	// generated code collides. Empty RETURNING maps to ResourceNotFound which
+	// we translate to Conflict for callers that retry with a new code.
 	const query = `
 INSERT INTO short_links (
 	id,
@@ -116,6 +117,7 @@ INSERT INTO short_links (
 ) VALUES (
 	$1, $2, $3, $4, NULL, $5, $6
 )
+ON CONFLICT (code) DO NOTHING
 RETURNING` + shortLinkColumns
 
 	row, err := postgres.QueryOne[model.ShortLink](
@@ -131,7 +133,7 @@ RETURNING` + shortLinkColumns
 		updatedAt.UTC(),
 	)
 	if err != nil {
-		if postgres.IsUniqueViolation(err, shortLinksCodeUniqueConstraint) {
+		if cerr.IsCode(err, cerr.CodeResourceNotFound) {
 			return model.ShortLink{}, cerr.Conflict(
 				fmt.Errorf("%s: short link code already exists", op),
 			)

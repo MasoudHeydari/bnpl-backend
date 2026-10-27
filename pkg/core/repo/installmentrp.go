@@ -29,16 +29,25 @@ type InstallmentQueryer interface {
 		page pagination.KeysetRequest,
 	) ([]model.Installment, error)
 
-	// ListReminderCandidates returns unpaid active-contract installments whose
-	// due_at falls in [dueAtFrom, dueAtTo), ordered by customer_id, due_at, id.
+	// ListReminderCandidatePage returns all eligible reminder installments for
+	// the next customerLimit customers after afterCustomerID (exclusive keyset;
+	// a zero afterCustomerID starts from the beginning).
 	//
+	// Eligibility: unpaid statuses on active contracts with due_at in
+	// [dueAtFrom, dueAtTo). Customers who already have a repayment reminder for
+	// businessDate are excluded so repeated runs advance past processed days.
+	//
+	// Results never truncate mid-customer: every matching installment for each
+	// selected customer is returned, ordered by customer_id, due_at, id.
 	// Results are enriched with ExternalCustomerID and whether a non-terminal
 	// installment repayment / checkout-first payment attempt currently exists.
-	ListReminderCandidates(
+	ListReminderCandidatePage(
 		ctx context.Context,
 		dueAtFrom time.Time,
 		dueAtTo time.Time,
-		limit int,
+		businessDate time.Time,
+		afterCustomerID model.CustomerID,
+		customerLimit int,
 	) ([]ReminderCandidate, error)
 }
 

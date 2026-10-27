@@ -7,6 +7,7 @@ import (
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
+	"github.com/parstis/bnpl-backend/pkg/core/pagination"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
@@ -35,6 +36,12 @@ type CreatePaymentAttemptInput struct {
 	Channel model.PaymentChannel
 	// ProviderCode optionally selects the Financial Core checkout payment provider.
 	ProviderCode string
+
+	// SelectPriority, when true, ignores ContractID and InstallmentID and
+	// selects the current cross-contract priority installment after locking the
+	// customer profile inside the payment transaction. Used by the reminder
+	// repayment flow so selection and attempt creation share one lock scope.
+	SelectPriority bool
 }
 
 // CreatePaymentAttemptOutput reports installment repayment initiation results.
@@ -86,6 +93,26 @@ func (uc *UseCase) CreatePaymentAttempt(
 					}
 
 					customerID := profile.ID
+
+					if input.SelectPriority {
+						page := pagination.KeysetRequest{Limit: 200, Order: pagination.OrderAsc}
+						page.Normalize()
+
+						unpaid, unpaidErr := installmentQ.ListUnpaidByCustomerID(ctx, customerID, page)
+						if unpaidErr != nil {
+							return unpaidErr
+						}
+
+						selected := selectPriorityInstallment(unpaid, now)
+						if selected == nil || selected.ContractID == nil {
+							return cerr.ResourceNotFound(
+								fmt.Errorf("%s: no payable installment", op),
+							)
+						}
+
+						input.ContractID = *selected.ContractID
+						input.InstallmentID = selected.ID
+					}
 
 					existing, existingErr := paymentAttemptQ.GetByInstallmentIDAndIdempotencyKeyWithItems(
 						ctx,
@@ -317,12 +344,14 @@ func validateCreatePaymentAttemptInput(input CreatePaymentAttemptInput) error {
 		return contextIDRequiredError()
 	}
 
-	if input.ContractID.IsZero() {
-		return contractIDRequiredError()
-	}
+	if !input.SelectPriority {
+		if input.ContractID.IsZero() {
+			return contractIDRequiredError()
+		}
 
-	if input.InstallmentID.IsZero() {
-		return installmentIDRequiredError()
+		if input.InstallmentID.IsZero() {
+			return installmentIDRequiredError()
+		}
 	}
 
 	if input.ExternalCustomerID.IsZero() {

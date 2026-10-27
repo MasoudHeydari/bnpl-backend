@@ -30,6 +30,9 @@ type CreateRepaymentReminder struct {
 	// TemplateID is the Notification Service template identifier.
 	TemplateID string
 
+	// ShortLinkID references the unique Short Link created for this Reminder.
+	ShortLinkID model.ShortLinkID
+
 	// PaymentURL is the compact public short-link URL for the SMS body.
 	PaymentURL string
 
@@ -67,9 +70,12 @@ type RepaymentReminderTxQueryer interface {
 	// RepaymentReminderQueryer provides shared reminder query operations.
 	RepaymentReminderQueryer
 
-	// Create stores a reminder request. Unique (customer_id, business_date)
-	// violations must map to a conflict so callers can treat them as durable
-	// daily-limit hits.
+	// Create stores a reminder request.
+	//
+	// Unique (customer_id, business_date) collisions must be detected without
+	// aborting the surrounding PostgreSQL transaction (for example INSERT ...
+	// ON CONFLICT DO NOTHING RETURNING mapped to Conflict). Callers treat
+	// Conflict as a durable daily-limit hit and roll back the whole attempt.
 	Create(ctx context.Context, message CreateRepaymentReminder) (model.RepaymentReminder, error)
 
 	// LockByCustomerBusinessDate locks the reminder row for a customer/day when

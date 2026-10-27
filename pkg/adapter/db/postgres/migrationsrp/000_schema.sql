@@ -2431,7 +2431,11 @@ CREATE TABLE IF NOT EXISTS repayment_reminders (
 
     template_id text NOT NULL,
 
-    -- Compact public short-link URL for SMS display (scheme omitted, e.g. dpay.ir/pay).
+    -- Unique Short Link issued with this Reminder (one link per Reminder row).
+    short_link_id uuid NOT NULL
+        REFERENCES short_links (id),
+
+    -- Compact public short-link URL for SMS display (scheme omitted, e.g. dpay.ir/aB72xQ).
     payment_url text NOT NULL,
 
     installment_ids uuid[] NOT NULL,
@@ -2464,6 +2468,8 @@ COMMENT ON TABLE repayment_reminders IS
     'Durable customer-day repayment reminder requests; max one SMS request per customer per business day.';
 COMMENT ON COLUMN repayment_reminders.external_customer_id IS
     'Identity / Customer Reference id used by Notification Service to resolve the recipient phone.';
+COMMENT ON COLUMN repayment_reminders.short_link_id IS
+    'FK to the unique Short Link generated atomically with this Reminder and Outbox event.';
 COMMENT ON COLUMN repayment_reminders.notification_idempotency_key IS
     'Stable Notification Service idempotency key (typically repayment-reminder:<reminder-id>).';
 
@@ -2472,3 +2478,6 @@ CREATE INDEX IF NOT EXISTS repayment_reminders_business_date_idx
 
 CREATE INDEX IF NOT EXISTS repayment_reminders_external_customer_idx
     ON repayment_reminders (external_customer_id, business_date DESC);
+
+CREATE INDEX IF NOT EXISTS repayment_reminders_short_link_id_idx
+    ON repayment_reminders (short_link_id);

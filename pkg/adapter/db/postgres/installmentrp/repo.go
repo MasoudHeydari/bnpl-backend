@@ -62,13 +62,23 @@ func (q connQueryer) ListUnpaidByCustomerID(
 	return ListUnpaidByCustomerID(ctx, q.Conn, customerID, page)
 }
 
-func (q connQueryer) ListReminderCandidates(
+func (q connQueryer) ListReminderCandidatePage(
 	ctx context.Context,
 	dueAtFrom time.Time,
 	dueAtTo time.Time,
-	limit int,
+	businessDate time.Time,
+	afterCustomerID model.CustomerID,
+	customerLimit int,
 ) ([]repo.ReminderCandidate, error) {
-	return ListReminderCandidates(ctx, q.Conn, dueAtFrom, dueAtTo, limit)
+	return ListReminderCandidatePage(
+		ctx,
+		q.Conn,
+		dueAtFrom,
+		dueAtTo,
+		businessDate,
+		afterCustomerID,
+		customerLimit,
+	)
 }
 
 type txQueryer struct {
@@ -103,13 +113,23 @@ func (q txQueryer) ListUnpaidByCustomerID(
 	return ListUnpaidByCustomerID(ctx, q.Tx, customerID, page)
 }
 
-func (q txQueryer) ListReminderCandidates(
+func (q txQueryer) ListReminderCandidatePage(
 	ctx context.Context,
 	dueAtFrom time.Time,
 	dueAtTo time.Time,
-	limit int,
+	businessDate time.Time,
+	afterCustomerID model.CustomerID,
+	customerLimit int,
 ) ([]repo.ReminderCandidate, error) {
-	return ListReminderCandidates(ctx, q.Tx, dueAtFrom, dueAtTo, limit)
+	return ListReminderCandidatePage(
+		ctx,
+		q.Tx,
+		dueAtFrom,
+		dueAtTo,
+		businessDate,
+		afterCustomerID,
+		customerLimit,
+	)
 }
 
 func (q txQueryer) LockByID(

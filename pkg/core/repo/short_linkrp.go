@@ -27,7 +27,12 @@ type ShortLinkTxQueryer interface {
 	// ShortLinkQueryer provides shared short-link query operations.
 	ShortLinkQueryer
 
-	// Create stores a new short link. Callers must handle unique-code collisions.
+	// Create stores a new short link.
+	//
+	// Unique-code collisions must be detected without aborting the surrounding
+	// PostgreSQL transaction (for example INSERT ... ON CONFLICT DO NOTHING
+	// RETURNING mapped to Conflict when no row is returned). Callers may then
+	// safely retry with a new code in the same transaction.
 	Create(
 		ctx context.Context,
 		id model.ShortLinkID,

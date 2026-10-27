@@ -59,6 +59,14 @@ func (q connQueryer) ListFinalizedInstallmentPaymentsByCustomerID(
 	return ListFinalizedInstallmentPaymentsByCustomerID(ctx, q.Conn, customerID, page)
 }
 
+func (q connQueryer) ListInstallmentIDsWithNonTerminalAttempts(
+	ctx context.Context,
+	customerID model.CustomerID,
+	installmentIDs []model.InstallmentID,
+) ([]model.InstallmentID, error) {
+	return ListInstallmentIDsWithNonTerminalAttempts(ctx, q.Conn, customerID, installmentIDs)
+}
+
 type txQueryer struct {
 	*postgres.Tx
 }
@@ -86,6 +94,14 @@ func (q txQueryer) ListFinalizedInstallmentPaymentsByCustomerID(
 	page pagination.KeysetRequest,
 ) ([]model.PaymentAttempt, error) {
 	return ListFinalizedInstallmentPaymentsByCustomerID(ctx, q.Tx, customerID, page)
+}
+
+func (q txQueryer) ListInstallmentIDsWithNonTerminalAttempts(
+	ctx context.Context,
+	customerID model.CustomerID,
+	installmentIDs []model.InstallmentID,
+) ([]model.InstallmentID, error) {
+	return ListInstallmentIDsWithNonTerminalAttempts(ctx, q.Tx, customerID, installmentIDs)
 }
 
 func (q txQueryer) GetByIDWithItems(ctx context.Context, id model.PaymentAttemptID) (model.PaymentAttempt, error) {

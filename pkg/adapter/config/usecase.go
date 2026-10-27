@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	corephonenumber "github.com/parstis/bnpl-backend/pkg/core/canonicalizer/phonenumber"
@@ -98,30 +97,24 @@ type ShortLink struct {
 	// AllowedDestinationHosts is the HTTPS host allowlist for destinations.
 	AllowedDestinationHosts []string `yaml:"allowed_destination_hosts"`
 
-	// PublicHost is the host shown in SMS without scheme (for example dpay.ir).
+	// PublicHost is the shortener host used in SMS display URLs and for
+	// host-scoped redirect routing (for example dpay.ir).
 	PublicHost string `yaml:"public_host"`
 
-	// RepaymentAlias is the stable public path code for shared repayment links.
+	// RepaymentAlias is an optional stable public path code for a static alias
+	// short link. Reminder SMS messages do not use this alias; each Reminder
+	// gets a unique generated code instead.
 	RepaymentAlias string `yaml:"repayment_alias"`
 
-	// RepaymentDestinationURL is the HTTPS frontend repayment page destination.
+	// RepaymentDestinationURL is the HTTPS frontend repayment page destination
+	// used by Reminder short links (and optional static alias ensure-on-boot).
 	RepaymentDestinationURL string `yaml:"repayment_destination_url"`
-}
-
-// DisplayPaymentURL returns the compact SMS payment URL (host/alias, no scheme).
-func (s ShortLink) DisplayPaymentURL() string {
-	host := strings.TrimSpace(s.PublicHost)
-	alias := strings.TrimSpace(s.RepaymentAlias)
-	if host == "" || alias == "" {
-		return ""
-	}
-
-	return strings.TrimSuffix(host, "/") + "/" + strings.TrimPrefix(alias, "/")
 }
 
 // RepaymentReminder configures repayment reminder dispatch operational settings.
 type RepaymentReminder struct {
-	// BatchSize bounds candidate installments loaded per dispatch run.
+	// BatchSize bounds the number of distinct customers loaded per dispatch
+	// page. Each page returns every eligible installment for those customers.
 	BatchSize int `yaml:"batch_size"`
 }
 

@@ -34,6 +34,20 @@ type PaymentAttemptQueryer interface {
 		customerID model.CustomerID,
 		page pagination.KeysetRequest,
 	) ([]model.PaymentAttempt, error)
+
+	// ListInstallmentIDsWithNonTerminalAttempts returns the subset of
+	// installmentIDs owned by customerID that currently have a non-terminal
+	// payment attempt (created, submitted, or reconciliation_required) for
+	// checkout_first_installment or installment_repayment purposes.
+	//
+	// An empty installmentIDs input returns an empty result. Ownership is
+	// enforced by joining installments.customer_id so callers cannot observe
+	// another customer's pending state.
+	ListInstallmentIDsWithNonTerminalAttempts(
+		ctx context.Context,
+		customerID model.CustomerID,
+		installmentIDs []model.InstallmentID,
+	) ([]model.InstallmentID, error)
 }
 
 // PaymentAttemptConnQueryer exposes payment attempt operations on a connection.

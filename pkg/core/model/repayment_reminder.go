@@ -130,11 +130,17 @@ type RepaymentReminder struct {
 	// TemplateID is the Notification Service template identifier.
 	TemplateID string `db:"template_id" json:"template_id"`
 
+	// ShortLinkID references the unique Short Link created for this Reminder.
+	// The Shortener remains independent of BNPL entities; this FK owns the
+	// Reminder→ShortLink relationship used for SMS URL audit and analytics.
+	ShortLinkID ShortLinkID `db:"short_link_id" json:"short_link_id"`
+
 	// PaymentURL is the compact public short-link URL included in the SMS
-	// (scheme omitted for display, e.g. dpay.ir/pay).
+	// (scheme omitted for display, e.g. dpay.ir/aB72xQ).
 	PaymentURL string `db:"payment_url" json:"payment_url"`
 
 	// InstallmentIDs lists the installment(s) that justified the selected type.
+	// This is historical Reminder context and remains stable after payment.
 	InstallmentIDs []InstallmentID `db:"installment_ids" json:"installment_ids"`
 
 	// NotificationIdempotencyKey is the stable key for Notification Service

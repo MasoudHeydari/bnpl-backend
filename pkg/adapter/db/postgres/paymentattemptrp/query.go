@@ -203,6 +203,64 @@ ORDER BY pa.created_at DESC, pa.id DESC
 	return out, nil
 }
 
+type installmentIDRow struct {
+	InstallmentID model.InstallmentID `db:"installment_id"`
+}
+
+// ListInstallmentIDsWithNonTerminalAttempts returns installment IDs among the
+// given set that currently have a non-terminal payment attempt for the customer.
+func ListInstallmentIDsWithNonTerminalAttempts[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	customerID model.CustomerID,
+	installmentIDs []model.InstallmentID,
+) ([]model.InstallmentID, error) {
+	const op = "paymentattemptrp.ListInstallmentIDsWithNonTerminalAttempts"
+
+	if customerID.IsZero() {
+		return nil, cerr.InternalError(fmt.Errorf("%s: customer id is required", op))
+	}
+
+	if len(installmentIDs) == 0 {
+		return nil, nil
+	}
+
+	const query = `
+SELECT DISTINCT pa.installment_id
+FROM payment_attempts AS pa
+INNER JOIN installments AS i ON i.id = pa.installment_id
+WHERE i.customer_id = $1
+  AND pa.installment_id = ANY($2)
+  AND pa.state IN ($3, $4, $5)
+  AND pa.purpose IN ($6, $7)
+ORDER BY pa.installment_id ASC
+`
+
+	rows, err := postgres.QueryAll[installmentIDRow](
+		ctx,
+		q,
+		"list installment ids with non-terminal payment attempts",
+		query,
+		customerID,
+		installmentIDs,
+		model.CreatedPaymentAttemptState,
+		model.SubmittedPaymentAttemptState,
+		model.ReconciliationRequiredPaymentAttemptState,
+		model.CheckoutFirstInstallmentFinancialCorePaymentPurpose,
+		model.InstallmentRepaymentFinancialCorePaymentPurpose,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]model.InstallmentID, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, row.InstallmentID)
+	}
+
+	return out, nil
+}
+
 // GetByInstallmentIDAndIdempotencyKey returns a payment attempt by installment and key.
 func GetByInstallmentIDAndIdempotencyKey[Q postgres.Queryer](
 	ctx context.Context,

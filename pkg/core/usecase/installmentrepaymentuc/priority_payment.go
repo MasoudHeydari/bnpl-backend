@@ -8,8 +8,6 @@ import (
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
-	"github.com/parstis/bnpl-backend/pkg/core/pagination"
-	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
 // CreatePriorityPaymentAttemptInput starts repayment for the server-selected
@@ -46,9 +44,9 @@ type CreatePriorityPaymentAttemptOutput struct {
 	InstallmentID model.InstallmentID
 }
 
-// CreatePriorityPaymentAttempt selects the current priority installment and
-// reuses CreatePaymentAttempt so sequencing, FC authority, and idempotency stay
-// in one place.
+// CreatePriorityPaymentAttempt selects the current priority installment inside
+// the shared CreatePaymentAttempt transaction so selection and attempt creation
+// cannot race under concurrent reminder payment requests.
 func (uc *UseCase) CreatePriorityPaymentAttempt(
 	ctx context.Context,
 	input CreatePriorityPaymentAttemptInput,
@@ -67,48 +65,14 @@ func (uc *UseCase) CreatePriorityPaymentAttempt(
 		)
 	}
 
-	now := uc.clock.Now().UTC()
-
-	var selected *model.Installment
-
-	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
-		customerProfileQ := uc.customerProfile.Conn(conn)
-		profile, err := customerProfileQ.GetByExternalCustomerID(ctx, input.ExternalCustomerID)
-		if err != nil {
-			return err
-		}
-
-		installmentQ := uc.installment.Conn(conn)
-		page := pagination.KeysetRequest{Limit: 200, Order: pagination.OrderAsc}
-		page.Normalize()
-
-		rows, listErr := installmentQ.ListUnpaidByCustomerID(ctx, profile.ID, page)
-		if listErr != nil {
-			return listErr
-		}
-
-		selected = selectPriorityInstallment(rows, now)
-		return nil
-	})
-	if err != nil {
-		return CreatePriorityPaymentAttemptOutput{}, err
-	}
-
-	if selected == nil || selected.ContractID == nil {
-		return CreatePriorityPaymentAttemptOutput{}, cerr.ResourceNotFound(
-			fmt.Errorf("%s: no payable installment", op),
-		)
-	}
-
 	out, createErr := uc.CreatePaymentAttempt(ctx, CreatePaymentAttemptInput{
 		TenantID:           input.TenantID,
 		ContextID:          input.ContextID,
-		ContractID:         *selected.ContractID,
-		InstallmentID:      selected.ID,
 		ExternalCustomerID: input.ExternalCustomerID,
 		IdempotencyKey:     input.IdempotencyKey,
 		Channel:            input.Channel,
 		ProviderCode:       input.ProviderCode,
+		SelectPriority:     true,
 	})
 	if createErr != nil {
 		return CreatePriorityPaymentAttemptOutput{}, createErr
@@ -117,8 +81,8 @@ func (uc *UseCase) CreatePriorityPaymentAttempt(
 	return CreatePriorityPaymentAttemptOutput{
 		Result:         out.Result,
 		PaymentAttempt: out.PaymentAttempt,
-		ContractID:     *selected.ContractID,
-		InstallmentID:  selected.ID,
+		ContractID:     out.PaymentAttempt.ContractID,
+		InstallmentID:  out.PaymentAttempt.InstallmentID,
 	}, nil
 }
 

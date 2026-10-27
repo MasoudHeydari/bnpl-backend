@@ -861,49 +861,51 @@ func (_c *InstallmentTxQueryer_ListByDecisionID_Call) RunAndReturn(run func(ctx 
 	return _c
 }
 
-// ListReminderCandidates provides a mock function for the type InstallmentTxQueryer
-func (_mock *InstallmentTxQueryer) ListReminderCandidates(ctx context.Context, dueAtFrom time.Time, dueAtTo time.Time, limit int) ([]repo.ReminderCandidate, error) {
-	ret := _mock.Called(ctx, dueAtFrom, dueAtTo, limit)
+// ListReminderCandidatePage provides a mock function for the type InstallmentTxQueryer
+func (_mock *InstallmentTxQueryer) ListReminderCandidatePage(ctx context.Context, dueAtFrom time.Time, dueAtTo time.Time, businessDate time.Time, afterCustomerID model.CustomerID, customerLimit int) ([]repo.ReminderCandidate, error) {
+	ret := _mock.Called(ctx, dueAtFrom, dueAtTo, businessDate, afterCustomerID, customerLimit)
 
 	if len(ret) == 0 {
-		panic("no return value specified for ListReminderCandidates")
+		panic("no return value specified for ListReminderCandidatePage")
 	}
 
 	var r0 []repo.ReminderCandidate
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, time.Time, time.Time, int) ([]repo.ReminderCandidate, error)); ok {
-		return returnFunc(ctx, dueAtFrom, dueAtTo, limit)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, time.Time, time.Time, time.Time, model.CustomerID, int) ([]repo.ReminderCandidate, error)); ok {
+		return returnFunc(ctx, dueAtFrom, dueAtTo, businessDate, afterCustomerID, customerLimit)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, time.Time, time.Time, int) []repo.ReminderCandidate); ok {
-		r0 = returnFunc(ctx, dueAtFrom, dueAtTo, limit)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, time.Time, time.Time, time.Time, model.CustomerID, int) []repo.ReminderCandidate); ok {
+		r0 = returnFunc(ctx, dueAtFrom, dueAtTo, businessDate, afterCustomerID, customerLimit)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]repo.ReminderCandidate)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, time.Time, time.Time, int) error); ok {
-		r1 = returnFunc(ctx, dueAtFrom, dueAtTo, limit)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, time.Time, time.Time, time.Time, model.CustomerID, int) error); ok {
+		r1 = returnFunc(ctx, dueAtFrom, dueAtTo, businessDate, afterCustomerID, customerLimit)
 	} else {
 		r1 = ret.Error(1)
 	}
 	return r0, r1
 }
 
-// InstallmentTxQueryer_ListReminderCandidates_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListReminderCandidates'
-type InstallmentTxQueryer_ListReminderCandidates_Call struct {
+// InstallmentTxQueryer_ListReminderCandidatePage_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListReminderCandidatePage'
+type InstallmentTxQueryer_ListReminderCandidatePage_Call struct {
 	*mock.Call
 }
 
-// ListReminderCandidates is a helper method to define mock.On call
+// ListReminderCandidatePage is a helper method to define mock.On call
 //   - ctx context.Context
 //   - dueAtFrom time.Time
 //   - dueAtTo time.Time
-//   - limit int
-func (_e *InstallmentTxQueryer_Expecter) ListReminderCandidates(ctx any, dueAtFrom any, dueAtTo any, limit any) *InstallmentTxQueryer_ListReminderCandidates_Call {
-	return &InstallmentTxQueryer_ListReminderCandidates_Call{Call: _e.mock.On("ListReminderCandidates", ctx, dueAtFrom, dueAtTo, limit)}
+//   - businessDate time.Time
+//   - afterCustomerID model.CustomerID
+//   - customerLimit int
+func (_e *InstallmentTxQueryer_Expecter) ListReminderCandidatePage(ctx any, dueAtFrom any, dueAtTo any, businessDate any, afterCustomerID any, customerLimit any) *InstallmentTxQueryer_ListReminderCandidatePage_Call {
+	return &InstallmentTxQueryer_ListReminderCandidatePage_Call{Call: _e.mock.On("ListReminderCandidatePage", ctx, dueAtFrom, dueAtTo, businessDate, afterCustomerID, customerLimit)}
 }
 
-func (_c *InstallmentTxQueryer_ListReminderCandidates_Call) Run(run func(ctx context.Context, dueAtFrom time.Time, dueAtTo time.Time, limit int)) *InstallmentTxQueryer_ListReminderCandidates_Call {
+func (_c *InstallmentTxQueryer_ListReminderCandidatePage_Call) Run(run func(ctx context.Context, dueAtFrom time.Time, dueAtTo time.Time, businessDate time.Time, afterCustomerID model.CustomerID, customerLimit int)) *InstallmentTxQueryer_ListReminderCandidatePage_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -917,26 +919,36 @@ func (_c *InstallmentTxQueryer_ListReminderCandidates_Call) Run(run func(ctx con
 		if args[2] != nil {
 			arg2 = args[2].(time.Time)
 		}
-		var arg3 int
+		var arg3 time.Time
 		if args[3] != nil {
-			arg3 = args[3].(int)
+			arg3 = args[3].(time.Time)
+		}
+		var arg4 model.CustomerID
+		if args[4] != nil {
+			arg4 = args[4].(model.CustomerID)
+		}
+		var arg5 int
+		if args[5] != nil {
+			arg5 = args[5].(int)
 		}
 		run(
 			arg0,
 			arg1,
 			arg2,
 			arg3,
+			arg4,
+			arg5,
 		)
 	})
 	return _c
 }
 
-func (_c *InstallmentTxQueryer_ListReminderCandidates_Call) Return(reminderCandidates []repo.ReminderCandidate, err error) *InstallmentTxQueryer_ListReminderCandidates_Call {
+func (_c *InstallmentTxQueryer_ListReminderCandidatePage_Call) Return(reminderCandidates []repo.ReminderCandidate, err error) *InstallmentTxQueryer_ListReminderCandidatePage_Call {
 	_c.Call.Return(reminderCandidates, err)
 	return _c
 }
 
-func (_c *InstallmentTxQueryer_ListReminderCandidates_Call) RunAndReturn(run func(ctx context.Context, dueAtFrom time.Time, dueAtTo time.Time, limit int) ([]repo.ReminderCandidate, error)) *InstallmentTxQueryer_ListReminderCandidates_Call {
+func (_c *InstallmentTxQueryer_ListReminderCandidatePage_Call) RunAndReturn(run func(ctx context.Context, dueAtFrom time.Time, dueAtTo time.Time, businessDate time.Time, afterCustomerID model.CustomerID, customerLimit int) ([]repo.ReminderCandidate, error)) *InstallmentTxQueryer_ListReminderCandidatePage_Call {
 	_c.Call.Return(run)
 	return _c
 }
