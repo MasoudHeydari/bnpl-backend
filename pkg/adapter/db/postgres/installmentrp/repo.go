@@ -62,6 +62,15 @@ func (q connQueryer) ListUnpaidByCustomerID(
 	return ListUnpaidByCustomerID(ctx, q.Conn, customerID, page)
 }
 
+func (q connQueryer) ListReminderCandidates(
+	ctx context.Context,
+	dueAtFrom time.Time,
+	dueAtTo time.Time,
+	limit int,
+) ([]repo.ReminderCandidate, error) {
+	return ListReminderCandidates(ctx, q.Conn, dueAtFrom, dueAtTo, limit)
+}
+
 type txQueryer struct {
 	*postgres.Tx
 }
@@ -92,6 +101,15 @@ func (q txQueryer) ListUnpaidByCustomerID(
 	page pagination.KeysetRequest,
 ) ([]model.Installment, error) {
 	return ListUnpaidByCustomerID(ctx, q.Tx, customerID, page)
+}
+
+func (q txQueryer) ListReminderCandidates(
+	ctx context.Context,
+	dueAtFrom time.Time,
+	dueAtTo time.Time,
+	limit int,
+) ([]repo.ReminderCandidate, error) {
+	return ListReminderCandidates(ctx, q.Tx, dueAtFrom, dueAtTo, limit)
 }
 
 func (q txQueryer) LockByID(

@@ -34,6 +34,18 @@ type Metrics struct {
 	installmentStates map[installmentStateLabels]uint64
 	webhookDeliveries map[string]uint64
 
+	shortLinksCreated       map[string]uint64
+	shortLinksResolved      map[string]uint64
+	shortLinkCollisions     uint64
+	shortLinkResolveLatency durationSummary
+
+	repaymentReminderJobs              map[string]uint64
+	repaymentReminderJobDuration       durationSummary
+	repaymentReminderCandidates        uint64
+	repaymentReminderEligibleCustomers uint64
+	repaymentRemindersCreated          map[string]uint64
+	repaymentRemindersSkipped          map[string]uint64
+
 	outboundHTTPInFlight   int64
 	outboundHTTPQueueDepth int64
 	outboundHTTPQueueWait  durationSummary
@@ -72,13 +84,18 @@ type durationSummary struct {
 // http.Handler for Prometheus text exposition.
 func New() *Metrics {
 	return &Metrics{
-		checkoutDecisions:    make(map[string]uint64),
-		contracts:            make(map[string]uint64),
-		paymentAttempts:      make(map[paymentAttemptLabels]uint64),
-		installmentStates:    make(map[installmentStateLabels]uint64),
-		webhookDeliveries:    make(map[string]uint64),
-		outboundHTTPRequests: make(map[outboundHTTPLabels]uint64),
-		outboundHTTPDuration: make(map[outboundHTTPLabels]durationSummary),
+		checkoutDecisions:         make(map[string]uint64),
+		contracts:                 make(map[string]uint64),
+		paymentAttempts:           make(map[paymentAttemptLabels]uint64),
+		installmentStates:         make(map[installmentStateLabels]uint64),
+		webhookDeliveries:         make(map[string]uint64),
+		shortLinksCreated:         make(map[string]uint64),
+		shortLinksResolved:        make(map[string]uint64),
+		repaymentReminderJobs:     make(map[string]uint64),
+		repaymentRemindersCreated: make(map[string]uint64),
+		repaymentRemindersSkipped: make(map[string]uint64),
+		outboundHTTPRequests:      make(map[outboundHTTPLabels]uint64),
+		outboundHTTPDuration:      make(map[outboundHTTPLabels]durationSummary),
 	}
 }
 
@@ -144,6 +161,97 @@ func (m *Metrics) WebhookDeliveryCompleted(_ context.Context, outcome string) {
 	defer m.mu.Unlock()
 
 	m.webhookDeliveries[normalizeLabel(outcome)]++
+}
+
+// ShortLinkCreated increments bnpl_business_short_links_created_total.
+func (m *Metrics) ShortLinkCreated(_ context.Context, mode string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.shortLinksCreated[normalizeLabel(mode)]++
+}
+
+// ShortLinkResolved increments bnpl_business_short_links_resolved_total.
+func (m *Metrics) ShortLinkResolved(_ context.Context, outcome string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.shortLinksResolved[normalizeLabel(outcome)]++
+}
+
+// ShortLinkCodeCollision increments bnpl_business_short_link_code_collisions_total.
+func (m *Metrics) ShortLinkCodeCollision(_ context.Context) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.shortLinkCollisions++
+}
+
+// ShortLinkResolveLatency records bnpl_business_short_link_resolve_latency_seconds.
+func (m *Metrics) ShortLinkResolveLatency(_ context.Context, duration time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.shortLinkResolveLatency.count++
+	m.shortLinkResolveLatency.sum += duration.Seconds()
+}
+
+// RepaymentReminderJobCompleted increments bnpl_business_repayment_reminder_jobs_total.
+func (m *Metrics) RepaymentReminderJobCompleted(_ context.Context, outcome string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.repaymentReminderJobs[normalizeLabel(outcome)]++
+}
+
+// RepaymentReminderJobDuration records bnpl_business_repayment_reminder_job_duration_seconds.
+func (m *Metrics) RepaymentReminderJobDuration(_ context.Context, duration time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.repaymentReminderJobDuration.count++
+	m.repaymentReminderJobDuration.sum += duration.Seconds()
+}
+
+// RepaymentReminderCandidatesObserved adds to bnpl_business_repayment_reminder_candidates_total.
+func (m *Metrics) RepaymentReminderCandidatesObserved(_ context.Context, count int) {
+	if count <= 0 {
+		return
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.repaymentReminderCandidates += uint64(count)
+}
+
+// RepaymentReminderEligibleCustomersObserved adds to
+// bnpl_business_repayment_reminder_eligible_customers_total.
+func (m *Metrics) RepaymentReminderEligibleCustomersObserved(_ context.Context, count int) {
+	if count <= 0 {
+		return
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.repaymentReminderEligibleCustomers += uint64(count)
+}
+
+// RepaymentReminderCreated increments bnpl_business_repayment_reminders_created_total.
+func (m *Metrics) RepaymentReminderCreated(_ context.Context, reminderType string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.repaymentRemindersCreated[normalizeLabel(reminderType)]++
+}
+
+// RepaymentReminderSkipped increments bnpl_business_repayment_reminders_skipped_total.
+func (m *Metrics) RepaymentReminderSkipped(_ context.Context, reason string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.repaymentRemindersSkipped[normalizeLabel(reason)]++
 }
 
 // OutboundHTTPInFlightChanged updates the current in-flight outbound request gauge.
@@ -295,6 +403,86 @@ func (m *Metrics) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 			m.webhookDeliveries[outcome],
 		)
 	}
+
+	writeSingleLabelCounter(
+		w,
+		"bnpl_business_short_links_created_total",
+		"Total short links persisted by creation mode.",
+		"mode",
+		m.shortLinksCreated,
+	)
+	writeSingleLabelCounter(
+		w,
+		"bnpl_business_short_links_resolved_total",
+		"Total short-link resolutions by outcome.",
+		"outcome",
+		m.shortLinksResolved,
+	)
+
+	_, _ = io.WriteString(w, "# HELP bnpl_business_short_link_code_collisions_total Total short-link code collisions during creation.\n")
+	_, _ = io.WriteString(w, "# TYPE bnpl_business_short_link_code_collisions_total counter\n")
+	_, _ = fmt.Fprintf(w, "bnpl_business_short_link_code_collisions_total %d\n", m.shortLinkCollisions)
+
+	_, _ = io.WriteString(w, "# HELP bnpl_business_short_link_resolve_latency_seconds Short-link resolution latency.\n")
+	_, _ = io.WriteString(w, "# TYPE bnpl_business_short_link_resolve_latency_seconds summary\n")
+	_, _ = fmt.Fprintf(
+		w,
+		"bnpl_business_short_link_resolve_latency_seconds_sum %s\n",
+		strconv.FormatFloat(m.shortLinkResolveLatency.sum, 'g', -1, 64),
+	)
+	_, _ = fmt.Fprintf(
+		w,
+		"bnpl_business_short_link_resolve_latency_seconds_count %d\n",
+		m.shortLinkResolveLatency.count,
+	)
+
+	writeSingleLabelCounter(
+		w,
+		"bnpl_business_repayment_reminder_jobs_total",
+		"Total repayment reminder dispatch job executions by outcome.",
+		"outcome",
+		m.repaymentReminderJobs,
+	)
+
+	_, _ = io.WriteString(w, "# HELP bnpl_business_repayment_reminder_job_duration_seconds Repayment reminder dispatch job duration.\n")
+	_, _ = io.WriteString(w, "# TYPE bnpl_business_repayment_reminder_job_duration_seconds summary\n")
+	_, _ = fmt.Fprintf(
+		w,
+		"bnpl_business_repayment_reminder_job_duration_seconds_sum %s\n",
+		strconv.FormatFloat(m.repaymentReminderJobDuration.sum, 'g', -1, 64),
+	)
+	_, _ = fmt.Fprintf(
+		w,
+		"bnpl_business_repayment_reminder_job_duration_seconds_count %d\n",
+		m.repaymentReminderJobDuration.count,
+	)
+
+	_, _ = io.WriteString(w, "# HELP bnpl_business_repayment_reminder_candidates_total Total candidate installments observed by reminder dispatch.\n")
+	_, _ = io.WriteString(w, "# TYPE bnpl_business_repayment_reminder_candidates_total counter\n")
+	_, _ = fmt.Fprintf(w, "bnpl_business_repayment_reminder_candidates_total %d\n", m.repaymentReminderCandidates)
+
+	_, _ = io.WriteString(w, "# HELP bnpl_business_repayment_reminder_eligible_customers_total Total eligible customers observed by reminder dispatch.\n")
+	_, _ = io.WriteString(w, "# TYPE bnpl_business_repayment_reminder_eligible_customers_total counter\n")
+	_, _ = fmt.Fprintf(
+		w,
+		"bnpl_business_repayment_reminder_eligible_customers_total %d\n",
+		m.repaymentReminderEligibleCustomers,
+	)
+
+	writeSingleLabelCounter(
+		w,
+		"bnpl_business_repayment_reminders_created_total",
+		"Total durably persisted repayment reminder requests by type.",
+		"reminder_type",
+		m.repaymentRemindersCreated,
+	)
+	writeSingleLabelCounter(
+		w,
+		"bnpl_business_repayment_reminders_skipped_total",
+		"Total skipped repayment reminders by bounded reason.",
+		"reason",
+		m.repaymentRemindersSkipped,
+	)
 
 	_, _ = io.WriteString(w, "# HELP bnpl_infrastructure_outbound_http_in_flight Current outbound HTTP requests holding an execution slot.\n")
 	_, _ = io.WriteString(w, "# TYPE bnpl_infrastructure_outbound_http_in_flight gauge\n")

@@ -5,10 +5,11 @@ import (
 
 	checkoutcatalog "github.com/parstis/bnpl-backend/pkg/core/policy/checkout/catalog"
 	initialcreditcatalog "github.com/parstis/bnpl-backend/pkg/core/policy/initialcreditlimit/catalog"
-	"github.com/parstis/bnpl-backend/pkg/core/usecase/customeraccountuc"
-	"github.com/parstis/bnpl-backend/pkg/core/usecase/customercredituc"
+	"github.com/parstis/bnpl-backend/pkg/core/policy/shortlinkdestination"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/checkoutsessionuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/contractuc"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/customeraccountuc"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/customercredituc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/decisionuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/financialcorepaymentreconciliationuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/financialcorepaymentresultuc"
@@ -22,7 +23,9 @@ import (
 	otpusecase "github.com/parstis/bnpl-backend/pkg/core/usecase/otp"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/outboxpublisheruc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/paymentattemptreconciliationuc"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/repaymentreminderuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/sagaexecutoruc"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/shortlinkuc"
 )
 
 // UseCases holds the application use cases assembled for App.
@@ -85,6 +88,12 @@ type UseCases struct {
 
 	// CustomerCredit assigns and summarizes customer credit limits.
 	CustomerCredit *customercredituc.UseCase
+
+	// ShortLink creates and resolves modular opaque URL short links.
+	ShortLink *shortlinkuc.UseCase
+
+	// RepaymentReminder dispatches repayment reminder SMS requests via outbox.
+	RepaymentReminder *repaymentreminderuc.UseCase
 }
 
 // NewUseCases constructs the use cases required by App.
@@ -450,14 +459,70 @@ func (a *App) NewUseCases() (UseCases, error) {
 		return UseCases{}, fmt.Errorf("%s: initialize merchant terminal use case: %w", op, err)
 	}
 
-	customerAccountUseCase := customeraccountuc.New(
+	customerAccountUseCase, err := customeraccountuc.New(
 		a.Pool,
 		a.Repos.CustomerProfile,
 		a.Repos.Contract,
 		a.Repos.Installment,
 		a.Repos.InstallmentCharge,
 		a.Repos.PaymentAttempt,
+		a.Infrastructure.Clock,
 	)
+	if err != nil {
+		return UseCases{}, fmt.Errorf("%s: initialize customer account use case: %w", op, err)
+	}
+
+	destinationPolicy, err := shortlinkdestination.New(
+		a.Config.Usecases.ShortLink.AllowedDestinationHosts,
+	)
+	if err != nil {
+		return UseCases{}, fmt.Errorf("%s: initialize short link destination policy: %w", op, err)
+	}
+
+	shortLinkUseCase, err := shortlinkuc.New(
+		a.Pool,
+		a.Repos.ShortLink,
+		destinationPolicy,
+		a.Infrastructure.Clock,
+		a.Infrastructure.IdentifierGenerator,
+		a.Infrastructure.Metrics,
+	)
+	if err != nil {
+		return UseCases{}, fmt.Errorf("%s: initialize short link use case: %w", op, err)
+	}
+
+	repaymentBatchSize := a.Config.Usecases.RepaymentReminder.BatchSize
+	if repaymentBatchSize <= 0 {
+		repaymentBatchSize = 200
+	}
+
+	paymentURL := a.Config.Usecases.ShortLink.DisplayPaymentURL()
+	if paymentURL == "" {
+		// Keep construction valid when short-link display settings are unset;
+		// the reminder job should remain disabled until operators configure them.
+		paymentURL = "dpay.ir/pay"
+	}
+
+	notificationTopic := a.Config.Infrastructure.Messaging.Kafka.Topics.NotificationSMSRequests
+	if notificationTopic == "" {
+		notificationTopic = "notification.sms.requests"
+	}
+
+	repaymentReminderUseCase, err := repaymentreminderuc.New(
+		a.Pool,
+		a.Repos.Installment,
+		a.Repos.RepaymentReminder,
+		a.Repos.Outbox,
+		a.Infrastructure.Clock,
+		a.Infrastructure.IdentifierGenerator,
+		a.Infrastructure.Metrics,
+		notificationTopic,
+		paymentURL,
+		repaymentBatchSize,
+	)
+	if err != nil {
+		return UseCases{}, fmt.Errorf("%s: initialize repayment reminder use case: %w", op, err)
+	}
 
 	return UseCases{
 		Migrations:                         migrationsUseCase,
@@ -478,5 +543,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		MerchantTerminal:                   merchantTerminalUseCase,
 		CustomerAccount:                    customerAccountUseCase,
 		CustomerCredit:                     customerCreditUseCase,
+		ShortLink:                          shortLinkUseCase,
+		RepaymentReminder:                  repaymentReminderUseCase,
 	}, nil
 }

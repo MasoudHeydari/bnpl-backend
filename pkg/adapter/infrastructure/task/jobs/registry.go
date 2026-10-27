@@ -9,6 +9,7 @@ import (
 	merchantterminaljob "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task/jobs/merchantterminal"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task/jobs/outbox"
 	paymentattemptjob "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task/jobs/paymentattempt"
+	repaymentreminderjob "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task/jobs/repaymentreminder"
 	runtimejob "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task/jobs/runtime"
 	sagajob "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task/jobs/saga"
 	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
@@ -19,6 +20,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/merchantterminaluc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/outboxpublisheruc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/paymentattemptreconciliationuc"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/repaymentreminderuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/sagaexecutoruc"
 )
 
@@ -32,6 +34,7 @@ type Registry struct {
 	paymentattemptreconciliationuc *paymentattemptreconciliationuc.UseCase
 	sagaexecutoruc                 *sagaexecutoruc.UseCase
 	merchantterminaluc             *merchantterminaluc.UseCase
+	repaymentreminderuc            *repaymentreminderuc.UseCase
 }
 
 // NewRegistry creates a task job registry.
@@ -44,6 +47,7 @@ func NewRegistry(
 	paymentattemptreconciliationuc *paymentattemptreconciliationuc.UseCase,
 	sagaexecutoruc *sagaexecutoruc.UseCase,
 	merchantterminaluc *merchantterminaluc.UseCase,
+	repaymentreminderuc *repaymentreminderuc.UseCase,
 ) Registry {
 	return Registry{
 		logger:                         logger,
@@ -54,6 +58,7 @@ func NewRegistry(
 		paymentattemptreconciliationuc: paymentattemptreconciliationuc,
 		sagaexecutoruc:                 sagaexecutoruc,
 		merchantterminaluc:             merchantterminaluc,
+		repaymentreminderuc:            repaymentreminderuc,
 	}
 }
 
@@ -94,6 +99,13 @@ func (r Registry) Resolve(handler string) (coretask.Job, error) {
 
 	case "merchant_terminal_issuance_scrub":
 		return merchantterminaljob.IssuanceDeliveryCleanup(r.logger, r.merchantterminaluc), nil
+
+	case "repayment_reminder_dispatch":
+		if r.repaymentreminderuc == nil {
+			return nil, fmt.Errorf("%s: repayment reminder use case is not configured", op)
+		}
+
+		return repaymentreminderjob.Dispatch(r.logger, r.repaymentreminderuc), nil
 
 	default:
 		return nil, fmt.Errorf("%s: unknown task handler: %q", op, handler)

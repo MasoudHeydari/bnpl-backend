@@ -32,6 +32,36 @@ func (BusinessMetrics) InstallmentStateChanged(context.Context, string, string) 
 // WebhookDeliveryCompleted intentionally discards the observation.
 func (BusinessMetrics) WebhookDeliveryCompleted(context.Context, string) {}
 
+// ShortLinkCreated intentionally discards the observation.
+func (BusinessMetrics) ShortLinkCreated(context.Context, string) {}
+
+// ShortLinkResolved intentionally discards the observation.
+func (BusinessMetrics) ShortLinkResolved(context.Context, string) {}
+
+// ShortLinkCodeCollision intentionally discards the observation.
+func (BusinessMetrics) ShortLinkCodeCollision(context.Context) {}
+
+// ShortLinkResolveLatency intentionally discards the observation.
+func (BusinessMetrics) ShortLinkResolveLatency(context.Context, time.Duration) {}
+
+// RepaymentReminderJobCompleted intentionally discards the observation.
+func (BusinessMetrics) RepaymentReminderJobCompleted(context.Context, string) {}
+
+// RepaymentReminderJobDuration intentionally discards the observation.
+func (BusinessMetrics) RepaymentReminderJobDuration(context.Context, time.Duration) {}
+
+// RepaymentReminderCandidatesObserved intentionally discards the observation.
+func (BusinessMetrics) RepaymentReminderCandidatesObserved(context.Context, int) {}
+
+// RepaymentReminderEligibleCustomersObserved intentionally discards the observation.
+func (BusinessMetrics) RepaymentReminderEligibleCustomersObserved(context.Context, int) {}
+
+// RepaymentReminderCreated intentionally discards the observation.
+func (BusinessMetrics) RepaymentReminderCreated(context.Context, string) {}
+
+// RepaymentReminderSkipped intentionally discards the observation.
+func (BusinessMetrics) RepaymentReminderSkipped(context.Context, string) {}
+
 // OutboundHTTPInFlightChanged intentionally discards the gauge delta.
 func (BusinessMetrics) OutboundHTTPInFlightChanged(context.Context, int) {}
 

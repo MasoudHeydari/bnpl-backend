@@ -166,6 +166,7 @@ func (a *App) RegisterTasks() error {
 		a.UseCases.PaymentAttemptReconciliation,
 		a.UseCases.SagaExecutor,
 		a.UseCases.MerchantTerminal,
+		a.UseCases.RepaymentReminder,
 	)
 
 	for _, entry := range taskDefinitions {

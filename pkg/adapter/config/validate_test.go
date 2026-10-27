@@ -295,6 +295,7 @@ func TestConfig_Validate_ProductionRequiresIssuanceScrub(t *testing.T) {
 				InstallmentPaymentReconciliationRequests:         "installment.payment.reconciliation.requests",
 				InstallmentPaymentReconciliationResults:          "installment.payment.reconciliation.results",
 				InstallmentPaymentReconciliationAcknowledgements: "installment.payment.reconciliation.acknowledgements",
+				NotificationSMSRequests: "notification.sms.requests",
 			},
 		},
 	}
@@ -343,6 +344,7 @@ func TestConfig_Validate_ProductionNoopGuards(t *testing.T) {
 				InstallmentPaymentReconciliationRequests:         "installment.payment.reconciliation.requests",
 				InstallmentPaymentReconciliationResults:          "installment.payment.reconciliation.results",
 				InstallmentPaymentReconciliationAcknowledgements: "installment.payment.reconciliation.acknowledgements",
+				NotificationSMSRequests: "notification.sms.requests",
 			},
 		},
 	}
@@ -370,6 +372,7 @@ func TestConfig_Validate_ProductionNoopGuards(t *testing.T) {
 			InstallmentPaymentReconciliationRequests:         "installment.payment.reconciliation.requests",
 			InstallmentPaymentReconciliationResults:          "installment.payment.reconciliation.results",
 			InstallmentPaymentReconciliationAcknowledgements: "installment.payment.reconciliation.acknowledgements",
+				NotificationSMSRequests: "notification.sms.requests",
 		},
 	}
 	cfg.Infrastructure.Task.Provider = taskadapter.NoopProvider
@@ -418,6 +421,7 @@ func TestConfig_Validate_ProductionCircuitBreakerNoopForbidden(t *testing.T) {
 			InstallmentPaymentReconciliationRequests:         "installment.payment.reconciliation.requests",
 			InstallmentPaymentReconciliationResults:          "installment.payment.reconciliation.results",
 			InstallmentPaymentReconciliationAcknowledgements: "installment.payment.reconciliation.acknowledgements",
+				NotificationSMSRequests: "notification.sms.requests",
 		},
 	}
 	cfg.Infrastructure.Task = enabledSagaExecutorTask(taskadapter.InProcessProvider)
@@ -463,6 +467,7 @@ func TestConfig_Validate_ProductionWebhookDispatcherNoopForbidden(t *testing.T) 
 			InstallmentPaymentReconciliationRequests:         "installment.payment.reconciliation.requests",
 			InstallmentPaymentReconciliationResults:          "installment.payment.reconciliation.results",
 			InstallmentPaymentReconciliationAcknowledgements: "installment.payment.reconciliation.acknowledgements",
+				NotificationSMSRequests: "notification.sms.requests",
 		},
 	}
 	cfg.Infrastructure.Task = enabledSagaExecutorTask(taskadapter.InProcessProvider)
@@ -575,6 +580,7 @@ func TestConfig_Validate_ProductionFinancialCoreInsecureGRPCForbidden(t *testing
 				InstallmentPaymentReconciliationRequests:         "installment.payment.reconciliation.requests",
 				InstallmentPaymentReconciliationResults:          "installment.payment.reconciliation.results",
 				InstallmentPaymentReconciliationAcknowledgements: "installment.payment.reconciliation.acknowledgements",
+				NotificationSMSRequests: "notification.sms.requests",
 			},
 		},
 	}
@@ -642,6 +648,7 @@ func TestConfig_Validate_KafkaNewestInitialOffsetForbiddenInProduction(t *testin
 				InstallmentPaymentReconciliationRequests:         "installment.payment.reconciliation.requests",
 				InstallmentPaymentReconciliationResults:          "installment.payment.reconciliation.results",
 				InstallmentPaymentReconciliationAcknowledgements: "installment.payment.reconciliation.acknowledgements",
+				NotificationSMSRequests: "notification.sms.requests",
 			},
 			Consumer: Consumer{
 				InitialOffset:            "newest",
@@ -680,6 +687,7 @@ func TestConfig_Validate_KafkaNewestInitialOffsetRequiresExplicitAllow(t *testin
 				InstallmentPaymentReconciliationRequests:         "installment.payment.reconciliation.requests",
 				InstallmentPaymentReconciliationResults:          "installment.payment.reconciliation.results",
 				InstallmentPaymentReconciliationAcknowledgements: "installment.payment.reconciliation.acknowledgements",
+				NotificationSMSRequests: "notification.sms.requests",
 			},
 			Consumer: Consumer{InitialOffset: "newest"},
 		},

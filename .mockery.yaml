@@ -78,6 +78,14 @@ packages:
       PaymentAttemptConnQueryer:
       PaymentAttemptQueryer:
       PaymentAttemptTxQueryer:
+      ShortLink:
+      ShortLinkConnQueryer:
+      ShortLinkQueryer:
+      ShortLinkTxQueryer:
+      RepaymentReminder:
+      RepaymentReminderConnQueryer:
+      RepaymentReminderQueryer:
+      RepaymentReminderTxQueryer:
       PolicyAssignment:
       PolicyAssignmentConnQueryer:
       PolicyAssignmentQueryer:

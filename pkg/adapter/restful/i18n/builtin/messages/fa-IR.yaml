@@ -152,6 +152,7 @@ success.merchant_sales_listed: "فهرست فروش‌های پذیرنده در
 success.contract_already_exists: "قرارداد از قبل وجود دارد."
 success.contract_created: "قرارداد ایجاد شد."
 success.unpaid_installments_listed: "فهرست اقساط پرداخت‌نشده دریافت شد."
+success.repayment_overview_retrieved: "خلاصه بازپرداخت دریافت شد."
 validation.channel_invalid: "کانال پرداخت نامعتبر است."
 validation.contract_id_invalid: "شناسه قرارداد نامعتبر است."
 validation.currency_invalid: "واحد پول نامعتبر است."

@@ -2036,6 +2036,12 @@ definitions:
         format: uuid
         type: string
     type: object
+  serdser.SuccessResponse:
+    properties:
+      data: {}
+      meta:
+        $ref: '#/definitions/serdser.SuccessMeta'
+    type: object
 info:
   contact: {}
   description: |-
@@ -6233,6 +6239,306 @@ paths:
       summary: List installment payment history
       tags:
       - Installment Payments
+  /api/v1/repayment-overview:
+    get:
+      description: |-
+        Returns unpaid installments and the server-selected priority repayment target for the authenticated customer.
+        x-auth-subject-id is the Identity Service subject ID (customer_profiles.external_customer_id).
+        Empty unpaid list is 200 with data.installments=[].
+      parameters:
+      - description: Stable authenticated subject identifier issued by Identity Service
+          (customer_profiles.external_customer_id)
+        format: uuid
+        in: header
+        name: x-auth-subject-id
+        required: true
+        type: string
+      - description: Authenticated tenant UUID
+        format: uuid
+        in: header
+        name: x-auth-tenant-id
+        required: true
+        type: string
+      - description: Authenticated business-context UUID
+        format: uuid
+        in: header
+        name: x-auth-context-id
+        required: true
+        type: string
+      - description: Comma-separated gateway permissions
+        example: bnpl:installments:read:self
+        in: header
+        name: x-auth-permissions
+        required: true
+        type: string
+      - description: Optional; reused when present otherwise generated. Always returned.
+        in: header
+        name: X-Trace-Id
+        type: string
+      - description: Optional; reused when present otherwise generated. Always returned.
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Optional; reused when present otherwise generated. Always returned.
+        in: header
+        name: X-Correlation-Id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.SuccessResponse'
+        "401":
+          description: Unauthorized
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "403":
+          description: Forbidden
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+      security:
+      - PermissionAuth: []
+      summary: Get repayment overview
+      tags:
+      - Repayments
+  /api/v1/repayments/priority-pay:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Server-selects the earliest past-due next-payable installment across the customer's contracts and starts a single-installment repayment.
+        Does not accept installment_id from the client. Requires Idempotency-Key.
+        x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id).
+        Returns 202 when newly queued and 200 on idempotent replay.
+      parameters:
+      - description: Stable authenticated subject identifier issued by Identity Service
+          (customer_profiles.external_customer_id)
+        format: uuid
+        in: header
+        name: x-auth-subject-id
+        required: true
+        type: string
+      - description: Authenticated tenant UUID
+        format: uuid
+        in: header
+        name: x-auth-tenant-id
+        required: true
+        type: string
+      - description: Authenticated business-context UUID
+        format: uuid
+        in: header
+        name: x-auth-context-id
+        required: true
+        type: string
+      - description: Comma-separated gateway permissions
+        example: bnpl:payments:start:self
+        in: header
+        name: x-auth-permissions
+        required: true
+        type: string
+      - description: Client idempotency token (max 256 characters)
+        in: header
+        name: Idempotency-Key
+        required: true
+        type: string
+      - description: Optional; reused when present otherwise generated. Always returned.
+        in: header
+        name: X-Trace-Id
+        type: string
+      - description: Optional; reused when present otherwise generated. Always returned.
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Optional; reused when present otherwise generated. Always returned.
+        in: header
+        name: X-Correlation-Id
+        type: string
+      - description: Payment attempt request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/installmentpaymentrs.CreatePaymentAttemptRequestSchema'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Idempotent replay of an existing payment attempt
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/installmentpaymentrs.CreatePaymentAttemptSuccessSchema'
+        "202":
+          description: Payment attempt queued
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/installmentpaymentrs.CreatePaymentAttemptSuccessSchema'
+        "400":
+          description: Bad Request
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "401":
+          description: Unauthorized
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "403":
+          description: Forbidden
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "404":
+          description: Not Found
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "409":
+          description: Conflict
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+      security:
+      - PermissionAuth: []
+      summary: Pay the current priority installment
+      tags:
+      - Payments
   /healthz/live:
     get:
       description: Reports whether the process is alive. Does not check external dependencies.

@@ -2365,3 +2365,110 @@ COMMENT ON COLUMN merchant_terminal_permissions.created_at IS
 -- Auth lookup of all grants for one terminal.
 CREATE INDEX IF NOT EXISTS idx_merchant_terminal_permissions_terminal
     ON merchant_terminal_permissions (merchant_terminal_id);
+
+-- -----------------------------------------------------------------------------
+-- Short Links (modular URL shortener; no BNPL domain FKs)
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS short_links (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    -- Public opaque path segment (generated or configured static alias).
+    code text NOT NULL,
+
+    -- HTTPS destination browsers are redirected to.
+    destination_url text NOT NULL,
+
+    -- Optional absolute expiry instant. NULL means no expiry.
+    expires_at timestamptz NULL,
+
+    -- Set when the link is intentionally disabled.
+    revoked_at timestamptz NULL,
+
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT short_links_code_unique UNIQUE (code),
+
+    CONSTRAINT short_links_code_format
+        CHECK (code ~ '^[A-Za-z0-9_-]{1,64}$'),
+
+    CONSTRAINT short_links_destination_https
+        CHECK (destination_url ~ '^https://')
+);
+
+COMMENT ON TABLE short_links IS
+    'Modular opaque URL shortener mappings; independent of BNPL domain entities.';
+COMMENT ON COLUMN short_links.code IS
+    'Public path segment used by unauthenticated redirect handlers.';
+COMMENT ON COLUMN short_links.destination_url IS
+    'HTTPS destination returned as Location on successful resolve.';
+
+CREATE INDEX IF NOT EXISTS short_links_active_code_idx
+    ON short_links (code)
+    WHERE revoked_at IS NULL;
+
+-- -----------------------------------------------------------------------------
+-- Repayment Reminders (customer-day SMS request audit + daily dedupe)
+-- -----------------------------------------------------------------------------
+-- One row per (customer_id, business_date) enforces at most one reminder SMS
+-- request per customer per business day. Phone numbers are never stored here;
+-- Notification Service resolves recipients from external_customer_id.
+CREATE TABLE IF NOT EXISTS repayment_reminders (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    customer_id uuid NOT NULL
+        REFERENCES customer_profiles (id),
+
+    -- External Customer Reference / Identity identifier for Notification Service.
+    external_customer_id uuid NOT NULL,
+
+    -- Calendar date in the business timezone (date-only).
+    business_date date NOT NULL,
+
+    reminder_type text NOT NULL,
+
+    policy_version text NOT NULL,
+
+    template_id text NOT NULL,
+
+    -- Compact public short-link URL for SMS display (scheme omitted, e.g. dpay.ir/pay).
+    payment_url text NOT NULL,
+
+    installment_ids uuid[] NOT NULL,
+
+    notification_idempotency_key text NOT NULL,
+
+    created_at timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT repayment_reminders_customer_business_date_unique
+        UNIQUE (customer_id, business_date),
+
+    CONSTRAINT repayment_reminders_idempotency_key_unique
+        UNIQUE (notification_idempotency_key),
+
+    CONSTRAINT repayment_reminders_reminder_type_check
+        CHECK (
+            reminder_type IN (
+                'pre_due',
+                'due_today',
+                'grace_period',
+                'grace_final_day'
+            )
+        ),
+
+    CONSTRAINT repayment_reminders_installment_ids_nonempty
+        CHECK (cardinality(installment_ids) >= 1)
+);
+
+COMMENT ON TABLE repayment_reminders IS
+    'Durable customer-day repayment reminder requests; max one SMS request per customer per business day.';
+COMMENT ON COLUMN repayment_reminders.external_customer_id IS
+    'Identity / Customer Reference id used by Notification Service to resolve the recipient phone.';
+COMMENT ON COLUMN repayment_reminders.notification_idempotency_key IS
+    'Stable Notification Service idempotency key (typically repayment-reminder:<reminder-id>).';
+
+CREATE INDEX IF NOT EXISTS repayment_reminders_business_date_idx
+    ON repayment_reminders (business_date DESC);
+
+CREATE INDEX IF NOT EXISTS repayment_reminders_external_customer_idx
+    ON repayment_reminders (external_customer_id, business_date DESC);

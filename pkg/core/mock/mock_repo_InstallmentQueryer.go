@@ -6,9 +6,11 @@ package mock
 
 import (
 	"context"
+	"time"
 
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/pagination"
+	"github.com/parstis/bnpl-backend/pkg/core/repo"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -237,6 +239,86 @@ func (_c *InstallmentQueryer_ListByDecisionID_Call) Return(installments []model.
 }
 
 func (_c *InstallmentQueryer_ListByDecisionID_Call) RunAndReturn(run func(ctx context.Context, decisionID model.DecisionID) ([]model.Installment, error)) *InstallmentQueryer_ListByDecisionID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListReminderCandidates provides a mock function for the type InstallmentQueryer
+func (_mock *InstallmentQueryer) ListReminderCandidates(ctx context.Context, dueAtFrom time.Time, dueAtTo time.Time, limit int) ([]repo.ReminderCandidate, error) {
+	ret := _mock.Called(ctx, dueAtFrom, dueAtTo, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListReminderCandidates")
+	}
+
+	var r0 []repo.ReminderCandidate
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, time.Time, time.Time, int) ([]repo.ReminderCandidate, error)); ok {
+		return returnFunc(ctx, dueAtFrom, dueAtTo, limit)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, time.Time, time.Time, int) []repo.ReminderCandidate); ok {
+		r0 = returnFunc(ctx, dueAtFrom, dueAtTo, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]repo.ReminderCandidate)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, time.Time, time.Time, int) error); ok {
+		r1 = returnFunc(ctx, dueAtFrom, dueAtTo, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// InstallmentQueryer_ListReminderCandidates_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListReminderCandidates'
+type InstallmentQueryer_ListReminderCandidates_Call struct {
+	*mock.Call
+}
+
+// ListReminderCandidates is a helper method to define mock.On call
+//   - ctx context.Context
+//   - dueAtFrom time.Time
+//   - dueAtTo time.Time
+//   - limit int
+func (_e *InstallmentQueryer_Expecter) ListReminderCandidates(ctx any, dueAtFrom any, dueAtTo any, limit any) *InstallmentQueryer_ListReminderCandidates_Call {
+	return &InstallmentQueryer_ListReminderCandidates_Call{Call: _e.mock.On("ListReminderCandidates", ctx, dueAtFrom, dueAtTo, limit)}
+}
+
+func (_c *InstallmentQueryer_ListReminderCandidates_Call) Run(run func(ctx context.Context, dueAtFrom time.Time, dueAtTo time.Time, limit int)) *InstallmentQueryer_ListReminderCandidates_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 time.Time
+		if args[1] != nil {
+			arg1 = args[1].(time.Time)
+		}
+		var arg2 time.Time
+		if args[2] != nil {
+			arg2 = args[2].(time.Time)
+		}
+		var arg3 int
+		if args[3] != nil {
+			arg3 = args[3].(int)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *InstallmentQueryer_ListReminderCandidates_Call) Return(reminderCandidates []repo.ReminderCandidate, err error) *InstallmentQueryer_ListReminderCandidates_Call {
+	_c.Call.Return(reminderCandidates, err)
+	return _c
+}
+
+func (_c *InstallmentQueryer_ListReminderCandidates_Call) RunAndReturn(run func(ctx context.Context, dueAtFrom time.Time, dueAtTo time.Time, limit int) ([]repo.ReminderCandidate, error)) *InstallmentQueryer_ListReminderCandidates_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -1,6 +1,9 @@
 package metrics
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // BusinessMetrics records bounded, low-cardinality BNPL business outcomes.
 //
@@ -31,4 +34,37 @@ type BusinessMetrics interface {
 	// delivery attempt (for example delivered, retryable_failure,
 	// permanent_failure, destination_disabled).
 	WebhookDeliveryCompleted(ctx context.Context, outcome string)
+
+	// ShortLinkCreated records a persisted short link by creation mode
+	// (generated or alias).
+	ShortLinkCreated(ctx context.Context, mode string)
+
+	// ShortLinkResolved records a short-link resolution outcome
+	// (ok, unknown, expired, revoked, invalid, error).
+	ShortLinkResolved(ctx context.Context, outcome string)
+
+	// ShortLinkCodeCollision records a unique-code collision during creation.
+	ShortLinkCodeCollision(ctx context.Context)
+
+	// ShortLinkResolveLatency records short-link resolution latency.
+	ShortLinkResolveLatency(ctx context.Context, duration time.Duration)
+
+	// RepaymentReminderJobCompleted records one reminder dispatch job execution
+	// outcome (success or failure).
+	RepaymentReminderJobCompleted(ctx context.Context, outcome string)
+
+	// RepaymentReminderJobDuration records reminder dispatch job duration.
+	RepaymentReminderJobDuration(ctx context.Context, duration time.Duration)
+
+	// RepaymentReminderCandidatesObserved records candidate installment count.
+	RepaymentReminderCandidatesObserved(ctx context.Context, count int)
+
+	// RepaymentReminderEligibleCustomersObserved records eligible customer count.
+	RepaymentReminderEligibleCustomersObserved(ctx context.Context, count int)
+
+	// RepaymentReminderCreated records a durably persisted reminder request by type.
+	RepaymentReminderCreated(ctx context.Context, reminderType string)
+
+	// RepaymentReminderSkipped records a skipped reminder by bounded reason.
+	RepaymentReminderSkipped(ctx context.Context, reason string)
 }

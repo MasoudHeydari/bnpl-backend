@@ -6,6 +6,7 @@ package mock
 
 import (
 	"context"
+	"time"
 
 	mock "github.com/stretchr/testify/mock"
 )
@@ -229,6 +230,460 @@ func (_c *BusinessMetrics_PaymentAttemptCompleted_Call) Return() *BusinessMetric
 }
 
 func (_c *BusinessMetrics_PaymentAttemptCompleted_Call) RunAndReturn(run func(ctx context.Context, result string, channel string)) *BusinessMetrics_PaymentAttemptCompleted_Call {
+	_c.Run(run)
+	return _c
+}
+
+// RepaymentReminderCandidatesObserved provides a mock function for the type BusinessMetrics
+func (_mock *BusinessMetrics) RepaymentReminderCandidatesObserved(ctx context.Context, count int) {
+	_mock.Called(ctx, count)
+	return
+}
+
+// BusinessMetrics_RepaymentReminderCandidatesObserved_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RepaymentReminderCandidatesObserved'
+type BusinessMetrics_RepaymentReminderCandidatesObserved_Call struct {
+	*mock.Call
+}
+
+// RepaymentReminderCandidatesObserved is a helper method to define mock.On call
+//   - ctx context.Context
+//   - count int
+func (_e *BusinessMetrics_Expecter) RepaymentReminderCandidatesObserved(ctx any, count any) *BusinessMetrics_RepaymentReminderCandidatesObserved_Call {
+	return &BusinessMetrics_RepaymentReminderCandidatesObserved_Call{Call: _e.mock.On("RepaymentReminderCandidatesObserved", ctx, count)}
+}
+
+func (_c *BusinessMetrics_RepaymentReminderCandidatesObserved_Call) Run(run func(ctx context.Context, count int)) *BusinessMetrics_RepaymentReminderCandidatesObserved_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int
+		if args[1] != nil {
+			arg1 = args[1].(int)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *BusinessMetrics_RepaymentReminderCandidatesObserved_Call) Return() *BusinessMetrics_RepaymentReminderCandidatesObserved_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *BusinessMetrics_RepaymentReminderCandidatesObserved_Call) RunAndReturn(run func(ctx context.Context, count int)) *BusinessMetrics_RepaymentReminderCandidatesObserved_Call {
+	_c.Run(run)
+	return _c
+}
+
+// RepaymentReminderCreated provides a mock function for the type BusinessMetrics
+func (_mock *BusinessMetrics) RepaymentReminderCreated(ctx context.Context, reminderType string) {
+	_mock.Called(ctx, reminderType)
+	return
+}
+
+// BusinessMetrics_RepaymentReminderCreated_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RepaymentReminderCreated'
+type BusinessMetrics_RepaymentReminderCreated_Call struct {
+	*mock.Call
+}
+
+// RepaymentReminderCreated is a helper method to define mock.On call
+//   - ctx context.Context
+//   - reminderType string
+func (_e *BusinessMetrics_Expecter) RepaymentReminderCreated(ctx any, reminderType any) *BusinessMetrics_RepaymentReminderCreated_Call {
+	return &BusinessMetrics_RepaymentReminderCreated_Call{Call: _e.mock.On("RepaymentReminderCreated", ctx, reminderType)}
+}
+
+func (_c *BusinessMetrics_RepaymentReminderCreated_Call) Run(run func(ctx context.Context, reminderType string)) *BusinessMetrics_RepaymentReminderCreated_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *BusinessMetrics_RepaymentReminderCreated_Call) Return() *BusinessMetrics_RepaymentReminderCreated_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *BusinessMetrics_RepaymentReminderCreated_Call) RunAndReturn(run func(ctx context.Context, reminderType string)) *BusinessMetrics_RepaymentReminderCreated_Call {
+	_c.Run(run)
+	return _c
+}
+
+// RepaymentReminderEligibleCustomersObserved provides a mock function for the type BusinessMetrics
+func (_mock *BusinessMetrics) RepaymentReminderEligibleCustomersObserved(ctx context.Context, count int) {
+	_mock.Called(ctx, count)
+	return
+}
+
+// BusinessMetrics_RepaymentReminderEligibleCustomersObserved_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RepaymentReminderEligibleCustomersObserved'
+type BusinessMetrics_RepaymentReminderEligibleCustomersObserved_Call struct {
+	*mock.Call
+}
+
+// RepaymentReminderEligibleCustomersObserved is a helper method to define mock.On call
+//   - ctx context.Context
+//   - count int
+func (_e *BusinessMetrics_Expecter) RepaymentReminderEligibleCustomersObserved(ctx any, count any) *BusinessMetrics_RepaymentReminderEligibleCustomersObserved_Call {
+	return &BusinessMetrics_RepaymentReminderEligibleCustomersObserved_Call{Call: _e.mock.On("RepaymentReminderEligibleCustomersObserved", ctx, count)}
+}
+
+func (_c *BusinessMetrics_RepaymentReminderEligibleCustomersObserved_Call) Run(run func(ctx context.Context, count int)) *BusinessMetrics_RepaymentReminderEligibleCustomersObserved_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int
+		if args[1] != nil {
+			arg1 = args[1].(int)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *BusinessMetrics_RepaymentReminderEligibleCustomersObserved_Call) Return() *BusinessMetrics_RepaymentReminderEligibleCustomersObserved_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *BusinessMetrics_RepaymentReminderEligibleCustomersObserved_Call) RunAndReturn(run func(ctx context.Context, count int)) *BusinessMetrics_RepaymentReminderEligibleCustomersObserved_Call {
+	_c.Run(run)
+	return _c
+}
+
+// RepaymentReminderJobCompleted provides a mock function for the type BusinessMetrics
+func (_mock *BusinessMetrics) RepaymentReminderJobCompleted(ctx context.Context, outcome string) {
+	_mock.Called(ctx, outcome)
+	return
+}
+
+// BusinessMetrics_RepaymentReminderJobCompleted_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RepaymentReminderJobCompleted'
+type BusinessMetrics_RepaymentReminderJobCompleted_Call struct {
+	*mock.Call
+}
+
+// RepaymentReminderJobCompleted is a helper method to define mock.On call
+//   - ctx context.Context
+//   - outcome string
+func (_e *BusinessMetrics_Expecter) RepaymentReminderJobCompleted(ctx any, outcome any) *BusinessMetrics_RepaymentReminderJobCompleted_Call {
+	return &BusinessMetrics_RepaymentReminderJobCompleted_Call{Call: _e.mock.On("RepaymentReminderJobCompleted", ctx, outcome)}
+}
+
+func (_c *BusinessMetrics_RepaymentReminderJobCompleted_Call) Run(run func(ctx context.Context, outcome string)) *BusinessMetrics_RepaymentReminderJobCompleted_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *BusinessMetrics_RepaymentReminderJobCompleted_Call) Return() *BusinessMetrics_RepaymentReminderJobCompleted_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *BusinessMetrics_RepaymentReminderJobCompleted_Call) RunAndReturn(run func(ctx context.Context, outcome string)) *BusinessMetrics_RepaymentReminderJobCompleted_Call {
+	_c.Run(run)
+	return _c
+}
+
+// RepaymentReminderJobDuration provides a mock function for the type BusinessMetrics
+func (_mock *BusinessMetrics) RepaymentReminderJobDuration(ctx context.Context, duration time.Duration) {
+	_mock.Called(ctx, duration)
+	return
+}
+
+// BusinessMetrics_RepaymentReminderJobDuration_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RepaymentReminderJobDuration'
+type BusinessMetrics_RepaymentReminderJobDuration_Call struct {
+	*mock.Call
+}
+
+// RepaymentReminderJobDuration is a helper method to define mock.On call
+//   - ctx context.Context
+//   - duration time.Duration
+func (_e *BusinessMetrics_Expecter) RepaymentReminderJobDuration(ctx any, duration any) *BusinessMetrics_RepaymentReminderJobDuration_Call {
+	return &BusinessMetrics_RepaymentReminderJobDuration_Call{Call: _e.mock.On("RepaymentReminderJobDuration", ctx, duration)}
+}
+
+func (_c *BusinessMetrics_RepaymentReminderJobDuration_Call) Run(run func(ctx context.Context, duration time.Duration)) *BusinessMetrics_RepaymentReminderJobDuration_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 time.Duration
+		if args[1] != nil {
+			arg1 = args[1].(time.Duration)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *BusinessMetrics_RepaymentReminderJobDuration_Call) Return() *BusinessMetrics_RepaymentReminderJobDuration_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *BusinessMetrics_RepaymentReminderJobDuration_Call) RunAndReturn(run func(ctx context.Context, duration time.Duration)) *BusinessMetrics_RepaymentReminderJobDuration_Call {
+	_c.Run(run)
+	return _c
+}
+
+// RepaymentReminderSkipped provides a mock function for the type BusinessMetrics
+func (_mock *BusinessMetrics) RepaymentReminderSkipped(ctx context.Context, reason string) {
+	_mock.Called(ctx, reason)
+	return
+}
+
+// BusinessMetrics_RepaymentReminderSkipped_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RepaymentReminderSkipped'
+type BusinessMetrics_RepaymentReminderSkipped_Call struct {
+	*mock.Call
+}
+
+// RepaymentReminderSkipped is a helper method to define mock.On call
+//   - ctx context.Context
+//   - reason string
+func (_e *BusinessMetrics_Expecter) RepaymentReminderSkipped(ctx any, reason any) *BusinessMetrics_RepaymentReminderSkipped_Call {
+	return &BusinessMetrics_RepaymentReminderSkipped_Call{Call: _e.mock.On("RepaymentReminderSkipped", ctx, reason)}
+}
+
+func (_c *BusinessMetrics_RepaymentReminderSkipped_Call) Run(run func(ctx context.Context, reason string)) *BusinessMetrics_RepaymentReminderSkipped_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *BusinessMetrics_RepaymentReminderSkipped_Call) Return() *BusinessMetrics_RepaymentReminderSkipped_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *BusinessMetrics_RepaymentReminderSkipped_Call) RunAndReturn(run func(ctx context.Context, reason string)) *BusinessMetrics_RepaymentReminderSkipped_Call {
+	_c.Run(run)
+	return _c
+}
+
+// ShortLinkCodeCollision provides a mock function for the type BusinessMetrics
+func (_mock *BusinessMetrics) ShortLinkCodeCollision(ctx context.Context) {
+	_mock.Called(ctx)
+	return
+}
+
+// BusinessMetrics_ShortLinkCodeCollision_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ShortLinkCodeCollision'
+type BusinessMetrics_ShortLinkCodeCollision_Call struct {
+	*mock.Call
+}
+
+// ShortLinkCodeCollision is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *BusinessMetrics_Expecter) ShortLinkCodeCollision(ctx any) *BusinessMetrics_ShortLinkCodeCollision_Call {
+	return &BusinessMetrics_ShortLinkCodeCollision_Call{Call: _e.mock.On("ShortLinkCodeCollision", ctx)}
+}
+
+func (_c *BusinessMetrics_ShortLinkCodeCollision_Call) Run(run func(ctx context.Context)) *BusinessMetrics_ShortLinkCodeCollision_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *BusinessMetrics_ShortLinkCodeCollision_Call) Return() *BusinessMetrics_ShortLinkCodeCollision_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *BusinessMetrics_ShortLinkCodeCollision_Call) RunAndReturn(run func(ctx context.Context)) *BusinessMetrics_ShortLinkCodeCollision_Call {
+	_c.Run(run)
+	return _c
+}
+
+// ShortLinkCreated provides a mock function for the type BusinessMetrics
+func (_mock *BusinessMetrics) ShortLinkCreated(ctx context.Context, mode string) {
+	_mock.Called(ctx, mode)
+	return
+}
+
+// BusinessMetrics_ShortLinkCreated_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ShortLinkCreated'
+type BusinessMetrics_ShortLinkCreated_Call struct {
+	*mock.Call
+}
+
+// ShortLinkCreated is a helper method to define mock.On call
+//   - ctx context.Context
+//   - mode string
+func (_e *BusinessMetrics_Expecter) ShortLinkCreated(ctx any, mode any) *BusinessMetrics_ShortLinkCreated_Call {
+	return &BusinessMetrics_ShortLinkCreated_Call{Call: _e.mock.On("ShortLinkCreated", ctx, mode)}
+}
+
+func (_c *BusinessMetrics_ShortLinkCreated_Call) Run(run func(ctx context.Context, mode string)) *BusinessMetrics_ShortLinkCreated_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *BusinessMetrics_ShortLinkCreated_Call) Return() *BusinessMetrics_ShortLinkCreated_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *BusinessMetrics_ShortLinkCreated_Call) RunAndReturn(run func(ctx context.Context, mode string)) *BusinessMetrics_ShortLinkCreated_Call {
+	_c.Run(run)
+	return _c
+}
+
+// ShortLinkResolveLatency provides a mock function for the type BusinessMetrics
+func (_mock *BusinessMetrics) ShortLinkResolveLatency(ctx context.Context, duration time.Duration) {
+	_mock.Called(ctx, duration)
+	return
+}
+
+// BusinessMetrics_ShortLinkResolveLatency_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ShortLinkResolveLatency'
+type BusinessMetrics_ShortLinkResolveLatency_Call struct {
+	*mock.Call
+}
+
+// ShortLinkResolveLatency is a helper method to define mock.On call
+//   - ctx context.Context
+//   - duration time.Duration
+func (_e *BusinessMetrics_Expecter) ShortLinkResolveLatency(ctx any, duration any) *BusinessMetrics_ShortLinkResolveLatency_Call {
+	return &BusinessMetrics_ShortLinkResolveLatency_Call{Call: _e.mock.On("ShortLinkResolveLatency", ctx, duration)}
+}
+
+func (_c *BusinessMetrics_ShortLinkResolveLatency_Call) Run(run func(ctx context.Context, duration time.Duration)) *BusinessMetrics_ShortLinkResolveLatency_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 time.Duration
+		if args[1] != nil {
+			arg1 = args[1].(time.Duration)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *BusinessMetrics_ShortLinkResolveLatency_Call) Return() *BusinessMetrics_ShortLinkResolveLatency_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *BusinessMetrics_ShortLinkResolveLatency_Call) RunAndReturn(run func(ctx context.Context, duration time.Duration)) *BusinessMetrics_ShortLinkResolveLatency_Call {
+	_c.Run(run)
+	return _c
+}
+
+// ShortLinkResolved provides a mock function for the type BusinessMetrics
+func (_mock *BusinessMetrics) ShortLinkResolved(ctx context.Context, outcome string) {
+	_mock.Called(ctx, outcome)
+	return
+}
+
+// BusinessMetrics_ShortLinkResolved_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ShortLinkResolved'
+type BusinessMetrics_ShortLinkResolved_Call struct {
+	*mock.Call
+}
+
+// ShortLinkResolved is a helper method to define mock.On call
+//   - ctx context.Context
+//   - outcome string
+func (_e *BusinessMetrics_Expecter) ShortLinkResolved(ctx any, outcome any) *BusinessMetrics_ShortLinkResolved_Call {
+	return &BusinessMetrics_ShortLinkResolved_Call{Call: _e.mock.On("ShortLinkResolved", ctx, outcome)}
+}
+
+func (_c *BusinessMetrics_ShortLinkResolved_Call) Run(run func(ctx context.Context, outcome string)) *BusinessMetrics_ShortLinkResolved_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *BusinessMetrics_ShortLinkResolved_Call) Return() *BusinessMetrics_ShortLinkResolved_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *BusinessMetrics_ShortLinkResolved_Call) RunAndReturn(run func(ctx context.Context, outcome string)) *BusinessMetrics_ShortLinkResolved_Call {
 	_c.Run(run)
 	return _c
 }

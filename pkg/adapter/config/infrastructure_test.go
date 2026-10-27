@@ -363,7 +363,7 @@ func TestTask_getTaskDefinitions(t *testing.T) {
 
 	definitions, err := taskCfg.getTaskDefinitions()
 	require.NoError(t, err)
-	require.Len(t, definitions, 11)
+	require.Len(t, definitions, 12)
 	assert.Equal(t, "runtime_goroutine_metrics", definitions[0].Name)
 	assert.True(t, definitions[0].Enabled)
 	assert.Equal(t, "outbox_publisher", definitions[1].Name)
@@ -386,6 +386,8 @@ func TestTask_getTaskDefinitions(t *testing.T) {
 	assert.False(t, definitions[9].Enabled)
 	assert.Equal(t, "payment_attempt_reconciliation", definitions[10].Name)
 	assert.False(t, definitions[10].Enabled)
+	assert.Equal(t, "repayment_reminder_dispatch", definitions[11].Name)
+	assert.False(t, definitions[11].Enabled)
 }
 
 func TestTaskTrigger_ToCore_InvalidInterval(t *testing.T) {

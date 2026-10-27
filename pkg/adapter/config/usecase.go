@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	corephonenumber "github.com/parstis/bnpl-backend/pkg/core/canonicalizer/phonenumber"
@@ -81,6 +82,47 @@ type Usecases struct {
 
 	// Sagas centralizes durable Saga executor and domain-saga behavioral settings.
 	Sagas Sagas `yaml:"sagas"`
+
+	// ShortLink configures the modular URL shortener.
+	ShortLink ShortLink `yaml:"short_link"`
+
+	// RepaymentReminder configures repayment reminder dispatch.
+	RepaymentReminder RepaymentReminder `yaml:"repayment_reminder"`
+}
+
+// ShortLink configures the modular URL shortener use case and public redirects.
+type ShortLink struct {
+	// Enabled controls public redirect route mounting and alias ensure-on-boot.
+	Enabled bool `yaml:"enabled"`
+
+	// AllowedDestinationHosts is the HTTPS host allowlist for destinations.
+	AllowedDestinationHosts []string `yaml:"allowed_destination_hosts"`
+
+	// PublicHost is the host shown in SMS without scheme (for example dpay.ir).
+	PublicHost string `yaml:"public_host"`
+
+	// RepaymentAlias is the stable public path code for shared repayment links.
+	RepaymentAlias string `yaml:"repayment_alias"`
+
+	// RepaymentDestinationURL is the HTTPS frontend repayment page destination.
+	RepaymentDestinationURL string `yaml:"repayment_destination_url"`
+}
+
+// DisplayPaymentURL returns the compact SMS payment URL (host/alias, no scheme).
+func (s ShortLink) DisplayPaymentURL() string {
+	host := strings.TrimSpace(s.PublicHost)
+	alias := strings.TrimSpace(s.RepaymentAlias)
+	if host == "" || alias == "" {
+		return ""
+	}
+
+	return strings.TrimSuffix(host, "/") + "/" + strings.TrimPrefix(alias, "/")
+}
+
+// RepaymentReminder configures repayment reminder dispatch operational settings.
+type RepaymentReminder struct {
+	// BatchSize bounds candidate installments loaded per dispatch run.
+	BatchSize int `yaml:"batch_size"`
 }
 
 // Migrations contains filesystem-backed migration settings.

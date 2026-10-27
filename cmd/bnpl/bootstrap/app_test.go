@@ -36,7 +36,7 @@ func TestRegisterTasks_DisabledTasksRegisteredAsMetadata(t *testing.T) {
 	t.Parallel()
 
 	runtime := mock.NewRuntime(t)
-	expectDisabledTaskRegistrations(runtime, 11)
+	expectDisabledTaskRegistrations(runtime, 12)
 	app := testRegisterTasksApp(t, noopTestConfig(), runtime)
 
 	err := app.RegisterTasks()
@@ -57,7 +57,7 @@ func TestRegisterTasks_EnabledTaskRegisters(t *testing.T) {
 	}
 
 	runtime := mock.NewRuntime(t)
-	expectDisabledTaskRegistrations(runtime, 10)
+	expectDisabledTaskRegistrations(runtime, 11)
 	runtime.EXPECT().Register(testifymock.MatchedBy(func(registered task.Task) bool {
 		return registered.Name == "outbox_publisher" &&
 			registered.Handler == "outbox_publisher" &&

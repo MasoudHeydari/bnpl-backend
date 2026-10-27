@@ -21,6 +21,7 @@ func TestRegistry_Resolve_KnownHandlers(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 
 	handlers := []string{
@@ -49,6 +50,7 @@ func TestRegistry_Resolve_UnknownHandler(t *testing.T) {
 
 	registry := NewRegistry(
 		mock.NewLogger(t),
+		nil,
 		nil,
 		nil,
 		nil,

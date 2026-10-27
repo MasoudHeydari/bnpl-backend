@@ -28,6 +28,32 @@ type InstallmentQueryer interface {
 		customerID model.CustomerID,
 		page pagination.KeysetRequest,
 	) ([]model.Installment, error)
+
+	// ListReminderCandidates returns unpaid active-contract installments whose
+	// due_at falls in [dueAtFrom, dueAtTo), ordered by customer_id, due_at, id.
+	//
+	// Results are enriched with ExternalCustomerID and whether a non-terminal
+	// installment repayment / checkout-first payment attempt currently exists.
+	ListReminderCandidates(
+		ctx context.Context,
+		dueAtFrom time.Time,
+		dueAtTo time.Time,
+		limit int,
+	) ([]ReminderCandidate, error)
+}
+
+// ReminderCandidate is an unpaid installment considered for repayment reminder
+// evaluation, enriched with recipient and payment-in-flight facts.
+type ReminderCandidate struct {
+	// Installment is the unpaid schedule installment.
+	Installment model.Installment
+
+	// ExternalCustomerID is the Identity / Customer Reference identifier for SMS.
+	ExternalCustomerID model.ExternalCustomerID
+
+	// HasUnresolvedPayment is true when a non-terminal payment attempt exists
+	// for the installment.
+	HasUnresolvedPayment bool
 }
 
 // InstallmentConnQueryer exposes installment operations on a connection.

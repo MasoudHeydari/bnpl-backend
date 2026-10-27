@@ -46,6 +46,9 @@ const (
 	// SuccessCodeUnpaidInstallmentsListed indicates that unpaid installments were listed.
 	SuccessCodeUnpaidInstallmentsListed SuccessCode = "UNPAID_INSTALLMENTS_LISTED"
 
+	// SuccessCodeRepaymentOverviewRetrieved indicates that the repayment overview was returned.
+	SuccessCodeRepaymentOverviewRetrieved SuccessCode = "REPAYMENT_OVERVIEW_RETRIEVED"
+
 	// SuccessCodeActiveContractsListed indicates that active contracts were listed.
 	SuccessCodeActiveContractsListed SuccessCode = "ACTIVE_CONTRACTS_LISTED"
 
@@ -222,6 +225,8 @@ var (
 	SuccessMessageContractCancellationAlreadyExists = SuccessMessageKey{value: "success.contract_cancellation_already_exists"}
 	// SuccessMessageUnpaidInstallmentsListed reports a successful unpaid-installment listing.
 	SuccessMessageUnpaidInstallmentsListed = SuccessMessageKey{value: "success.unpaid_installments_listed"}
+	// SuccessMessageRepaymentOverviewRetrieved reports a successful repayment overview read.
+	SuccessMessageRepaymentOverviewRetrieved = SuccessMessageKey{value: "success.repayment_overview_retrieved"}
 )
 
 // SuccessResponse is the platform-wide successful response envelope.

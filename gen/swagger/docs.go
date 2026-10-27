@@ -5798,6 +5798,427 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/repayment-overview": {
+            "get": {
+                "security": [
+                    {
+                        "PermissionAuth": []
+                    }
+                ],
+                "description": "Returns unpaid installments and the server-selected priority repayment target for the authenticated customer.\nx-auth-subject-id is the Identity Service subject ID (customer_profiles.external_customer_id).\nEmpty unpaid list is 200 with data.installments=[].",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Repayments"
+                ],
+                "summary": "Get repayment overview",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)",
+                        "name": "x-auth-subject-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated tenant UUID",
+                        "name": "x-auth-tenant-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated business-context UUID",
+                        "name": "x-auth-context-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "bnpl:installments:read:self",
+                        "description": "Comma-separated gateway permissions",
+                        "name": "x-auth-permissions",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Trace-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Correlation-Id",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.SuccessResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/repayments/priority-pay": {
+            "post": {
+                "security": [
+                    {
+                        "PermissionAuth": []
+                    }
+                ],
+                "description": "Server-selects the earliest past-due next-payable installment across the customer's contracts and starts a single-installment repayment.\nDoes not accept installment_id from the client. Requires Idempotency-Key.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id).\nReturns 202 when newly queued and 200 on idempotent replay.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Payments"
+                ],
+                "summary": "Pay the current priority installment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)",
+                        "name": "x-auth-subject-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated tenant UUID",
+                        "name": "x-auth-tenant-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated business-context UUID",
+                        "name": "x-auth-context-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "bnpl:payments:start:self",
+                        "description": "Comma-separated gateway permissions",
+                        "name": "x-auth-permissions",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Client idempotency token (max 256 characters)",
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Trace-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Correlation-Id",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Payment attempt request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/installmentpaymentrs.CreatePaymentAttemptRequestSchema"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Idempotent replay of an existing payment attempt",
+                        "schema": {
+                            "$ref": "#/definitions/installmentpaymentrs.CreatePaymentAttemptSuccessSchema"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "Payment attempt queued",
+                        "schema": {
+                            "$ref": "#/definitions/installmentpaymentrs.CreatePaymentAttemptSuccessSchema"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/healthz/live": {
             "get": {
                 "description": "Reports whether the process is alive. Does not check external dependencies. Public endpoint outside /api/v1.",
@@ -8890,6 +9311,15 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid",
                     "example": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                }
+            }
+        },
+        "serdser.SuccessResponse": {
+            "type": "object",
+            "properties": {
+                "data": {},
+                "meta": {
+                    "$ref": "#/definitions/serdser.SuccessMeta"
                 }
             }
         }

@@ -10,6 +10,7 @@ import (
 	testifymock "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	adapterclock "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/clock"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/mock"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
@@ -38,14 +39,16 @@ func TestListUnpaidInstallments_EmptyWhenCustomerProfileMissing(t *testing.T) {
 		GetByExternalCustomerID(testifymock.Anything, externalCustomerID).
 		Return(model.CustomerProfile{}, cerr.ResourceNotFound(errors.New("missing")))
 
-	uc := customeraccountuc.New(
+	uc, err := customeraccountuc.New(
 		pool,
 		customerProfile,
-		nil,
+		mock.NewContract(t),
 		installment,
-		nil,
-		nil,
+		mock.NewInstallmentCharge(t),
+		mock.NewPaymentAttempt(t),
+		adapterclock.NewFixed(time.Now().UTC(), time.UTC),
 	)
+	require.NoError(t, err)
 
 	out, err := uc.ListUnpaidInstallments(context.Background(), customeraccountuc.ListUnpaidInstallmentsInput{
 		ExternalCustomerID: externalCustomerID,
@@ -129,14 +132,16 @@ func TestListUnpaidInstallments_OrdersByDueAtAndBuildsDueAtCursor(t *testing.T) 
 			},
 		}, nil)
 
-	uc := customeraccountuc.New(
+	uc, err := customeraccountuc.New(
 		pool,
 		customerProfile,
-		nil,
+		mock.NewContract(t),
 		installment,
-		nil,
-		nil,
+		mock.NewInstallmentCharge(t),
+		mock.NewPaymentAttempt(t),
+		adapterclock.NewFixed(time.Now().UTC(), time.UTC),
 	)
+	require.NoError(t, err)
 
 	out, err := uc.ListUnpaidInstallments(context.Background(), customeraccountuc.ListUnpaidInstallmentsInput{
 		ExternalCustomerID: externalCustomerID,

@@ -807,6 +807,10 @@ type Topics struct {
 	// InstallmentPaymentReconciliationAcknowledgements is the Kafka destination for BNPL
 	// installment payment reconciliation acknowledgement outbox messages.
 	InstallmentPaymentReconciliationAcknowledgements string `yaml:"installment_payment_reconciliation_acknowledgements"`
+
+	// NotificationSMSRequests is the Kafka destination for BNPL repayment-reminder
+	// (and other non-OTP) SMS notification request outbox messages.
+	NotificationSMSRequests string `yaml:"notification_sms_requests"`
 }
 
 // Producer contains Kafka producer settings.
@@ -916,6 +920,10 @@ func (m Messaging) validateKafkaTopics() error {
 
 	if strings.TrimSpace(m.Kafka.Topics.InstallmentPaymentReconciliationResults) == "" {
 		return fmt.Errorf("%s: kafka topics installment_payment_reconciliation_results is required when messaging provider is kafka", op)
+	}
+
+	if strings.TrimSpace(m.Kafka.Topics.NotificationSMSRequests) == "" {
+		return fmt.Errorf("%s: kafka topics notification_sms_requests is required when messaging provider is kafka", op)
 	}
 
 	if strings.TrimSpace(m.Kafka.Topics.InstallmentPaymentReconciliationAcknowledgements) == "" {
@@ -1098,6 +1106,9 @@ type ScheduledTasks struct {
 
 	// PaymentAttemptReconciliation schedules payment attempt reconciliation work.
 	PaymentAttemptReconciliation TaskDefinition `yaml:"payment_attempt_reconciliation"`
+
+	// RepaymentReminderDispatch evaluates due schedules and publishes reminder SMS requests.
+	RepaymentReminderDispatch TaskDefinition `yaml:"repayment_reminder_dispatch"`
 }
 
 // TaskDefinitionEntry associates a configured task definition with its
@@ -1315,6 +1326,10 @@ func (t Task) getTaskDefinitions() ([]TaskDefinitionEntry, error) {
 		{
 			TaskDefinition: t.Scheduled.PaymentAttemptReconciliation,
 			Name:           "payment_attempt_reconciliation",
+		},
+		{
+			TaskDefinition: t.Scheduled.RepaymentReminderDispatch,
+			Name:           "repayment_reminder_dispatch",
 		},
 	}, nil
 }

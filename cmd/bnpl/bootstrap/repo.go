@@ -1,11 +1,11 @@
 package bootstrap
 
 import (
-	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/customerprofilerp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/checkoutdecisionallocationrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/checkoutsessionrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/contractrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/creditaccountrp"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/customerprofilerp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/decisionrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/healthrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/inboxrp"
@@ -20,7 +20,9 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/paymentattemptrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/policyassignmentimportrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/policyassignmentrp"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/repaymentreminderrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/sagarp"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/shortlinkrp"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
@@ -89,6 +91,12 @@ type Repos struct {
 
 	// Inbox stores inbound Financial Core message deduplication state.
 	Inbox repo.Inbox
+
+	// ShortLink stores modular opaque URL short links.
+	ShortLink repo.ShortLink
+
+	// RepaymentReminder stores customer-day repayment reminder requests.
+	RepaymentReminder repo.RepaymentReminder
 }
 
 // NewRepos constructs the Postgres repository adapter set used by App.
@@ -114,5 +122,7 @@ func NewRepos() Repos {
 		PolicyAssignmentImport:     policyassignmentimportrp.New(),
 		Saga:                       sagarp.New(),
 		Inbox:                      inboxrp.New(),
+		ShortLink:                  shortlinkrp.New(),
+		RepaymentReminder:          repaymentreminderrp.New(),
 	}
 }

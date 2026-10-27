@@ -570,6 +570,7 @@ func (t Topics) validate() error {
 		"infrastructure.messaging.kafka.topics.installment_payment_reconciliation_requests":         t.InstallmentPaymentReconciliationRequests,
 		"infrastructure.messaging.kafka.topics.installment_payment_reconciliation_results":          t.InstallmentPaymentReconciliationResults,
 		"infrastructure.messaging.kafka.topics.installment_payment_reconciliation_acknowledgements": t.InstallmentPaymentReconciliationAcknowledgements,
+		"infrastructure.messaging.kafka.topics.notification_sms_requests":                           t.NotificationSMSRequests,
 	}
 
 	for field, value := range required {

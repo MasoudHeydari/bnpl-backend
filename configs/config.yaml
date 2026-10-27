@@ -124,6 +124,17 @@ usecases:
     retry_base_delay: ${FINANCIAL_CORE_PAYMENT_RECONCILIATION_RETRY_BASE_DELAY}
     retry_max_delay: ${FINANCIAL_CORE_PAYMENT_RECONCILIATION_RETRY_MAX_DELAY}
 
+  short_link:
+    enabled: ${SHORT_LINK_ENABLED}
+    allowed_destination_hosts:
+      - ${SHORT_LINK_ALLOWED_DESTINATION_HOST}
+    public_host: ${SHORT_LINK_PUBLIC_HOST}
+    repayment_alias: ${SHORT_LINK_REPAYMENT_ALIAS}
+    repayment_destination_url: ${SHORT_LINK_REPAYMENT_DESTINATION_URL}
+
+  repayment_reminder:
+    batch_size: ${REPAYMENT_REMINDER_BATCH_SIZE}
+
   merchant_terminal:
     # Versioned pepper key ring for partner API key HMAC verifiers. New keys are
     # hashed with the active id; verification uses the id embedded in each
@@ -254,6 +265,7 @@ infrastructure:
         installment_payment_reconciliation_requests: ${KAFKA_TOPIC_INSTALLMENT_PAYMENT_RECONCILIATION_REQUESTS}
         installment_payment_reconciliation_results: ${KAFKA_TOPIC_INSTALLMENT_PAYMENT_RECONCILIATION_RESULTS}
         installment_payment_reconciliation_acknowledgements: ${KAFKA_TOPIC_INSTALLMENT_PAYMENT_RECONCILIATION_ACKNOWLEDGEMENTS}
+        notification_sms_requests: ${KAFKA_TOPIC_NOTIFICATION_SMS_REQUESTS}
 
       producer:
         required_acks: ${KAFKA_PRODUCER_REQUIRED_ACKS}
@@ -428,6 +440,17 @@ infrastructure:
           timezone: ${TASK_PAYMENT_ATTEMPT_RECONCILIATION_TIMEZONE}
           interval: ${TASK_PAYMENT_ATTEMPT_RECONCILIATION_INTERVAL}
           run_on_start: ${TASK_PAYMENT_ATTEMPT_RECONCILIATION_RUN_ON_START}
+
+      repayment_reminder_dispatch:
+        enabled: ${TASK_REPAYMENT_REMINDER_DISPATCH_ENABLED}
+        execution: ${TASK_REPAYMENT_REMINDER_DISPATCH_EXECUTION}
+        handler: repayment_reminder_dispatch
+        trigger:
+          type: ${TASK_REPAYMENT_REMINDER_DISPATCH_TRIGGER_TYPE}
+          cron: ${TASK_REPAYMENT_REMINDER_DISPATCH_CRON}
+          timezone: ${TASK_REPAYMENT_REMINDER_DISPATCH_TIMEZONE}
+          interval: ${TASK_REPAYMENT_REMINDER_DISPATCH_INTERVAL}
+          run_on_start: ${TASK_REPAYMENT_REMINDER_DISPATCH_RUN_ON_START}
 
 external:
   credit_assessment:

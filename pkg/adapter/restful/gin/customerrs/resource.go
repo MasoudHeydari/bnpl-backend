@@ -49,4 +49,9 @@ func Register(
 		authMW.RequireAny(permission.PaymentsReadSelf),
 		rs.ListPayments,
 	)
+	router.GET(
+		"/repayment-overview",
+		authMW.RequireAny(permission.InstallmentsReadSelf),
+		rs.GetRepaymentOverview,
+	)
 }

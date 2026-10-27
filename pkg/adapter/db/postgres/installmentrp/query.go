@@ -10,6 +10,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/pagination"
+	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
 const installmentColumns = `
@@ -761,4 +762,142 @@ WHERE contract_id = $1
 	}
 
 	return affected, nil
+}
+
+type reminderCandidateRow struct {
+	ID                      model.InstallmentID            `db:"id"`
+	DecisionID              model.DecisionID               `db:"decision_id"`
+	ContractID              *model.ContractID              `db:"contract_id"`
+	CustomerID              model.CustomerID               `db:"customer_id"`
+	MerchantProfileID       model.MerchantProfileID        `db:"merchant_profile_id"`
+	MerchantBranchProfileID *model.MerchantBranchProfileID `db:"merchant_branch_profile_id"`
+	InstallmentOrder        int                            `db:"installment_order"`
+	Currency                model.Currency                 `db:"currency"`
+	PrincipalAmountMinor    uint64                         `db:"principal_amount_minor"`
+	UpfrontAmountMinor      uint64                         `db:"upfront_amount_minor"`
+	BaseFeeAmountMinor      uint64                         `db:"base_fee_amount_minor"`
+	TotalAmountMinor        uint64                         `db:"total_amount_minor"`
+	DueAt                   time.Time                      `db:"due_at"`
+	GracePeriodDays         uint                           `db:"grace_period_days"`
+	Status                  model.InstallmentStatus        `db:"status"`
+	PaidAmountMinor         uint64                         `db:"paid_amount_minor"`
+	PaidAt                  *time.Time                     `db:"paid_at"`
+	CreatedAt               time.Time                      `db:"created_at"`
+	UpdatedAt               time.Time                      `db:"updated_at"`
+	ExternalCustomerID      model.ExternalCustomerID       `db:"external_customer_id"`
+	HasUnresolvedPayment    bool                           `db:"has_unresolved_payment"`
+}
+
+// ListReminderCandidates returns unpaid active-contract installments in a due_at window.
+func ListReminderCandidates[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	dueAtFrom time.Time,
+	dueAtTo time.Time,
+	limit int,
+) ([]repo.ReminderCandidate, error) {
+	const op = "installmentrp.ListReminderCandidates"
+
+	if limit <= 0 {
+		return nil, cerr.InternalError(fmt.Errorf("%s: limit must be positive", op))
+	}
+
+	if !dueAtTo.After(dueAtFrom) {
+		return nil, cerr.InternalError(fmt.Errorf("%s: due_at window is empty", op))
+	}
+
+	const query = `
+SELECT
+	i.id,
+	i.decision_id,
+	i.contract_id,
+	i.customer_id,
+	i.merchant_profile_id,
+	i.merchant_branch_profile_id,
+	i.installment_order,
+	i.currency,
+	i.principal_amount_minor,
+	i.upfront_amount_minor,
+	i.base_fee_amount_minor,
+	i.total_amount_minor,
+	i.due_at,
+	i.grace_period_days,
+	i.status,
+	i.paid_amount_minor,
+	i.paid_at,
+	i.created_at,
+	i.updated_at,
+	cp.external_customer_id,
+	EXISTS (
+		SELECT 1
+		FROM payment_attempts pa
+		WHERE pa.installment_id = i.id
+		  AND pa.state IN ($5, $6, $7)
+	) AS has_unresolved_payment
+FROM installments i
+INNER JOIN customer_profiles cp ON cp.id = i.customer_id
+WHERE i.contract_id IS NOT NULL
+  AND i.status IN ($1, $2, $3)
+  AND i.due_at >= $8
+  AND i.due_at < $9
+  AND EXISTS (
+	SELECT 1
+	FROM contracts c
+	WHERE c.id = i.contract_id
+	  AND c.status = $4
+  )
+ORDER BY i.customer_id ASC, i.due_at ASC, i.id ASC
+LIMIT $10
+`
+
+	rows, err := postgres.QueryAll[reminderCandidateRow](
+		ctx,
+		q,
+		"list repayment reminder candidates",
+		query,
+		model.ScheduledInstallmentStatus,
+		model.DueInstallmentStatus,
+		model.OverdueInstallmentStatus,
+		model.ActiveContractStatus,
+		model.CreatedPaymentAttemptState,
+		model.SubmittedPaymentAttemptState,
+		model.ReconciliationRequiredPaymentAttemptState,
+		dueAtFrom.UTC(),
+		dueAtTo.UTC(),
+		limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]repo.ReminderCandidate, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, repo.ReminderCandidate{
+			Installment: model.Installment{
+				ID:                      row.ID,
+				DecisionID:              row.DecisionID,
+				ContractID:              row.ContractID,
+				CustomerID:              row.CustomerID,
+				MerchantProfileID:       row.MerchantProfileID,
+				MerchantBranchProfileID: row.MerchantBranchProfileID,
+				InstallmentOrder:        row.InstallmentOrder,
+				Currency:                row.Currency,
+				PrincipalAmountMinor:    row.PrincipalAmountMinor,
+				UpfrontAmountMinor:      row.UpfrontAmountMinor,
+				BaseFeeAmountMinor:      row.BaseFeeAmountMinor,
+				TotalAmountMinor:        row.TotalAmountMinor,
+				DueAt:                   row.DueAt,
+				GracePeriodDays:         row.GracePeriodDays,
+				Status:                  row.Status,
+				PaidAmountMinor:         row.PaidAmountMinor,
+				PaidAt:                  row.PaidAt,
+				CreatedAt:               row.CreatedAt,
+				UpdatedAt:               row.UpdatedAt,
+			},
+			ExternalCustomerID:   row.ExternalCustomerID,
+			HasUnresolvedPayment: row.HasUnresolvedPayment,
+		})
+	}
+
+	return out, nil
 }
