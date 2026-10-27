@@ -119,4 +119,42 @@ func TestCollectionsPolicy_EntryAndRecoveryBoundaries(t *testing.T) {
 		require.False(t, eval.IsRecovered)
 		require.True(t, eval.HasPaymentUncertainty)
 	})
+
+	t.Run("non-midnight due uses wall-clock grace of grace_days * 24h", func(t *testing.T) {
+		t.Parallel()
+
+		loc := time.FixedZone("Asia/Tehran", 3*3600+1800)
+		dueAt := time.Date(2026, 10, 20, 15, 30, 0, 0, loc)
+		graceDays := uint(2)
+		eligibleAt := dueAt.UTC().Add(time.Duration(graceDays) * 24 * time.Hour)
+
+		justBefore := eligibleAt.Add(-time.Nanosecond)
+		evalBefore := policy.Evaluate([]collectionsv1.ObligationFact{{
+			InstallmentID:             installmentID,
+			ContractID:                &contractID,
+			DueAt:                     dueAt,
+			GracePeriodDays:           graceDays,
+			Status:                    model.DueInstallmentStatus,
+			IsFullySettled:            false,
+			IsContractuallyApplicable: true,
+		}}, justBefore, false)
+		require.False(t, evalBefore.IsDefaultEligible)
+
+		evalAt := policy.Evaluate([]collectionsv1.ObligationFact{{
+			InstallmentID:             installmentID,
+			ContractID:                &contractID,
+			DueAt:                     dueAt,
+			GracePeriodDays:           graceDays,
+			Status:                    model.DueInstallmentStatus,
+			IsFullySettled:            false,
+			IsContractuallyApplicable: true,
+		}}, eligibleAt, false)
+		require.True(t, evalAt.IsDefaultEligible)
+
+		installment := model.Installment{
+			DueAt:           dueAt,
+			GracePeriodDays: graceDays,
+		}
+		require.Equal(t, eligibleAt, installment.OverdueEligibleAt())
+	})
 }

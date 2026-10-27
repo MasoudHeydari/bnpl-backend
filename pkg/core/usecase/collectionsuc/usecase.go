@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/parstis/bnpl-backend/pkg/core/clock"
+	"github.com/parstis/bnpl-backend/pkg/core/fingerprint"
 	"github.com/parstis/bnpl-backend/pkg/core/identifier"
 	coremetrics "github.com/parstis/bnpl-backend/pkg/core/metrics"
 	collectionsv1 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v1"
@@ -22,6 +23,7 @@ type UseCase struct {
 	outbox              repo.Outbox
 	clock               clock.Clock
 	idGenerator         identifier.Generator
+	fingerprintHasher   fingerprint.Hasher
 	businessMetrics     coremetrics.BusinessMetrics
 	policy              collectionsv1.Policy
 	auditDestination    string
@@ -40,6 +42,7 @@ func New(
 	outbox repo.Outbox,
 	clk clock.Clock,
 	idGenerator identifier.Generator,
+	fingerprintHasher fingerprint.Hasher,
 	businessMetrics coremetrics.BusinessMetrics,
 	auditDestination string,
 	batchSize int,
@@ -86,6 +89,10 @@ func New(
 		return nil, fmt.Errorf("%s: id generator is required", op)
 	}
 
+	if fingerprintHasher == nil {
+		return nil, fmt.Errorf("%s: fingerprint hasher is required", op)
+	}
+
 	if businessMetrics == nil {
 		return nil, fmt.Errorf("%s: business metrics is required", op)
 	}
@@ -109,6 +116,7 @@ func New(
 		outbox:              outbox,
 		clock:               clk,
 		idGenerator:         idGenerator,
+		fingerprintHasher:   fingerprintHasher,
 		businessMetrics:     businessMetrics,
 		policy:              collectionsv1.New(),
 		auditDestination:    auditDestination,

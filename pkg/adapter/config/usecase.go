@@ -94,23 +94,16 @@ type Usecases struct {
 
 // ShortLink configures the modular URL shortener use case and public redirects.
 type ShortLink struct {
-	// Enabled controls public redirect route mounting and alias ensure-on-boot.
-	Enabled bool `yaml:"enabled"`
-
 	// AllowedDestinationHosts is the HTTPS host allowlist for destinations.
 	AllowedDestinationHosts []string `yaml:"allowed_destination_hosts"`
 
 	// PublicHost is the shortener host used in SMS display URLs and for
-	// host-scoped redirect routing (for example dpay.ir).
+	// host-scoped redirect routing. When non-empty, public redirect routes are
+	// registered for that Host only.
 	PublicHost string `yaml:"public_host"`
 
-	// RepaymentAlias is an optional stable public path code for a static alias
-	// short link. Reminder SMS messages do not use this alias; each Reminder
-	// gets a unique generated code instead.
-	RepaymentAlias string `yaml:"repayment_alias"`
-
 	// RepaymentDestinationURL is the HTTPS frontend repayment page destination
-	// used by Reminder short links (and optional static alias ensure-on-boot).
+	// used by Reminder short links.
 	RepaymentDestinationURL string `yaml:"repayment_destination_url"`
 }
 
@@ -699,6 +692,9 @@ func (CustomerCredit) newUseCase(
 	customerProfile repo.CustomerProfile,
 	creditAccount repo.CreditAccount,
 	decision repo.Decision,
+	customerRestriction repo.CustomerRestriction,
+	installment repo.Installment,
+	defaultEpisode repo.DefaultEpisode,
 	outbox repo.Outbox,
 	clk clock.Clock,
 	fingerprintHasher fingerprint.Hasher,
@@ -714,6 +710,9 @@ func (CustomerCredit) newUseCase(
 		customerProfile,
 		creditAccount,
 		decision,
+		customerRestriction,
+		installment,
+		defaultEpisode,
 		outbox,
 		clk,
 		fingerprintHasher,

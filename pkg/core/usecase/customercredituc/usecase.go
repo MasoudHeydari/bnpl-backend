@@ -18,6 +18,9 @@ type UseCase struct {
 	customerProfile        repo.CustomerProfile
 	creditAccount          repo.CreditAccount
 	decision               repo.Decision
+	customerRestriction    repo.CustomerRestriction
+	installment            repo.Installment
+	defaultEpisode         repo.DefaultEpisode
 	outbox                 repo.Outbox
 	clock                  clock.Clock
 	fingerprintHasher      fingerprint.Hasher
@@ -35,6 +38,9 @@ func New(
 	customerProfile repo.CustomerProfile,
 	creditAccount repo.CreditAccount,
 	decision repo.Decision,
+	customerRestriction repo.CustomerRestriction,
+	installment repo.Installment,
+	defaultEpisode repo.DefaultEpisode,
 	outbox repo.Outbox,
 	clk clock.Clock,
 	fingerprintHasher fingerprint.Hasher,
@@ -61,6 +67,18 @@ func New(
 
 	if decision == nil {
 		return nil, fmt.Errorf("%s: decision repository is required", op)
+	}
+
+	if customerRestriction == nil {
+		return nil, fmt.Errorf("%s: customer restriction repository is required", op)
+	}
+
+	if installment == nil {
+		return nil, fmt.Errorf("%s: installment repository is required", op)
+	}
+
+	if defaultEpisode == nil {
+		return nil, fmt.Errorf("%s: default episode repository is required", op)
 	}
 
 	if outbox == nil {
@@ -104,6 +122,9 @@ func New(
 		customerProfile:        customerProfile,
 		creditAccount:          creditAccount,
 		decision:               decision,
+		customerRestriction:    customerRestriction,
+		installment:            installment,
+		defaultEpisode:         defaultEpisode,
 		outbox:                 outbox,
 		clock:                  clk,
 		fingerprintHasher:      fingerprintHasher,

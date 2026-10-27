@@ -34,6 +34,7 @@ func testRequestContext() context.Context {
 }
 
 type assignInitialLimitDeps struct {
+	t                  *testing.T
 	pool               *mock.Pool
 	conn               *mock.Conn
 	tx                 *mock.Tx
@@ -64,6 +65,7 @@ func newAssignInitialLimitDeps(t *testing.T, now time.Time) assignInitialLimitDe
 	}
 
 	return assignInitialLimitDeps{
+		t:                  t,
 		pool:               mock.NewPool(t),
 		conn:               mock.NewConn(t),
 		tx:                 mock.NewTx(t),
@@ -91,6 +93,9 @@ func (d assignInitialLimitDeps) newUseCase() *customercredituc.UseCase {
 		d.customerProfile,
 		d.creditAccount,
 		d.decision,
+		mock.NewCustomerRestriction(d.t),
+		mock.NewInstallment(d.t),
+		mock.NewDefaultEpisode(d.t),
 		d.outbox,
 		d.clock,
 		sha256fingerprint.New(),

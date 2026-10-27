@@ -156,6 +156,41 @@ RETURNING` + caseColumns
 	return row, nil
 }
 
+// LatestEventOfType returns the newest event of the given type for a case.
+func LatestEventOfType[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	caseID model.CollectionsCaseID,
+	eventType model.CollectionsCaseEventType,
+) (model.CollectionsCaseEvent, error) {
+	const op = "collectionscaserp.LatestEventOfType"
+
+	if caseID.IsZero() {
+		return model.CollectionsCaseEvent{}, cerr.InternalError(fmt.Errorf("%s: case id is required", op))
+	}
+
+	if eventType == "" {
+		return model.CollectionsCaseEvent{}, cerr.InternalError(fmt.Errorf("%s: event type is required", op))
+	}
+
+	const query = `SELECT` + eventColumns + `
+FROM collections_case_events
+WHERE case_id = $1
+  AND event_type = $2
+ORDER BY occurred_at DESC, id DESC
+LIMIT 1
+`
+
+	return postgres.QueryOne[model.CollectionsCaseEvent](
+		ctx,
+		q,
+		"get latest collections case event by type",
+		query,
+		caseID,
+		eventType,
+	)
+}
+
 // AppendEvent inserts an append-only case event.
 func AppendEvent[Q postgres.Queryer](
 	ctx context.Context,

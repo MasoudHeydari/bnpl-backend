@@ -18,10 +18,6 @@ func Assess(
 		const op = "jobs.collections.Assess"
 
 		output, err := uc.AssessBatch(ctx)
-		if err != nil {
-			return fmt.Errorf("%s: %w", op, err)
-		}
-
 		logger.With(
 			"assessed", output.AssessedCount,
 			"defaulted", output.DefaultedCount,
@@ -30,16 +26,13 @@ func Assess(
 			"failed", output.FailedCount,
 		).Info("collections assessment completed")
 
-		if output.FailedCount > 0 {
-			return fmt.Errorf(
-				"%s: assessed=%d defaulted=%d recovered=%d skipped=%d failed=%d",
-				op,
-				output.AssessedCount,
-				output.DefaultedCount,
-				output.RecoveredCount,
-				output.SkippedCount,
-				output.FailedCount,
-			)
+		if err != nil {
+			logger.With(
+				"error", err.Error(),
+				"assessed", output.AssessedCount,
+				"failed", output.FailedCount,
+			).Error("collections assessment had customer failures")
+			return fmt.Errorf("%s: %w", op, err)
 		}
 
 		return nil

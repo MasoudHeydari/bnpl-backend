@@ -1109,6 +1109,9 @@ type ScheduledTasks struct {
 
 	// RepaymentReminderDispatch evaluates due schedules and publishes reminder SMS requests.
 	RepaymentReminderDispatch TaskDefinition `yaml:"repayment_reminder_dispatch"`
+
+	// CollectionsAssessment evaluates default entry/recovery for candidate customers.
+	CollectionsAssessment TaskDefinition `yaml:"collections_assessment"`
 }
 
 // TaskDefinitionEntry associates a configured task definition with its
@@ -1330,6 +1333,10 @@ func (t Task) getTaskDefinitions() ([]TaskDefinitionEntry, error) {
 		{
 			TaskDefinition: t.Scheduled.RepaymentReminderDispatch,
 			Name:           "repayment_reminder_dispatch",
+		},
+		{
+			TaskDefinition: t.Scheduled.CollectionsAssessment,
+			Name:           "collections_assessment",
 		},
 	}, nil
 }

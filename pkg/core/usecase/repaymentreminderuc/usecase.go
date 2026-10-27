@@ -100,14 +100,9 @@ func New(
 		return nil, fmt.Errorf("%s: notification topic is required", op)
 	}
 
-	if strings.TrimSpace(publicHost) == "" {
-		return nil, fmt.Errorf("%s: public host is required", op)
-	}
-
-	if strings.TrimSpace(repaymentDestination) == "" {
-		return nil, fmt.Errorf("%s: repayment destination url is required", op)
-	}
-
+	// Public host and repayment destination may be empty when reminder dispatch
+	// is disabled. DispatchBatch fail-closes if they are missing so SMS cannot
+	// be sent with an unusable short link.
 	if batchSize <= 0 {
 		return nil, fmt.Errorf("%s: batch size must be positive", op)
 	}
@@ -156,6 +151,14 @@ type DispatchOutput struct {
 // earlier pages across repeated scheduler executions.
 func (uc *UseCase) Dispatch(ctx context.Context) (DispatchOutput, error) {
 	const op = "repaymentreminderuc.UseCase.Dispatch"
+
+	if strings.TrimSpace(uc.publicHost) == "" {
+		return DispatchOutput{}, fmt.Errorf("%s: public host is required for reminder short links", op)
+	}
+
+	if strings.TrimSpace(uc.repaymentDestination) == "" {
+		return DispatchOutput{}, fmt.Errorf("%s: repayment destination url is required for reminder short links", op)
+	}
 
 	started := uc.clock.Now().UTC()
 	loc := uc.clock.BusinessLocation()

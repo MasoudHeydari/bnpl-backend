@@ -71,7 +71,6 @@ func TestRegister_DynamicCodeRedirectOnPublicHost(t *testing.T) {
 
 	engine := gin.New()
 	shortlinkrs.Register(engine, uc, shortlinkrs.RegisterOptions{
-		Enabled:      true,
 		PublicHost:   "dpay.ir",
 		DynamicCodes: true,
 	})
@@ -108,13 +107,52 @@ func TestRegister_DynamicCodeIgnoredOnAPIHost(t *testing.T) {
 		c.Status(http.StatusOK)
 	})
 	shortlinkrs.Register(engine, uc, shortlinkrs.RegisterOptions{
-		Enabled:      true,
 		PublicHost:   "dpay.ir",
 		DynamicCodes: true,
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/aB72xQ", nil)
 	req.Host = "api.bnpl.example"
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusNotFound, rec.Code)
+
+	apiReq := httptest.NewRequest(http.MethodGet, "/api/v1/health", nil)
+	apiReq.Host = "api.bnpl.example"
+	apiRec := httptest.NewRecorder()
+	engine.ServeHTTP(apiRec, apiReq)
+	require.Equal(t, http.StatusOK, apiRec.Code)
+}
+
+func TestRegister_WithoutPublicHostDoesNotMountDynamicRoute(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+
+	destinationPolicy, err := shortlinkdestination.New([]string{"app.example"})
+	require.NoError(t, err)
+
+	uc, err := shortlinkuc.New(
+		mock.NewPool(t),
+		mock.NewShortLink(t),
+		destinationPolicy,
+		adapterclock.NewFixed(time.Now().UTC(), time.UTC),
+		uuidIDGenerator{},
+		metricsnoop.New(),
+	)
+	require.NoError(t, err)
+
+	engine := gin.New()
+	engine.GET("/api/v1/health", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+	shortlinkrs.Register(engine, uc, shortlinkrs.RegisterOptions{
+		PublicHost:   "",
+		DynamicCodes: true,
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/aB72xQ", nil)
+	req.Host = "dpay.ir"
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusNotFound, rec.Code)

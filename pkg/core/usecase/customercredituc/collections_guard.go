@@ -3,44 +3,68 @@ package customercredituc
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	collectionsv1 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v1"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
-// collectionsBlocksNewCredit reports whether the newest collections_default
-// restriction Decision for the customer currently blocks new credit usage.
-//
-// Other restriction policies are ignored so releasing collections does not
-// confuse independent fraud/risk restriction Decisions, and vice versa.
-func collectionsBlocksNewCredit(
+// newCreditUsageBlocked reports whether the customer currently cannot use new
+// credit. Active CustomerRestriction rows are the source of truth for applied
+// restrictions. Live contractual default eligibility is also checked so the
+// summary does not advertise usable credit during the task-delay gap before a
+// restriction is materialized.
+func newCreditUsageBlocked(
 	ctx context.Context,
-	decisionQ repo.DecisionQueryer,
+	restrictionQ repo.CustomerRestrictionQueryer,
+	installmentQ repo.InstallmentQueryer,
+	episodeQ repo.DefaultEpisodeQueryer,
 	customerID model.CustomerID,
+	now time.Time,
 ) (bool, error) {
-	const op = "customercredituc.collectionsBlocksNewCredit"
+	const op = "customercredituc.newCreditUsageBlocked"
 
-	decisions, err := decisionQ.ListByTarget(
-		ctx,
-		model.CustomerProfileDecisionTargetType,
-		customerID.UUID(),
-	)
+	activeRestrictions, err := restrictionQ.ListActiveByCustomerID(ctx, customerID)
 	if err != nil {
-		return false, fmt.Errorf("%s: list decisions: %w", op, err)
+		return false, fmt.Errorf("%s: list active restrictions: %w", op, err)
 	}
 
-	for _, decision := range decisions {
-		if decision.Type != model.RestrictionDecisionType {
-			continue
+	for _, restriction := range activeRestrictions {
+		if restriction.RestrictionType == model.NewCreditUsageCustomerRestrictionType {
+			return true, nil
 		}
-
-		if decision.PolicyID != collectionsv1.PolicyID {
-			continue
-		}
-
-		return decision.Outcome == model.RestrictedDecisionOutcome, nil
 	}
 
-	return false, nil
+	_, episodeErr := episodeQ.GetActiveByCustomerID(ctx, customerID)
+	if episodeErr == nil {
+		return true, nil
+	}
+
+	if !cerr.IsCode(episodeErr, cerr.CodeResourceNotFound) {
+		return false, fmt.Errorf("%s: load active episode: %w", op, episodeErr)
+	}
+
+	obligations, err := installmentQ.ListCollectionsObligationsByCustomerID(ctx, customerID)
+	if err != nil {
+		return false, fmt.Errorf("%s: list obligations: %w", op, err)
+	}
+
+	facts := make([]collectionsv1.ObligationFact, 0, len(obligations))
+	for _, row := range obligations {
+		facts = append(facts, collectionsv1.ObligationFact{
+			InstallmentID:             row.Installment.ID,
+			ContractID:                row.Installment.ContractID,
+			DueAt:                     row.Installment.DueAt,
+			GracePeriodDays:           row.Installment.GracePeriodDays,
+			Status:                    row.Installment.Status,
+			IsFullySettled:            false,
+			HasUnresolvedPayment:      row.HasUnresolvedPayment,
+			IsContractuallyApplicable: true,
+		})
+	}
+
+	evaluation := collectionsv1.New().Evaluate(facts, now, false)
+	return evaluation.IsDefaultEligible, nil
 }

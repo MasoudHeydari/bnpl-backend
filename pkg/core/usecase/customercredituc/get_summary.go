@@ -58,11 +58,16 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 				return err
 			}
 
-			decisionQ := uc.decision.Tx(tx)
-			newCreditBlocked, blockErr := collectionsBlocksNewCredit(
+			restrictionQ := uc.customerRestriction.Tx(tx)
+			installmentQ := uc.installment.Tx(tx)
+			episodeQ := uc.defaultEpisode.Tx(tx)
+			newCreditBlocked, blockErr := newCreditUsageBlocked(
 				ctx,
-				decisionQ,
+				restrictionQ,
+				installmentQ,
+				episodeQ,
 				profile.ID,
+				now,
 			)
 			if blockErr != nil {
 				return blockErr
@@ -88,7 +93,8 @@ func summaryFromAccount(account model.CreditAccount, newCreditBlocked bool) Outp
 	}
 
 	// Stored capacity/exposure remain authoritative on CreditAccount; usable
-	// capacity is zero while an active collections restriction Decision stands.
+	// capacity is zero while an active new-credit restriction (or live default
+	// eligibility) blocks spendable credit.
 	if newCreditBlocked {
 		available = 0
 	}

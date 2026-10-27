@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	adapterobjectstorage "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/objectstorage"
 	taskadapter "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
+	"github.com/parstis/bnpl-backend/pkg/core/policy/shortlinkdestination"
 	coretask "github.com/parstis/bnpl-backend/pkg/core/task"
 )
 
@@ -46,6 +48,10 @@ func (c *Config) Validate() error {
 	}
 
 	if err := c.Infrastructure.validate(c.Runtime.Environment); err != nil {
+		return err
+	}
+
+	if err := c.validateRepaymentReminderShortLink(); err != nil {
 		return err
 	}
 
@@ -81,6 +87,76 @@ func (c *Config) Validate() error {
 
 	if err := c.External.validate(c.Runtime.Environment, c.Infrastructure.HTTPClient); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// validateRepaymentReminderShortLink requires coherent short-link redirect
+// configuration when repayment reminder SMS dispatch is operationally enabled.
+// When the task is disabled, missing short-link values are allowed so unrelated
+// services can boot without fake destination URLs.
+func (c *Config) validateRepaymentReminderShortLink() error {
+	const op = "config.Config.validateRepaymentReminderShortLink"
+
+	if !c.Infrastructure.Task.Scheduled.RepaymentReminderDispatch.Enabled {
+		return nil
+	}
+
+	cfg := c.Usecases.ShortLink
+	publicHost := strings.TrimSpace(cfg.PublicHost)
+	if publicHost == "" {
+		return fmt.Errorf(
+			"%s: usecases.short_link.public_host is required when repayment reminder dispatch is enabled",
+			op,
+		)
+	}
+
+	destination := strings.TrimSpace(cfg.RepaymentDestinationURL)
+	if destination == "" {
+		return fmt.Errorf(
+			"%s: usecases.short_link.repayment_destination_url is required when repayment reminder dispatch is enabled",
+			op,
+		)
+	}
+
+	parsed, err := url.Parse(destination)
+	if err != nil {
+		return fmt.Errorf("%s: invalid usecases.short_link.repayment_destination_url: %w", op, err)
+	}
+
+	if !strings.EqualFold(parsed.Scheme, "https") {
+		return fmt.Errorf(
+			"%s: usecases.short_link.repayment_destination_url must use https",
+			op,
+		)
+	}
+
+	allowedHosts := make([]string, 0, len(cfg.AllowedDestinationHosts))
+	for _, host := range cfg.AllowedDestinationHosts {
+		if trimmed := strings.TrimSpace(host); trimmed != "" {
+			allowedHosts = append(allowedHosts, trimmed)
+		}
+	}
+
+	if len(allowedHosts) == 0 {
+		return fmt.Errorf(
+			"%s: usecases.short_link.allowed_destination_hosts is required when repayment reminder dispatch is enabled",
+			op,
+		)
+	}
+
+	policy, err := shortlinkdestination.New(allowedHosts)
+	if err != nil {
+		return fmt.Errorf("%s: invalid usecases.short_link.allowed_destination_hosts: %w", op, err)
+	}
+
+	if err := policy.ValidateDestination(destination); err != nil {
+		return fmt.Errorf(
+			"%s: usecases.short_link.repayment_destination_url is not permitted by allowed_destination_hosts: %w",
+			op,
+			err,
+		)
 	}
 
 	return nil

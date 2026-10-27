@@ -3,6 +3,7 @@ package collectionsuc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -51,6 +52,7 @@ func (uc *UseCase) AssessBatch(ctx context.Context) (AssessBatchOutput, error) {
 
 	started := uc.clock.Now().UTC()
 	var output AssessBatchOutput
+	var customerFailures []error
 	afterCustomerID := model.CustomerID{}
 
 	for {
@@ -87,6 +89,11 @@ func (uc *UseCase) AssessBatch(ctx context.Context) (AssessBatchOutput, error) {
 
 			if assessErr != nil {
 				output.FailedCount++
+				customerFailures = append(customerFailures, fmt.Errorf(
+					"customer_id=%s: %w",
+					customerID.String(),
+					assessErr,
+				))
 				continue
 			}
 
@@ -108,14 +115,33 @@ func (uc *UseCase) AssessBatch(ctx context.Context) (AssessBatchOutput, error) {
 		}
 	}
 
-	uc.businessMetrics.CollectionsAssessmentJobCompleted(ctx, "success")
+	outcome := AssessBatchOutcomeLabel(output.AssessedCount, output.FailedCount)
+
+	uc.businessMetrics.CollectionsAssessmentJobCompleted(ctx, outcome)
 	uc.businessMetrics.CollectionsAssessmentJobDuration(ctx, uc.clock.Now().UTC().Sub(started))
 	uc.businessMetrics.CollectionsAssessmentCustomersObserved(ctx, output.AssessedCount)
 	uc.businessMetrics.CollectionsDefaulted(ctx, output.DefaultedCount)
 	uc.businessMetrics.CollectionsRecovered(ctx, output.RecoveredCount)
 	uc.businessMetrics.CollectionsAssessmentSkipped(ctx, output.SkippedCount)
 
+	if len(customerFailures) > 0 {
+		return output, fmt.Errorf("%s: %w", op, errors.Join(customerFailures...))
+	}
+
 	return output, nil
+}
+
+// AssessBatchOutcomeLabel maps batch counts onto bounded job-completion labels.
+func AssessBatchOutcomeLabel(assessedCount, failedCount int) string {
+	if failedCount <= 0 {
+		return "success"
+	}
+
+	if assessedCount > 0 && failedCount == assessedCount {
+		return "failure"
+	}
+
+	return "partial_failure"
 }
 
 // AssessCustomer evaluates and, when needed, persists default entry or recovery
@@ -152,12 +178,14 @@ func (uc *UseCase) AssessCustomer(
 	return output, nil
 }
 
-// AssertNewCreditAllowed re-assesses collections state under the caller's
-// transaction and returns a semantic conflict when new credit usage is blocked.
+// AssertNewCreditAllowed is a read-only eligibility guard for Checkout and
+// Contract use cases. It checks active restrictions and live default
+// eligibility without persisting Decisions, episodes, restrictions, cases, or
+// outbox records. Collections state transitions remain the AssessCustomer /
+// AssessBatch command path.
 //
-// Call only after the customer profile row is locked. Fail-closed against the
-// live default rule even when the restriction row is not yet materialized by
-// ensuring assessment runs first.
+// Call only after the customer profile row is locked so restriction application
+// and checkout commitment serialize on the same customer lock order.
 func (uc *UseCase) AssertNewCreditAllowed(
 	ctx context.Context,
 	tx repo.Tx,
@@ -170,30 +198,20 @@ func (uc *UseCase) AssertNewCreditAllowed(
 		return cerr.InternalError(fmt.Errorf("%s: customer id is required", op))
 	}
 
-	result, err := uc.assessCustomerTx(ctx, tx, customerID, now.UTC())
-	if err != nil {
-		return fmt.Errorf("%s: assess customer: %w", op, err)
-	}
+	now = now.UTC()
 
 	restrictionQ := uc.customerRestriction.Tx(tx)
-	_, err = restrictionQ.GetActiveByCustomerType(
-		ctx,
-		customerID,
-		model.NewCreditUsageCustomerRestrictionType,
-	)
-	if err == nil {
-		return newCreditUsageRestrictedError()
+	activeRestrictions, err := restrictionQ.ListActiveByCustomerID(ctx, customerID)
+	if err != nil {
+		return fmt.Errorf("%s: list active restrictions: %w", op, err)
 	}
 
-	if !cerr.IsCode(err, cerr.CodeResourceNotFound) {
-		return fmt.Errorf("%s: load active restriction: %w", op, err)
+	for _, restriction := range activeRestrictions {
+		if restriction.RestrictionType == model.NewCreditUsageCustomerRestrictionType {
+			return newCreditUsageRestrictedError()
+		}
 	}
 
-	if result.Transition == AssessTransitionDefaulted || result.Transition == AssessTransitionBlocked {
-		return newCreditUsageRestrictedError()
-	}
-
-	// Live default eligibility without a successful materialization is still blocked.
 	episodeQ := uc.defaultEpisode.Tx(tx)
 	_, episodeErr := episodeQ.GetActiveByCustomerID(ctx, customerID)
 	if episodeErr == nil {
@@ -202,6 +220,16 @@ func (uc *UseCase) AssertNewCreditAllowed(
 
 	if !cerr.IsCode(episodeErr, cerr.CodeResourceNotFound) {
 		return fmt.Errorf("%s: load active episode: %w", op, episodeErr)
+	}
+
+	installmentQ := uc.installment.Tx(tx)
+	evaluation, evalErr := uc.evaluateObligations(ctx, installmentQ, customerID, now, false)
+	if evalErr != nil {
+		return fmt.Errorf("%s: evaluate live obligations: %w", op, evalErr)
+	}
+
+	if evaluation.IsDefaultEligible {
+		return newCreditUsageRestrictedError()
 	}
 
 	return nil
@@ -228,27 +256,6 @@ func (uc *UseCase) assessCustomerTx(
 		return AssessCustomerOutput{}, fmt.Errorf("%s: lock customer profile: %w", op, err)
 	}
 
-	obligations, err := installmentQ.ListCollectionsObligationsByCustomerID(ctx, customerID)
-	if err != nil {
-		return AssessCustomerOutput{}, fmt.Errorf("%s: list obligations: %w", op, err)
-	}
-
-	facts := make([]collectionsv1.ObligationFact, 0, len(obligations))
-	factByID := make(map[model.InstallmentID]repo.CollectionsObligation, len(obligations))
-	for _, row := range obligations {
-		factByID[row.Installment.ID] = row
-		facts = append(facts, collectionsv1.ObligationFact{
-			InstallmentID:             row.Installment.ID,
-			ContractID:                row.Installment.ContractID,
-			DueAt:                     row.Installment.DueAt,
-			GracePeriodDays:           row.Installment.GracePeriodDays,
-			Status:                    row.Installment.Status,
-			IsFullySettled:            false,
-			HasUnresolvedPayment:      row.HasUnresolvedPayment,
-			IsContractuallyApplicable: true,
-		})
-	}
-
 	activeEpisode, episodeErr := episodeQ.LockActiveByCustomerID(ctx, customerID)
 	currentlyDefaulted := false
 	if episodeErr == nil {
@@ -257,7 +264,16 @@ func (uc *UseCase) assessCustomerTx(
 		return AssessCustomerOutput{}, fmt.Errorf("%s: lock active episode: %w", op, episodeErr)
 	}
 
-	evaluation := uc.policy.Evaluate(facts, now, currentlyDefaulted)
+	evaluation, factByID, evalErr := uc.evaluateObligationsWithFacts(
+		ctx,
+		installmentQ,
+		customerID,
+		now,
+		currentlyDefaulted,
+	)
+	if evalErr != nil {
+		return AssessCustomerOutput{}, fmt.Errorf("%s: evaluate obligations: %w", op, evalErr)
+	}
 
 	output := AssessCustomerOutput{
 		CustomerID:            customerID,
@@ -274,7 +290,13 @@ func (uc *UseCase) assessCustomerTx(
 		if !evaluation.IsRecovered {
 			output.Transition = AssessTransitionBlocked
 			if evaluation.HasPaymentUncertainty {
-				if noteErr := uc.notePaymentUncertainty(ctx, caseQ, activeEpisode, now); noteErr != nil {
+				if noteErr := uc.notePaymentUncertainty(
+					ctx,
+					caseQ,
+					activeEpisode,
+					uncertainInstallmentIDs(evaluation, factByID),
+					now,
+				); noteErr != nil {
 					return AssessCustomerOutput{}, noteErr
 				}
 			}
@@ -329,6 +351,85 @@ func (uc *UseCase) assessCustomerTx(
 	return output, nil
 }
 
+func (uc *UseCase) evaluateObligations(
+	ctx context.Context,
+	installmentQ repo.InstallmentQueryer,
+	customerID model.CustomerID,
+	now time.Time,
+	currentlyDefaulted bool,
+) (collectionsv1.Evaluation, error) {
+	evaluation, _, err := uc.evaluateObligationsWithFacts(
+		ctx,
+		installmentQ,
+		customerID,
+		now,
+		currentlyDefaulted,
+	)
+	return evaluation, err
+}
+
+func (uc *UseCase) evaluateObligationsWithFacts(
+	ctx context.Context,
+	installmentQ repo.InstallmentQueryer,
+	customerID model.CustomerID,
+	now time.Time,
+	currentlyDefaulted bool,
+) (collectionsv1.Evaluation, map[model.InstallmentID]repo.CollectionsObligation, error) {
+	const op = "collectionsuc.UseCase.evaluateObligationsWithFacts"
+
+	obligations, err := installmentQ.ListCollectionsObligationsByCustomerID(ctx, customerID)
+	if err != nil {
+		return collectionsv1.Evaluation{}, nil, fmt.Errorf("%s: list obligations: %w", op, err)
+	}
+
+	facts := make([]collectionsv1.ObligationFact, 0, len(obligations))
+	factByID := make(map[model.InstallmentID]repo.CollectionsObligation, len(obligations))
+	for _, row := range obligations {
+		factByID[row.Installment.ID] = row
+		facts = append(facts, collectionsv1.ObligationFact{
+			InstallmentID:             row.Installment.ID,
+			ContractID:                row.Installment.ContractID,
+			DueAt:                     row.Installment.DueAt,
+			GracePeriodDays:           row.Installment.GracePeriodDays,
+			Status:                    row.Installment.Status,
+			IsFullySettled:            false,
+			HasUnresolvedPayment:      row.HasUnresolvedPayment,
+			IsContractuallyApplicable: true,
+		})
+	}
+
+	return uc.policy.Evaluate(facts, now, currentlyDefaulted), factByID, nil
+}
+
+func uncertainInstallmentIDs(
+	evaluation collectionsv1.Evaluation,
+	factByID map[model.InstallmentID]repo.CollectionsObligation,
+) []model.InstallmentID {
+	seen := make(map[model.InstallmentID]struct{})
+	out := make([]model.InstallmentID, 0)
+
+	appendUncertain := func(ids []model.InstallmentID) {
+		for _, id := range ids {
+			row, ok := factByID[id]
+			if !ok || !row.HasUnresolvedPayment {
+				continue
+			}
+
+			if _, exists := seen[id]; exists {
+				continue
+			}
+
+			seen[id] = struct{}{}
+			out = append(out, id)
+		}
+	}
+
+	appendUncertain(evaluation.TriggerInstallmentIDs)
+	appendUncertain(evaluation.UnsettledDueInstallmentIDs)
+
+	return out
+}
+
 type openedEpisode struct {
 	EpisodeID         model.DefaultEpisodeID
 	OpeningDecisionID model.DecisionID
@@ -352,17 +453,16 @@ func (uc *UseCase) openEpisode(
 ) (openedEpisode, error) {
 	const op = "collectionsuc.UseCase.openEpisode"
 
-	// Fresh UUID keeps concurrent open attempts from sharing a Decision key;
-	// the active-episode unique index still collapses races to one episode and
-	// rolls back the losing transaction atomically.
-	idempotencyKey := "collections_default_open:" + uuid.NewString()
-	fingerprint := fmt.Sprintf(
-		"%s|%s|%s|%v",
-		collectionsv1.PolicyID,
-		collectionsv1.PolicyVersion,
-		profile.ID.String(),
-		evaluation.TriggerInstallmentIDs,
-	)
+	// Episode identity scopes the Decision idempotency key so retries of the
+	// same open attempt share one key, while a later default after recovery
+	// begins a distinct episode/Decision chain.
+	episodeID := model.DefaultEpisodeID(uuid.New())
+	idempotencyKey := "collections_default_open:" + episodeID.String()
+
+	fingerprint, err := uc.openDecisionFingerprint(profile.ID, evaluation.TriggerInstallmentIDs)
+	if err != nil {
+		return openedEpisode{}, fmt.Errorf("%s: fingerprint open decision: %w", op, err)
+	}
 
 	decision, err := decisionQ.Create(
 		ctx,
@@ -388,7 +488,6 @@ func (uc *UseCase) openEpisode(
 		return openedEpisode{}, fmt.Errorf("%s: create restriction decision: %w", op, err)
 	}
 
-	episodeID := model.DefaultEpisodeID(uuid.New())
 	triggers := make([]model.DefaultEpisodeTrigger, 0, len(evaluation.TriggerInstallmentIDs))
 	for _, installmentID := range evaluation.TriggerInstallmentIDs {
 		row, ok := factByID[installmentID]
@@ -452,12 +551,17 @@ func (uc *UseCase) openEpisode(
 		return openedEpisode{}, fmt.Errorf("%s: create collections case: %w", op, err)
 	}
 
+	// Confirmed default-entry predicate may hold while payment settlement is
+	// still unresolved. Cases open for human review, but payload must not assert
+	// confirmed nonpayment when uncertainty is present.
 	openedPayload, _ := json.Marshal(map[string]any{
-		"customer_id":             profile.ID.String(),
-		"default_episode_id":      episode.ID.String(),
-		"opening_decision_id":     decision.ID.String(),
-		"trigger_count":           len(triggers),
-		"has_payment_uncertainty": evaluation.HasPaymentUncertainty,
+		"customer_id":                 profile.ID.String(),
+		"default_episode_id":          episode.ID.String(),
+		"opening_decision_id":         decision.ID.String(),
+		"trigger_count":               len(triggers),
+		"has_payment_uncertainty":     evaluation.HasPaymentUncertainty,
+		"confirmed_default_evidence":  !evaluation.HasPaymentUncertainty,
+		"awaiting_settlement_reconcile": evaluation.HasPaymentUncertainty,
 	})
 
 	_, err = caseQ.AppendEvent(ctx, repo.CreateCollectionsCaseEvent{
@@ -476,22 +580,14 @@ func (uc *UseCase) openEpisode(
 	}
 
 	if evaluation.HasPaymentUncertainty {
-		uncertaintyPayload, _ := json.Marshal(map[string]any{
-			"customer_id":        profile.ID.String(),
-			"default_episode_id": episode.ID.String(),
-		})
-		_, err = caseQ.AppendEvent(ctx, repo.CreateCollectionsCaseEvent{
-			ID:         model.CollectionsCaseEventID(uuid.New()),
-			CaseID:     caseRow.ID,
-			EventType:  model.PaymentUncertaintyNotedCollectionsCaseEventType,
-			DecisionID: &decision.ID,
-			Payload:    uncertaintyPayload,
-			OccurredAt: now,
-			ActorType:  model.SystemDecisionActorType,
-			CreatedAt:  now,
-		})
-		if err != nil {
-			return openedEpisode{}, fmt.Errorf("%s: append payment uncertainty event: %w", op, err)
+		if noteErr := uc.notePaymentUncertainty(
+			ctx,
+			caseQ,
+			episode,
+			uncertainInstallmentIDs(evaluation, factByID),
+			now,
+		); noteErr != nil {
+			return openedEpisode{}, noteErr
 		}
 	}
 
@@ -536,13 +632,11 @@ func (uc *UseCase) recoverEpisode(
 	priorDecisionID := episode.OpeningDecisionID
 	// One recovery Decision chain per episode identity.
 	idempotencyKey := "collections_default_recover:" + episode.ID.String()
-	fingerprint := fmt.Sprintf(
-		"%s|%s|recover|%s|%s",
-		collectionsv1.PolicyID,
-		collectionsv1.PolicyVersion,
-		episode.ID.String(),
-		priorDecisionID.String(),
-	)
+
+	fingerprint, err := uc.recoverDecisionFingerprint(episode.ID, priorDecisionID)
+	if err != nil {
+		return recoveredEpisode{}, fmt.Errorf("%s: fingerprint recovery decision: %w", op, err)
+	}
 
 	decision, err := decisionQ.Create(
 		ctx,
@@ -573,24 +667,38 @@ func (uc *UseCase) recoverEpisode(
 		profile.ID,
 		model.NewCreditUsageCustomerRestrictionType,
 	)
-	if err != nil && !cerr.IsCode(err, cerr.CodeResourceNotFound) {
+	if err != nil {
+		if cerr.IsCode(err, cerr.CodeResourceNotFound) {
+			return recoveredEpisode{}, cerr.InternalError(fmt.Errorf(
+				"%s: expected active new_credit_usage restriction for episode %s is missing",
+				op,
+				episode.ID.String(),
+			))
+		}
+
 		return recoveredEpisode{}, fmt.Errorf("%s: lock active restriction: %w", op, err)
 	}
 
-	if err == nil &&
-		activeRestriction.Reason == model.CollectionsDefaultCustomerRestrictionReason &&
-		activeRestriction.DefaultEpisodeID != nil &&
-		*activeRestriction.DefaultEpisodeID == episode.ID {
-		_, releaseErr := restrictionQ.Release(
-			ctx,
-			activeRestriction.ID,
-			decision.ID,
-			now,
-			now,
-		)
-		if releaseErr != nil {
-			return recoveredEpisode{}, fmt.Errorf("%s: release restriction: %w", op, releaseErr)
-		}
+	if activeRestriction.Reason != model.CollectionsDefaultCustomerRestrictionReason ||
+		activeRestriction.DefaultEpisodeID == nil ||
+		*activeRestriction.DefaultEpisodeID != episode.ID {
+		return recoveredEpisode{}, cerr.InternalError(fmt.Errorf(
+			"%s: active restriction %s is not linked to episode %s",
+			op,
+			activeRestriction.ID.String(),
+			episode.ID.String(),
+		))
+	}
+
+	_, releaseErr := restrictionQ.Release(
+		ctx,
+		activeRestriction.ID,
+		decision.ID,
+		now,
+		now,
+	)
+	if releaseErr != nil {
+		return recoveredEpisode{}, fmt.Errorf("%s: release restriction: %w", op, releaseErr)
 	}
 
 	recovered, err := episodeQ.MarkRecovered(ctx, episode.ID, decision.ID, now, now)
@@ -654,6 +762,7 @@ func (uc *UseCase) notePaymentUncertainty(
 	ctx context.Context,
 	caseQ repo.CollectionsCaseTxQueryer,
 	episode model.DefaultEpisode,
+	uncertainIDs []model.InstallmentID,
 	now time.Time,
 ) error {
 	const op = "collectionsuc.UseCase.notePaymentUncertainty"
@@ -663,10 +772,36 @@ func (uc *UseCase) notePaymentUncertainty(
 		return fmt.Errorf("%s: load collections case: %w", op, err)
 	}
 
+	stateKey := paymentUncertaintyStateKey(uncertainIDs)
+
+	latest, latestErr := caseQ.LatestEventOfType(
+		ctx,
+		caseRow.ID,
+		model.PaymentUncertaintyNotedCollectionsCaseEventType,
+	)
+	if latestErr == nil {
+		var existing struct {
+			UncertaintyStateKey string `json:"uncertainty_state_key"`
+		}
+		if json.Unmarshal(latest.Payload, &existing) == nil &&
+			existing.UncertaintyStateKey == stateKey {
+			return nil
+		}
+	} else if !cerr.IsCode(latestErr, cerr.CodeResourceNotFound) {
+		return fmt.Errorf("%s: load latest uncertainty event: %w", op, latestErr)
+	}
+
+	installmentIDStrings := make([]string, 0, len(uncertainIDs))
+	for _, id := range uncertainIDs {
+		installmentIDStrings = append(installmentIDStrings, id.String())
+	}
+
 	payload, _ := json.Marshal(map[string]any{
-		"customer_id":        episode.CustomerID.String(),
-		"default_episode_id": episode.ID.String(),
-		"noted_at":           now.UTC().Format(time.RFC3339Nano),
+		"customer_id":            episode.CustomerID.String(),
+		"default_episode_id":     episode.ID.String(),
+		"uncertainty_state_key":  stateKey,
+		"uncertain_installments": installmentIDStrings,
+		"noted_at":               now.UTC().Format(time.RFC3339Nano),
 	})
 
 	_, err = caseQ.AppendEvent(ctx, repo.CreateCollectionsCaseEvent{

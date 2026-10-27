@@ -139,6 +139,11 @@ func (s InstallmentStatus) IsActive() bool {
 const MaxInstallmentGracePeriodDays uint = 31
 
 // OverdueEligibleAt returns when a due installment becomes overdue eligible.
+//
+// Contractual grace is a wall-clock duration of GracePeriodDays * 24 hours
+// from DueAt (including non-midnight due instants). This matches Collections
+// SQL candidate selection and collectionsv1. Reminder policy uses business
+// calendar dates for SMS scheduling and is intentionally separate.
 func (i Installment) OverdueEligibleAt() time.Time {
 	days := i.GracePeriodDays
 	if days > MaxInstallmentGracePeriodDays {

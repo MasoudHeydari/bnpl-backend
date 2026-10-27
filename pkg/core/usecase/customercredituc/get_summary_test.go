@@ -28,6 +28,9 @@ func newSummaryUseCase(
 	policyAssignment *mock.PolicyAssignment,
 	clk *mock.Clock,
 	decision *mock.Decision,
+	customerRestriction *mock.CustomerRestriction,
+	installment *mock.Installment,
+	defaultEpisode *mock.DefaultEpisode,
 ) *customercredituc.UseCase {
 	t.Helper()
 
@@ -39,11 +42,26 @@ func newSummaryUseCase(
 		decision = mock.NewDecision(t)
 	}
 
+	if customerRestriction == nil {
+		customerRestriction = mock.NewCustomerRestriction(t)
+	}
+
+	if installment == nil {
+		installment = mock.NewInstallment(t)
+	}
+
+	if defaultEpisode == nil {
+		defaultEpisode = mock.NewDefaultEpisode(t)
+	}
+
 	uc, err := customercredituc.New(
 		pool,
 		customerProfile,
 		creditAccount,
 		decision,
+		customerRestriction,
+		installment,
+		defaultEpisode,
 		mock.NewOutbox(t),
 		clk,
 		sha256fingerprint.New(),
@@ -164,15 +182,27 @@ func TestGetSummary_ExpiredLimit_ReturnsExpiredNotZeroAssigned(t *testing.T) {
 		Return(expiredAccount, nil).
 		Once()
 
-	decision := mock.NewDecision(t)
-	decisionTx := mock.NewDecisionTxQueryer(t)
-	decision.EXPECT().Tx(tx).Return(decisionTx).Once()
-	decisionTx.EXPECT().
-		ListByTarget(
-			testifymock.Anything,
-			model.CustomerProfileDecisionTargetType,
-			profileID.UUID(),
-		).
+	customerRestriction := mock.NewCustomerRestriction(t)
+	customerRestrictionTx := mock.NewCustomerRestrictionTxQueryer(t)
+	customerRestriction.EXPECT().Tx(tx).Return(customerRestrictionTx).Once()
+	customerRestrictionTx.EXPECT().
+		ListActiveByCustomerID(testifymock.Anything, profileID).
+		Return(nil, nil).
+		Once()
+
+	defaultEpisode := mock.NewDefaultEpisode(t)
+	defaultEpisodeTx := mock.NewDefaultEpisodeTxQueryer(t)
+	defaultEpisode.EXPECT().Tx(tx).Return(defaultEpisodeTx).Once()
+	defaultEpisodeTx.EXPECT().
+		GetActiveByCustomerID(testifymock.Anything, profileID).
+		Return(model.DefaultEpisode{}, cerr.ResourceNotFound(errors.New("none"))).
+		Once()
+
+	installment := mock.NewInstallment(t)
+	installmentTx := mock.NewInstallmentTxQueryer(t)
+	installment.EXPECT().Tx(tx).Return(installmentTx).Once()
+	installmentTx.EXPECT().
+		ListCollectionsObligationsByCustomerID(testifymock.Anything, profileID).
 		Return(nil, nil).
 		Once()
 
@@ -183,7 +213,10 @@ func TestGetSummary_ExpiredLimit_ReturnsExpiredNotZeroAssigned(t *testing.T) {
 		creditAccount,
 		policyAssignment,
 		clk,
-		decision,
+		nil,
+		customerRestriction,
+		installment,
+		defaultEpisode,
 	)
 
 	out, err := uc.GetSummary(context.Background(), customercredituc.Input{
@@ -269,6 +302,9 @@ func TestGetSummary_NoLimit_ReturnsNotAssigned(t *testing.T) {
 		creditAccount,
 		policyAssignment,
 		clk,
+		nil,
+		nil,
+		nil,
 		nil,
 	)
 

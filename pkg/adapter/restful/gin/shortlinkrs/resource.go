@@ -16,26 +16,18 @@ type resource struct {
 
 // RegisterOptions configures short-link HTTP route registration.
 type RegisterOptions struct {
-	// Enabled controls whether public redirect routes are mounted.
-	Enabled bool
-
-	// PublicHost, when non-empty, scopes redirect routes to requests whose Host
-	// header matches (without port). This prevents `/:code` from colliding with
-	// `/api/v1`, `/swagger`, and `/health` on the API host when Envoy routes the
-	// shortener domain to the same Gin engine.
+	// PublicHost scopes redirect routes to requests whose Host header matches
+	// (without port). Required for safe mounting: without it, `/:code` would
+	// collide with `/api/v1`, `/swagger`, and `/health` on the API host.
 	PublicHost string
 
-	// AliasCodes lists stable public path codes to register explicitly
-	// (for example "pay"). Empty means no dedicated alias routes are mounted.
-	AliasCodes []string
-
 	// DynamicCodes registers `GET /:code` for generated short-link codes.
-	// Prefer enabling this only with PublicHost set.
+	// Only effective when PublicHost is set.
 	DynamicCodes bool
 }
 
 // Register attaches unauthenticated short-link redirect routes on the root
-// HTTP surface when enabled.
+// HTTP surface when a validated public host is configured.
 //
 // gin.IRouter is intentional: these redirects mount outside /api/v1.
 func Register(
@@ -43,31 +35,17 @@ func Register(
 	shortLink *shortlinkuc.UseCase,
 	opts RegisterOptions,
 ) {
-	if !opts.Enabled || shortLink == nil {
+	if shortLink == nil {
 		return
 	}
 
-	rs := &resource{shortLink: shortLink}
-
-	var r gin.IRouter = router
-	if host := strings.TrimSpace(opts.PublicHost); host != "" {
-		r = router.Group("/", requireHost(host))
+	host := strings.TrimSpace(opts.PublicHost)
+	if host == "" || !opts.DynamicCodes {
+		return
 	}
 
-	for _, code := range opts.AliasCodes {
-		if code == "" {
-			continue
-		}
-
-		pathCode := code
-		r.GET("/"+pathCode, func(c *gin.Context) {
-			rs.redirect(c, pathCode)
-		})
-	}
-
-	if opts.DynamicCodes {
-		r.GET("/:code", ResolveHandler(shortLink))
-	}
+	r := router.Group("/", requireHost(host))
+	r.GET("/:code", ResolveHandler(shortLink))
 }
 
 func requireHost(expectedHost string) gin.HandlerFunc {

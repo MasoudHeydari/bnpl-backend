@@ -165,6 +165,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Repos.Outbox,
 		a.Infrastructure.Clock,
 		a.Infrastructure.IdentifierGenerator,
+		a.Infrastructure.FingerprintHasher,
 		a.Infrastructure.Metrics,
 		a.Config.AuditEventsTopic(),
 		collectionsBatchSize,
@@ -448,6 +449,9 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Repos.CustomerProfile,
 		a.Repos.CreditAccount,
 		a.Repos.Decision,
+		a.Repos.CustomerRestriction,
+		a.Repos.Installment,
+		a.Repos.DefaultEpisode,
 		a.Repos.Outbox,
 		a.Infrastructure.Clock,
 		a.Infrastructure.FingerprintHasher,
@@ -504,7 +508,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 	}
 
 	destinationPolicy, err := shortlinkdestination.New(
-		a.Config.Usecases.ShortLink.AllowedDestinationHosts,
+		nonEmptyHosts(a.Config.Usecases.ShortLink.AllowedDestinationHosts),
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize short link destination policy: %w", op, err)
@@ -528,16 +532,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 	}
 
 	publicHost := strings.TrimSpace(a.Config.Usecases.ShortLink.PublicHost)
-	if publicHost == "" {
-		publicHost = "dpay.ir"
-	}
-
 	repaymentDestination := strings.TrimSpace(a.Config.Usecases.ShortLink.RepaymentDestinationURL)
-	if repaymentDestination == "" {
-		// Keep construction valid when destination is unset; the reminder job
-		// should remain disabled until operators configure a real destination.
-		repaymentDestination = "https://app.example/repayments"
-	}
 
 	notificationTopic := a.Config.Infrastructure.Messaging.Kafka.Topics.NotificationSMSRequests
 	if notificationTopic == "" {
@@ -586,4 +581,15 @@ func (a *App) NewUseCases() (UseCases, error) {
 		RepaymentReminder:                  repaymentReminderUseCase,
 		Collections:                        collectionsUseCase,
 	}, nil
+}
+
+func nonEmptyHosts(hosts []string) []string {
+	out := make([]string, 0, len(hosts))
+	for _, host := range hosts {
+		if trimmed := strings.TrimSpace(host); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+
+	return out
 }

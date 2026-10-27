@@ -38,6 +38,9 @@ func newAssessUseCase(
 		mock.NewCustomerProfile(t),
 		mock.NewCreditAccount(t),
 		mock.NewDecision(t),
+		mock.NewCustomerRestriction(t),
+		mock.NewInstallment(t),
+		mock.NewDefaultEpisode(t),
 		mock.NewOutbox(t),
 		adapterclock.NewFixed(time.Date(
 			2026,

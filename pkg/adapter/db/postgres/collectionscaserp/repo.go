@@ -48,6 +48,14 @@ func (q connQueryer) GetByID(
 	return GetByID(ctx, q.Conn, id)
 }
 
+func (q connQueryer) LatestEventOfType(
+	ctx context.Context,
+	caseID model.CollectionsCaseID,
+	eventType model.CollectionsCaseEventType,
+) (model.CollectionsCaseEvent, error) {
+	return LatestEventOfType(ctx, q.Conn, caseID, eventType)
+}
+
 type txQueryer struct {
 	*postgres.Tx
 }
@@ -66,6 +74,14 @@ func (q txQueryer) GetByID(
 	id model.CollectionsCaseID,
 ) (model.CollectionsCase, error) {
 	return GetByID(ctx, q.Tx, id)
+}
+
+func (q txQueryer) LatestEventOfType(
+	ctx context.Context,
+	caseID model.CollectionsCaseID,
+	eventType model.CollectionsCaseEventType,
+) (model.CollectionsCaseEvent, error) {
+	return LatestEventOfType(ctx, q.Tx, caseID, eventType)
 }
 
 func (q txQueryer) Create(

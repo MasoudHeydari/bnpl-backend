@@ -40,6 +40,12 @@ type CollectionsCaseQueryer interface {
 	) (model.CollectionsCase, error)
 
 	GetByID(ctx context.Context, id model.CollectionsCaseID) (model.CollectionsCase, error)
+
+	LatestEventOfType(
+		ctx context.Context,
+		caseID model.CollectionsCaseID,
+		eventType model.CollectionsCaseEventType,
+	) (model.CollectionsCaseEvent, error)
 }
 
 // CollectionsCaseConnQueryer exposes case operations on a connection.
