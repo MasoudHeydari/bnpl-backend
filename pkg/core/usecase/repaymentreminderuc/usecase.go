@@ -19,6 +19,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/pagination"
 	reminderv1 "github.com/parstis/bnpl-backend/pkg/core/policy/repaymentreminder/v1"
+	"github.com/parstis/bnpl-backend/pkg/core/policy/shortlinkdestination"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/shortlinkuc"
 )
@@ -154,6 +155,10 @@ func (uc *UseCase) Dispatch(ctx context.Context) (DispatchOutput, error) {
 
 	if strings.TrimSpace(uc.publicHost) == "" {
 		return DispatchOutput{}, fmt.Errorf("%s: public host is required for reminder short links", op)
+	}
+
+	if err := shortlinkdestination.ValidatePublicHost(uc.publicHost); err != nil {
+		return DispatchOutput{}, fmt.Errorf("%s: %w", op, err)
 	}
 
 	if strings.TrimSpace(uc.repaymentDestination) == "" {

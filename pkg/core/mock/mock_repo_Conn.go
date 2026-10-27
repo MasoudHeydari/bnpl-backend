@@ -235,6 +235,63 @@ func (_c *Conn_Query_Call) RunAndReturn(run func(ctx context.Context, sql string
 	return _c
 }
 
+// ReadSnapshot provides a mock function for the type Conn
+func (_mock *Conn) ReadSnapshot(ctx context.Context, handler repo.TxHandler) error {
+	ret := _mock.Called(ctx, handler)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ReadSnapshot")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, repo.TxHandler) error); ok {
+		r0 = returnFunc(ctx, handler)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// Conn_ReadSnapshot_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ReadSnapshot'
+type Conn_ReadSnapshot_Call struct {
+	*mock.Call
+}
+
+// ReadSnapshot is a helper method to define mock.On call
+//   - ctx context.Context
+//   - handler repo.TxHandler
+func (_e *Conn_Expecter) ReadSnapshot(ctx any, handler any) *Conn_ReadSnapshot_Call {
+	return &Conn_ReadSnapshot_Call{Call: _e.mock.On("ReadSnapshot", ctx, handler)}
+}
+
+func (_c *Conn_ReadSnapshot_Call) Run(run func(ctx context.Context, handler repo.TxHandler)) *Conn_ReadSnapshot_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 repo.TxHandler
+		if args[1] != nil {
+			arg1 = args[1].(repo.TxHandler)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *Conn_ReadSnapshot_Call) Return(err error) *Conn_ReadSnapshot_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *Conn_ReadSnapshot_Call) RunAndReturn(run func(ctx context.Context, handler repo.TxHandler) error) *Conn_ReadSnapshot_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Tx provides a mock function for the type Conn
 func (_mock *Conn) Tx(ctx context.Context, handler repo.TxHandler) error {
 	ret := _mock.Called(ctx, handler)

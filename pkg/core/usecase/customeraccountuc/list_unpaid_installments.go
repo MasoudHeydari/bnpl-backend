@@ -50,55 +50,57 @@ func (uc *UseCase) ListUnpaidInstallments(
 	err := uc.pool.Conn(
 		ctx,
 		func(ctx context.Context, conn repo.Conn) error {
-			customerProfileQ := uc.customerProfile.Conn(conn)
-			profile, err := customerProfileQ.GetByExternalCustomerID(ctx, input.ExternalCustomerID)
-			if err != nil {
-				if cerr.IsCode(err, cerr.CodeResourceNotFound) {
-					installments = nil
-					summary = emptyRepaymentSummary()
-					return nil
+			return conn.ReadSnapshot(ctx, func(ctx context.Context, tx repo.Tx) error {
+				customerProfileQ := uc.customerProfile.Tx(tx)
+				profile, err := customerProfileQ.GetByExternalCustomerID(ctx, input.ExternalCustomerID)
+				if err != nil {
+					if cerr.IsCode(err, cerr.CodeResourceNotFound) {
+						installments = nil
+						summary = emptyRepaymentSummary()
+						return nil
+					}
+
+					return err
 				}
 
-				return err
-			}
+				installmentQ := uc.installment.Tx(tx)
+				paymentAttemptQ := uc.paymentAttempt.Tx(tx)
+				installmentChargeQ := uc.installmentCharge.Tx(tx)
 
-			installmentQ := uc.installment.Conn(conn)
-			paymentAttemptQ := uc.paymentAttempt.Conn(conn)
-			installmentChargeQ := uc.installmentCharge.Conn(conn)
-
-			rows, listErr := installmentQ.ListUnpaidByCustomerID(
-				ctx,
-				profile.ID,
-				fetchPage,
-			)
-			if listErr != nil {
-				return listErr
-			}
-
-			installments = make([]UnpaidInstallment, 0, len(rows))
-			for _, row := range rows {
-				item, mapErr := toUnpaidInstallment(row)
-				if mapErr != nil {
-					return mapErr
+				rows, listErr := installmentQ.ListUnpaidByCustomerID(
+					ctx,
+					profile.ID,
+					fetchPage,
+				)
+				if listErr != nil {
+					return listErr
 				}
 
-				installments = append(installments, item)
-			}
+				installments = make([]UnpaidInstallment, 0, len(rows))
+				for _, row := range rows {
+					item, mapErr := toUnpaidInstallment(row)
+					if mapErr != nil {
+						return mapErr
+					}
 
-			built, summaryErr := buildRepaymentSummary(
-				ctx,
-				installmentQ,
-				paymentAttemptQ,
-				installmentChargeQ,
-				profile.ID,
-				now,
-			)
-			if summaryErr != nil {
-				return summaryErr
-			}
+					installments = append(installments, item)
+				}
 
-			summary = built
-			return nil
+				built, summaryErr := buildRepaymentSummary(
+					ctx,
+					installmentQ,
+					paymentAttemptQ,
+					installmentChargeQ,
+					profile.ID,
+					now,
+				)
+				if summaryErr != nil {
+					return summaryErr
+				}
+
+				summary = built
+				return nil
+			})
 		},
 	)
 	if err != nil {
@@ -241,8 +243,12 @@ func buildRepaymentSummary(
 	}
 
 	var amountMinor uint64
-	if payableOK {
+	if payableOK && payableAmount > 0 && payableAmount == selected.PrincipalAmountMinor {
 		amountMinor = payableAmount
+	} else {
+		// FC currently recognizes only principal. Do not advertise an amount the
+		// payment command must reject because fee recognition is unavailable.
+		payableOK = false
 	}
 
 	summary.NextPayable = &RepaymentNextPayable{

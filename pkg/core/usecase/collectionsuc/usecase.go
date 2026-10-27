@@ -1,12 +1,14 @@
 package collectionsuc
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/parstis/bnpl-backend/pkg/core/clock"
 	"github.com/parstis/bnpl-backend/pkg/core/fingerprint"
 	"github.com/parstis/bnpl-backend/pkg/core/identifier"
 	coremetrics "github.com/parstis/bnpl-backend/pkg/core/metrics"
+	"github.com/parstis/bnpl-backend/pkg/core/model"
 	collectionsv1 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v1"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
@@ -28,6 +30,7 @@ type UseCase struct {
 	policy              collectionsv1.Policy
 	auditDestination    string
 	batchSize           int
+	onAssessmentFailure func(context.Context, model.CustomerID, error)
 }
 
 // New constructs a collections assessment use case.
@@ -122,4 +125,11 @@ func New(
 		auditDestination:    auditDestination,
 		batchSize:           batchSize,
 	}, nil
+}
+
+// WithAssessmentFailureObserver installs per-customer failure reporting before
+// the use case starts. The observer must be safe for concurrent assessments.
+func (uc *UseCase) WithAssessmentFailureObserver(observer func(context.Context, model.CustomerID, error)) *UseCase {
+	uc.onAssessmentFailure = observer
+	return uc
 }

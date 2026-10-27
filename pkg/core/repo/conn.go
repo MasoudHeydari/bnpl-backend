@@ -17,6 +17,10 @@ type Conn interface {
 	// The implementation is responsible for commit and rollback semantics.
 	Tx(ctx context.Context, handler TxHandler) error
 
+	// ReadSnapshot executes handler in one read-only repeatable-read transaction.
+	// Every query in the callback sees the same committed database snapshot.
+	ReadSnapshot(ctx context.Context, handler TxHandler) error
+
 	// IsConn method prevents a non-Conn object to mistakenly implement
 	// the Conn interface.
 	IsConn()

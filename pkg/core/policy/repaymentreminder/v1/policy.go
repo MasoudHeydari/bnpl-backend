@@ -216,12 +216,13 @@ func evaluateInstallment(
 
 	loc := nowLocal.Location()
 	dueDay := truncateDate(fact.DueAt.In(loc))
-	dayOffset := int(businessDay.Sub(dueDay) / (24 * time.Hour))
+	// Calendar dates must not be subtracted as local instants across DST.
+	civilDay := func(t time.Time) time.Time {
+		return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+	}
+	dayOffset := int(civilDay(businessDay).Sub(civilDay(dueDay)) / (24 * time.Hour))
 
 	graceDays := int(fact.GracePeriodDays)
-	if fact.GracePeriodDays > model.MaxInstallmentGracePeriodDays {
-		graceDays = int(model.MaxInstallmentGracePeriodDays)
-	}
 
 	switch {
 	case dayOffset == -1:
@@ -241,8 +242,14 @@ func evaluateInstallment(
 		)
 
 	case dayOffset >= 1 && dayOffset <= graceDays:
+		graceEndsAt := (model.Installment{DueAt: fact.DueAt, GracePeriodDays: fact.GracePeriodDays}).OverdueEligibleAt()
+		// A delayed reminder must never call an expired duration-based grace
+		// period active, even when the business calendar still calls it D+Grace.
+		if !graceEndsAt.After(nowLocal) {
+			return "", SuppressNoEligible
+		}
 		reminderType := model.GracePeriodReminderType
-		if dayOffset == graceDays {
+		if !graceEndsAt.After(businessDay.AddDate(0, 0, 1)) {
 			reminderType = model.GraceFinalDayReminderType
 		}
 
@@ -276,7 +283,7 @@ func windowedType(
 	)
 	// Delivery window ends at the start of the next business day so a delayed
 	// job still sends same-day reminders, but never indefinitely.
-	windowEnd := businessDay.Add(24 * time.Hour)
+	windowEnd := businessDay.AddDate(0, 0, 1)
 
 	if nowLocal.Before(windowStart) {
 		return "", SuppressBeforeWindow

@@ -523,8 +523,8 @@ func ListCollectionsAssessmentCustomerPage[Q postgres.Queryer](
 		return nil, cerr.InternalError(fmt.Errorf("%s: customer limit must be positive", op))
 	}
 
-	// Grace eligibility uses due_at + LEAST(grace_period_days, max) * 24h, matching
-	// model.Installment.OverdueEligibleAt and collections/v1.
+	// Candidates include every due obligation for recovery, even inside grace.
+	// The domain policy applies the persisted grace boundary for default entry.
 	const query = `
 SELECT customer_id
 FROM (
@@ -532,26 +532,23 @@ FROM (
 	FROM installments i
 	WHERE i.contract_id IS NOT NULL
 	  AND i.status IN ($1, $2, $3)
-	  AND (
-		i.due_at <= $4
-		OR (i.due_at + (LEAST(i.grace_period_days, $5) * INTERVAL '1 day')) <= $4
-	  )
+	  AND i.due_at <= $4
 	  AND EXISTS (
 		SELECT 1
 		FROM contracts c
 		WHERE c.id = i.contract_id
-		  AND c.status = $6
+		  AND c.status = $5
 	  )
 
 	UNION
 
 	SELECT de.customer_id
 	FROM default_episodes de
-	WHERE de.status = $7
+	WHERE de.status = $6
 ) AS candidates
-WHERE ($8::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR customer_id > $8)
+WHERE ($7::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR customer_id > $7)
 ORDER BY customer_id ASC
-LIMIT $9
+LIMIT $8
 `
 
 	type customerRow struct {
@@ -567,7 +564,6 @@ LIMIT $9
 		model.DueInstallmentStatus,
 		model.OverdueInstallmentStatus,
 		asOf.UTC(),
-		int(model.MaxInstallmentGracePeriodDays),
 		model.ActiveContractStatus,
 		model.ActiveDefaultEpisodeStatus,
 		afterCustomerID,
@@ -997,7 +993,7 @@ func ClaimDueOverdueEligible[Q postgres.Queryer](
 SELECT` + installmentColumns + `
 FROM installments
 WHERE status = $1
-  AND due_at + (grace_period_days * interval '1 day') <= $2
+  AND due_at + (grace_period_days * interval '24 hours') <= $2
   AND EXISTS (
 	SELECT 1
 	FROM contracts c
@@ -1153,14 +1149,15 @@ func ListReminderCandidatePage[Q postgres.Queryer](
 
 	// Page by distinct customers so a customer's full candidate set is never
 	// truncated mid-group. Exclude customers already reminded for businessDate
-	// so repeated runs advance past processed customer-days.
+	// so repeated runs advance past processed customer-days. Longer persisted
+	// grace snapshots extend the operational lookback instead of being shortened.
 	const query = `
 WITH page_customers AS (
 	SELECT DISTINCT i.customer_id
 	FROM installments i
 	WHERE i.contract_id IS NOT NULL
 	  AND i.status IN ($1, $2, $3)
-	  AND i.due_at >= $8
+	  AND (i.due_at >= $8 OR i.due_at + (i.grace_period_days * INTERVAL '24 hours') >= $8)
 	  AND i.due_at < $9
 	  AND ($10::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR i.customer_id > $10)
 	  AND EXISTS (
@@ -1210,7 +1207,7 @@ INNER JOIN page_customers pc ON pc.customer_id = i.customer_id
 INNER JOIN customer_profiles cp ON cp.id = i.customer_id
 WHERE i.contract_id IS NOT NULL
   AND i.status IN ($1, $2, $3)
-  AND i.due_at >= $8
+  AND (i.due_at >= $8 OR i.due_at + (i.grace_period_days * INTERVAL '24 hours') >= $8)
   AND i.due_at < $9
   AND EXISTS (
 	SELECT 1

@@ -23,8 +23,11 @@ func TestListUnpaidInstallments_EmptyWhenCustomerProfileMissing(t *testing.T) {
 	t.Parallel()
 
 	pool := mock.NewPool(t)
+	conn := mock.NewConn(t)
+	tx := mock.NewTx(t)
+	conn.EXPECT().ReadSnapshot(testifymock.Anything, testifymock.Anything).RunAndReturn(func(ctx context.Context, fn repo.TxHandler) error { return fn(ctx, tx) })
 	customerProfile := mock.NewCustomerProfile(t)
-	customerProfileQ := mock.NewCustomerProfileConnQueryer(t)
+	customerProfileQ := mock.NewCustomerProfileTxQueryer(t)
 	installment := mock.NewInstallment(t)
 
 	externalCustomerID := model.ExternalCustomerID(uuid.New())
@@ -32,9 +35,9 @@ func TestListUnpaidInstallments_EmptyWhenCustomerProfileMissing(t *testing.T) {
 	pool.EXPECT().
 		Conn(testifymock.Anything, testifymock.Anything).
 		RunAndReturn(func(ctx context.Context, fn repo.ConnHandler) error {
-			return fn(ctx, nil)
+			return fn(ctx, conn)
 		})
-	customerProfile.EXPECT().Conn(testifymock.Anything).Return(customerProfileQ)
+	customerProfile.EXPECT().Tx(testifymock.Anything).Return(customerProfileQ)
 	customerProfileQ.EXPECT().
 		GetByExternalCustomerID(testifymock.Anything, externalCustomerID).
 		Return(model.CustomerProfile{}, cerr.ResourceNotFound(errors.New("missing")))
@@ -64,10 +67,13 @@ func TestListUnpaidInstallments_OrdersByDueAtAndBuildsDueAtCursor(t *testing.T) 
 	t.Parallel()
 
 	pool := mock.NewPool(t)
+	conn := mock.NewConn(t)
+	tx := mock.NewTx(t)
+	conn.EXPECT().ReadSnapshot(testifymock.Anything, testifymock.Anything).RunAndReturn(func(ctx context.Context, fn repo.TxHandler) error { return fn(ctx, tx) })
 	customerProfile := mock.NewCustomerProfile(t)
-	customerProfileQ := mock.NewCustomerProfileConnQueryer(t)
+	customerProfileQ := mock.NewCustomerProfileTxQueryer(t)
 	installment := mock.NewInstallment(t)
-	installmentQ := mock.NewInstallmentConnQueryer(t)
+	installmentQ := mock.NewInstallmentTxQueryer(t)
 
 	externalCustomerID := model.ExternalCustomerID(uuid.New())
 	profileID := model.CustomerID(uuid.New())
@@ -98,16 +104,16 @@ func TestListUnpaidInstallments_OrdersByDueAtAndBuildsDueAtCursor(t *testing.T) 
 	pool.EXPECT().
 		Conn(testifymock.Anything, testifymock.Anything).
 		RunAndReturn(func(ctx context.Context, fn repo.ConnHandler) error {
-			return fn(ctx, nil)
+			return fn(ctx, conn)
 		})
-	customerProfile.EXPECT().Conn(testifymock.Anything).Return(customerProfileQ)
+	customerProfile.EXPECT().Tx(testifymock.Anything).Return(customerProfileQ)
 	customerProfileQ.EXPECT().
 		GetByExternalCustomerID(testifymock.Anything, externalCustomerID).
 		Return(model.CustomerProfile{ID: profileID, ExternalCustomerID: externalCustomerID}, nil)
 	paymentAttempt := mock.NewPaymentAttempt(t)
-	paymentAttemptQ := mock.NewPaymentAttemptConnQueryer(t)
+	paymentAttemptQ := mock.NewPaymentAttemptTxQueryer(t)
 	installmentCharge := mock.NewInstallmentCharge(t)
-	installmentChargeQ := mock.NewInstallmentChargeConnQueryer(t)
+	installmentChargeQ := mock.NewInstallmentChargeTxQueryer(t)
 
 	row1 := model.Installment{
 		ID:                id1,
@@ -130,7 +136,7 @@ func TestListUnpaidInstallments_OrdersByDueAtAndBuildsDueAtCursor(t *testing.T) 
 		Status:            model.ScheduledInstallmentStatus,
 	}
 
-	installment.EXPECT().Conn(testifymock.Anything).Return(installmentQ)
+	installment.EXPECT().Tx(testifymock.Anything).Return(installmentQ)
 	installmentQ.EXPECT().
 		ListUnpaidByCustomerID(testifymock.Anything, profileID, testifymock.MatchedBy(func(page pagination.KeysetRequest) bool {
 			return page.Limit == 2 && page.Order == pagination.OrderAsc
@@ -144,12 +150,12 @@ func TestListUnpaidInstallments_OrdersByDueAtAndBuildsDueAtCursor(t *testing.T) 
 		ListNextPayablePerContractByCustomerID(testifymock.Anything, profileID).
 		Return([]model.Installment{row1}, nil)
 
-	paymentAttempt.EXPECT().Conn(testifymock.Anything).Return(paymentAttemptQ)
+	paymentAttempt.EXPECT().Tx(testifymock.Anything).Return(paymentAttemptQ)
 	paymentAttemptQ.EXPECT().
 		ListInstallmentIDsWithNonTerminalAttempts(testifymock.Anything, profileID, testifymock.Anything).
 		Return(nil, nil)
 
-	installmentCharge.EXPECT().Conn(testifymock.Anything).Return(installmentChargeQ)
+	installmentCharge.EXPECT().Tx(testifymock.Anything).Return(installmentChargeQ)
 	installmentChargeQ.EXPECT().
 		ListByInstallmentIDs(testifymock.Anything, []model.InstallmentID{id1}).
 		Return(nil, nil)

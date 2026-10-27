@@ -129,3 +129,8 @@ func (q txQueryer) Update(
 		updatedAt,
 	)
 }
+
+// GetByExternalCustomerID reads a profile in the current transaction snapshot.
+func (q txQueryer) GetByExternalCustomerID(ctx context.Context, id model.ExternalCustomerID) (model.CustomerProfile, error) {
+	return GetByExternalCustomerID(ctx, q.Tx, id)
+}

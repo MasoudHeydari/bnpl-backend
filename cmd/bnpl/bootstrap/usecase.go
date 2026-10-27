@@ -1,9 +1,11 @@
 package bootstrap
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
+	"github.com/parstis/bnpl-backend/pkg/core/model"
 	checkoutcatalog "github.com/parstis/bnpl-backend/pkg/core/policy/checkout/catalog"
 	initialcreditcatalog "github.com/parstis/bnpl-backend/pkg/core/policy/initialcreditlimit/catalog"
 	"github.com/parstis/bnpl-backend/pkg/core/policy/shortlinkdestination"
@@ -173,6 +175,9 @@ func (a *App) NewUseCases() (UseCases, error) {
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize collections use case: %w", op, err)
 	}
+	collectionsUseCase.WithAssessmentFailureObserver(func(ctx context.Context, customerID model.CustomerID, err error) {
+		a.Infrastructure.Logger.With("customer_id", customerID.String(), "error", err.Error()).Error("collections customer assessment failed")
+	})
 
 	decisionUseCase, err := a.Config.NewDecisionUseCase(
 		a.Pool,

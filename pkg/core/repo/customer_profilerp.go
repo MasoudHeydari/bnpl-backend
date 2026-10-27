@@ -39,6 +39,9 @@ type CustomerProfileConnQueryer interface {
 
 // CustomerProfileTxQueryer exposes transaction-scoped customer profile operations.
 type CustomerProfileTxQueryer interface {
+	// GetByExternalCustomerID reads the profile without locking in the current snapshot.
+	GetByExternalCustomerID(ctx context.Context, externalCustomerID model.ExternalCustomerID) (model.CustomerProfile, error)
+
 	// Create stores a new customer profile inside the current transaction.
 	Create(
 		ctx context.Context,

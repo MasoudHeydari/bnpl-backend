@@ -136,3 +136,20 @@ func TestEvaluate_ZeroGraceDefaultsAtDue(t *testing.T) {
 
 	require.True(t, eval.IsDefaultEligible)
 }
+
+func TestDurationGraceAcrossDSTAndDelayedLifecycle(t *testing.T) {
+	loc, err := time.LoadLocation("America/New_York")
+	require.NoError(t, err)
+	contract := model.ContractID(uuid.New())
+	for _, due := range []time.Time{time.Date(2026, 3, 7, 15, 30, 0, 0, loc), time.Date(2026, 10, 31, 15, 30, 0, 0, loc)} {
+		for _, days := range []uint{0, 1, 3, 45} {
+			i := model.Installment{ID: model.InstallmentID(uuid.New()), ContractID: &contract, DueAt: due, GracePeriodDays: days, Status: model.ScheduledInstallmentStatus}
+			facts := []v1.ObligationFact{v1.FactFromUnpaidInstallment(i, false)}
+			boundary := due.Add(time.Duration(days) * 24 * time.Hour)
+			require.False(t, v1.New().Evaluate(facts, boundary.Add(-time.Nanosecond), false).IsDefaultEligible)
+			require.True(t, v1.New().Evaluate(facts, boundary, false).IsDefaultEligible)
+			require.True(t, v1.New().Evaluate(facts, boundary.Add(48*time.Hour), false).IsDefaultEligible)
+			require.True(t, i.IsOverdueEligible(boundary))
+		}
+	}
+}

@@ -72,3 +72,23 @@ func (p policy) ValidateDestination(destinationURL string) error {
 func normalizeHost(host string) string {
 	return strings.ToLower(strings.TrimSpace(host))
 }
+
+// ValidatePublicHost validates the bare DNS host used both in SMS URLs and
+// host-scoped redirects. Schemes, paths, credentials, and ports cannot match
+// that routing contract and must be rejected before dispatch.
+func ValidatePublicHost(host string) error {
+	if host == "" || len(host) > 253 || strings.TrimSpace(host) != host {
+		return fmt.Errorf("shortlinkdestination.ValidatePublicHost: invalid public host")
+	}
+	for _, label := range strings.Split(host, ".") {
+		if len(label) == 0 || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
+			return fmt.Errorf("shortlinkdestination.ValidatePublicHost: invalid DNS label")
+		}
+		for _, c := range label {
+			if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-') {
+				return fmt.Errorf("shortlinkdestination.ValidatePublicHost: public host must be a bare DNS host")
+			}
+		}
+	}
+	return nil
+}

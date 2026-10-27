@@ -363,7 +363,7 @@ func TestTask_getTaskDefinitions(t *testing.T) {
 
 	definitions, err := taskCfg.getTaskDefinitions()
 	require.NoError(t, err)
-	require.Len(t, definitions, 12)
+	require.Len(t, definitions, 13)
 	assert.Equal(t, "runtime_goroutine_metrics", definitions[0].Name)
 	assert.True(t, definitions[0].Enabled)
 	assert.Equal(t, "outbox_publisher", definitions[1].Name)

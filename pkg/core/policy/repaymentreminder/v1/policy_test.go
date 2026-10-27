@@ -36,7 +36,7 @@ func fact(
 ) v1.InstallmentFact {
 	return v1.InstallmentFact{
 		InstallmentID:        model.InstallmentID(uuid.New()),
-		DueAt:                atHour(dueDay, 0).UTC(),
+		DueAt:                dueDay.UTC(),
 		GracePeriodDays:      grace,
 		Status:               status,
 		HasUnresolvedPayment: pending,
@@ -77,7 +77,7 @@ func TestEvaluateCustomer_DueToday(t *testing.T) {
 
 func TestEvaluateCustomer_GraceAndFinalDay(t *testing.T) {
 	loc := tehran()
-	due := businessDay(loc, 2026, time.March, 10)
+	due := atHour(businessDay(loc, 2026, time.March, 10), 18)
 
 	t.Run("mid grace", func(t *testing.T) {
 		day := businessDay(loc, 2026, time.March, 12) // D+2 of grace=3
@@ -119,7 +119,7 @@ func TestEvaluateCustomer_GraceAndFinalDay(t *testing.T) {
 
 func TestEvaluateCustomer_ZeroGraceHasNoGraceReminders(t *testing.T) {
 	loc := tehran()
-	due := businessDay(loc, 2026, time.March, 10)
+	due := atHour(businessDay(loc, 2026, time.March, 10), 18)
 	day := businessDay(loc, 2026, time.March, 11)
 
 	decision := v1.New().EvaluateCustomer(
@@ -176,7 +176,7 @@ func TestEvaluateCustomer_PriorityAndPaidPending(t *testing.T) {
 			},
 			{
 				InstallmentID:   finalID,
-				DueAt:           atHour(dueGraceFinal, 0).UTC(),
+				DueAt:           atHour(dueGraceFinal, 18).UTC(),
 				GracePeriodDays: 3,
 				Status:          model.DueInstallmentStatus,
 			},
@@ -208,4 +208,28 @@ func TestEvaluateCustomer_TimezoneBoundary(t *testing.T) {
 
 	require.True(t, decision.ShouldSend)
 	require.Equal(t, model.DueTodayReminderType, decision.ReminderType)
+}
+
+func TestCalendarDSTAndGraceExpiry(t *testing.T) {
+	loc, err := time.LoadLocation("America/New_York")
+	require.NoError(t, err)
+	// Spring-forward is 23 elapsed hours, but one calendar day.
+	due := time.Date(2026, 3, 8, 18, 0, 0, 0, loc)
+	day := time.Date(2026, 3, 9, 0, 0, 0, 0, loc)
+	d := v1.New().EvaluateCustomer(atHour(day, 13), day, []v1.InstallmentFact{fact(due, 3, model.ScheduledInstallmentStatus, false)}, false)
+	require.True(t, d.ShouldSend)
+	require.Equal(t, model.GracePeriodReminderType, d.ReminderType)
+	// A delayed job after the contractual instant must not send a grace warning.
+	expiry := due.Add(3 * 24 * time.Hour)
+	for _, now := range []time.Time{expiry, expiry.Add(time.Hour)} {
+		business := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+		d = v1.New().EvaluateCustomer(now, business, []v1.InstallmentFact{fact(due, 3, model.DueInstallmentStatus, false)}, false)
+		require.False(t, d.ShouldSend)
+	}
+	// A calendar delivery window ends at the next local midnight, including DST.
+	oldDay := time.Date(2026, 3, 8, 0, 0, 0, 0, loc)
+	nextDay := oldDay.AddDate(0, 0, 1)
+	d = v1.New().EvaluateCustomer(nextDay, oldDay, []v1.InstallmentFact{fact(oldDay, 3, model.DueInstallmentStatus, false)}, false)
+	require.False(t, d.ShouldSend)
+	require.Equal(t, v1.SuppressStaleWindow, d.SuppressReason)
 }

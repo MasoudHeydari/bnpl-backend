@@ -121,17 +121,17 @@ func openIntegrationPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 
 	dsn := postgresDSNFromEnv()
 	if dsn == "" {
-		t.Skip("POSTGRES_* env not configured; skipping PostgreSQL collections fingerprint integration test")
+		t.Fatal("POSTGRES_* env not configured; skipping PostgreSQL collections fingerprint integration test")
 	}
 
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
-		t.Skipf("postgres unavailable: %v", err)
+		t.Fatalf("postgres unavailable: %v", err)
 	}
 
 	if err := pool.Ping(ctx); err != nil {
 		pool.Close()
-		t.Skipf("postgres unavailable: %v", err)
+		t.Fatalf("postgres unavailable: %v", err)
 	}
 
 	return pool

@@ -99,6 +99,12 @@ func (c *Config) Validate() error {
 func (c *Config) validateRepaymentReminderShortLink() error {
 	const op = "config.Config.validateRepaymentReminderShortLink"
 
+	if host := strings.TrimSpace(c.Usecases.ShortLink.PublicHost); host != "" {
+		if err := shortlinkdestination.ValidatePublicHost(host); err != nil {
+			return fmt.Errorf("%s: invalid usecases.short_link.public_host: %w", op, err)
+		}
+	}
+
 	if !c.Infrastructure.Task.Scheduled.RepaymentReminderDispatch.Enabled {
 		return nil
 	}

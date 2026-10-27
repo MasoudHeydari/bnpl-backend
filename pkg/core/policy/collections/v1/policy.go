@@ -154,10 +154,13 @@ func (Policy) Evaluate(
 }
 
 func overdueEligibleAt(dueAt time.Time, gracePeriodDays uint) time.Time {
-	days := gracePeriodDays
-	if days > model.MaxInstallmentGracePeriodDays {
-		days = model.MaxInstallmentGracePeriodDays
-	}
+	return (model.Installment{DueAt: dueAt, GracePeriodDays: gracePeriodDays}).OverdueEligibleAt()
+}
 
-	return dueAt.UTC().Add(time.Duration(int64(days)) * 24 * time.Hour)
+// FactFromUnpaidInstallment maps a contractually applicable outstanding row to
+// the same policy input for assessments and live credit eligibility checks.
+func FactFromUnpaidInstallment(i model.Installment, unresolved bool) ObligationFact {
+	return ObligationFact{InstallmentID: i.ID, ContractID: i.ContractID,
+		DueAt: i.DueAt, GracePeriodDays: i.GracePeriodDays, Status: i.Status,
+		HasUnresolvedPayment: unresolved, IsContractuallyApplicable: true}
 }

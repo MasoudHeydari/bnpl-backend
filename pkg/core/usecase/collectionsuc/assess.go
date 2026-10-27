@@ -76,7 +76,7 @@ func (uc *UseCase) AssessBatch(ctx context.Context) (AssessBatchOutput, error) {
 		if err != nil {
 			uc.businessMetrics.CollectionsAssessmentJobCompleted(ctx, "failure")
 			uc.businessMetrics.CollectionsAssessmentJobDuration(ctx, uc.clock.Now().UTC().Sub(started))
-			return AssessBatchOutput{}, fmt.Errorf("%s: list assessment candidates: %w", op, err)
+			return output, fmt.Errorf("%s: list assessment candidates: %w", op, err)
 		}
 
 		if len(customerIDs) == 0 {
@@ -89,11 +89,16 @@ func (uc *UseCase) AssessBatch(ctx context.Context) (AssessBatchOutput, error) {
 
 			if assessErr != nil {
 				output.FailedCount++
-				customerFailures = append(customerFailures, fmt.Errorf(
-					"customer_id=%s: %w",
-					customerID.String(),
-					assessErr,
-				))
+				if uc.onAssessmentFailure != nil {
+					uc.onAssessmentFailure(ctx, customerID, assessErr)
+				}
+				if len(customerFailures) < 10 {
+					customerFailures = append(customerFailures, fmt.Errorf(
+						"customer_id=%s: %w",
+						customerID.String(),
+						assessErr,
+					))
+				}
 				continue
 			}
 
@@ -125,7 +130,7 @@ func (uc *UseCase) AssessBatch(ctx context.Context) (AssessBatchOutput, error) {
 	uc.businessMetrics.CollectionsAssessmentSkipped(ctx, output.SkippedCount)
 
 	if len(customerFailures) > 0 {
-		return output, fmt.Errorf("%s: %w", op, errors.Join(customerFailures...))
+		return output, fmt.Errorf("%s: %d customer assessments failed (first %d): %w", op, output.FailedCount, len(customerFailures), errors.Join(customerFailures...))
 	}
 
 	return output, nil
@@ -289,16 +294,15 @@ func (uc *UseCase) assessCustomerTx(
 
 		if !evaluation.IsRecovered {
 			output.Transition = AssessTransitionBlocked
-			if evaluation.HasPaymentUncertainty {
-				if noteErr := uc.notePaymentUncertainty(
-					ctx,
-					caseQ,
-					activeEpisode,
-					uncertainInstallmentIDs(evaluation, factByID),
-					now,
-				); noteErr != nil {
-					return AssessCustomerOutput{}, noteErr
-				}
+			// Record empty uncertainty too, so a later recurrence is a new transition.
+			if noteErr := uc.notePaymentUncertainty(
+				ctx,
+				caseQ,
+				activeEpisode,
+				uncertainInstallmentIDs(evaluation, factByID),
+				now,
+			); noteErr != nil {
+				return AssessCustomerOutput{}, noteErr
 			}
 
 			return output, nil
@@ -386,16 +390,7 @@ func (uc *UseCase) evaluateObligationsWithFacts(
 	factByID := make(map[model.InstallmentID]repo.CollectionsObligation, len(obligations))
 	for _, row := range obligations {
 		factByID[row.Installment.ID] = row
-		facts = append(facts, collectionsv1.ObligationFact{
-			InstallmentID:             row.Installment.ID,
-			ContractID:                row.Installment.ContractID,
-			DueAt:                     row.Installment.DueAt,
-			GracePeriodDays:           row.Installment.GracePeriodDays,
-			Status:                    row.Installment.Status,
-			IsFullySettled:            false,
-			HasUnresolvedPayment:      row.HasUnresolvedPayment,
-			IsContractuallyApplicable: true,
-		})
+		facts = append(facts, collectionsv1.FactFromUnpaidInstallment(row.Installment, row.HasUnresolvedPayment))
 	}
 
 	return uc.policy.Evaluate(facts, now, currentlyDefaulted), factByID, nil
@@ -555,12 +550,12 @@ func (uc *UseCase) openEpisode(
 	// still unresolved. Cases open for human review, but payload must not assert
 	// confirmed nonpayment when uncertainty is present.
 	openedPayload, _ := json.Marshal(map[string]any{
-		"customer_id":                 profile.ID.String(),
-		"default_episode_id":          episode.ID.String(),
-		"opening_decision_id":         decision.ID.String(),
-		"trigger_count":               len(triggers),
-		"has_payment_uncertainty":     evaluation.HasPaymentUncertainty,
-		"confirmed_default_evidence":  !evaluation.HasPaymentUncertainty,
+		"customer_id":                   profile.ID.String(),
+		"default_episode_id":            episode.ID.String(),
+		"opening_decision_id":           decision.ID.String(),
+		"trigger_count":                 len(triggers),
+		"has_payment_uncertainty":       evaluation.HasPaymentUncertainty,
+		"confirmed_default_evidence":    !evaluation.HasPaymentUncertainty,
 		"awaiting_settlement_reconcile": evaluation.HasPaymentUncertainty,
 	})
 
@@ -789,6 +784,17 @@ func (uc *UseCase) notePaymentUncertainty(
 		}
 	} else if !cerr.IsCode(latestErr, cerr.CodeResourceNotFound) {
 		return fmt.Errorf("%s: load latest uncertainty event: %w", op, latestErr)
+	} else if len(uncertainIDs) == 0 {
+		// No previous uncertainty and no current uncertainty is not a transition.
+		return nil
+	}
+
+	// PostgreSQL timestamps have microsecond precision. Assessments serialize on
+	// the customer lock, but a fixed clock or rapid retries can share an instant.
+	// Keep the transition stream ordered even when the supplied clock repeats.
+	now = now.UTC().Truncate(time.Microsecond)
+	if latestErr == nil && !now.After(latest.OccurredAt) {
+		now = latest.OccurredAt.Add(time.Microsecond)
 	}
 
 	installmentIDStrings := make([]string, 0, len(uncertainIDs))
@@ -797,11 +803,12 @@ func (uc *UseCase) notePaymentUncertainty(
 	}
 
 	payload, _ := json.Marshal(map[string]any{
-		"customer_id":            episode.CustomerID.String(),
-		"default_episode_id":     episode.ID.String(),
-		"uncertainty_state_key":  stateKey,
-		"uncertain_installments": installmentIDStrings,
-		"noted_at":               now.UTC().Format(time.RFC3339Nano),
+		"customer_id":             episode.CustomerID.String(),
+		"default_episode_id":      episode.ID.String(),
+		"uncertainty_state_key":   stateKey,
+		"has_payment_uncertainty": len(uncertainIDs) > 0,
+		"uncertain_installments":  installmentIDStrings,
+		"noted_at":                now.UTC().Format(time.RFC3339Nano),
 	})
 
 	_, err = caseQ.AppendEvent(ctx, repo.CreateCollectionsCaseEvent{

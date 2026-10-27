@@ -28,11 +28,20 @@ type TxHandler = repo.TxHandler
 // Tx executes f within a database transaction.
 // It commits when f returns nil, rolls back when f returns an error or panics,
 // and wraps rollback or commit failures into the returned error.
-func (c *Conn) Tx(ctx context.Context, f TxHandler) (err error) {
+func (c *Conn) Tx(ctx context.Context, f TxHandler) error {
+	return c.withTx(ctx, emptyTxOptions, f)
+}
+
+// ReadSnapshot holds a coherent committed view across multi-query account reads.
+func (c *Conn) ReadSnapshot(ctx context.Context, f TxHandler) error {
+	return c.withTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, f)
+}
+
+func (c *Conn) withTx(ctx context.Context, options pgx.TxOptions, f TxHandler) (err error) {
 	var tx pgx.Tx
 	const op = "postgres.Conn.Tx"
 
-	tx, err = c.BeginTx(ctx, emptyTxOptions)
+	tx, err = c.BeginTx(ctx, options)
 	if err != nil {
 		return fmt.Errorf("%s: begin tx: %w", op, err)
 	}

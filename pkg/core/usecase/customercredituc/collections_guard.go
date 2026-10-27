@@ -53,16 +53,7 @@ func newCreditUsageBlocked(
 
 	facts := make([]collectionsv1.ObligationFact, 0, len(obligations))
 	for _, row := range obligations {
-		facts = append(facts, collectionsv1.ObligationFact{
-			InstallmentID:             row.Installment.ID,
-			ContractID:                row.Installment.ContractID,
-			DueAt:                     row.Installment.DueAt,
-			GracePeriodDays:           row.Installment.GracePeriodDays,
-			Status:                    row.Installment.Status,
-			IsFullySettled:            false,
-			HasUnresolvedPayment:      row.HasUnresolvedPayment,
-			IsContractuallyApplicable: true,
-		})
+		facts = append(facts, collectionsv1.FactFromUnpaidInstallment(row.Installment, row.HasUnresolvedPayment))
 	}
 
 	evaluation := collectionsv1.New().Evaluate(facts, now, false)
