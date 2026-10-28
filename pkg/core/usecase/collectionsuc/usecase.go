@@ -4,12 +4,15 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
+	"github.com/parstis/bnpl-backend/pkg/core/cerr"
+
 	"github.com/parstis/bnpl-backend/pkg/core/clock"
 	"github.com/parstis/bnpl-backend/pkg/core/fingerprint"
 	"github.com/parstis/bnpl-backend/pkg/core/identifier"
 	coremetrics "github.com/parstis/bnpl-backend/pkg/core/metrics"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
-	collectionsv1 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v1"
+	"github.com/parstis/bnpl-backend/pkg/core/policy/collections"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
@@ -27,7 +30,7 @@ type UseCase struct {
 	idGenerator         identifier.Generator
 	fingerprintHasher   fingerprint.Hasher
 	businessMetrics     coremetrics.BusinessMetrics
-	policy              collectionsv1.Policy
+	policies            *collections.Registry
 	auditDestination    string
 	batchSize           int
 	onAssessmentFailure func(context.Context, model.CustomerID, error)
@@ -49,8 +52,13 @@ func New(
 	businessMetrics coremetrics.BusinessMetrics,
 	auditDestination string,
 	batchSize int,
+	policies *collections.Registry,
 ) (*UseCase, error) {
 	const op = "collectionsuc.New"
+
+	if policies == nil {
+		return nil, fmt.Errorf("%s: collections policies are required", op)
+	}
 
 	if pool == nil {
 		return nil, fmt.Errorf("%s: pool is required", op)
@@ -121,7 +129,7 @@ func New(
 		idGenerator:         idGenerator,
 		fingerprintHasher:   fingerprintHasher,
 		businessMetrics:     businessMetrics,
-		policy:              collectionsv1.New(),
+		policies:            policies,
 		auditDestination:    auditDestination,
 		batchSize:           batchSize,
 	}, nil
@@ -132,4 +140,12 @@ func New(
 func (uc *UseCase) WithAssessmentFailureObserver(observer func(context.Context, model.CustomerID, error)) *UseCase {
 	uc.onAssessmentFailure = observer
 	return uc
+}
+
+func (uc *UseCase) nextUUID() (uuid.UUID, error) {
+	id, err := uuid.Parse(uc.idGenerator.Generate())
+	if err != nil || id == uuid.Nil {
+		return uuid.Nil, cerr.InternalError(fmt.Errorf("collections identifier generator returned invalid UUID"))
+	}
+	return id, nil
 }

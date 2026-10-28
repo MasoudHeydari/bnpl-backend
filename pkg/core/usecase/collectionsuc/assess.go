@@ -7,12 +7,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/event/audit"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
-	collectionsv1 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v1"
+	"github.com/parstis/bnpl-backend/pkg/core/policy/collections"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
@@ -236,6 +234,9 @@ func (uc *UseCase) AssertNewCreditAllowed(
 	if evaluation.IsDefaultEligible {
 		return newCreditUsageRestrictedError()
 	}
+	if evaluation.HasUnresolvedCancellation {
+		return cerr.Conflict(fmt.Errorf("%s: unresolved contract cancellation blocks new credit", op))
+	}
 
 	return nil
 }
@@ -269,12 +270,23 @@ func (uc *UseCase) assessCustomerTx(
 		return AssessCustomerOutput{}, fmt.Errorf("%s: lock active episode: %w", op, episodeErr)
 	}
 
+	selected := uc.policies.Current
+	if currentlyDefaulted {
+		opening, loadErr := decisionQ.GetByID(ctx, activeEpisode.OpeningDecisionID)
+		if loadErr != nil {
+			return AssessCustomerOutput{}, loadErr
+		}
+		selected, loadErr = uc.policies.Resolve(opening.PolicyID, opening.PolicyVersion)
+		if loadErr != nil {
+			return AssessCustomerOutput{}, loadErr
+		}
+	}
 	evaluation, factByID, evalErr := uc.evaluateObligationsWithFacts(
 		ctx,
 		installmentQ,
 		customerID,
 		now,
-		currentlyDefaulted,
+		currentlyDefaulted, selected,
 	)
 	if evalErr != nil {
 		return AssessCustomerOutput{}, fmt.Errorf("%s: evaluate obligations: %w", op, evalErr)
@@ -310,6 +322,7 @@ func (uc *UseCase) assessCustomerTx(
 
 		recovered, recoverErr := uc.recoverEpisode(
 			ctx,
+			installmentQ,
 			decisionQ,
 			episodeQ,
 			restrictionQ,
@@ -361,7 +374,7 @@ func (uc *UseCase) evaluateObligations(
 	customerID model.CustomerID,
 	now time.Time,
 	currentlyDefaulted bool,
-) (collectionsv1.Evaluation, error) {
+) (collections.Evaluation, error) {
 	evaluation, _, err := uc.evaluateObligationsWithFacts(
 		ctx,
 		installmentQ,
@@ -378,26 +391,34 @@ func (uc *UseCase) evaluateObligationsWithFacts(
 	customerID model.CustomerID,
 	now time.Time,
 	currentlyDefaulted bool,
-) (collectionsv1.Evaluation, map[model.InstallmentID]repo.CollectionsObligation, error) {
+	selected ...collections.Policy,
+) (collections.Evaluation, map[model.InstallmentID]repo.CollectionsObligation, error) {
 	const op = "collectionsuc.UseCase.evaluateObligationsWithFacts"
 
 	obligations, err := installmentQ.ListCollectionsObligationsByCustomerID(ctx, customerID)
 	if err != nil {
-		return collectionsv1.Evaluation{}, nil, fmt.Errorf("%s: list obligations: %w", op, err)
+		return collections.Evaluation{}, nil, fmt.Errorf("%s: list obligations: %w", op, err)
 	}
 
-	facts := make([]collectionsv1.ObligationFact, 0, len(obligations))
+	facts := make([]collections.ObligationFact, 0, len(obligations))
 	factByID := make(map[model.InstallmentID]repo.CollectionsObligation, len(obligations))
 	for _, row := range obligations {
 		factByID[row.Installment.ID] = row
-		facts = append(facts, collectionsv1.FactFromUnpaidInstallment(row.Installment, row.HasUnresolvedPayment))
+		fact := collections.FactFromUnpaidInstallment(row.Installment, row.HasUnresolvedPayment)
+		fact.HasUnsettledCharges = row.HasUnsettledCharges
+		fact.HasUnresolvedCancellation = row.HasUnresolvedCancellation
+		facts = append(facts, fact)
 	}
 
-	return uc.policy.Evaluate(facts, now, currentlyDefaulted), factByID, nil
+	policy := uc.policies.Current
+	if len(selected) > 0 {
+		policy = selected[0]
+	}
+	return policy.Evaluate(facts, now, currentlyDefaulted), factByID, nil
 }
 
 func uncertainInstallmentIDs(
-	evaluation collectionsv1.Evaluation,
+	evaluation collections.Evaluation,
 	factByID map[model.InstallmentID]repo.CollectionsObligation,
 ) []model.InstallmentID {
 	seen := make(map[model.InstallmentID]struct{})
@@ -442,7 +463,7 @@ func (uc *UseCase) openEpisode(
 	caseQ repo.CollectionsCaseTxQueryer,
 	outboxQ repo.OutboxTxQueryer,
 	profile model.CustomerProfile,
-	evaluation collectionsv1.Evaluation,
+	evaluation collections.Evaluation,
 	factByID map[model.InstallmentID]repo.CollectionsObligation,
 	now time.Time,
 ) (openedEpisode, error) {
@@ -451,7 +472,23 @@ func (uc *UseCase) openEpisode(
 	// Episode identity scopes the Decision idempotency key so retries of the
 	// same open attempt share one key, while a later default after recovery
 	// begins a distinct episode/Decision chain.
-	episodeID := model.DefaultEpisodeID(uuid.New())
+	rawID, err := uc.nextUUID()
+	if err != nil {
+		return openedEpisode{}, err
+	}
+	episodeID := model.DefaultEpisodeID(rawID)
+	restrictionID, err := uc.nextUUID()
+	if err != nil {
+		return openedEpisode{}, err
+	}
+	caseID, err := uc.nextUUID()
+	if err != nil {
+		return openedEpisode{}, err
+	}
+	eventID, err := uc.nextUUID()
+	if err != nil {
+		return openedEpisode{}, err
+	}
 	idempotencyKey := "collections_default_open:" + episodeID.String()
 
 	fingerprint, err := uc.openDecisionFingerprint(profile.ID, evaluation.TriggerInstallmentIDs)
@@ -466,8 +503,8 @@ func (uc *UseCase) openEpisode(
 		profile.ID.UUID(),
 		model.RestrictedDecisionOutcome,
 		[]string{model.CollectionsGracePeriodExceededDecisionReason},
-		collectionsv1.PolicyID,
-		collectionsv1.PolicyVersion,
+		uc.policies.Current.ID(),
+		uc.policies.Current.Version(),
 		profile.Jurisdiction,
 		model.SystemDecisionActorType,
 		nil,
@@ -499,7 +536,7 @@ func (uc *UseCase) openEpisode(
 			InstallmentID:     installmentID,
 			DueAt:             row.Installment.DueAt,
 			GracePeriodDays:   row.Installment.GracePeriodDays,
-			OverdueEligibleAt: row.Installment.OverdueEligibleAt(),
+			OverdueEligibleAt: uc.policies.Current.Boundary(row.Installment),
 		})
 	}
 
@@ -520,7 +557,7 @@ func (uc *UseCase) openEpisode(
 
 	episodeIDPtr := episode.ID
 	_, err = restrictionQ.Create(ctx, repo.CreateCustomerRestriction{
-		ID:                model.CustomerRestrictionID(uuid.New()),
+		ID:                model.CustomerRestrictionID(restrictionID),
 		CustomerID:        profile.ID,
 		RestrictionType:   model.NewCreditUsageCustomerRestrictionType,
 		Reason:            model.CollectionsDefaultCustomerRestrictionReason,
@@ -535,7 +572,7 @@ func (uc *UseCase) openEpisode(
 	}
 
 	caseRow, err := caseQ.Create(ctx, repo.CreateCollectionsCase{
-		ID:                model.CollectionsCaseID(uuid.New()),
+		ID:                model.CollectionsCaseID(caseID),
 		CustomerID:        profile.ID,
 		DefaultEpisodeID:  episode.ID,
 		OpeningDecisionID: decision.ID,
@@ -560,7 +597,7 @@ func (uc *UseCase) openEpisode(
 	})
 
 	_, err = caseQ.AppendEvent(ctx, repo.CreateCollectionsCaseEvent{
-		ID:         model.CollectionsCaseEventID(uuid.New()),
+		ID:         model.CollectionsCaseEventID(eventID),
 		CaseID:     caseRow.ID,
 		EventType:  model.CaseOpenedCollectionsCaseEventType,
 		DecisionID: &decision.ID,
@@ -596,8 +633,8 @@ func (uc *UseCase) openEpisode(
 		profile.ID,
 		now,
 		map[string]any{
-			"policy_id":      collectionsv1.PolicyID,
-			"policy_version": collectionsv1.PolicyVersion,
+			"policy_id":      uc.policies.Current.ID(),
+			"policy_version": uc.policies.Current.Version(),
 			"reason_code":    model.CollectionsGracePeriodExceededDecisionReason,
 			"case_id":        caseRow.ID.String(),
 		},
@@ -613,6 +650,7 @@ func (uc *UseCase) openEpisode(
 
 func (uc *UseCase) recoverEpisode(
 	ctx context.Context,
+	installmentQ repo.InstallmentQueryer,
 	decisionQ repo.DecisionTxQueryer,
 	episodeQ repo.DefaultEpisodeTxQueryer,
 	restrictionQ repo.CustomerRestrictionTxQueryer,
@@ -624,11 +662,39 @@ func (uc *UseCase) recoverEpisode(
 ) (recoveredEpisode, error) {
 	const op = "collectionsuc.UseCase.recoverEpisode"
 
+	opening, err := decisionQ.GetByID(ctx, episode.OpeningDecisionID)
+	if err != nil {
+		return recoveredEpisode{}, fmt.Errorf("%s: opening decision: %w", op, err)
+	}
+	governing, err := uc.policies.Resolve(opening.PolicyID, opening.PolicyVersion)
+	if err != nil {
+		return recoveredEpisode{}, err
+	}
+	eventID, err := uc.nextUUID()
+	if err != nil {
+		return recoveredEpisode{}, err
+	}
+	// Late FC delivery can correct the effective financial interpretation while
+	// retaining the originally observed immutable Decision and episode evidence.
+	triggers, err := episodeQ.ListTriggersByEpisodeID(ctx, episode.ID)
+	if err != nil {
+		return recoveredEpisode{}, err
+	}
+	correctedLateSettlement := len(triggers) > 0
+	for _, trigger := range triggers {
+		settled, loadErr := installmentQ.GetByID(ctx, trigger.InstallmentID)
+		if loadErr != nil {
+			return recoveredEpisode{}, loadErr
+		}
+		if settled.PaidAt == nil || settled.PaidAt.After(trigger.OverdueEligibleAt) {
+			correctedLateSettlement = false
+		}
+	}
 	priorDecisionID := episode.OpeningDecisionID
 	// One recovery Decision chain per episode identity.
 	idempotencyKey := "collections_default_recover:" + episode.ID.String()
 
-	fingerprint, err := uc.recoverDecisionFingerprint(episode.ID, priorDecisionID)
+	fingerprint, err := uc.recoverDecisionFingerprint(episode.ID, priorDecisionID, governing.ID(), governing.Version())
 	if err != nil {
 		return recoveredEpisode{}, fmt.Errorf("%s: fingerprint recovery decision: %w", op, err)
 	}
@@ -640,8 +706,8 @@ func (uc *UseCase) recoverEpisode(
 		profile.ID.UUID(),
 		model.UnrestrictedDecisionOutcome,
 		[]string{model.CollectionsDueInstallmentsSettledDecisionReason},
-		collectionsv1.PolicyID,
-		collectionsv1.PolicyVersion,
+		governing.ID(),
+		governing.Version(),
 		profile.Jurisdiction,
 		model.SystemDecisionActorType,
 		nil,
@@ -657,10 +723,10 @@ func (uc *UseCase) recoverEpisode(
 		return recoveredEpisode{}, fmt.Errorf("%s: create recovery decision: %w", op, err)
 	}
 
-	activeRestriction, err := restrictionQ.LockActiveByCustomerType(
+	activeRestriction, err := restrictionQ.LockActiveByDefaultEpisodeID(
 		ctx,
 		profile.ID,
-		model.NewCreditUsageCustomerRestrictionType,
+		episode.ID,
 	)
 	if err != nil {
 		if cerr.IsCode(err, cerr.CodeResourceNotFound) {
@@ -674,7 +740,8 @@ func (uc *UseCase) recoverEpisode(
 		return recoveredEpisode{}, fmt.Errorf("%s: lock active restriction: %w", op, err)
 	}
 
-	if activeRestriction.Reason != model.CollectionsDefaultCustomerRestrictionReason ||
+	if activeRestriction.OpeningDecisionID != episode.OpeningDecisionID ||
+		activeRestriction.Reason != model.CollectionsDefaultCustomerRestrictionReason ||
 		activeRestriction.DefaultEpisodeID == nil ||
 		*activeRestriction.DefaultEpisodeID != episode.ID {
 		return recoveredEpisode{}, cerr.InternalError(fmt.Errorf(
@@ -707,12 +774,13 @@ func (uc *UseCase) recoverEpisode(
 	}
 
 	recoveredPayload, _ := json.Marshal(map[string]any{
-		"customer_id":         profile.ID.String(),
-		"default_episode_id":  episode.ID.String(),
-		"closing_decision_id": decision.ID.String(),
+		"customer_id":                              profile.ID.String(),
+		"default_episode_id":                       episode.ID.String(),
+		"closing_decision_id":                      decision.ID.String(),
+		"late_authoritative_settlement_correction": correctedLateSettlement,
 	})
 	_, err = caseQ.AppendEvent(ctx, repo.CreateCollectionsCaseEvent{
-		ID:         model.CollectionsCaseEventID(uuid.New()),
+		ID:         model.CollectionsCaseEventID(eventID),
 		CaseID:     caseRow.ID,
 		EventType:  model.CustomerRecoveredCollectionsCaseEventType,
 		DecisionID: &decision.ID,
@@ -735,11 +803,12 @@ func (uc *UseCase) recoverEpisode(
 		profile.ID,
 		now,
 		map[string]any{
-			"policy_id":         collectionsv1.PolicyID,
-			"policy_version":    collectionsv1.PolicyVersion,
+			"policy_id":         governing.ID(),
+			"policy_version":    governing.Version(),
 			"reason_code":       model.CollectionsDueInstallmentsSettledDecisionReason,
 			"case_id":           caseRow.ID.String(),
 			"prior_decision_id": priorDecisionID.String(),
+			"late_authoritative_settlement_correction": correctedLateSettlement,
 		},
 	); err != nil {
 		return recoveredEpisode{}, err
@@ -811,8 +880,12 @@ func (uc *UseCase) notePaymentUncertainty(
 		"noted_at":                now.UTC().Format(time.RFC3339Nano),
 	})
 
+	eventID, idErr := uc.nextUUID()
+	if idErr != nil {
+		return idErr
+	}
 	_, err = caseQ.AppendEvent(ctx, repo.CreateCollectionsCaseEvent{
-		ID:         model.CollectionsCaseEventID(uuid.New()),
+		ID:         model.CollectionsCaseEventID(eventID),
 		CaseID:     caseRow.ID,
 		EventType:  model.PaymentUncertaintyNotedCollectionsCaseEventType,
 		OccurredAt: now,

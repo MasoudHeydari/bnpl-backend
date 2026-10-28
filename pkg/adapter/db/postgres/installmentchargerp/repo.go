@@ -178,3 +178,7 @@ func (q txQueryer) LockByIDs(
 ) ([]model.InstallmentCharge, error) {
 	return LockByIDs(ctx, q.Tx, ids)
 }
+
+func (q txQueryer) LockByInstallmentIDs(ctx context.Context, ids []model.InstallmentID) ([]model.InstallmentCharge, error) {
+	return LockByInstallmentIDs(ctx, q.Tx, ids)
+}

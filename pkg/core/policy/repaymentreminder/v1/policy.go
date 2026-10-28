@@ -242,7 +242,7 @@ func evaluateInstallment(
 		)
 
 	case dayOffset >= 1 && dayOffset <= graceDays:
-		graceEndsAt := (model.Installment{DueAt: fact.DueAt, GracePeriodDays: fact.GracePeriodDays}).OverdueEligibleAt()
+		graceEndsAt := (model.Installment{DueAt: fact.DueAt, GracePeriodDays: fact.GracePeriodDays}).OverdueEligibleAt(loc)
 		// A delayed reminder must never call an expired duration-based grace
 		// period active, even when the business calendar still calls it D+Grace.
 		if !graceEndsAt.After(nowLocal) {

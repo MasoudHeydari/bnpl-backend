@@ -7,7 +7,7 @@ import (
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
-	collectionsv1 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v1"
+	"github.com/parstis/bnpl-backend/pkg/core/policy/collections"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
@@ -23,39 +23,54 @@ func newCreditUsageBlocked(
 	episodeQ repo.DefaultEpisodeQueryer,
 	customerID model.CustomerID,
 	now time.Time,
-) (bool, error) {
+	selected collections.Policy,
+) (bool, string, error) {
 	const op = "customercredituc.newCreditUsageBlocked"
 
 	activeRestrictions, err := restrictionQ.ListActiveByCustomerID(ctx, customerID)
 	if err != nil {
-		return false, fmt.Errorf("%s: list active restrictions: %w", op, err)
+		return false, "", fmt.Errorf("%s: list active restrictions: %w", op, err)
 	}
 
+	blocked, other := false, false
 	for _, restriction := range activeRestrictions {
 		if restriction.RestrictionType == model.NewCreditUsageCustomerRestrictionType {
-			return true, nil
+			blocked = true
+			other = other || restriction.Reason != model.CollectionsDefaultCustomerRestrictionReason
 		}
+	}
+	if blocked {
+		if other {
+			return true, "credit_usage_restricted", nil
+		}
+		return true, "collections_default", nil
 	}
 
 	_, episodeErr := episodeQ.GetActiveByCustomerID(ctx, customerID)
 	if episodeErr == nil {
-		return true, nil
+		return true, "collections_default", nil
 	}
 
 	if !cerr.IsCode(episodeErr, cerr.CodeResourceNotFound) {
-		return false, fmt.Errorf("%s: load active episode: %w", op, episodeErr)
+		return false, "", fmt.Errorf("%s: load active episode: %w", op, episodeErr)
 	}
 
 	obligations, err := installmentQ.ListCollectionsObligationsByCustomerID(ctx, customerID)
 	if err != nil {
-		return false, fmt.Errorf("%s: list obligations: %w", op, err)
+		return false, "", fmt.Errorf("%s: list obligations: %w", op, err)
 	}
 
-	facts := make([]collectionsv1.ObligationFact, 0, len(obligations))
+	facts := make([]collections.ObligationFact, 0, len(obligations))
 	for _, row := range obligations {
-		facts = append(facts, collectionsv1.FactFromUnpaidInstallment(row.Installment, row.HasUnresolvedPayment))
+		fact := collections.FactFromUnpaidInstallment(row.Installment, row.HasUnresolvedPayment)
+		fact.HasUnsettledCharges = row.HasUnsettledCharges
+		fact.HasUnresolvedCancellation = row.HasUnresolvedCancellation
+		facts = append(facts, fact)
 	}
 
-	evaluation := collectionsv1.New().Evaluate(facts, now, false)
-	return evaluation.IsDefaultEligible, nil
+	evaluation := selected.Evaluate(facts, now, false)
+	if evaluation.HasUnresolvedCancellation {
+		return true, "credit_usage_restricted", nil
+	}
+	return evaluation.IsDefaultEligible, "collections_default", nil
 }

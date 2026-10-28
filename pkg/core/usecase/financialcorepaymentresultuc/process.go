@@ -113,6 +113,12 @@ func (uc *UseCase) Process(
 		return
 	}
 
+	if purpose == model.InstallmentRepaymentFinancialCorePaymentPurpose && input.PaymentStatus == model.SucceededFinancialPaymentResultStatus {
+		if err = uc.ReassessSettledContract(ctx, input.ContractID); err != nil {
+			return output, err
+		}
+	}
+
 	// Record only after a durable payment-attempt completion. Inbox/idempotent
 	// replays that do not newly complete an attempt are excluded by result.
 	if isCompletedPaymentAttemptResult(output.Result) {
@@ -227,6 +233,9 @@ func (uc *UseCase) processCheckoutFirstInstallment(
 
 	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
+			if err := uc.LockSettlementCustomerOnTx(ctx, tx, input.ContractID); err != nil {
+				return err
+			}
 			inboxQ := uc.inbox.Tx(tx)
 			outboxQ := uc.outbox.Tx(tx)
 
@@ -741,6 +750,9 @@ func (uc *UseCase) processInstallmentRepayment(
 
 	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
+			if err := uc.LockSettlementCustomerOnTx(ctx, tx, input.ContractID); err != nil {
+				return err
+			}
 			inboxQ := uc.inbox.Tx(tx)
 			outboxQ := uc.outbox.Tx(tx)
 			paymentAttemptQ := uc.paymentAttempt.Tx(tx)

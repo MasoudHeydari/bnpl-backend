@@ -1,3 +1,8 @@
+> Historical verification for commit `10c2b18`. The elapsed-grace and
+> principal-only behavior described below is superseded by
+> [the final correctness implementation](final-business-correctness.md).
+> This record is retained to preserve the preceding review context.
+
 # BNPL correctness continuation verification
 
 Starting point: `a06d245498b8dfc1c2d67114894512a465bd2c68` on

@@ -3,6 +3,8 @@ package customercredituc
 import (
 	"fmt"
 
+	"github.com/parstis/bnpl-backend/pkg/core/policy/collections"
+
 	"github.com/parstis/bnpl-backend/pkg/core/clock"
 	extcreditassessment "github.com/parstis/bnpl-backend/pkg/core/external/creditassessment"
 	"github.com/parstis/bnpl-backend/pkg/core/fingerprint"
@@ -14,6 +16,7 @@ import (
 
 // UseCase orchestrates customer credit summary reads and governed limit assignments.
 type UseCase struct {
+	collectionsPolicy      collections.Policy
 	pool                   repo.Pool
 	customerProfile        repo.CustomerProfile
 	creditAccount          repo.CreditAccount
@@ -50,9 +53,13 @@ func New(
 	defaultInitialLimitRef policy.Ref,
 	auditDestination string,
 	idGenerator identifier.Generator,
+	collectionsPolicy collections.Policy,
 ) (*UseCase, error) {
 	const op = "customercredituc.New"
 
+	if collectionsPolicy == nil {
+		return nil, fmt.Errorf("%s: collections policy is required", op)
+	}
 	if pool == nil {
 		return nil, fmt.Errorf("%s: pool is required", op)
 	}
@@ -119,6 +126,7 @@ func New(
 
 	return &UseCase{
 		pool:                   pool,
+		collectionsPolicy:      collectionsPolicy,
 		customerProfile:        customerProfile,
 		creditAccount:          creditAccount,
 		decision:               decision,

@@ -39,6 +39,9 @@ func (uc *UseCase) ActivateFromFinancialCorePaymentResult(
 			return conn.Tx(
 				ctx,
 				func(ctx context.Context, tx repo.Tx) error {
+					if err := uc.lockActivationCustomer(ctx, tx, contractID); err != nil {
+						return err
+					}
 					contractQ := uc.contract.Tx(tx)
 					contractRow, lockErr := contractQ.LockByID(ctx, contractID)
 					if lockErr != nil {

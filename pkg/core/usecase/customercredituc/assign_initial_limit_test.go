@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	collectionsv2 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v2"
+
 	"github.com/google/uuid"
 	testifymock "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -105,6 +107,7 @@ func (d assignInitialLimitDeps) newUseCase() *customercredituc.UseCase {
 		d.defaultPolicy.Ref(),
 		"bnpl.audit.events.v1",
 		d.idGenerator,
+		collectionsv2.New(time.UTC),
 	)
 	if err != nil {
 		panic(err)

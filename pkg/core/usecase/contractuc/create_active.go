@@ -420,6 +420,9 @@ func (uc *UseCase) finalizeMerchantFundingActivation(
 
 	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
+			if err := uc.lockActivationCustomer(ctx, tx, prepared.Contract.ID); err != nil {
+				return err
+			}
 			contractQ := uc.contract.Tx(tx)
 			creditAccountQ := uc.creditAccount.Tx(tx)
 			installmentQ := uc.installment.Tx(tx)

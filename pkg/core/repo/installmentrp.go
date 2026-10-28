@@ -102,6 +102,8 @@ type InstallmentQueryer interface {
 // CollectionsObligation is an unpaid installment considered for collections
 // default entry / recovery evaluation.
 type CollectionsObligation struct {
+	HasUnsettledCharges       bool
+	HasUnresolvedCancellation bool
 	// Installment is the unpaid schedule installment.
 	Installment model.Installment
 

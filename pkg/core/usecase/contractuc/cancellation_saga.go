@@ -184,6 +184,7 @@ func (d *CancellationSagaDefinition) CanTransition(
 }
 
 type cancellationLocalStartedStep struct {
+	profiles repo.CustomerProfile
 	contract repo.Contract
 	clock    clock.Clock
 }
@@ -216,6 +217,9 @@ func (s *cancellationLocalStartedStep) ExecuteTx(
 	}
 
 	contractQ := s.contract.Tx(tx)
+	if err := lockCancellationCustomer(ctx, tx, s.profiles, contractQ, contractID); err != nil {
+		return saga.StepResult{}, err
+	}
 	contractRow, err := contractQ.LockByID(ctx, contractID)
 	if err != nil {
 		return saga.StepResult{}, err
@@ -249,6 +253,9 @@ func (s *cancellationLocalStartedStep) CompensateTx(
 	}
 
 	contractQ := s.contract.Tx(tx)
+	if err := lockCancellationCustomer(ctx, tx, s.profiles, contractQ, contractID); err != nil {
+		return saga.StepResult{}, err
+	}
 	contractRow, err := contractQ.LockByID(ctx, contractID)
 	if err != nil {
 		return saga.StepResult{}, err
@@ -427,6 +434,7 @@ func (s *cancellationExternalRequestStep) Execute(
 }
 
 type cancellationExternalAcceptedStep struct {
+	profiles      repo.CustomerProfile
 	contract      repo.Contract
 	creditAccount repo.CreditAccount
 	clock         clock.Clock
@@ -453,6 +461,9 @@ func (s *cancellationExternalAcceptedStep) ExecuteTx(
 	}
 
 	contractQ := s.contract.Tx(tx)
+	if err := lockCancellationCustomer(ctx, tx, s.profiles, contractQ, contractID); err != nil {
+		return saga.StepResult{}, err
+	}
 	contractRow, err := contractQ.LockByID(ctx, contractID)
 	if err != nil {
 		return saga.StepResult{}, err
@@ -602,4 +613,24 @@ func boundedCancellationSagaReason(value string) string {
 	}
 
 	return value
+}
+
+// WithCustomerSynchronization is wired before the executor starts. Cancellation
+// replays read existing state without locking an existing Saga under a customer
+// lock, so transactional Saga steps can safely acquire customer before contract.
+func (d *CancellationSagaDefinition) WithCustomerSynchronization(profiles repo.CustomerProfile) *CancellationSagaDefinition {
+	d.localStep.profiles = profiles
+	d.acceptedStep.profiles = profiles
+	return d
+}
+func lockCancellationCustomer(ctx context.Context, tx repo.Tx, profiles repo.CustomerProfile, contracts repo.ContractTxQueryer, id model.ContractID) error {
+	if profiles == nil {
+		return nil
+	}
+	contract, err := contracts.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	_, err = profiles.Tx(tx).LockByID(ctx, contract.CustomerID)
+	return err
 }

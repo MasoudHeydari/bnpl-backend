@@ -115,7 +115,7 @@ func (uc *UseCase) MarkOverdueDueInstallments(
 					}
 
 					for _, installmentRow := range claimed {
-						if !installmentRow.IsOverdueEligible(now) {
+						if !installmentRow.IsOverdueEligible(now, uc.clock.BusinessLocation()) {
 							continue
 						}
 

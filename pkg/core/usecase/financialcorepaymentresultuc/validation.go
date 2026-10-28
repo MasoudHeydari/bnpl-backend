@@ -369,12 +369,27 @@ func validatePaymentAttemptSnapshot(
 		}
 	}
 
-	if principalCount != 1 {
+	for _, charge := range charges {
+		if model.IsCustomerPayableCharge(charge) {
+			if _, exists := seenChargeSources[charge.ID.UUID()]; !exists {
+				return model.PaymentAttemptSnapshotInconsistentPaymentReconciliationReason, false
+			}
+			if charge.Currency != installmentRow.Currency {
+				return model.PaymentCurrencyMismatchPaymentReconciliationReason, false
+			}
+		}
+	}
+
+	expectedPrincipalCount := 1
+	if installmentRow.Status == model.PaidInstallmentStatus && model.IsChargeOnlyPayment(attempt.Items) {
+		expectedPrincipalCount = 0
+	}
+	if principalCount != expectedPrincipalCount {
 		return model.PaymentAttemptSnapshotInconsistentPaymentReconciliationReason, false
 	}
 
 	expectedUpfrontCount := 0
-	if installmentRow.UpfrontAmountMinor > 0 {
+	if expectedPrincipalCount == 1 && installmentRow.UpfrontAmountMinor > 0 {
 		expectedUpfrontCount = 1
 	}
 

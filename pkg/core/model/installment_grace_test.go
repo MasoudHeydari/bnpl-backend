@@ -25,14 +25,14 @@ func TestInstallment_OverdueEligibleAt(t *testing.T) {
 		t.Parallel()
 
 		installment := Installment{DueAt: dueAt, GracePeriodDays: 0}
-		assert.Equal(t, dueAt, installment.OverdueEligibleAt())
+		assert.Equal(t, dueAt.AddDate(0, 0, 1), installment.OverdueEligibleAt())
 	})
 
 	t.Run("five day grace", func(t *testing.T) {
 		t.Parallel()
 
 		installment := Installment{DueAt: dueAt, GracePeriodDays: 5}
-		assert.Equal(t, dueAt.Add(5*24*time.Hour), installment.OverdueEligibleAt())
+		assert.Equal(t, dueAt.AddDate(0, 0, 6), installment.OverdueEligibleAt())
 	})
 }
 
@@ -50,7 +50,7 @@ func TestInstallment_IsOverdueEligible(t *testing.T) {
 		time.UTC,
 	)
 	installment := Installment{DueAt: dueAt, GracePeriodDays: 5}
-	eligibleAt := dueAt.Add(5 * 24 * time.Hour)
+	eligibleAt := dueAt.AddDate(0, 0, 6)
 
 	assert.False(t, installment.IsOverdueEligible(eligibleAt.Add(-time.Second)))
 	assert.True(t, installment.IsOverdueEligible(eligibleAt))

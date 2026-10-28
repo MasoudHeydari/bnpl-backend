@@ -688,6 +688,74 @@ func (_c *InstallmentChargeTxQueryer_LockByIDs_Call) RunAndReturn(run func(ctx c
 	return _c
 }
 
+// LockByInstallmentIDs provides a mock function for the type InstallmentChargeTxQueryer
+func (_mock *InstallmentChargeTxQueryer) LockByInstallmentIDs(context1 context.Context, installmentIDs []model.InstallmentID) ([]model.InstallmentCharge, error) {
+	ret := _mock.Called(context1, installmentIDs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for LockByInstallmentIDs")
+	}
+
+	var r0 []model.InstallmentCharge
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []model.InstallmentID) ([]model.InstallmentCharge, error)); ok {
+		return returnFunc(context1, installmentIDs)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []model.InstallmentID) []model.InstallmentCharge); ok {
+		r0 = returnFunc(context1, installmentIDs)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]model.InstallmentCharge)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, []model.InstallmentID) error); ok {
+		r1 = returnFunc(context1, installmentIDs)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// InstallmentChargeTxQueryer_LockByInstallmentIDs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'LockByInstallmentIDs'
+type InstallmentChargeTxQueryer_LockByInstallmentIDs_Call struct {
+	*mock.Call
+}
+
+// LockByInstallmentIDs is a helper method to define mock.On call
+//   - context1 context.Context
+//   - installmentIDs []model.InstallmentID
+func (_e *InstallmentChargeTxQueryer_Expecter) LockByInstallmentIDs(context1 any, installmentIDs any) *InstallmentChargeTxQueryer_LockByInstallmentIDs_Call {
+	return &InstallmentChargeTxQueryer_LockByInstallmentIDs_Call{Call: _e.mock.On("LockByInstallmentIDs", context1, installmentIDs)}
+}
+
+func (_c *InstallmentChargeTxQueryer_LockByInstallmentIDs_Call) Run(run func(context1 context.Context, installmentIDs []model.InstallmentID)) *InstallmentChargeTxQueryer_LockByInstallmentIDs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 []model.InstallmentID
+		if args[1] != nil {
+			arg1 = args[1].([]model.InstallmentID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *InstallmentChargeTxQueryer_LockByInstallmentIDs_Call) Return(installmentCharges []model.InstallmentCharge, err error) *InstallmentChargeTxQueryer_LockByInstallmentIDs_Call {
+	_c.Call.Return(installmentCharges, err)
+	return _c
+}
+
+func (_c *InstallmentChargeTxQueryer_LockByInstallmentIDs_Call) RunAndReturn(run func(context1 context.Context, installmentIDs []model.InstallmentID) ([]model.InstallmentCharge, error)) *InstallmentChargeTxQueryer_LockByInstallmentIDs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // MarkChargeIDsApplied provides a mock function for the type InstallmentChargeTxQueryer
 func (_mock *InstallmentChargeTxQueryer) MarkChargeIDsApplied(ctx context.Context, chargeIDs []model.InstallmentChargeID, updatedAt time.Time) (int64, error) {
 	ret := _mock.Called(ctx, chargeIDs, updatedAt)

@@ -74,6 +74,11 @@ func (uc *UseCase) Process(ctx context.Context, input ProcessInput) (ProcessOutp
 
 	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
+			if uc.paymentResult != nil {
+				if err := uc.paymentResult.LockSettlementAttemptOnTx(ctx, tx, input.Data.BNPLPaymentAttemptID); err != nil {
+					return err
+				}
+			}
 			inboxQ := uc.inbox.Tx(tx)
 			outboxQ := uc.outbox.Tx(tx)
 			paymentAttemptQ := uc.paymentAttempt.Tx(tx)
@@ -323,6 +328,11 @@ func (uc *UseCase) Process(ctx context.Context, input ProcessInput) (ProcessOutp
 		return ProcessOutput{}, err
 	}
 
+	if uc.paymentResult != nil {
+		if err := uc.paymentResult.ReassessSettledAttempt(ctx, input.Data.BNPLPaymentAttemptID); err != nil {
+			return output, err
+		}
+	}
 	return output, nil
 }
 

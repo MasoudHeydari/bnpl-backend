@@ -71,6 +71,10 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("%s: invalid runtime.environment: %w", op, err)
 	}
 
+	if isProductionMode(env) && (!c.Infrastructure.Task.Scheduled.CollectionsAssessment.Enabled || !c.Infrastructure.Task.Scheduled.RepaymentReminderDispatch.Enabled) {
+		return fmt.Errorf("%s: production requires Collections assessment and reminder dispatch safety nets", op)
+	}
+
 	// Issuance deliveries hold temporary API-key ciphertext. Production must
 	// scrub expired rows into tombstones; correctness of replay refusal does not
 	// depend on the worker, but leaving scrub disabled silently retains secrets.

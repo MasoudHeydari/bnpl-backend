@@ -6955,6 +6955,9 @@ const docTemplate = `{
                     "type": "integer",
                     "example": 4000000
                 },
+                "credit_usage": {
+                    "$ref": "#/definitions/customercredituc.CreditUsage"
+                },
                 "currency": {
                     "allOf": [
                         {
@@ -7012,6 +7015,17 @@ const docTemplate = `{
                 "AssignInitialLimitResultAlreadyAssigned",
                 "AssignInitialLimitResultDenied"
             ]
+        },
+        "customercredituc.CreditUsage": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
         },
         "customercredituc.SummaryStatus": {
             "type": "string",
@@ -7411,11 +7425,17 @@ const docTemplate = `{
                 "installment_order": {
                     "type": "integer"
                 },
+                "outstanding_amount_minor": {
+                    "type": "integer"
+                },
                 "payable_amount_known": {
                     "type": "boolean"
                 },
                 "payable_amount_minor": {
                     "type": "integer"
+                },
+                "payment_block_reason": {
+                    "type": "string"
                 },
                 "status": {
                     "$ref": "#/definitions/model.InstallmentStatus"

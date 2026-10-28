@@ -21,6 +21,7 @@ import (
 // The pgpass entry fields must contain full `host:port:database:user:password`
 // lines so role passwords can be resolved deterministically at runtime.
 type Database struct {
+	BusinessTimezone string `yaml:"-"`
 	// Host is the PostgreSQL server hostname or address.
 	Host string `yaml:"host"`
 
@@ -150,6 +151,10 @@ func (d Database) getConfig(
 	pgConfig, err := pgxpool.ParseConfig(connURL)
 	if err != nil {
 		return nil, fmt.Errorf("%s: parse PostgreSQL pool configuration: %w", op, err)
+	}
+
+	if d.BusinessTimezone != "" {
+		pgConfig.ConnConfig.RuntimeParams["timezone"] = d.BusinessTimezone
 	}
 
 	pgConfig.MaxConns = d.MaxConnections

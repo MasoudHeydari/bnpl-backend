@@ -48,6 +48,8 @@ type CreateRepaymentReminder struct {
 
 // RepaymentReminderQueryer defines read-only repayment reminder operations.
 type RepaymentReminderQueryer interface {
+	// GetByNotificationIdempotencyKey finds an episode-scoped durable request.
+	GetByNotificationIdempotencyKey(context.Context, string) (model.RepaymentReminder, error)
 	// GetByCustomerBusinessDate returns the reminder for a customer on a business date.
 	GetByCustomerBusinessDate(
 		ctx context.Context,

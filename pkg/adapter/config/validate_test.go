@@ -40,6 +40,8 @@ func enabledSagaExecutorTask(provider taskadapter.Provider) Task {
 			DefaultTimezone: "UTC",
 		},
 		Scheduled: ScheduledTasks{
+			CollectionsAssessment:     TaskDefinition{Enabled: true, Handler: "collections_assessment", Trigger: TaskTrigger{Type: "interval", Interval: "15m"}},
+			RepaymentReminderDispatch: TaskDefinition{Enabled: true, Handler: "repayment_reminder_dispatch", Trigger: TaskTrigger{Type: "interval", Interval: "5m"}},
 			SagaExecutor: TaskDefinition{
 				Enabled: true,
 				Handler: "saga_executor",
@@ -82,7 +84,7 @@ func validHTTPClient() HTTPClient {
 }
 
 func validConfig() *Config {
-	return &Config{
+	cfg := &Config{
 		Runtime: Runtime{Environment: "development"},
 		Domain: Domain{
 			SupportedJurisdictions: []model.Jurisdiction{model.IRJurisdiction},
@@ -195,6 +197,11 @@ func validConfig() *Config {
 			Database: DatabaseVersion,
 		},
 	}
+	cfg.Usecases.ShortLink.PublicHost = "short.bnpl.test"
+	cfg.Usecases.ShortLink.RepaymentDestinationURL = "https://frontend.bnpl.test/repayment"
+	cfg.Usecases.ShortLink.AllowedDestinationHosts = []string{"frontend.bnpl.test"}
+	return cfg
+
 }
 
 func TestErrorReportingValidate(t *testing.T) {
@@ -298,7 +305,7 @@ func TestConfig_Validate_ProductionRequiresIssuanceScrub(t *testing.T) {
 				InstallmentPaymentReconciliationRequests:         "installment.payment.reconciliation.requests",
 				InstallmentPaymentReconciliationResults:          "installment.payment.reconciliation.results",
 				InstallmentPaymentReconciliationAcknowledgements: "installment.payment.reconciliation.acknowledgements",
-				NotificationSMSRequests: "notification.sms.requests",
+				NotificationSMSRequests:                          "notification.sms.requests",
 			},
 		},
 	}
@@ -347,7 +354,7 @@ func TestConfig_Validate_ProductionNoopGuards(t *testing.T) {
 				InstallmentPaymentReconciliationRequests:         "installment.payment.reconciliation.requests",
 				InstallmentPaymentReconciliationResults:          "installment.payment.reconciliation.results",
 				InstallmentPaymentReconciliationAcknowledgements: "installment.payment.reconciliation.acknowledgements",
-				NotificationSMSRequests: "notification.sms.requests",
+				NotificationSMSRequests:                          "notification.sms.requests",
 			},
 		},
 	}
@@ -375,7 +382,7 @@ func TestConfig_Validate_ProductionNoopGuards(t *testing.T) {
 			InstallmentPaymentReconciliationRequests:         "installment.payment.reconciliation.requests",
 			InstallmentPaymentReconciliationResults:          "installment.payment.reconciliation.results",
 			InstallmentPaymentReconciliationAcknowledgements: "installment.payment.reconciliation.acknowledgements",
-				NotificationSMSRequests: "notification.sms.requests",
+			NotificationSMSRequests:                          "notification.sms.requests",
 		},
 	}
 	cfg.Infrastructure.Task.Provider = taskadapter.NoopProvider
@@ -424,7 +431,7 @@ func TestConfig_Validate_ProductionCircuitBreakerNoopForbidden(t *testing.T) {
 			InstallmentPaymentReconciliationRequests:         "installment.payment.reconciliation.requests",
 			InstallmentPaymentReconciliationResults:          "installment.payment.reconciliation.results",
 			InstallmentPaymentReconciliationAcknowledgements: "installment.payment.reconciliation.acknowledgements",
-				NotificationSMSRequests: "notification.sms.requests",
+			NotificationSMSRequests:                          "notification.sms.requests",
 		},
 	}
 	cfg.Infrastructure.Task = enabledSagaExecutorTask(taskadapter.InProcessProvider)
@@ -470,7 +477,7 @@ func TestConfig_Validate_ProductionWebhookDispatcherNoopForbidden(t *testing.T) 
 			InstallmentPaymentReconciliationRequests:         "installment.payment.reconciliation.requests",
 			InstallmentPaymentReconciliationResults:          "installment.payment.reconciliation.results",
 			InstallmentPaymentReconciliationAcknowledgements: "installment.payment.reconciliation.acknowledgements",
-				NotificationSMSRequests: "notification.sms.requests",
+			NotificationSMSRequests:                          "notification.sms.requests",
 		},
 	}
 	cfg.Infrastructure.Task = enabledSagaExecutorTask(taskadapter.InProcessProvider)
@@ -583,7 +590,7 @@ func TestConfig_Validate_ProductionFinancialCoreInsecureGRPCForbidden(t *testing
 				InstallmentPaymentReconciliationRequests:         "installment.payment.reconciliation.requests",
 				InstallmentPaymentReconciliationResults:          "installment.payment.reconciliation.results",
 				InstallmentPaymentReconciliationAcknowledgements: "installment.payment.reconciliation.acknowledgements",
-				NotificationSMSRequests: "notification.sms.requests",
+				NotificationSMSRequests:                          "notification.sms.requests",
 			},
 		},
 	}
@@ -651,7 +658,7 @@ func TestConfig_Validate_KafkaNewestInitialOffsetForbiddenInProduction(t *testin
 				InstallmentPaymentReconciliationRequests:         "installment.payment.reconciliation.requests",
 				InstallmentPaymentReconciliationResults:          "installment.payment.reconciliation.results",
 				InstallmentPaymentReconciliationAcknowledgements: "installment.payment.reconciliation.acknowledgements",
-				NotificationSMSRequests: "notification.sms.requests",
+				NotificationSMSRequests:                          "notification.sms.requests",
 			},
 			Consumer: Consumer{
 				InitialOffset:            "newest",
@@ -690,7 +697,7 @@ func TestConfig_Validate_KafkaNewestInitialOffsetRequiresExplicitAllow(t *testin
 				InstallmentPaymentReconciliationRequests:         "installment.payment.reconciliation.requests",
 				InstallmentPaymentReconciliationResults:          "installment.payment.reconciliation.results",
 				InstallmentPaymentReconciliationAcknowledgements: "installment.payment.reconciliation.acknowledgements",
-				NotificationSMSRequests: "notification.sms.requests",
+				NotificationSMSRequests:                          "notification.sms.requests",
 			},
 			Consumer: Consumer{InitialOffset: "newest"},
 		},
@@ -740,6 +747,8 @@ func TestTaskValidate_CompositeRequiresExecutionForEnabledTasks(t *testing.T) {
 
 	taskCfg.Scheduled.SagaExecutor.Execution = coretask.ExecutionModeTemporal
 	taskCfg.Scheduled.MerchantTerminalIssuanceScrub.Execution = coretask.ExecutionModeTemporal
+	taskCfg.Scheduled.CollectionsAssessment.Execution = coretask.ExecutionModeTemporal
+	taskCfg.Scheduled.RepaymentReminderDispatch.Execution = coretask.ExecutionModeTemporal
 	require.NoError(t, taskCfg.validate(model.DevelopmentRuntimeEnvironment))
 }
 

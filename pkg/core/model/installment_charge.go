@@ -240,16 +240,17 @@ func CustomerPayableAmount(installment Installment, charges []InstallmentCharge)
 
 // BuildPaymentAttemptItems snapshots principal, upfront, and customer-payable charges for a payment attempt.
 func BuildPaymentAttemptItems(installment Installment, charges []InstallmentCharge) ([]PaymentAttemptItem, error) {
-	items := []PaymentAttemptItem{
-		{
+	items := []PaymentAttemptItem{}
+	if installment.Status != PaidInstallmentStatus {
+		items = append(items, PaymentAttemptItem{
 			ItemType:    PrincipalPaymentAttemptItemType,
 			SourceID:    installment.ID.UUID(),
 			AmountMinor: installment.PrincipalAmountMinor,
 			Effect:      DebitPaymentAttemptItemEffect,
-		},
+		})
 	}
 
-	if installment.UpfrontAmountMinor > 0 {
+	if installment.Status != PaidInstallmentStatus && installment.UpfrontAmountMinor > 0 {
 		items = append(items, PaymentAttemptItem{
 			ItemType:    UpfrontPaymentAttemptItemType,
 			SourceID:    installment.ID.UUID(),

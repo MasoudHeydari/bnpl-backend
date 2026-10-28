@@ -28,7 +28,14 @@ type Input struct {
 }
 
 // Output carries the customer's current BNPL credit summary.
+type CreditUsage struct {
+	Status string `json:"status"`
+	Reason string `json:"reason,omitempty"`
+}
+
 type Output struct {
+	CreditUsage CreditUsage
+
 	// CustomerID is the internal customer_profiles.id primary key.
 	CustomerID model.CustomerID
 

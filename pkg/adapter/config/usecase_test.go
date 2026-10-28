@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	collectionsv2 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v2"
+
 	lognoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/noop"
 	metricsnoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/metrics/noop"
 
@@ -273,6 +275,7 @@ func TestCustomerCredit_newUseCase(t *testing.T) {
 		initialcreditcatalog.DefaultRef(),
 		"bnpl.audit.events.v1",
 		mock.NewIdentifierGenerator(t),
+		collectionsv2.New(time.UTC),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, uc)

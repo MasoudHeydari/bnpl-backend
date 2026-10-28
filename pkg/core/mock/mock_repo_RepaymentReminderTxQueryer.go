@@ -244,6 +244,72 @@ func (_c *RepaymentReminderTxQueryer_GetByID_Call) RunAndReturn(run func(ctx con
 	return _c
 }
 
+// GetByNotificationIdempotencyKey provides a mock function for the type RepaymentReminderTxQueryer
+func (_mock *RepaymentReminderTxQueryer) GetByNotificationIdempotencyKey(context1 context.Context, s string) (model.RepaymentReminder, error) {
+	ret := _mock.Called(context1, s)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetByNotificationIdempotencyKey")
+	}
+
+	var r0 model.RepaymentReminder
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) (model.RepaymentReminder, error)); ok {
+		return returnFunc(context1, s)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) model.RepaymentReminder); ok {
+		r0 = returnFunc(context1, s)
+	} else {
+		r0 = ret.Get(0).(model.RepaymentReminder)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = returnFunc(context1, s)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// RepaymentReminderTxQueryer_GetByNotificationIdempotencyKey_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetByNotificationIdempotencyKey'
+type RepaymentReminderTxQueryer_GetByNotificationIdempotencyKey_Call struct {
+	*mock.Call
+}
+
+// GetByNotificationIdempotencyKey is a helper method to define mock.On call
+//   - context1 context.Context
+//   - s string
+func (_e *RepaymentReminderTxQueryer_Expecter) GetByNotificationIdempotencyKey(context1 any, s any) *RepaymentReminderTxQueryer_GetByNotificationIdempotencyKey_Call {
+	return &RepaymentReminderTxQueryer_GetByNotificationIdempotencyKey_Call{Call: _e.mock.On("GetByNotificationIdempotencyKey", context1, s)}
+}
+
+func (_c *RepaymentReminderTxQueryer_GetByNotificationIdempotencyKey_Call) Run(run func(context1 context.Context, s string)) *RepaymentReminderTxQueryer_GetByNotificationIdempotencyKey_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *RepaymentReminderTxQueryer_GetByNotificationIdempotencyKey_Call) Return(repaymentReminder model.RepaymentReminder, err error) *RepaymentReminderTxQueryer_GetByNotificationIdempotencyKey_Call {
+	_c.Call.Return(repaymentReminder, err)
+	return _c
+}
+
+func (_c *RepaymentReminderTxQueryer_GetByNotificationIdempotencyKey_Call) RunAndReturn(run func(context1 context.Context, s string) (model.RepaymentReminder, error)) *RepaymentReminderTxQueryer_GetByNotificationIdempotencyKey_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // LockByCustomerBusinessDate provides a mock function for the type RepaymentReminderTxQueryer
 func (_mock *RepaymentReminderTxQueryer) LockByCustomerBusinessDate(ctx context.Context, customerID model.CustomerID, businessDate time.Time) (model.RepaymentReminder, error) {
 	ret := _mock.Called(ctx, customerID, businessDate)

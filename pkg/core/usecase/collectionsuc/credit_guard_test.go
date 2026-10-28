@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/parstis/bnpl-backend/pkg/core/policy/collections"
+	collectionsv1 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v1"
+
 	"github.com/google/uuid"
 	testifymock "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -47,7 +50,7 @@ func newCollectionsUseCase(
 		sha256fingerprint.New(),
 		metricsnoop.New(),
 		"bnpl.audit.events.v1",
-		10,
+		10, testPolicies(),
 	)
 	require.NoError(t, err)
 
@@ -134,4 +137,9 @@ func TestAssessBatchOutcomeLabel(t *testing.T) {
 	require.Equal(t, "success", collectionsuc.AssessBatchOutcomeLabel(3, 0))
 	require.Equal(t, "partial_failure", collectionsuc.AssessBatchOutcomeLabel(3, 1))
 	require.Equal(t, "failure", collectionsuc.AssessBatchOutcomeLabel(2, 2))
+}
+
+func testPolicies() *collections.Registry {
+	r, _ := collections.NewRegistry(collectionsv1.New())
+	return r
 }

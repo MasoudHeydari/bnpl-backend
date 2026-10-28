@@ -37,6 +37,7 @@ import (
 	coreobjectstorage "github.com/parstis/bnpl-backend/pkg/core/objectstorage"
 	"github.com/parstis/bnpl-backend/pkg/core/policy"
 	"github.com/parstis/bnpl-backend/pkg/core/policy/checkout"
+	"github.com/parstis/bnpl-backend/pkg/core/policy/collections"
 	"github.com/parstis/bnpl-backend/pkg/core/policy/initialcreditlimit"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 	"github.com/parstis/bnpl-backend/pkg/core/saga"
@@ -184,7 +185,9 @@ func (c *Config) ConnectionPool(
 		)
 	}
 
-	p, err := c.Database.ConnectionPool(ctx, r, queryLogger)
+	database := c.Database
+	database.BusinessTimezone = c.Infrastructure.Clock.BusinessLocation
+	p, err := database.ConnectionPool(ctx, r, queryLogger)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"%s: %#v.ConnectionPool: %w", op, c.Database, err,
@@ -751,6 +754,7 @@ func (c *Config) NewCustomerCreditUseCase(
 	initialLimitPolicies *initialcreditlimit.Registry,
 	defaultInitialLimitRef policy.Ref,
 	idGenerator identifier.Generator,
+	collectionsPolicy collections.Policy,
 ) (*customercredituc.UseCase, error) {
 	return c.Usecases.CustomerCredit.newUseCase(
 		pool,
@@ -769,6 +773,7 @@ func (c *Config) NewCustomerCreditUseCase(
 		defaultInitialLimitRef,
 		c.AuditEventsTopic(),
 		idGenerator,
+		collectionsPolicy,
 	)
 }
 

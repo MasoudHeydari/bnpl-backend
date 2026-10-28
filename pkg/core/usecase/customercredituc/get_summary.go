@@ -61,19 +61,22 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 			restrictionQ := uc.customerRestriction.Tx(tx)
 			installmentQ := uc.installment.Tx(tx)
 			episodeQ := uc.defaultEpisode.Tx(tx)
-			newCreditBlocked, blockErr := newCreditUsageBlocked(
+			newCreditBlocked, publicReason, blockErr := newCreditUsageBlocked(
 				ctx,
 				restrictionQ,
 				installmentQ,
 				episodeQ,
 				profile.ID,
-				now,
+				now, uc.collectionsPolicy,
 			)
 			if blockErr != nil {
 				return blockErr
 			}
 
 			output = summaryFromAccount(account, newCreditBlocked)
+			if newCreditBlocked {
+				output.CreditUsage.Reason = publicReason
+			}
 			return nil
 		})
 	})
@@ -99,7 +102,15 @@ func summaryFromAccount(account model.CreditAccount, newCreditBlocked bool) Outp
 		available = 0
 	}
 
+	usage := CreditUsage{Status: "allowed"}
+	if newCreditBlocked {
+		usage = CreditUsage{Status: "restricted", Reason: "collections_default"}
+	}
+	if status != SummaryStatusActive && !newCreditBlocked {
+		usage = CreditUsage{Status: "unavailable"}
+	}
 	return Output{
+		CreditUsage:          usage,
 		CustomerID:           account.CustomerID,
 		AvailableAmountMinor: available,
 		Currency:             account.Currency,
@@ -111,6 +122,7 @@ func summaryFromAccount(account model.CreditAccount, newCreditBlocked bool) Outp
 
 func zeroSummary(customerID model.CustomerID, currency model.Currency) Output {
 	return Output{
+		CreditUsage:          CreditUsage{Status: "unavailable"},
 		CustomerID:           customerID,
 		AvailableAmountMinor: 0,
 		Currency:             currency,

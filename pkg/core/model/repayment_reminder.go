@@ -62,6 +62,7 @@ type ReminderType string
 
 // Known repayment reminder types.
 const (
+	DefaultReminderType       ReminderType = "collections_default"
 	PreDueReminderType        ReminderType = "pre_due"
 	DueTodayReminderType      ReminderType = "due_today"
 	GracePeriodReminderType   ReminderType = "grace_period"
@@ -71,7 +72,7 @@ const (
 // IsValid reports whether the reminder type is a known enumeration value.
 func (t ReminderType) IsValid() bool {
 	switch t {
-	case PreDueReminderType,
+	case DefaultReminderType, PreDueReminderType,
 		DueTodayReminderType,
 		GracePeriodReminderType,
 		GraceFinalDayReminderType:
@@ -85,6 +86,8 @@ func (t ReminderType) IsValid() bool {
 // Priority returns a higher number for higher-urgency reminder types.
 func (t ReminderType) Priority() int {
 	switch t {
+	case DefaultReminderType:
+		return 5
 	case GraceFinalDayReminderType:
 		return 4
 

@@ -149,7 +149,7 @@ func TestDurationGraceAcrossDSTAndDelayedLifecycle(t *testing.T) {
 			require.False(t, v1.New().Evaluate(facts, boundary.Add(-time.Nanosecond), false).IsDefaultEligible)
 			require.True(t, v1.New().Evaluate(facts, boundary, false).IsDefaultEligible)
 			require.True(t, v1.New().Evaluate(facts, boundary.Add(48*time.Hour), false).IsDefaultEligible)
-			require.True(t, i.IsOverdueEligible(boundary))
+			require.True(t, i.IsOverdueEligible(i.OverdueEligibleAt()))
 		}
 	}
 }

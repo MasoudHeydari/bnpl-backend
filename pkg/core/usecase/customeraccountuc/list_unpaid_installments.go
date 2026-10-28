@@ -191,8 +191,9 @@ func buildRepaymentSummary(
 	candidates := make([]repaymentpriorityv1.Candidate, 0, len(nextRows))
 	for _, row := range nextRows {
 		candidates = append(candidates, repaymentpriorityv1.Candidate{
-			Installment:          row,
-			HasUnresolvedPayment: pendingByID[row.ID],
+			Installment:           row,
+			HasUnresolvedPayment:  pendingByID[row.ID],
+			HasOutstandingCharges: row.Status == model.PaidInstallmentStatus,
 		})
 	}
 
@@ -237,32 +238,37 @@ func buildRepaymentSummary(
 		return RepaymentSummary{}, chargesErr
 	}
 
+	if err := model.ValidateCustomerPaymentComponents(selected, charges); err != nil {
+		return RepaymentSummary{}, cerr.InternalError(err)
+	}
 	payableAmount, payableOK, payableErr := model.CustomerPayableAmount(selected, charges)
 	if payableErr != nil {
 		return RepaymentSummary{}, payableErr
 	}
 
 	var amountMinor uint64
-	if payableOK && payableAmount > 0 && payableAmount == selected.PrincipalAmountMinor {
+	if payableOK && payableAmount > 0 {
 		amountMinor = payableAmount
 	} else {
-		// FC currently recognizes only principal. Do not advertise an amount the
-		// payment command must reject because fee recognition is unavailable.
 		payableOK = false
 	}
 
 	summary.NextPayable = &RepaymentNextPayable{
-		InstallmentID:      selected.ID,
-		ContractID:         *selected.ContractID,
-		InstallmentOrder:   selected.InstallmentOrder,
-		PayableAmountMinor: amountMinor,
-		Currency:           selected.Currency,
-		DueAt:              selected.DueAt,
-		Status:             selected.Status,
-		HasPendingPayment:  selection.HasUnresolvedPayment,
-		PayableAmountKnown: payableOK,
+		InstallmentID:          selected.ID,
+		ContractID:             *selected.ContractID,
+		InstallmentOrder:       selected.InstallmentOrder,
+		PayableAmountMinor:     amountMinor,
+		Currency:               selected.Currency,
+		DueAt:                  selected.DueAt,
+		Status:                 selected.Status,
+		HasPendingPayment:      selection.HasUnresolvedPayment,
+		PayableAmountKnown:     payableOK,
+		OutstandingAmountMinor: payableAmount,
 	}
 
+	if !payableOK {
+		summary.NextPayable.PaymentBlockReason = "financial_adjustment_required"
+	}
 	return summary, nil
 }
 

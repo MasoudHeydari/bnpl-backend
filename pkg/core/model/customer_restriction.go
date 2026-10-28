@@ -82,12 +82,13 @@ type CustomerRestrictionReason string
 // Known customer restriction reasons.
 const (
 	CollectionsDefaultCustomerRestrictionReason CustomerRestrictionReason = "collections_default"
+	AdministrativeHoldCustomerRestrictionReason CustomerRestrictionReason = "administrative_hold"
 )
 
 // IsValid reports whether the restriction reason is known.
 func (r CustomerRestrictionReason) IsValid() bool {
 	switch r {
-	case CollectionsDefaultCustomerRestrictionReason:
+	case CollectionsDefaultCustomerRestrictionReason, AdministrativeHoldCustomerRestrictionReason:
 		return true
 
 	default:

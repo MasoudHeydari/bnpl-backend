@@ -86,3 +86,10 @@ func (q txQueryer) LockByCustomerBusinessDate(
 ) (model.RepaymentReminder, error) {
 	return LockByCustomerBusinessDate(ctx, q.Tx, customerID, businessDate)
 }
+
+func (q connQueryer) GetByNotificationIdempotencyKey(ctx context.Context, key string) (model.RepaymentReminder, error) {
+	return GetByNotificationIdempotencyKey(ctx, q.Conn, key)
+}
+func (q txQueryer) GetByNotificationIdempotencyKey(ctx context.Context, key string) (model.RepaymentReminder, error) {
+	return GetByNotificationIdempotencyKey(ctx, q.Tx, key)
+}

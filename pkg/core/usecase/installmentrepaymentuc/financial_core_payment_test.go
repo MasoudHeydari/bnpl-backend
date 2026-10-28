@@ -81,7 +81,7 @@ func (l *installmentExpiryRecordingLogger) warnCount(msg string) int {
 	return count
 }
 
-func TestEnsureFinancialCoreInstallmentPayment_UsesExistingReceivableAndExternalIDs(t *testing.T) {
+func TestEnsureFinancialCoreInstallmentPayment_SendsAggregateUsingExistingReceivableAndExternalIDs(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -146,6 +146,11 @@ func TestEnsureFinancialCoreInstallmentPayment_UsesExistingReceivableAndExternal
 		CancelReturnURL:    &returnURL,
 		CreatedAt:          attemptCreatedAt,
 	}
+	attempt.Items = []model.PaymentAttemptItem{
+		{ItemType: model.PrincipalPaymentAttemptItemType, SourceID: installmentID.UUID(), AmountMinor: 15, Effect: model.DebitPaymentAttemptItemEffect},
+		{ItemType: model.ChargePaymentAttemptItemType, SourceID: uuid.New(), AmountMinor: 8, Effect: model.DebitPaymentAttemptItemEffect},
+		{ItemType: model.ChargePaymentAttemptItemType, SourceID: uuid.New(), AmountMinor: 3, Effect: model.CreditPaymentAttemptItemEffect},
+	}
 
 	// Load contract/parties/installment (read-only Conn).
 	pool.EXPECT().Conn(ctx, testifymock.Anything).RunAndReturn(
@@ -176,7 +181,7 @@ func TestEnsureFinancialCoreInstallmentPayment_UsesExistingReceivableAndExternal
 	installmentCQ.EXPECT().GetByID(ctx, installmentID).Return(model.Installment{
 		ID:                   installmentID,
 		ContractID:           &contractID,
-		PrincipalAmountMinor: 20,
+		PrincipalAmountMinor: 15,
 		DueAt:                dueAt,
 	}, nil).Once()
 

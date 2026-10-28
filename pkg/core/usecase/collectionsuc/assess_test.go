@@ -7,8 +7,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	collectionsv1 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v1"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
+	collectionsv1 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v1"
 )
 
 func TestCollectionsPolicy_EntryAndRecoveryBoundaries(t *testing.T) {
@@ -155,6 +155,6 @@ func TestCollectionsPolicy_EntryAndRecoveryBoundaries(t *testing.T) {
 			DueAt:           dueAt,
 			GracePeriodDays: graceDays,
 		}
-		require.Equal(t, eligibleAt, installment.OverdueEligibleAt())
+		require.Equal(t, time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC), installment.OverdueEligibleAt())
 	})
 }

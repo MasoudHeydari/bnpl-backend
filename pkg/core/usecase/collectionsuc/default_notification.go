@@ -1,0 +1,64 @@
+package collectionsuc
+
+import (
+	"context"
+	"time"
+
+	"github.com/parstis/bnpl-backend/pkg/core/cerr"
+	"github.com/parstis/bnpl-backend/pkg/core/model"
+	notificationv1 "github.com/parstis/bnpl-backend/pkg/core/policy/defaultnotification/v1"
+	"github.com/parstis/bnpl-backend/pkg/core/repo"
+)
+
+// DefaultNoticeEligibility is a transaction-scoped, read-only eligibility view.
+// Reserved prevents ordinary reminder dispatch before the default window or
+// during ambiguous payment/cancellation reconciliation.
+type DefaultNoticeEligibility = notificationv1.Eligibility
+
+func (uc *UseCase) DefaultNoticeOnTx(ctx context.Context, tx repo.Tx, id model.CustomerID, now time.Time) (DefaultNoticeEligibility, error) {
+	if _, err := uc.customerProfile.Tx(tx).LockByID(ctx, id); err != nil {
+		return DefaultNoticeEligibility{}, err
+	}
+	episodeQ := uc.defaultEpisode.Tx(tx)
+	episode, err := episodeQ.GetActiveByCustomerID(ctx, id)
+	if err != nil {
+		if !cerr.IsCode(err, cerr.CodeResourceNotFound) {
+			return DefaultNoticeEligibility{}, err
+		}
+		evaluation, e := uc.evaluateObligations(ctx, uc.installment.Tx(tx), id, now, false)
+		return DefaultNoticeEligibility{Reserved: evaluation.IsDefaultEligible}, e
+	}
+	result := DefaultNoticeEligibility{Reserved: true, EpisodeID: episode.ID}
+	opening, err := uc.decision.Tx(tx).GetByID(ctx, episode.OpeningDecisionID)
+	if err != nil {
+		return result, err
+	}
+	policy, err := uc.policies.Resolve(opening.PolicyID, opening.PolicyVersion)
+	if err != nil {
+		return result, err
+	}
+	evaluation, _, err := uc.evaluateObligationsWithFacts(ctx, uc.installment.Tx(tx), id, now, true, policy)
+	if err != nil {
+		return result, err
+	}
+	triggers, err := episodeQ.ListTriggersByEpisodeID(ctx, episode.ID)
+	if err != nil {
+		return result, err
+	}
+	outstanding := map[model.InstallmentID]bool{}
+	for _, i := range evaluation.TriggerInstallmentIDs {
+		outstanding[i] = true
+	}
+	var boundary time.Time
+	for _, trigger := range triggers {
+		if !outstanding[trigger.InstallmentID] {
+			continue
+		}
+		result.InstallmentIDs = append(result.InstallmentIDs, trigger.InstallmentID)
+		if boundary.IsZero() || trigger.OverdueEligibleAt.Before(boundary) {
+			boundary = trigger.OverdueEligibleAt
+		}
+	}
+	result.Eligible = notificationv1.Eligible(now, boundary, uc.clock.BusinessLocation(), !evaluation.IsRecovered, len(result.InstallmentIDs) > 0, evaluation.HasPaymentUncertainty)
+	return result, nil
+}

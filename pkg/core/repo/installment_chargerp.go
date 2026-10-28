@@ -25,6 +25,8 @@ type InstallmentChargeConnQueryer interface {
 
 // InstallmentChargeTxQueryer exposes transaction-scoped installment charge operations.
 type InstallmentChargeTxQueryer interface {
+	// LockByInstallmentIDs includes charges assessed after an attempt snapshot.
+	LockByInstallmentIDs(context.Context, []model.InstallmentID) ([]model.InstallmentCharge, error)
 	// InstallmentChargeQueryer provides shared installment charge query operations.
 	InstallmentChargeQueryer
 
@@ -96,7 +98,7 @@ type InstallmentChargeTxQueryer interface {
 		updatedAt time.Time,
 	) (int64, error)
 
-	// MarkSnapshottedChargeIDsPaid marks specific snapshotted customer debit charges paid by id.
+	// MarkSnapshottedChargeIDsPaid settles specific snapshotted customer debit and credit components.
 	MarkSnapshottedChargeIDsPaid(
 		ctx context.Context,
 		chargeIDs []model.InstallmentChargeID,

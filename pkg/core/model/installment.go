@@ -139,21 +139,20 @@ func (s InstallmentStatus) IsActive() bool {
 // Persisted contractual snapshots must never be shortened to this operational bound.
 const MaxInstallmentGracePeriodDays uint = 31
 
-// OverdueEligibleAt returns when a due installment becomes overdue eligible.
-//
-// Contractual grace is a wall-clock duration of GracePeriodDays * 24 hours
-// from DueAt (including non-midnight due instants). This matches Collections
-// SQL candidate selection and collectionsv1. Reminder policy uses business
-// calendar dates for SMS scheduling and is intentionally separate.
-func (i Installment) OverdueEligibleAt() time.Time {
-	// Add calendar days only after converting to UTC: each UTC day is 24h.
-	// This also avoids time.Duration overflow for PostgreSQL integer snapshots.
-	return i.DueAt.UTC().AddDate(0, 0, int(i.GracePeriodDays))
+// OverdueEligibleAt returns midnight on D+Grace+1 in the supplied business
+// location. The complete due day and every persisted grace day remain payable.
+func (i Installment) OverdueEligibleAt(locations ...*time.Location) time.Time {
+	loc := time.UTC
+	if len(locations) > 0 && locations[0] != nil {
+		loc = locations[0]
+	}
+	due := i.DueAt.In(loc)
+	return time.Date(due.Year(), due.Month(), due.Day(), 0, 0, 0, 0, loc).AddDate(0, 0, int(i.GracePeriodDays)+1).UTC()
 }
 
-// IsOverdueEligible reports whether now is at or after the overdue eligibility time.
-func (i Installment) IsOverdueEligible(now time.Time) bool {
-	return !now.UTC().Before(i.OverdueEligibleAt())
+// IsOverdueEligible compares contractual calendar boundaries in business time.
+func (i Installment) IsOverdueEligible(now time.Time, locations ...*time.Location) bool {
+	return !now.Before(i.OverdueEligibleAt(locations...))
 }
 
 // Installment stores a persisted installment offer row for a checkout decision.

@@ -41,6 +41,8 @@ type CustomerRestrictionConnQueryer interface {
 
 // CustomerRestrictionTxQueryer exposes transaction-scoped restriction operations.
 type CustomerRestrictionTxQueryer interface {
+	// LockActiveByDefaultEpisodeID cannot select an independent domain restriction.
+	LockActiveByDefaultEpisodeID(context.Context, model.CustomerID, model.DefaultEpisodeID) (model.CustomerRestriction, error)
 	CustomerRestrictionQueryer
 
 	LockActiveByCustomerType(

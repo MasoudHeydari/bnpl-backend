@@ -1,6 +1,7 @@
 package financialcorepaymentresultuc
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -16,6 +17,8 @@ import (
 
 // UseCase owns inbound Financial Core payment-result processing.
 type UseCase struct {
+	customerProfile                      repo.CustomerProfile
+	reassessCustomer                     func(context.Context, model.CustomerID) error
 	pool                                 repo.Pool
 	contractUC                           *contractuc.UseCase
 	checkoutSessionUC                    checkoutSessionPaymentHook

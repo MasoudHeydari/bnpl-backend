@@ -24,6 +24,9 @@ type Candidate struct {
 	// HasUnresolvedPayment is true when a non-terminal payment attempt exists
 	// for this installment.
 	HasUnresolvedPayment bool
+
+	// HasOutstandingCharges permits repayment of residual charges after principal settlement.
+	HasOutstandingCharges bool
 }
 
 // Selection is the outcome of evaluating global repayment priority.
@@ -77,7 +80,7 @@ func (Policy) Select(candidates []Candidate, now time.Time) Selection {
 			continue
 		}
 
-		if !inst.Status.IsActive() {
+		if !inst.Status.IsActive() && !(inst.Status == model.PaidInstallmentStatus && candidate.HasOutstandingCharges) {
 			continue
 		}
 

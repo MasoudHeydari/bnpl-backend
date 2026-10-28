@@ -168,6 +168,8 @@ type RepaymentDueInstallment struct {
 
 // RepaymentNextPayable identifies the server-selected next payment target.
 type RepaymentNextPayable struct {
+	OutstandingAmountMinor uint64
+	PaymentBlockReason     string
 	// InstallmentID identifies the priority installment.
 	InstallmentID model.InstallmentID
 	// ContractID identifies the owning contract.
@@ -184,8 +186,7 @@ type RepaymentNextPayable struct {
 	Status model.InstallmentStatus
 	// HasPendingPayment is true when a non-terminal payment attempt exists.
 	HasPendingPayment bool
-	// PayableAmountKnown is false when charge-recognition rules prevent
-	// advertising a Financial Core payable amount (for example unrecognized fees).
+	// PayableAmountKnown is false when component arithmetic cannot produce a positive payment.
 	PayableAmountKnown bool
 }
 

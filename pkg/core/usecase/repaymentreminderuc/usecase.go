@@ -18,6 +18,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/metrics"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/pagination"
+	notificationv1 "github.com/parstis/bnpl-backend/pkg/core/policy/defaultnotification/v1"
 	reminderv1 "github.com/parstis/bnpl-backend/pkg/core/policy/repaymentreminder/v1"
 	"github.com/parstis/bnpl-backend/pkg/core/policy/shortlinkdestination"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
@@ -26,7 +27,12 @@ import (
 
 // UseCase evaluates installment due schedules and persists at most one reminder
 // SMS request per customer per business day via the transactional outbox.
+type DefaultNoticeEvaluator interface {
+	DefaultNoticeOnTx(context.Context, repo.Tx, model.CustomerID, time.Time) (notificationv1.Eligibility, error)
+}
+
 type UseCase struct {
+	defaultNotice        DefaultNoticeEvaluator
 	pool                 repo.Pool
 	installment          repo.Installment
 	repaymentReminder    repo.RepaymentReminder
@@ -324,6 +330,18 @@ func (uc *UseCase) dispatchCustomer(
 			paymentAttemptQ := uc.paymentAttempt.Tx(tx)
 			outboxQ := uc.outbox.Tx(tx)
 
+			var notice notificationv1.Eligibility
+			if uc.defaultNotice != nil {
+				var err error
+				notice, err = uc.defaultNotice.DefaultNoticeOnTx(ctx, tx, customerID, nowLocal)
+				if err != nil {
+					return err
+				}
+				if notice.Reserved && !notice.Eligible {
+					skipReason = reminderv1.SuppressNoEligible
+					return nil
+				}
+			}
 			_, lockErr := reminderQ.LockByCustomerBusinessDate(ctx, customerID, businessDate)
 			if lockErr == nil {
 				skipReason = reminderv1.SuppressAlreadySentToday
@@ -373,6 +391,18 @@ func (uc *UseCase) dispatchCustomer(
 			}
 
 			decision := uc.policy.EvaluateCustomer(nowLocal, businessDate, facts, false)
+			if notice.Eligible {
+				key := "collections-default:" + notice.EpisodeID.String()
+				_, err := reminderQ.GetByNotificationIdempotencyKey(ctx, key)
+				if err == nil {
+					skipReason = reminderv1.SuppressAlreadySentToday
+					return nil
+				}
+				if !cerr.IsCode(err, cerr.CodeResourceNotFound) {
+					return err
+				}
+				decision = reminderv1.CustomerDecision{ShouldSend: true, ReminderType: model.DefaultReminderType, TemplateID: notificationv1.TemplateID, PolicyVersion: notificationv1.PolicyVersion, InstallmentIDs: notice.InstallmentIDs}
+			}
 			if !decision.ShouldSend {
 				skipReason = decision.SuppressReason
 				return nil
@@ -393,6 +423,9 @@ func (uc *UseCase) dispatchCustomer(
 			}
 
 			idempotencyKey := "repayment-reminder:" + reminderID.String()
+			if notice.Eligible {
+				idempotencyKey = "collections-default:" + notice.EpisodeID.String()
+			}
 			nowUTC := uc.clock.Now().UTC()
 
 			_, createErr := reminderQ.Create(ctx, repo.CreateRepaymentReminder{
@@ -486,4 +519,11 @@ func parseReminderID(raw string) (model.RepaymentReminderID, error) {
 	}
 
 	return model.RepaymentReminderID(id), nil
+}
+
+// WithDefaultNotifications wires truthful episode-scoped notices into the same
+// daily communication ceiling and atomic ShortLink/Reminder/Outbox transaction.
+func (uc *UseCase) WithDefaultNotifications(e DefaultNoticeEvaluator) *UseCase {
+	uc.defaultNotice = e
+	return uc
 }

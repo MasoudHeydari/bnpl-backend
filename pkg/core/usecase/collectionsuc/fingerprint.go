@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/parstis/bnpl-backend/pkg/core/model"
-	collectionsv1 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v1"
 )
 
 const (
@@ -41,8 +40,8 @@ func (uc *UseCase) openDecisionFingerprint(
 	sort.Strings(ids)
 
 	raw := strings.Join([]string{
-		collectionsv1.PolicyID,
-		collectionsv1.PolicyVersion,
+		uc.policies.Current.ID(),
+		uc.policies.Current.Version(),
 		customerID.String(),
 		strings.Join(ids, ","),
 	}, "|")
@@ -53,10 +52,14 @@ func (uc *UseCase) openDecisionFingerprint(
 func (uc *UseCase) recoverDecisionFingerprint(
 	episodeID model.DefaultEpisodeID,
 	priorDecisionID model.DecisionID,
+	governing ...string,
 ) (string, error) {
+	id, version := uc.policies.Current.ID(), uc.policies.Current.Version()
+	if len(governing) == 2 {
+		id, version = governing[0], governing[1]
+	}
 	raw := strings.Join([]string{
-		collectionsv1.PolicyID,
-		collectionsv1.PolicyVersion,
+		id, version,
 		"recover",
 		episodeID.String(),
 		priorDecisionID.String(),

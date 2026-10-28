@@ -97,7 +97,7 @@ func (uc *UseCase) ensureFinancialCoreInstallmentPayment(
 			return loadErr
 		}
 
-		if contractRow.Status != model.ActiveContractStatus {
+		if contractRow.Status != model.ActiveContractStatus && !(contractRow.Status == model.CompletedContractStatus && model.IsChargeOnlyPayment(attempt.Items)) {
 			return contractNotActiveError()
 		}
 
@@ -131,8 +131,9 @@ func (uc *UseCase) ensureFinancialCoreInstallmentPayment(
 			return installmentDoesNotBelongToContractError()
 		}
 
-		if installmentRow.PrincipalAmountMinor != attempt.AmountMinor {
-			return installmentChargesRequireFinancialRecognitionError()
+		snapshotAmount, ok := model.PayableAmountFromItems(attempt.Items)
+		if !ok || snapshotAmount != attempt.AmountMinor {
+			return cerr.InternalError(fmt.Errorf("%s: inconsistent aggregate payment snapshot", op))
 		}
 
 		return nil
@@ -167,6 +168,10 @@ func (uc *UseCase) ensureFinancialCoreInstallmentPayment(
 		})
 		if prepareErr != nil {
 			return model.PaymentAttempt{}, prepareErr
+		}
+
+		if prepared.OutstandingAmountMinor != amountMinor || prepared.Currency != string(attempt.Currency) {
+			return model.PaymentAttempt{}, financialCoreInstallmentPaymentUnavailableError(errors.New("financial core collection amount or currency differs from immutable payment aggregate"))
 		}
 
 		obligationID = strings.TrimSpace(prepared.CollectionObligationID)

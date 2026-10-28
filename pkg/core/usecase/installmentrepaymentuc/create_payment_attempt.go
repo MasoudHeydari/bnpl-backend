@@ -151,7 +151,7 @@ func (uc *UseCase) CreatePaymentAttempt(
 						return contractIsCancelingError()
 					}
 
-					if contractRow.Status != model.ActiveContractStatus {
+					if contractRow.Status != model.ActiveContractStatus && contractRow.Status != model.CompletedContractStatus {
 						return contractNotActiveError()
 					}
 
@@ -164,7 +164,7 @@ func (uc *UseCase) CreatePaymentAttempt(
 						return installmentDoesNotBelongToContractError()
 					}
 
-					if !isPayableInstallmentStatus(installmentRow.Status) {
+					if !isPayableInstallmentStatus(installmentRow.Status) && installmentRow.Status != model.PaidInstallmentStatus {
 						return installmentStatusDoesNotAllowPaymentError()
 					}
 
@@ -173,7 +173,7 @@ func (uc *UseCase) CreatePaymentAttempt(
 						return siblingsErr
 					}
 
-					if !model.IsNextPayableInSequence(installmentRow, siblings) {
+					if installmentRow.Status != model.PaidInstallmentStatus && !model.IsNextPayableInSequence(installmentRow, siblings) {
 						return installmentNotNextPayableError()
 					}
 
@@ -188,7 +188,8 @@ func (uc *UseCase) CreatePaymentAttempt(
 					priorityCandidates := make([]repaymentpriorityv1.Candidate, 0, len(nextPerContract))
 					for _, row := range nextPerContract {
 						priorityCandidates = append(priorityCandidates, repaymentpriorityv1.Candidate{
-							Installment: row,
+							Installment:           row,
+							HasOutstandingCharges: row.Status == model.PaidInstallmentStatus,
 						})
 					}
 
@@ -205,6 +206,9 @@ func (uc *UseCase) CreatePaymentAttempt(
 						return chargesErr
 					}
 
+					if err := model.ValidateCustomerPaymentComponents(installmentRow, charges); err != nil {
+						return cerr.InternalError(err)
+					}
 					payableAmount, payableOK, payableErr := model.CustomerPayableAmount(installmentRow, charges)
 					if payableErr != nil {
 						return payableErr
@@ -219,12 +223,8 @@ func (uc *UseCase) CreatePaymentAttempt(
 						return cerr.InternalError(fmt.Errorf("%s: installment payable amount: %w", op, amountErr))
 					}
 
-					// The receivable created during activation currently represents financed principal only.
-					// Until FC exposes recognition/application contracts for charges, do not silently
-					// apply fees or penalties to the principal receivable.
-					if payableAmount != installmentRow.PrincipalAmountMinor {
-						return installmentChargesRequireFinancialRecognitionError()
-					}
+					// FC receives only the validated aggregate. BNPL retains the immutable
+					// principal/charge/effect breakdown and applies it after FC confirms success.
 
 					snapshotItems, snapshotErr := model.BuildPaymentAttemptItems(installmentRow, charges)
 					if snapshotErr != nil {

@@ -95,3 +95,7 @@ func (q txQueryer) Release(
 ) (model.CustomerRestriction, error) {
 	return Release(ctx, q.Tx, id, releasingDecisionID, releasedAt, updatedAt)
 }
+
+func (q txQueryer) LockActiveByDefaultEpisodeID(ctx context.Context, customer model.CustomerID, episode model.DefaultEpisodeID) (model.CustomerRestriction, error) {
+	return LockActiveByDefaultEpisodeID(ctx, q.Tx, customer, episode)
+}

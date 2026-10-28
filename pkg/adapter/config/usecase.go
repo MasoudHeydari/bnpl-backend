@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/parstis/bnpl-backend/pkg/core/policy/collections"
+
 	corephonenumber "github.com/parstis/bnpl-backend/pkg/core/canonicalizer/phonenumber"
 	"github.com/parstis/bnpl-backend/pkg/core/clock"
 	"github.com/parstis/bnpl-backend/pkg/core/domaincapability"
@@ -704,6 +706,7 @@ func (CustomerCredit) newUseCase(
 	defaultInitialLimitRef policy.Ref,
 	auditDestination string,
 	idGenerator identifier.Generator,
+	collectionsPolicy collections.Policy,
 ) (*customercredituc.UseCase, error) {
 	return customercredituc.New(
 		pool,
@@ -722,6 +725,7 @@ func (CustomerCredit) newUseCase(
 		defaultInitialLimitRef,
 		auditDestination,
 		idGenerator,
+		collectionsPolicy,
 	)
 }
 

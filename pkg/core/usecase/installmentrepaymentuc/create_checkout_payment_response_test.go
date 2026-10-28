@@ -95,6 +95,7 @@ func newInstallmentFCResponseHarness(t *testing.T) *installmentFCResponseHarness
 		FinancialCollectionObligationID: &obligationID,
 		CreatedAt:                       createdAt,
 	}
+	h.attempt.Items = []model.PaymentAttemptItem{{ItemType: model.PrincipalPaymentAttemptItemType, SourceID: h.attempt.InstallmentID.UUID(), AmountMinor: h.attempt.AmountMinor, Effect: model.DebitPaymentAttemptItemEffect}}
 
 	h.pool.EXPECT().Conn(testifymock.Anything, testifymock.Anything).RunAndReturn(
 		func(ctx context.Context, handler repo.ConnHandler) error {

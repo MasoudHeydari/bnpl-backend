@@ -2,13 +2,14 @@ package customeraccountuc
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	"github.com/google/uuid"
 	coremock "github.com/parstis/bnpl-backend/pkg/core/mock"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"testing"
-	"time"
 )
 
 func TestSummaryUsesGlobalPriorityAndFinancialRecognition(t *testing.T) {
@@ -17,7 +18,7 @@ func TestSummaryUsesGlobalPriorityAndFinancialRecognition(t *testing.T) {
 		charges bool
 		pending bool
 	}{
-		{name: "principal recognized"}, {name: "unrecognized fee", charges: true}, {name: "pending priority is retained", pending: true},
+		{name: "principal recognized"}, {name: "aggregate includes fee", charges: true}, {name: "pending priority is retained", pending: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
@@ -40,7 +41,7 @@ func TestSummaryUsesGlobalPriorityAndFinancialRecognition(t *testing.T) {
 			pq.EXPECT().ListInstallmentIDsWithNonTerminalAttempts(ctx, customer, mock.Anything).Return(pending, nil)
 			var charges []model.InstallmentCharge
 			if tc.charges {
-				charges = []model.InstallmentCharge{{ID: model.InstallmentChargeID(uuid.New()), InstallmentID: i.ID, ChargeType: model.BNPLFeeInstallmentChargeType, ChargeStatus: model.AppliedInstallmentChargeStatus, PayerType: model.CustomerInstallmentChargePayerType, AmountMinor: 20}}
+				charges = []model.InstallmentCharge{{ID: model.InstallmentChargeID(uuid.New()), InstallmentID: i.ID, ChargeType: model.BNPLFeeInstallmentChargeType, ChargeStatus: model.AppliedInstallmentChargeStatus, PayerType: model.CustomerInstallmentChargePayerType, AmountMinor: 20, Currency: model.IRRCurrency, RecipientType: model.PlatformInstallmentChargeRecipientType}}
 			}
 			cq.EXPECT().ListByInstallmentIDs(ctx, []model.InstallmentID{i.ID}).Return(charges, nil)
 			got, err := buildRepaymentSummary(ctx, iq, pq, cq, customer, now)
@@ -49,9 +50,9 @@ func TestSummaryUsesGlobalPriorityAndFinancialRecognition(t *testing.T) {
 			require.NotNil(t, got.NextPayable)
 			require.Equal(t, i.ID, got.NextPayable.InstallmentID)
 			require.Equal(t, tc.pending, got.HasPendingPayment)
-			require.Equal(t, !tc.charges, got.NextPayable.PayableAmountKnown)
+			require.True(t, got.NextPayable.PayableAmountKnown)
 			if tc.charges {
-				require.Zero(t, got.NextPayable.PayableAmountMinor)
+				require.EqualValues(t, 120, got.NextPayable.PayableAmountMinor)
 			} else {
 				require.EqualValues(t, 100, got.NextPayable.PayableAmountMinor)
 			}

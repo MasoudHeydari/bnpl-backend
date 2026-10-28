@@ -257,3 +257,7 @@ RETURNING` + restrictionColumns
 		model.ActiveCustomerRestrictionStatus,
 	)
 }
+
+func LockActiveByDefaultEpisodeID[Q postgres.Queryer](ctx context.Context, q Q, customer model.CustomerID, episode model.DefaultEpisodeID) (model.CustomerRestriction, error) {
+	return postgres.QueryOne[model.CustomerRestriction](ctx, q, "lock episode restriction", `SELECT`+restrictionColumns+` FROM customer_restrictions WHERE customer_id=$1 AND default_episode_id=$2 AND restriction_type='new_credit_usage' AND reason='collections_default' AND status='active' FOR UPDATE`, customer, episode)
+}

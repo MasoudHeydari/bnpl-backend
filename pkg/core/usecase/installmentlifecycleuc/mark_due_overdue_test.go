@@ -238,7 +238,7 @@ func TestMarkOverdueDueInstallments_AtGraceEndBecomesOverdue(t *testing.T) {
 		0,
 		time.UTC,
 	)
-	now := dueAt.Add(5 * 24 * time.Hour)
+	now := dueAt.AddDate(0, 0, 6)
 	deps := newMarkDueOverdueDeps(t, now)
 	installmentRow := model.Installment{
 		ID:              model.InstallmentID(uuid.New()),
@@ -274,7 +274,7 @@ func TestMarkOverdueDueInstallments_ZeroDayGraceSupported(t *testing.T) {
 		0,
 		time.UTC,
 	)
-	now := dueAt
+	now := dueAt.AddDate(0, 0, 1)
 	deps := newMarkDueOverdueDeps(t, now)
 	installmentRow := model.Installment{
 		ID:              model.InstallmentID(uuid.New()),
@@ -310,7 +310,7 @@ func TestMarkOverdueDueInstallments_MarkOverdueConflictIsIdempotent(t *testing.T
 		0,
 		time.UTC,
 	)
-	now := dueAt
+	now := dueAt.AddDate(0, 0, 1)
 	deps := newMarkDueOverdueDeps(t, now)
 	installmentRow := model.Installment{
 		ID:              model.InstallmentID(uuid.New()),

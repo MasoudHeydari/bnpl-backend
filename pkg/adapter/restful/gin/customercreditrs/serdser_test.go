@@ -27,7 +27,7 @@ func TestToCreditSummaryResponse_NotAssigned_StatusOnly(t *testing.T) {
 
 	raw, err := json.Marshal(got)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"status":"not_assigned"}`, string(raw))
+	require.JSONEq(t, `{"status":"not_assigned","credit_usage":{"status":"unavailable"}}`, string(raw))
 }
 
 func TestToCreditSummaryResponse_Expired_StatusAndExpiresAtOnly(t *testing.T) {
@@ -96,4 +96,11 @@ func TestToCreditSummaryResponse_Active_IncludesAvailableAmount(t *testing.T) {
 	require.NotContains(t, decoded, "valid_from")
 	require.NotContains(t, decoded, "limit_amount_minor")
 	require.NotContains(t, decoded, "used_amount_minor")
+}
+
+func TestRestrictedCreditUsageHasSeparatePublicRepresentation(t *testing.T) {
+	got := toCreditSummaryResponse(customercredituc.Output{Status: customercredituc.SummaryStatusActive, Currency: model.IRRCurrency, CreditUsage: customercredituc.CreditUsage{Status: "restricted", Reason: "collections_default"}})
+	raw, err := json.Marshal(got)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"status":"active","available_amount_minor":0,"currency":"IRR","credit_usage":{"status":"restricted","reason":"collections_default"}}`, string(raw))
 }

@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	collectionsv2 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v2"
+
 	"github.com/google/uuid"
 	testifymock "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -71,6 +73,7 @@ func newSummaryUseCase(
 		policy.Ref(),
 		"bnpl.audit.events.v1",
 		mock.NewIdentifierGenerator(t),
+		collectionsv2.New(time.UTC),
 	)
 	require.NoError(t, err)
 

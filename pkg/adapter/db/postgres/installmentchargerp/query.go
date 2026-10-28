@@ -388,7 +388,7 @@ WHERE id = ANY($1)
 	return affected, nil
 }
 
-// MarkSnapshottedChargeIDsPaid marks specific snapshotted customer debit charges paid by id.
+// MarkSnapshottedChargeIDsPaid settles snapshotted customer components, including consumed discounts and waivers.
 func MarkSnapshottedChargeIDsPaid[Q postgres.Queryer](
 	ctx context.Context,
 	q Q,
@@ -410,7 +410,6 @@ SET
 	updated_at = $1
 WHERE id = ANY($4)
   AND payer_type = $7
-  AND charge_type NOT IN ($8, $9)
   AND charge_status IN ($5, $6)
 `
 
@@ -424,8 +423,6 @@ WHERE id = ANY($4)
 		model.OfferedInstallmentChargeStatus,
 		model.AppliedInstallmentChargeStatus,
 		model.CustomerInstallmentChargePayerType,
-		model.DiscountInstallmentChargeType,
-		model.WaiverInstallmentChargeType,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("%s: mark snapshotted charge ids paid: %w", op, postgres.MapError(err))
@@ -499,4 +496,8 @@ FOR UPDATE
 	defer rows.Close()
 
 	return postgres.ValuesInto[model.InstallmentCharge](postgres.MustRows(rows))
+}
+
+func LockByInstallmentIDs[Q postgres.Queryer](ctx context.Context, q Q, ids []model.InstallmentID) ([]model.InstallmentCharge, error) {
+	return postgres.QueryAll[model.InstallmentCharge](ctx, q, "lock installment charges", `SELECT`+installmentChargeColumns+` FROM installment_charges WHERE installment_id=ANY($1::uuid[]) ORDER BY id FOR UPDATE`, ids)
 }

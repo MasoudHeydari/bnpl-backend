@@ -135,15 +135,17 @@ type repaymentDueInstallmentResponse struct {
 }
 
 type repaymentNextPayableResponse struct {
-	InstallmentID      uuid.UUID               `json:"installment_id" format:"uuid"`
-	ContractID         uuid.UUID               `json:"contract_id" format:"uuid"`
-	InstallmentOrder   int                     `json:"installment_order"`
-	PayableAmountMinor uint64                  `json:"payable_amount_minor"`
-	Currency           model.Currency          `json:"currency"`
-	DueAt              time.Time               `json:"due_at"`
-	Status             model.InstallmentStatus `json:"status"`
-	HasPendingPayment  bool                    `json:"has_pending_payment"`
-	PayableAmountKnown bool                    `json:"payable_amount_known"`
+	OutstandingAmountMinor uint64                  `json:"outstanding_amount_minor"`
+	PaymentBlockReason     string                  `json:"payment_block_reason,omitempty"`
+	InstallmentID          uuid.UUID               `json:"installment_id" format:"uuid"`
+	ContractID             uuid.UUID               `json:"contract_id" format:"uuid"`
+	InstallmentOrder       int                     `json:"installment_order"`
+	PayableAmountMinor     uint64                  `json:"payable_amount_minor"`
+	Currency               model.Currency          `json:"currency"`
+	DueAt                  time.Time               `json:"due_at"`
+	Status                 model.InstallmentStatus `json:"status"`
+	HasPendingPayment      bool                    `json:"has_pending_payment"`
+	PayableAmountKnown     bool                    `json:"payable_amount_known"`
 }
 
 type repaymentSummaryResponse struct {
@@ -196,15 +198,17 @@ func toUnpaidInstallmentsListData(
 	if output.Repayment.NextPayable != nil {
 		np := output.Repayment.NextPayable
 		nextPayable = &repaymentNextPayableResponse{
-			InstallmentID:      np.InstallmentID.UUID(),
-			ContractID:         np.ContractID.UUID(),
-			InstallmentOrder:   np.InstallmentOrder,
-			PayableAmountMinor: np.PayableAmountMinor,
-			Currency:           np.Currency,
-			DueAt:              np.DueAt.UTC(),
-			Status:             np.Status,
-			HasPendingPayment:  np.HasPendingPayment,
-			PayableAmountKnown: np.PayableAmountKnown,
+			InstallmentID:          np.InstallmentID.UUID(),
+			ContractID:             np.ContractID.UUID(),
+			InstallmentOrder:       np.InstallmentOrder,
+			PayableAmountMinor:     np.PayableAmountMinor,
+			Currency:               np.Currency,
+			DueAt:                  np.DueAt.UTC(),
+			Status:                 np.Status,
+			HasPendingPayment:      np.HasPendingPayment,
+			PayableAmountKnown:     np.PayableAmountKnown,
+			OutstandingAmountMinor: np.OutstandingAmountMinor,
+			PaymentBlockReason:     np.PaymentBlockReason,
 		}
 	}
 

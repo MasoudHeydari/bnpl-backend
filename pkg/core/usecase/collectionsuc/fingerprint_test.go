@@ -4,6 +4,9 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/parstis/bnpl-backend/pkg/core/policy/collections"
+	collectionsv1 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v1"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -14,7 +17,7 @@ import (
 func TestOpenAndRecoverFingerprints_MatchDecisionsCheckConstraint(t *testing.T) {
 	t.Parallel()
 
-	uc := &UseCase{fingerprintHasher: sha256fingerprint.New()}
+	uc := &UseCase{fingerprintHasher: sha256fingerprint.New(), policies: legacyTestPoliciesForUnit()}
 	customerID := model.CustomerID(uuid.New())
 	triggerA := model.InstallmentID(uuid.New())
 	triggerB := model.InstallmentID(uuid.New())
@@ -34,4 +37,9 @@ func TestOpenAndRecoverFingerprints_MatchDecisionsCheckConstraint(t *testing.T) 
 	require.NoError(t, err)
 	require.Regexp(t, regexp.MustCompile(`^sha256:[0-9a-f]{64}$`), recoverFP)
 	require.NotEqual(t, openFP, recoverFP)
+}
+
+func legacyTestPoliciesForUnit() *collections.Registry {
+	r, _ := collections.NewRegistry(collectionsv1.New())
+	return r
 }

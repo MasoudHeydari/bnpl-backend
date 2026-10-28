@@ -220,7 +220,7 @@ func TestCalendarDSTAndGraceExpiry(t *testing.T) {
 	require.True(t, d.ShouldSend)
 	require.Equal(t, model.GracePeriodReminderType, d.ReminderType)
 	// A delayed job after the contractual instant must not send a grace warning.
-	expiry := due.Add(3 * 24 * time.Hour)
+	expiry := (model.Installment{DueAt: due, GracePeriodDays: 3}).OverdueEligibleAt(loc)
 	for _, now := range []time.Time{expiry, expiry.Add(time.Hour)} {
 		business := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
 		d = v1.New().EvaluateCustomer(now, business, []v1.InstallmentFact{fact(due, 3, model.DueInstallmentStatus, false)}, false)

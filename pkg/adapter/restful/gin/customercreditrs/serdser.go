@@ -20,6 +20,7 @@ import (
 //   - not_assigned: status only (assessment has not occurred)
 //   - expired: status and expires_at only (reassessment required)
 type creditSummaryResponse struct {
+	CreditUsage          customercredituc.CreditUsage   `json:"credit_usage"`
 	AvailableAmountMinor *uint64                        `json:"available_amount_minor,omitempty" example:"4000000"`
 	Currency             model.Currency                 `json:"currency,omitempty" example:"IRR"`
 	Status               customercredituc.SummaryStatus `json:"status" example:"active"`
@@ -28,9 +29,16 @@ type creditSummaryResponse struct {
 
 func toCreditSummaryResponse(output customercredituc.Output) creditSummaryResponse {
 	resp := creditSummaryResponse{
-		Status: output.Status,
+		Status:      output.Status,
+		CreditUsage: output.CreditUsage,
 	}
 
+	if resp.CreditUsage.Status == "" {
+		resp.CreditUsage.Status = "unavailable"
+		if output.Status == customercredituc.SummaryStatusActive {
+			resp.CreditUsage.Status = "allowed"
+		}
+	}
 	switch output.Status {
 	case customercredituc.SummaryStatusExpired:
 		resp.ExpiresAt = output.ExpiresAt

@@ -318,6 +318,78 @@ func (_c *CustomerRestrictionTxQueryer_LockActiveByCustomerType_Call) RunAndRetu
 	return _c
 }
 
+// LockActiveByDefaultEpisodeID provides a mock function for the type CustomerRestrictionTxQueryer
+func (_mock *CustomerRestrictionTxQueryer) LockActiveByDefaultEpisodeID(context1 context.Context, customerID model.CustomerID, defaultEpisodeID model.DefaultEpisodeID) (model.CustomerRestriction, error) {
+	ret := _mock.Called(context1, customerID, defaultEpisodeID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for LockActiveByDefaultEpisodeID")
+	}
+
+	var r0 model.CustomerRestriction
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CustomerID, model.DefaultEpisodeID) (model.CustomerRestriction, error)); ok {
+		return returnFunc(context1, customerID, defaultEpisodeID)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CustomerID, model.DefaultEpisodeID) model.CustomerRestriction); ok {
+		r0 = returnFunc(context1, customerID, defaultEpisodeID)
+	} else {
+		r0 = ret.Get(0).(model.CustomerRestriction)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.CustomerID, model.DefaultEpisodeID) error); ok {
+		r1 = returnFunc(context1, customerID, defaultEpisodeID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// CustomerRestrictionTxQueryer_LockActiveByDefaultEpisodeID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'LockActiveByDefaultEpisodeID'
+type CustomerRestrictionTxQueryer_LockActiveByDefaultEpisodeID_Call struct {
+	*mock.Call
+}
+
+// LockActiveByDefaultEpisodeID is a helper method to define mock.On call
+//   - context1 context.Context
+//   - customerID model.CustomerID
+//   - defaultEpisodeID model.DefaultEpisodeID
+func (_e *CustomerRestrictionTxQueryer_Expecter) LockActiveByDefaultEpisodeID(context1 any, customerID any, defaultEpisodeID any) *CustomerRestrictionTxQueryer_LockActiveByDefaultEpisodeID_Call {
+	return &CustomerRestrictionTxQueryer_LockActiveByDefaultEpisodeID_Call{Call: _e.mock.On("LockActiveByDefaultEpisodeID", context1, customerID, defaultEpisodeID)}
+}
+
+func (_c *CustomerRestrictionTxQueryer_LockActiveByDefaultEpisodeID_Call) Run(run func(context1 context.Context, customerID model.CustomerID, defaultEpisodeID model.DefaultEpisodeID)) *CustomerRestrictionTxQueryer_LockActiveByDefaultEpisodeID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.CustomerID
+		if args[1] != nil {
+			arg1 = args[1].(model.CustomerID)
+		}
+		var arg2 model.DefaultEpisodeID
+		if args[2] != nil {
+			arg2 = args[2].(model.DefaultEpisodeID)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *CustomerRestrictionTxQueryer_LockActiveByDefaultEpisodeID_Call) Return(customerRestriction model.CustomerRestriction, err error) *CustomerRestrictionTxQueryer_LockActiveByDefaultEpisodeID_Call {
+	_c.Call.Return(customerRestriction, err)
+	return _c
+}
+
+func (_c *CustomerRestrictionTxQueryer_LockActiveByDefaultEpisodeID_Call) RunAndReturn(run func(context1 context.Context, customerID model.CustomerID, defaultEpisodeID model.DefaultEpisodeID) (model.CustomerRestriction, error)) *CustomerRestrictionTxQueryer_LockActiveByDefaultEpisodeID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Release provides a mock function for the type CustomerRestrictionTxQueryer
 func (_mock *CustomerRestrictionTxQueryer) Release(ctx context.Context, id model.CustomerRestrictionID, releasingDecisionID model.DecisionID, releasedAt time.Time, updatedAt time.Time) (model.CustomerRestriction, error) {
 	ret := _mock.Called(ctx, id, releasingDecisionID, releasedAt, updatedAt)

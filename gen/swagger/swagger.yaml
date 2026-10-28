@@ -692,6 +692,8 @@ definitions:
       available_amount_minor:
         example: 4000000
         type: integer
+      credit_usage:
+        $ref: '#/definitions/customercredituc.CreditUsage'
       currency:
         allOf:
         - $ref: '#/definitions/model.Currency'
@@ -728,6 +730,13 @@ definitions:
     - AssignInitialLimitResultCreated
     - AssignInitialLimitResultAlreadyAssigned
     - AssignInitialLimitResultDenied
+  customercredituc.CreditUsage:
+    properties:
+      reason:
+        type: string
+      status:
+        type: string
+    type: object
   customercredituc.SummaryStatus:
     enum:
     - active
@@ -992,10 +1001,14 @@ definitions:
         type: string
       installment_order:
         type: integer
+      outstanding_amount_minor:
+        type: integer
       payable_amount_known:
         type: boolean
       payable_amount_minor:
         type: integer
+      payment_block_reason:
+        type: string
       status:
         $ref: '#/definitions/model.InstallmentStatus'
     type: object

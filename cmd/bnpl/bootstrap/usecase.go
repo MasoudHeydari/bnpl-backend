@@ -5,6 +5,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/parstis/bnpl-backend/pkg/core/policy/collections"
+	collectionsv1 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v1"
+	collectionsv2 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v2"
+
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	checkoutcatalog "github.com/parstis/bnpl-backend/pkg/core/policy/checkout/catalog"
 	initialcreditcatalog "github.com/parstis/bnpl-backend/pkg/core/policy/initialcreditlimit/catalog"
@@ -156,6 +160,10 @@ func (a *App) NewUseCases() (UseCases, error) {
 		collectionsBatchSize = 100
 	}
 
+	collectionsPolicies, err := collections.NewRegistry(collectionsv2.New(a.Infrastructure.Clock.BusinessLocation()), collectionsv1.New())
+	if err != nil {
+		return UseCases{}, err
+	}
 	collectionsUseCase, err := collectionsuc.New(
 		a.Pool,
 		a.Repos.CustomerProfile,
@@ -171,6 +179,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Infrastructure.Metrics,
 		a.Config.AuditEventsTopic(),
 		collectionsBatchSize,
+		collectionsPolicies,
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize collections use case: %w", op, err)
@@ -257,6 +266,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize contract cancellation saga definition: %w", op, err)
 	}
+	cancellationSagaDefinition.(*contractuc.CancellationSagaDefinition).WithCustomerSynchronization(a.Repos.CustomerProfile)
 
 	// Temporary executor covers cancellation until the confirmation definition
 	// is constructed (it depends on contractUC). Both definitions share the
@@ -399,6 +409,10 @@ func (a *App) NewUseCases() (UseCases, error) {
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize financial core payment result use case: %w", op, err)
 	}
+	financialCorePaymentResultUseCase.WithCollectionsCoordination(a.Repos.CustomerProfile, func(ctx context.Context, id model.CustomerID) error {
+		_, err := collectionsUseCase.AssessCustomer(ctx, id)
+		return err
+	})
 
 	financialCorePaymentSessionUseCase, err := a.Config.NewFinancialCorePaymentSessionUseCase(
 		a.Pool,
@@ -465,6 +479,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		initialCreditLimitPolicies,
 		initialcreditcatalog.DefaultRef(),
 		a.Infrastructure.IdentifierGenerator,
+		collectionsPolicies.Current,
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize customer credit use case: %w", op, err)
@@ -562,6 +577,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize repayment reminder use case: %w", op, err)
 	}
+	repaymentReminderUseCase.WithDefaultNotifications(collectionsUseCase)
 
 	return UseCases{
 		Migrations:                         migrationsUseCase,

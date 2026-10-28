@@ -30,7 +30,7 @@ func (uc *UseCase) insertLifecycleAuditOutbox(
 	const op = "installmentlifecycleuc.UseCase.insertLifecycleAuditOutbox"
 
 	eventID := uc.idGenerator.Generate()
-	event, err := buildLifecycleAuditEvent(eventID, before, after, now)
+	event, err := buildLifecycleAuditEvent(eventID, before, after, now, uc.clock.BusinessLocation())
 	if err != nil {
 		return err
 	}
@@ -60,6 +60,7 @@ func buildLifecycleAuditEvent(
 	before model.Installment,
 	after model.Installment,
 	now time.Time,
+	locations ...*time.Location,
 ) (audit.Event, error) {
 	const op = "installmentlifecycleuc.buildLifecycleAuditEvent"
 
@@ -77,7 +78,7 @@ func buildLifecycleAuditEvent(
 		"installment_order":      after.InstallmentOrder,
 		"due_at":                 after.DueAt,
 		"grace_period_days":      after.GracePeriodDays,
-		"overdue_eligible_at":    after.OverdueEligibleAt(),
+		"overdue_eligible_at":    after.OverdueEligibleAt(locations...),
 		"principal_amount_minor": after.PrincipalAmountMinor,
 		"total_amount_minor":     after.TotalAmountMinor,
 		"currency":               after.Currency,
@@ -191,6 +192,7 @@ func buildOfferExpiryAuditEvent(
 	expiredInstallment model.Installment,
 	canceledCharges []model.InstallmentCharge,
 	now time.Time,
+	locations ...*time.Location,
 ) (audit.Event, error) {
 	const op = "installmentlifecycleuc.buildOfferExpiryAuditEvent"
 

@@ -282,3 +282,8 @@ RETURNING` + reminderColumns
 
 	return row.toModel(), nil
 }
+
+func GetByNotificationIdempotencyKey[Q postgres.Queryer](ctx context.Context, q Q, key string) (model.RepaymentReminder, error) {
+	row, err := postgres.QueryOne[reminderRow](ctx, q, "get reminder by notification identity", `SELECT`+reminderColumns+` FROM repayment_reminders WHERE notification_idempotency_key=$1`, key)
+	return row.toModel(), err
+}
