@@ -113,10 +113,8 @@ under admin. Detailed managed-role/membership/ownership/default ACL checks are
 available through PostgreSQL public catalogs even to normal Runtime; no extra
 Runtime administrative privileges were added. The verifier does not audit
 unrelated schemas, operating-system/database proxy settings, or claim to verify
-the platform admin's entire cluster-wide authority. Runtime TEMPORARY access is also prohibited, including through PUBLIC. Because
-revoking the database-wide PUBLIC default affects other users, it is an explicit
-platform prerequisite rather than a silent cross-schema bootstrap side effect.
-Managed CREATE, ownership and administrative SET ROLE paths are prohibited.
+the platform admin's entire cluster-wide authority. Runtime may create session-local temporary tables. Managed-schema CREATE,
+database CREATE, ownership changes and administrative SET ROLE paths remain prohibited.
 
 Investigate drift with `db ownership plan` (safe role/table/column ACL inventory)
 and PostgreSQL catalogs/has_table_privilege/has_column_privilege/pg_has_role.

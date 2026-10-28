@@ -55,8 +55,6 @@ func newSecurityFixture(t *testing.T) *securityFixture {
 	name := "bnpl_security_test_" + strings.ReplaceAll(uuid.NewString(), "-", "")[:10]
 	_, e = root.Exec(ctx, "CREATE DATABASE "+pgx.Identifier{name}.Sanitize())
 	require.NoError(t, e)
-	_, e = root.Exec(ctx, "REVOKE TEMPORARY ON DATABASE "+pgx.Identifier{name}.Sanitize()+" FROM PUBLIC")
-	require.NoError(t, e)
 	t.Cleanup(func() {
 		_, _ = root.Exec(context.Background(), "DROP DATABASE "+pgx.Identifier{name}.Sanitize()+" WITH (FORCE)")
 	})
@@ -107,6 +105,10 @@ func TestRuntimePrivilegesRealRolesAndDrift(t *testing.T) {
 	require.NoError(t, VerifyRuntime(f.ctx, f.runtime))
 	f.migrate(t)
 
+	// Session-local temporary tables are allowed; managed-schema DDL is not.
+	_, tempErr := f.runtime.Exec(f.ctx, "CREATE TEMP TABLE bnpl_runtime_temp_test(id bigint)")
+	require.NoError(t, tempErr)
+
 	// Every reviewed table/column is exercised by an authenticated Runtime session.
 	for _, p := range PrivilegeRegistry() {
 		obj := pgx.Identifier{p.Schema, p.Table}.Sanitize()
@@ -137,7 +139,7 @@ func TestRuntimePrivilegesRealRolesAndDrift(t *testing.T) {
 			require.Equal(t, "42501", pg.Code, p.Table)
 		}
 	}
-	for _, sql := range []string{"CREATE TABLE bnpl.bad(id int)", "CREATE TEMP TABLE bad(id int)", "ALTER TABLE bnpl.decisions ADD COLUMN bad int", "ALTER TABLE bnpl.decisions OWNER TO bnpl", "SET ROLE admin", "SET ROLE bnpl_owner", "SET ROLE bnpl_migrator", "CREATE OR REPLACE FUNCTION bnpl.guard_payment_items() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NEW; END $$"} {
+	for _, sql := range []string{"CREATE TABLE bnpl.bad(id int)", "ALTER TABLE bnpl.decisions ADD COLUMN bad int", "ALTER TABLE bnpl.decisions OWNER TO bnpl", "SET ROLE admin", "SET ROLE bnpl_owner", "SET ROLE bnpl_migrator", "CREATE OR REPLACE FUNCTION bnpl.guard_payment_items() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NEW; END $$"} {
 		_, e := f.runtime.Exec(f.ctx, sql)
 		require.Error(t, e, sql)
 	}

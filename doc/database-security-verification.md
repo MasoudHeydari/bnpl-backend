@@ -1,5 +1,9 @@
 # Database security and entrypoint separation — implementation report
 
+> Historical report from the initial refactor. The subsequent cleanup allows
+> session-local TEMPORARY tables, simplifies developer tooling and updates
+> SQL fingerprints after formatting. Refer to the latest source and README.
+
 Actual starting HEAD: `bdf5bd01dd5678e71a3465adc0b7d95b6482d3b1`.
 Branch: `feat-add-decision-domain`. The remote was rechecked before publication;
 there was no intervening branch advancement. No PR or merge into main is involved.
@@ -51,7 +55,7 @@ missing transfer authority and platform DDL privileges are actionable blockers.
 A repeat application is safe. Non-superuser admin initialization/migration was
 also exercised on a separate cluster with CREATEROLE/CREATEDB, without SUPERUSER.
 
-Runtime has no managed ownership, schema/database CREATE, TEMPORARY, DELETE,
+Runtime has no managed ownership, schema/database CREATE, DELETE,
 TRUNCATE, REFERENCES, TRIGGER or grant-option privileges. Its effective rights are
 checked across all 39 registered tables and every column. The complete exact
 matrix and exceptions are in [database-privileges](architecture/database-privileges.md)
@@ -135,7 +139,7 @@ unique databases/schemas. Shared/production project data was not migrated.
 - `go test -tags production ./cmd/... ./pkg/adapter/dbadminconfig ./pkg/core/usecase/migrationsuc`: PASS. Existing bootstrap fixtures now use a permitted in-process scheduler in production and assert Swagger remains absent there; production guards were not relaxed.
 - `go test -tags production ./cmd/... -run '^$'`: PASS, both entrypoint trees compile.
 - `go test -count=1 -race -tags 'development integration' ./pkg/adapter/db/postgres/invariants/... ./pkg/core/usecase/collectionsuc/... ./pkg/core/usecase/contractuc/... ./cmd/bnpl/bootstrap/...`: PASS (88.537s, 49.362s, 3.645s, 12.272s respectively). The last bootstrap ordering adjustment was additionally retested against real PG/race: PASS, 11.016s.
-- Real security tests include every registered table's allowed/forbidden operations and writable columns; actual LOGIN roles; DELETE/TRUNCATE/DDL/temporary-table/SET ROLE denials; missing/extra effective grants; PUBLIC, grant options and inherited-role paths; future default drift; function overload drift; unknown tables; trigger drift; legacy ownership/data preservation; permission revoke/regrant/concurrent replacement/RR conflicts; successful effective owner across migration transactions; checksum/dirty refusal.
+- Real security tests include every registered table's allowed/forbidden operations and writable columns; actual LOGIN roles; DELETE/TRUNCATE/managed-DDL/SET ROLE denials; missing/extra effective grants; PUBLIC, grant options and inherited-role paths; future default drift; function overload drift; unknown tables; trigger drift; legacy ownership/data preservation; permission revoke/regrant/concurrent replacement/RR conflicts; successful effective owner across migration transactions; checksum/dirty refusal.
 - Selected fresh init/migration, default deny and terminal permission tests on a separate PostgreSQL cluster whose admin has CREATEROLE/CREATEDB and **no SUPERUSER**: PASS on final code (2.109s).
 - Real repayment command → aggregate FC fake → authoritative result → atomic full settlement → principal-only exposure release/contract completion/Collections recovery runs with the actual restricted bnpl login: PASS. Existing reconciliation, duplicate-event, rollback, checkout activation and financial concurrency tests also pass.
 - `make verify-entrypoint-boundaries`: PASS; runs all four required binary build targets and checks both environment profiles' compiled dependencies/CLI capabilities.
@@ -167,10 +171,9 @@ permission replacement and Runtime-owned schema model are not compatible with
 these ACLs; do not overlap old writers with tightening. Password rotation and
 platform server/proxy audit redaction remain explicit operator responsibilities.
 
-PostgreSQL PUBLIC TEMPORARY is a platform-wide default **within the target DB**.
-The database owner must explicitly revoke it (and any Runtime database/public-schema
-CREATE path) before bootstrap/upgrade. Because that affects other users, the tool
-reports the blocker rather than silently changing unrelated platform permissions.
+Runtime may create session-local temporary tables. This is independent from
+managed-schema and database CREATE privileges, which remain restricted.
+No database-wide TEMPORARY revocation is required for BNPL bootstrap.
 A legacy Runtime superuser/database owner must first be replaced by a separately
 authorized administrator. Insufficient existing-object transfer authority and
 extension/unsupported managed objects also require explicit platform review.

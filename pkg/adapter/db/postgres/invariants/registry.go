@@ -2,7 +2,7 @@
 package invariants
 
 const Migration = "000003_installment_payment_invariants.sql"
-const MigrationSHA256 = "sha256:6267ddaade88869646b835af4f2a8dfc2c4ed4c1c6ce91ff065fa5cf39be18a4"
+const MigrationSHA256 = "sha256:6bc8d59281b16dacd812620864ed4e014d29258a62b7fe139d3cb782e8b54a50"
 
 var managed = []Invariant{
 	{
@@ -19,7 +19,7 @@ var managed = []Invariant{
 		EnabledState:   "O",
 		TriggerType:    21,
 		Deferred:       true,
-		FunctionSHA256: "10643914118186c162804378aa3b85f97225ce3891deffc3da2fe6eb61df6f06",
+		FunctionSHA256: "5f3f6a2f9c101d09d07523a967cb2f97f3129d32c1c3917a174fb3dd0cf771d2",
 	},
 	{
 		Name:           "installment_no_charges_after_paid",
@@ -35,7 +35,7 @@ var managed = []Invariant{
 		EnabledState:   "O",
 		TriggerType:    31,
 		Deferred:       false,
-		FunctionSHA256: "b0d3735d4c5da44181ad281f809fd5e7f31bb6b4ff84ce747d08c6880ace20ac",
+		FunctionSHA256: "1148ef6380d0fa13d6585b9c7569ab4a76beb0253e99a9d4c97d6f5e7a45a104",
 	},
 	{
 		Name:           "installment_complete_settlement",
@@ -51,7 +51,7 @@ var managed = []Invariant{
 		EnabledState:   "O",
 		TriggerType:    31,
 		Deferred:       false,
-		FunctionSHA256: "5380aaa5d4be318b303f5e1e488bc5fdc6a6215f689f9061e9df452154437937",
+		FunctionSHA256: "e604f4e21902ce9b6bf683e4fbeef630125cbe553c45b5702749f0ab523f1ae6",
 	},
 	{
 		Name:           "installment_payment_freeze",
@@ -67,7 +67,7 @@ var managed = []Invariant{
 		EnabledState:   "O",
 		TriggerType:    31,
 		Deferred:       false,
-		FunctionSHA256: "495d5b8ef17f5e1d6d84cdeb182a473653524fc6ab7de48aa8da4d99bd40630f",
+		FunctionSHA256: "4e3d220dbb84ce8bf2eb8c9fda5a76ad8155f135d961b24acde458b2db36783e",
 	},
 	{
 		Name:           "installment_payment_freeze",
@@ -83,7 +83,7 @@ var managed = []Invariant{
 		EnabledState:   "O",
 		TriggerType:    31,
 		Deferred:       false,
-		FunctionSHA256: "41c6f10aab96a272848bd1e47e0098c9b20999c516cf6977f388d5c554ba03ea",
+		FunctionSHA256: "84bb4b3aa94057f16745ebbfa759bd181bec78cf53e78b46d7611c321683fa11",
 	},
 	{
 		Name:           "installment_payment_freeze",
@@ -99,7 +99,7 @@ var managed = []Invariant{
 		EnabledState:   "O",
 		TriggerType:    5,
 		Deferred:       true,
-		FunctionSHA256: "10643914118186c162804378aa3b85f97225ce3891deffc3da2fe6eb61df6f06",
+		FunctionSHA256: "5f3f6a2f9c101d09d07523a967cb2f97f3129d32c1c3917a174fb3dd0cf771d2",
 	},
 	{
 		Name:           "installment_payment_freeze",
@@ -115,7 +115,7 @@ var managed = []Invariant{
 		EnabledState:   "O",
 		TriggerType:    5,
 		Deferred:       true,
-		FunctionSHA256: "10643914118186c162804378aa3b85f97225ce3891deffc3da2fe6eb61df6f06",
+		FunctionSHA256: "5f3f6a2f9c101d09d07523a967cb2f97f3129d32c1c3917a174fb3dd0cf771d2",
 	},
 	{
 		Name:           "installment_payment_freeze",
@@ -131,6 +131,6 @@ var managed = []Invariant{
 		EnabledState:   "O",
 		TriggerType:    17,
 		Deferred:       true,
-		FunctionSHA256: "10643914118186c162804378aa3b85f97225ce3891deffc3da2fe6eb61df6f06",
+		FunctionSHA256: "5f3f6a2f9c101d09d07523a967cb2f97f3129d32c1c3917a174fb3dd0cf771d2",
 	},
 }

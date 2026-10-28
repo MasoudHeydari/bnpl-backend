@@ -54,7 +54,6 @@ func VerifyPrivileges(ctx context.Context, p repo.Pool) error {
  UNION ALL SELECT 'schema ownership', EXISTS(SELECT 1 FROM pg_namespace n JOIN pg_roles r ON r.oid=n.nspowner WHERE n.nspname='bnpl' AND r.rolname=$2)
  UNION ALL SELECT 'schema usage/create', has_schema_privilege($1,'bnpl','USAGE') AND NOT has_schema_privilege($1,'bnpl','CREATE')
  UNION ALL SELECT 'database create', NOT has_database_privilege($1,current_database(),'CREATE')
- UNION ALL SELECT 'database temporary DDL', NOT has_database_privilege($1,current_database(),'TEMP')
  UNION ALL SELECT 'public schema create', NOT EXISTS(SELECT 1 FROM pg_namespace WHERE nspname='public' AND has_schema_privilege($1,oid,'CREATE'))
  UNION ALL SELECT 'relation ownership', NOT EXISTS(SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_roles r ON r.oid=c.relowner WHERE n.nspname='bnpl' AND r.rolname<>$2)
  UNION ALL SELECT 'function ownership/security', NOT EXISTS(SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_roles r ON r.oid=p.proowner WHERE n.nspname='bnpl' AND (r.rolname<>$2 OR p.prosecdef))

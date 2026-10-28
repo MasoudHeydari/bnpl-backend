@@ -42,8 +42,6 @@ func TestRuntimeStartupFailsClosedAndClosesPoolOnDatabaseDrift(t *testing.T) {
 	_, e = root.Exec(ctx, "CREATE DATABASE "+pgx.Identifier{name}.Sanitize())
 	require.NoError(t, e)
 	defer root.Exec(context.Background(), "DROP DATABASE "+pgx.Identifier{name}.Sanitize()+" WITH (FORCE)")
-	_, e = root.Exec(ctx, "REVOKE TEMPORARY ON DATABASE "+pgx.Identifier{name}.Sanitize()+" FROM PUBLIC")
-	require.NoError(t, e)
 	parsed, e := pgx.ParseConfig(dsn)
 	require.NoError(t, e)
 	c := &dbadminconfig.Config{}

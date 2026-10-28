@@ -430,7 +430,7 @@ infrastructure:
       payment_attempt_reconciliation:
         enabled: ${TASK_PAYMENT_ATTEMPT_RECONCILIATION_ENABLED}
         execution: ${TASK_PAYMENT_ATTEMPT_RECONCILIATION_EXECUTION}
-        handler: payment_attempt_reconciliation
+        handler: ${TASK_PAYMENT_ATTEMPT_RECONCILIATION_HANDLER}
         trigger:
           type: ${TASK_PAYMENT_ATTEMPT_RECONCILIATION_TRIGGER_TYPE}
           cron: ${TASK_PAYMENT_ATTEMPT_RECONCILIATION_CRON}
@@ -441,7 +441,7 @@ infrastructure:
       repayment_reminder_dispatch:
         enabled: ${TASK_REPAYMENT_REMINDER_DISPATCH_ENABLED}
         execution: ${TASK_REPAYMENT_REMINDER_DISPATCH_EXECUTION}
-        handler: repayment_reminder_dispatch
+        handler: ${TASK_REPAYMENT_REMINDER_DISPATCH_HANDLER}
         trigger:
           type: ${TASK_REPAYMENT_REMINDER_DISPATCH_TRIGGER_TYPE}
           cron: ${TASK_REPAYMENT_REMINDER_DISPATCH_CRON}
@@ -452,7 +452,7 @@ infrastructure:
       collections_assessment:
         enabled: ${TASK_COLLECTIONS_ASSESSMENT_ENABLED}
         execution: ${TASK_COLLECTIONS_ASSESSMENT_EXECUTION}
-        handler: collections_assessment
+        handler: ${TASK_COLLECTIONS_ASSESSMENT_HANDLER}
         trigger:
           type: ${TASK_COLLECTIONS_ASSESSMENT_TRIGGER_TYPE}
           cron: ${TASK_COLLECTIONS_ASSESSMENT_CRON}

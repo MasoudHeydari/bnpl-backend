@@ -5,7 +5,7 @@ set -e
 
 # Print timestamped log messages.
 log() {
-    echo "[$(date -Iseconds)] $*"
+	echo "[$(date -Iseconds)] $*"
 }
 
 # Runtime defaults.
@@ -31,29 +31,29 @@ log "LISTEN_ADDR=${GIN_HOST_VALUE}:${GIN_PORT_VALUE}"
 log "LOG_LEVEL=${LOG_LEVEL:-}"
 
 if [ "${APP_ENV}" = "development" ]; then
-    log "APP_EXECUTABLE=${APP}"
-    log "GIN_MODE=${GIN_MODE:-}"
-    log "SWAGGER_ENABLED=${GIN_SWAGGER_ENABLED:-}"
-    log "HEALTH_ENABLED=${HEALTH_ENABLED:-}"
-    log "METRICS_PROVIDER=${METRICS_PROVIDER:-}"
-    log "METRICS_ENABLED=${METRICS_ENABLED:-}"
-    if [ "${METRICS_ENABLED:-}" = "true" ]; then
-        log "METRICS_ADDR=${METRICS_HOST_VALUE}:${METRICS_PORT_VALUE}${METRICS_PATH_VALUE}"
-    fi
-    log "LOG_PROVIDER=${LOG_PROVIDER:-}"
-    log "LOG_FORMAT=${LOG_FORMAT:-}"
-    log "MESSAGING_PROVIDER=${MESSAGING_PROVIDER:-}"
-    log "CACHE_PROVIDER=${CACHE_PROVIDER:-}"
-    log "TASK_PROVIDER=${TASK_PROVIDER:-}"
-    log "EXTERNAL_CREDIT_ASSESSMENT_PROVIDER=${EXTERNAL_CREDIT_ASSESSMENT_PROVIDER:-}"
-    log "EXTERNAL_FINANCIAL_CORE_PROVIDER=${EXTERNAL_FINANCIAL_CORE_PROVIDER:-}"
-    log "EXTERNAL_IDENTITY_PROVIDER=${EXTERNAL_IDENTITY_PROVIDER:-}"
-    log "POSTGRES_HOST=${DB_HOST}"
-    log "POSTGRES_PORT=${DB_PORT}"
-    log "POSTGRES_DB=${POSTGRES_DB:-}"
-    log "Working Directory=$(pwd)"
-    log "Current User=$(whoami)"
-    log "Hostname=$(hostname 2>/dev/null || echo unknown)"
+	log "APP_EXECUTABLE=${APP}"
+	log "GIN_MODE=${GIN_MODE:-}"
+	log "SWAGGER_ENABLED=${GIN_SWAGGER_ENABLED:-}"
+	log "HEALTH_ENABLED=${HEALTH_ENABLED:-}"
+	log "METRICS_PROVIDER=${METRICS_PROVIDER:-}"
+	log "METRICS_ENABLED=${METRICS_ENABLED:-}"
+	if [ "${METRICS_ENABLED:-}" = "true" ]; then
+		log "METRICS_ADDR=${METRICS_HOST_VALUE}:${METRICS_PORT_VALUE}${METRICS_PATH_VALUE}"
+	fi
+	log "LOG_PROVIDER=${LOG_PROVIDER:-}"
+	log "LOG_FORMAT=${LOG_FORMAT:-}"
+	log "MESSAGING_PROVIDER=${MESSAGING_PROVIDER:-}"
+	log "CACHE_PROVIDER=${CACHE_PROVIDER:-}"
+	log "TASK_PROVIDER=${TASK_PROVIDER:-}"
+	log "EXTERNAL_CREDIT_ASSESSMENT_PROVIDER=${EXTERNAL_CREDIT_ASSESSMENT_PROVIDER:-}"
+	log "EXTERNAL_FINANCIAL_CORE_PROVIDER=${EXTERNAL_FINANCIAL_CORE_PROVIDER:-}"
+	log "EXTERNAL_IDENTITY_PROVIDER=${EXTERNAL_IDENTITY_PROVIDER:-}"
+	log "POSTGRES_HOST=${DB_HOST}"
+	log "POSTGRES_PORT=${DB_PORT}"
+	log "POSTGRES_DB=${POSTGRES_DB:-}"
+	log "Working Directory=$(pwd)"
+	log "Current User=$(whoami)"
+	log "Hostname=$(hostname 2>/dev/null || echo unknown)"
 fi
 
 log "=================================================="

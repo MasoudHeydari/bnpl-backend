@@ -1,5 +1,4 @@
-# Auto-load an existing .env. Read-only checks must not implicitly create it;
-# setup-dev uses the existing explicit .env target when preparation is requested.
+# Auto-load an existing .env. Commands do not create or modify it implicitly.
 ifneq ($(wildcard .env),)
 include .env
 endif
@@ -44,12 +43,6 @@ REVIVE_VERSION ?= v1.17.1
 GOIMPORTS_VERSION ?= v0.44.0
 PROTOC_GEN_GO_VERSION ?= v1.36.11
 PROTOC_GEN_GO_GRPC_VERSION ?= v1.6.2
-# Shared with the hook/scripts/CI; changing the version requires a reviewed digest.
-PG_FORMATTER_VERSION ?= $(shell cut -f1 scripts/pgformatter.lock)
-PG_FORMATTER_SHA256 ?= $(shell awk -F '\t' '$$1 == "$(PG_FORMATTER_VERSION)" { print $$2 }' scripts/pgformatter.lock)
-PG_FORMATTER_INSTALL_DIR ?= $(if $(XDG_DATA_HOME),$(XDG_DATA_HOME),$(HOME)/.local/share)/bnpl-tools/pgFormatter/$(PG_FORMATTER_VERSION)
-PG_FORMATTER ?= $(PG_FORMATTER_INSTALL_DIR)/bin/pg_format
-
 # Swag OpenAPI generation
 SWAG_ENTRYPOINT ?= main.go
 SWAG_OUTPUT_DIR ?= gen/swagger
@@ -244,11 +237,11 @@ clean-db:
 # -----------------------------------------------------------------------------
 
 .PHONY: install-tools
-install-tools: install-golangci-lint install-staticcheck install-revive install-goimports install-mockery install-proto-tools install-swag install-gotestsum install-pg-formatter install-hooks
+install-tools: install-golangci-lint install-staticcheck install-revive install-goimports install-mockery install-proto-tools install-swag install-gotestsum install-hooks install-shfmt
 
 .PHONY: install-golangci-lint
 install-golangci-lint:
-	@bash scripts/install-golangci-lint.sh "$(GOLANGCI_LINT_VERSION)"
+	@curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $$(go env GOPATH)/bin $(GOLANGCI_LINT_VERSION)
 
 .PHONY: install-staticcheck
 install-staticcheck:
@@ -301,6 +294,10 @@ install-hooks:
 		if [ "$$(git config --local --get core.hooksPath || true)" != .githooks ]; then git config --local core.hooksPath .githooks; fi; \
 		echo "Git hooks installed successfully."; \
 	fi
+
+.PHONY: install-shfmt
+install-shfmt:
+	@go install mvdan.cc/sh/v3/cmd/shfmt@latest
 
 # -----------------------------------------------------------------------------
 # Environment / Directories / Cleanup
@@ -374,56 +371,127 @@ list-interfaces:
 clean:
 	@rm -f ./build/bin/$(APP_NAME) ./build/bin/$(APP_NAME)-development ./build/bin/$(APP_NAME)-production ./build/bin/bnpl-dbadmin-development ./build/bin/bnpl-dbadmin-production coverage.out
 
-# Runtime and administrative configs are distinct. Command-line overrides win.
+# Runtime and DB Admin configs are separate; CLI --config can override them.
 CONFIG ?= configs/dbadmin.yaml
 RUNTIME_CONFIG ?= configs/runtime.yaml
 DBADMIN_IMAGE_NAME ?= $(IMAGE_NAME)-dbadmin
+PG_FORMAT ?= pg_format
 
-# Separate artifacts keep all environment/capability combinations available.
-define dbadmin-build
-.PHONY: build-dbadmin-$(1)
-build-dbadmin-$(1): mkdir-bin
-	CGO_ENABLED=0 go build -tags="$(GO_BUILD_TAGS) $(1)" -trimpath -ldflags='-s -w -extldflags "-static"' -o build/bin/bnpl-dbadmin-$(1) ./cmd/bnpl-dbadmin
-endef
-$(foreach env,development production,$(eval $(call dbadmin-build,$(env))))
+# -----------------------------------------------------------------------------
+# DB Admin binaries
+# -----------------------------------------------------------------------------
 
-define environment-db
-.PHONY: db-init-$(1) db-migrate-$(1) db-invariants-verify-$(1) db-privileges-verify-$(1)
-db-init-$(1): build-dbadmin-$(1)
-	@./build/bin/bnpl-dbadmin-$(1) --config "$(CONFIG)" db init-$(if $(filter development,$(1)),dev,prod)
-db-migrate-$(1): build-dbadmin-$(1)
-	@./build/bin/bnpl-dbadmin-$(1) --config "$(CONFIG)" db migrate
-db-invariants-verify-$(1): build-dbadmin-$(1)
-	@./build/bin/bnpl-dbadmin-$(1) --config "$(CONFIG)" db invariants verify
-db-privileges-verify-$(1): build-dbadmin-$(1)
-	@./build/bin/bnpl-dbadmin-$(1) --config "$(CONFIG)" db privileges verify
-endef
-$(foreach env,development production,$(eval $(call environment-db,$(env))))
+.PHONY: build-dbadmin-development
+build-dbadmin-development: mkdir-bin
+	CGO_ENABLED=0 go build -tags="$(DEVELOPMENT_BUILD_TAGS)" -trimpath \
+		-ldflags='-s -w -extldflags "-static"' \
+		-o build/bin/bnpl-dbadmin-development ./cmd/bnpl-dbadmin
 
-# Builds never publish. Tags distinguish both executable and environment.
-define image-build
-.PHONY: build-image-$(1) build-dbadmin-image-$(1) publish-image-$(1) publish-dbadmin-image-$(1)
-build-image-$(1):
-	@docker build --target runtime --build-arg BUILD_ENV=$(1) -t $(IMAGE_NAME):$(IMAGE_VERSION)-$(1) .
-build-dbadmin-image-$(1):
-	@docker build --target dbadmin --build-arg BUILD_ENV=$(1) -t $(DBADMIN_IMAGE_NAME):$(IMAGE_VERSION)-$(1) .
-publish-image-$(1): build-image-$(1)
-	@docker tag $(IMAGE_NAME):$(IMAGE_VERSION)-$(1) $(HAMRAVESH_CONTAINER_REGISTRY)/$(HAMRAVESH_REGISTRY_NAMESPACE)/$(IMAGE_NAME):$(IMAGE_VERSION)-$(1)
-	@docker push $(HAMRAVESH_CONTAINER_REGISTRY)/$(HAMRAVESH_REGISTRY_NAMESPACE)/$(IMAGE_NAME):$(IMAGE_VERSION)-$(1)
-publish-dbadmin-image-$(1): build-dbadmin-image-$(1)
-	@docker tag $(DBADMIN_IMAGE_NAME):$(IMAGE_VERSION)-$(1) $(HAMRAVESH_CONTAINER_REGISTRY)/$(HAMRAVESH_REGISTRY_NAMESPACE)/$(DBADMIN_IMAGE_NAME):$(IMAGE_VERSION)-$(1)
-	@docker push $(HAMRAVESH_CONTAINER_REGISTRY)/$(HAMRAVESH_REGISTRY_NAMESPACE)/$(DBADMIN_IMAGE_NAME):$(IMAGE_VERSION)-$(1)
-endef
-$(foreach env,development production,$(eval $(call image-build,$(env))))
+.PHONY: build-dbadmin-production
+build-dbadmin-production: mkdir-bin
+	CGO_ENABLED=0 go build -tags="$(PRODUCTION_BUILD_TAGS)" -trimpath \
+		-ldflags='-s -w -extldflags "-static"' \
+		-o build/bin/bnpl-dbadmin-production ./cmd/bnpl-dbadmin
 
-.PHONY: db-invariants-list db-invariants-verify db-invariants-test db-privileges-list
+# -----------------------------------------------------------------------------
+# Database lifecycle (the Runtime executable never performs DDL)
+# -----------------------------------------------------------------------------
+
+.PHONY: db-init-development
+db-init-development: build-dbadmin-development
+	@./build/bin/bnpl-dbadmin-development --config "$(CONFIG)" db init-dev
+
+.PHONY: db-init-production
+db-init-production: build-dbadmin-production
+	@./build/bin/bnpl-dbadmin-production --config "$(CONFIG)" db init-prod
+
+.PHONY: db-migrate-development
+db-migrate-development: build-dbadmin-development
+	@./build/bin/bnpl-dbadmin-development --config "$(CONFIG)" db migrate
+
+.PHONY: db-migrate-production
+db-migrate-production: build-dbadmin-production
+	@./build/bin/bnpl-dbadmin-production --config "$(CONFIG)" db migrate
+
+.PHONY: db-invariants-list db-privileges-list
 db-invariants-list:
-	@go run -tags development ./cmd/bnpl-dbadmin db invariants list
+	@go run -tags="$(DEVELOPMENT_BUILD_TAGS)" ./cmd/bnpl-dbadmin db invariants list
+
 db-privileges-list:
-	@go run -tags development ./cmd/bnpl-dbadmin db privileges list
+	@go run -tags="$(DEVELOPMENT_BUILD_TAGS)" ./cmd/bnpl-dbadmin db privileges list
+
+.PHONY: db-invariants-verify-development
+db-invariants-verify-development: build-dbadmin-development
+	@./build/bin/bnpl-dbadmin-development --config "$(CONFIG)" db invariants verify
+
+.PHONY: db-invariants-verify-production
+db-invariants-verify-production: build-dbadmin-production
+	@./build/bin/bnpl-dbadmin-production --config "$(CONFIG)" db invariants verify
+
+.PHONY: db-privileges-verify-development
+db-privileges-verify-development: build-dbadmin-development
+	@./build/bin/bnpl-dbadmin-development --config "$(CONFIG)" db privileges verify
+
+.PHONY: db-privileges-verify-production
+db-privileges-verify-production: build-dbadmin-production
+	@./build/bin/bnpl-dbadmin-production --config "$(CONFIG)" db privileges verify
+
+.PHONY: db-invariants-verify db-invariants-test
 db-invariants-verify: db-invariants-verify-development
 db-invariants-test:
-	@go test -count=1 -race -tags 'development integration' ./pkg/adapter/db/postgres/invariants/...
+	@go test -count=1 -race -tags '$(DEVELOPMENT_BUILD_TAGS) integration' ./pkg/adapter/db/postgres/invariants/...
+
+# -----------------------------------------------------------------------------
+# Docker images (building never publishes)
+# -----------------------------------------------------------------------------
+
+.PHONY: build-image-development
+build-image-development:
+	@docker build --target runtime --build-arg BUILD_ENV=development \
+		-t $(IMAGE_NAME):$(IMAGE_VERSION)-development .
+
+.PHONY: build-image-production
+build-image-production:
+	@docker build --target runtime --build-arg BUILD_ENV=production \
+		-t $(IMAGE_NAME):$(IMAGE_VERSION)-production .
+
+.PHONY: build-dbadmin-image-development
+build-dbadmin-image-development:
+	@docker build --target dbadmin --build-arg BUILD_ENV=development \
+		-t $(DBADMIN_IMAGE_NAME):$(IMAGE_VERSION)-development .
+
+.PHONY: build-dbadmin-image-production
+build-dbadmin-image-production:
+	@docker build --target dbadmin --build-arg BUILD_ENV=production \
+		-t $(DBADMIN_IMAGE_NAME):$(IMAGE_VERSION)-production .
+
+.PHONY: publish-image-development
+publish-image-development: build-image-development
+	@docker tag $(IMAGE_NAME):$(IMAGE_VERSION)-development \
+		$(HAMRAVESH_CONTAINER_REGISTRY)/$(HAMRAVESH_REGISTRY_NAMESPACE)/$(IMAGE_NAME):$(IMAGE_VERSION)-development
+	@docker push $(HAMRAVESH_CONTAINER_REGISTRY)/$(HAMRAVESH_REGISTRY_NAMESPACE)/$(IMAGE_NAME):$(IMAGE_VERSION)-development
+
+.PHONY: publish-image-production
+publish-image-production: build-image-production
+	@docker tag $(IMAGE_NAME):$(IMAGE_VERSION)-production \
+		$(HAMRAVESH_CONTAINER_REGISTRY)/$(HAMRAVESH_REGISTRY_NAMESPACE)/$(IMAGE_NAME):$(IMAGE_VERSION)-production
+	@docker push $(HAMRAVESH_CONTAINER_REGISTRY)/$(HAMRAVESH_REGISTRY_NAMESPACE)/$(IMAGE_NAME):$(IMAGE_VERSION)-production
+
+.PHONY: publish-dbadmin-image-development
+publish-dbadmin-image-development: build-dbadmin-image-development
+	@docker tag $(DBADMIN_IMAGE_NAME):$(IMAGE_VERSION)-development \
+		$(HAMRAVESH_CONTAINER_REGISTRY)/$(HAMRAVESH_REGISTRY_NAMESPACE)/$(DBADMIN_IMAGE_NAME):$(IMAGE_VERSION)-development
+	@docker push $(HAMRAVESH_CONTAINER_REGISTRY)/$(HAMRAVESH_REGISTRY_NAMESPACE)/$(DBADMIN_IMAGE_NAME):$(IMAGE_VERSION)-development
+
+.PHONY: publish-dbadmin-image-production
+publish-dbadmin-image-production: build-dbadmin-image-production
+	@docker tag $(DBADMIN_IMAGE_NAME):$(IMAGE_VERSION)-production \
+		$(HAMRAVESH_CONTAINER_REGISTRY)/$(HAMRAVESH_REGISTRY_NAMESPACE)/$(DBADMIN_IMAGE_NAME):$(IMAGE_VERSION)-production
+	@docker push $(HAMRAVESH_CONTAINER_REGISTRY)/$(HAMRAVESH_REGISTRY_NAMESPACE)/$(DBADMIN_IMAGE_NAME):$(IMAGE_VERSION)-production
+
+# -----------------------------------------------------------------------------
+# Verification of the two executable/image security boundaries
+# -----------------------------------------------------------------------------
 
 .PHONY: verify-entrypoint-boundaries
 verify-entrypoint-boundaries: build-development build-production build-dbadmin-development build-dbadmin-production
@@ -433,17 +501,42 @@ verify-entrypoint-boundaries: build-development build-production build-dbadmin-d
 verify-docker-boundaries:
 	@sh scripts/verify-docker-boundaries.sh
 
-# System packages are explicit; install-tools/setup-dev never run apt or sudo.
-.PHONY: install-system-deps install-pg-formatter setup-dev sql-fmt sql-fmt-check test-dev-tooling
-install-system-deps:
-	@bash scripts/system-deps.sh
-install-pg-formatter:
-	@bash scripts/install-pg-formatter.sh
-setup-dev:
-	@bash scripts/setup-dev.sh
+# -----------------------------------------------------------------------------
+# SQL formatting: pgFormatter is an external developer tool (see README).
+# SQL=file.sql formats one file; SQL omitted formats all regular *.sql files.
+# -----------------------------------------------------------------------------
+
+SQL ?=
+
+.PHONY: sql-fmt
 sql-fmt:
-	@bash scripts/sql-format.sh fmt
+	@command -v $(PG_FORMAT) >/dev/null || { echo "Install pgFormatter first (see README.md)" >&2; exit 1; }
+	@if [ -n "$(SQL)" ]; then \
+		test -f "$(SQL)" || { echo "SQL file not found: $(SQL)" >&2; exit 1; }; \
+		$(PG_FORMAT) --no-rcfile --config .pg_format --inplace "$(SQL)"; \
+	else \
+		find . -type f -name '*.sql' \
+			-not -path './.git/*' -not -path './vendor/*' -not -path './build/*' \
+			-print0 | xargs -0 -r -n 1 $(PG_FORMAT) --no-rcfile --config .pg_format --inplace; \
+	fi
+
+.PHONY: sql-fmt-check
 sql-fmt-check:
-	@bash scripts/sql-format.sh check
-test-dev-tooling:
-	@bash scripts/tests/dev-tooling.sh
+	@command -v $(PG_FORMAT) >/dev/null || { echo "Install pgFormatter first (see README.md)" >&2; exit 1; }
+	@if [ -n "$(SQL)" ]; then \
+		test -f "$(SQL)" || { echo "SQL file not found: $(SQL)" >&2; exit 1; }; \
+		$(PG_FORMAT) --no-rcfile --config .pg_format "$(SQL)" | diff -u "$(SQL)" -; \
+	else \
+		find . -type f -name '*.sql' \
+			-not -path './.git/*' -not -path './vendor/*' -not -path './build/*' \
+			-print0 | xargs -0 -r -n 1 sh -c '$(PG_FORMAT) --no-rcfile --config .pg_format "$$0" | diff -u "$$0" -'; \
+	fi
+
+# -----------------------------------------------------------------------------
+# Shell formatting: shfmt is an external developer tool (see README).
+# It formats all *.sh files in ./scripts directory.
+# -----------------------------------------------------------------------------
+
+.PHONY: shell-fmt
+shell-fmt:
+	@shfmt -l -w ./scripts

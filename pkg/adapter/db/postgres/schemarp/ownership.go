@@ -29,7 +29,7 @@ func OwnershipPlan[Q postgres.Queryer](ctx context.Context, q Q) ([]OwnershipCha
  UNION ALL SELECT p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='bnpl' AND EXISTS(SELECT 1 FROM pg_depend d WHERE d.classid='pg_proc'::regclass AND d.objid=p.oid AND d.deptype='e')
  UNION ALL SELECT 'insufficient ownership authority for '||n.nspname||'.'||c.relname||'; operator must authorize scoped transfer from '||r.rolname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_roles r ON r.oid=c.relowner WHERE n.nspname='bnpl' AND NOT pg_has_role(current_user,c.relowner,'USAGE')
  UNION ALL SELECT 'insufficient schema ownership authority; operator must authorize transfer from '||r.rolname FROM pg_namespace n JOIN pg_roles r ON r.oid=n.nspowner WHERE n.nspname='bnpl' AND NOT pg_has_role(current_user,n.nspowner,'USAGE')
- UNION ALL SELECT 'Runtime can CREATE schemas or temporary tables through database/PUBLIC ACL; platform DBA must explicitly tighten the target database ACL' WHERE EXISTS(SELECT 1 FROM pg_roles WHERE rolname=$1) AND (has_database_privilege($1,current_database(),'CREATE') OR has_database_privilege($1,current_database(),'TEMP'))
+ UNION ALL SELECT 'Runtime can CREATE schemas through database/PUBLIC ACL; platform DBA must explicitly tighten the target database ACL' WHERE EXISTS(SELECT 1 FROM pg_roles WHERE rolname=$1) AND has_database_privilege($1,current_database(),'CREATE')
  UNION ALL SELECT 'database owner is runtime: transfer separately under platform administration' FROM pg_database d JOIN pg_roles r ON r.oid=d.datdba WHERE d.datname=current_database() AND r.rolname=$1`, string(repo.NormalRole))
 	if e != nil {
 		return nil, e

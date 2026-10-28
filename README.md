@@ -1,7 +1,17 @@
-Developer environment and SQL formatting: [setup guide](doc/development-setup.md).
-Fresh Ubuntu/Debian: `make install-system-deps`, then `make setup-dev`.
-SQL formatting is mandatory for staged SQL and CI: `make sql-fmt`, restage,
-then commit; `make sql-fmt-check` validates without modifying SQL.
+SQL formatter: [pgFormatter official GitHub](https://github.com/darold/pgFormatter).
+Install `pg_format` yourself following its official installation instructions.
+Run `make sql-fmt` to format all regular `.sql` files, or
+`make sql-fmt SQL=assets/db/migrations/000006_example.sql` to format one.
+Run `make sql-fmt-check` (or pass `SQL=...`) for read-only verification.
+**Important:** formatting changes file bytes and SHA-256. The frozen
+`pkg/adapter/db/postgres/migrationsrp/000_schema.sql` digest is checked
+in `pkg/adapter/db/postgres/migrationsrp/settler.go`; migration digests
+and PL/pgSQL function fingerprints are recorded in
+`pkg/adapter/db/postgres/invariants/registry.go` and
+`pkg/adapter/db/postgres/invariants/privilege_registry.go`. Applied SQL
+migration checksums are also stored in `bnpl.migrations`. Review and
+synchronize checksums intentionally; formatting already-applied migration
+files can block upgrades. Never silently rewrite DB migration history.
 
 Current database/security architecture: [roles](doc/architecture/database-roles.md),
 [privilege policy](doc/architecture/database-privileges.md), and

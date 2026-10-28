@@ -80,12 +80,12 @@ func GrantPrivileges[Q postgres.Queryer](ctx context.Context, q Q, schema string
 	type platform struct {
 		Safe bool `db:"safe"`
 	}
-	safety, err := postgres.QueryOne[platform](ctx, q, "verify platform database DDL boundary", `SELECT NOT has_database_privilege($1,current_database(),'CREATE') AND NOT has_database_privilege($1,current_database(),'TEMP') AND NOT EXISTS(SELECT 1 FROM pg_namespace WHERE nspname='public' AND has_schema_privilege($1,oid,'CREATE')) AS safe`, string(repo.NormalRole))
+	safety, err := postgres.QueryOne[platform](ctx, q, "verify platform database DDL boundary", `SELECT NOT has_database_privilege($1,current_database(),'CREATE') AND NOT EXISTS(SELECT 1 FROM pg_namespace WHERE nspname='public' AND has_schema_privilege($1,oid,'CREATE')) AS safe`, string(repo.NormalRole))
 	if err != nil {
 		return err
 	}
 	if !safety.Safe {
-		return fmt.Errorf("platform database/public-schema CREATE or TEMP reaches Runtime; DBA must explicitly tighten target database ACL before bootstrap")
+		return fmt.Errorf("platform database/public-schema CREATE reaches Runtime; DBA must explicitly tighten target database ACL before bootstrap")
 	}
 	// PostgreSQL 16+ stores inheritance/SET rights on each membership. NOINHERIT
 	// alone does not repair an older membership's INHERIT option.

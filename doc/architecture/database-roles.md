@@ -96,12 +96,7 @@ Runtime startup verifies effective safety and fails closed; it never repairs DDL
 or permissions. Live target ownership/grants must be inspected during deployment;
 passing disposable tests is not a production audit.
 
-Platform prerequisite: PostgreSQL grants database TEMPORARY to PUBLIC by default.
-Because revoking that privilege affects other logins in the target database, the
-application does not silently change it. Have the database owner/platform DBA run
-`REVOKE TEMPORARY ON DATABASE <target> FROM PUBLIC` and explicitly regrant it only
-to unrelated authorized maintenance roles if needed. Also remove any database or
-public-schema CREATE path to Runtime. Bootstrap/preflight and Runtime verification
-fail until the effective boundary is safe. This requires database ownership or
-proper grant authority, not necessarily superuser. It does not change another
-database or rewrite managed business data.
+Runtime may create session-local temporary tables. This does not grant permission
+to create or alter objects in the managed `bnpl` schema or create schemas in
+the database. Keep Runtime database CREATE and schema CREATE privileges denied;
+no database-wide `REVOKE TEMPORARY FROM PUBLIC` is required.

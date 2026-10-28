@@ -99,20 +99,7 @@ pools; the process exits. No startup grants, migration auto-run or repair flag i
 provided. A rollback to old code must be evaluated against the tightened ACL and
 permission-history schema, not achieved by disabling invariants.
 
-Platform prerequisite: PostgreSQL grants database TEMPORARY to PUBLIC by default.
-Because revoking that privilege affects other logins in the target database, the
-application does not silently change it. Have the database owner/platform DBA run
-`REVOKE TEMPORARY ON DATABASE <target> FROM PUBLIC` and explicitly regrant it only
-to unrelated authorized maintenance roles if needed. Also remove any database or
-public-schema CREATE path to Runtime. Bootstrap/preflight and Runtime verification
-fail until the effective boundary is safe. This requires database ownership or
-proper grant authority, not necessarily superuser. It does not change another
-database or rewrite managed business data.
-
-`make verify-entrypoint-boundaries` builds all four binaries, inspects compiled
-package dependencies and executes command-availability checks without starting
-a database, listener or worker.
-
-After building all four images, `make verify-docker-boundaries` checks their
-contents, executable/command separation, unprivileged users and embedded Go
-build profiles. It does not start Runtime listeners or business workers.
+Runtime may create session-local temporary tables. This does not grant permission
+to create or alter objects in the managed `bnpl` schema or create schemas in
+the database. Keep Runtime database CREATE and schema CREATE privileges denied;
+no database-wide `REVOKE TEMPORARY FROM PUBLIC` is required.
