@@ -1,5 +1,8 @@
-# Auto-load .env so every Make target sees the variables.
--include .env
+# Auto-load an existing .env. Read-only checks must not implicitly create it;
+# setup-dev uses the existing explicit .env target when preparation is requested.
+ifneq ($(wildcard .env),)
+include .env
+endif
 export
 
 .DEFAULT_GOAL := build-development
@@ -37,6 +40,15 @@ SWAG_VERSION ?= v1.16.6
 GOTESTSUM_VERSION ?= v1.13.0
 GOTESTSUM ?= gotestsum
 GOTESTSUM_FORMAT ?= pkgname
+REVIVE_VERSION ?= v1.17.1
+GOIMPORTS_VERSION ?= v0.44.0
+PROTOC_GEN_GO_VERSION ?= v1.36.11
+PROTOC_GEN_GO_GRPC_VERSION ?= v1.6.2
+# Shared with the hook/scripts/CI; changing the version requires a reviewed digest.
+PG_FORMATTER_VERSION ?= $(shell cut -f1 scripts/pgformatter.lock)
+PG_FORMATTER_SHA256 ?= $(shell awk -F '\t' '$$1 == "$(PG_FORMATTER_VERSION)" { print $$2 }' scripts/pgformatter.lock)
+PG_FORMATTER_INSTALL_DIR ?= $(if $(XDG_DATA_HOME),$(XDG_DATA_HOME),$(HOME)/.local/share)/bnpl-tools/pgFormatter/$(PG_FORMATTER_VERSION)
+PG_FORMATTER ?= $(PG_FORMATTER_INSTALL_DIR)/bin/pg_format
 
 # Swag OpenAPI generation
 SWAG_ENTRYPOINT ?= main.go
@@ -232,40 +244,40 @@ clean-db:
 # -----------------------------------------------------------------------------
 
 .PHONY: install-tools
-install-tools: install-golangci-lint install-staticcheck install-revive install-goimports install-mockery install-proto-tools install-swag install-gotestsum install-hooks
+install-tools: install-golangci-lint install-staticcheck install-revive install-goimports install-mockery install-proto-tools install-swag install-gotestsum install-pg-formatter install-hooks
 
 .PHONY: install-golangci-lint
 install-golangci-lint:
-	@curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $$(go env GOPATH)/bin $(GOLANGCI_LINT_VERSION)
+	@bash scripts/install-golangci-lint.sh "$(GOLANGCI_LINT_VERSION)"
 
 .PHONY: install-staticcheck
 install-staticcheck:
-	@go install honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION)
+	@GOTOOLCHAIN=local go install honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION)
 
 .PHONY: install-revive
 install-revive:
-	@go install github.com/mgechev/revive@latest
+	@GOTOOLCHAIN=local go install github.com/mgechev/revive@$(REVIVE_VERSION)
 
 .PHONY: install-goimports
 install-goimports:
-	@go install golang.org/x/tools/cmd/goimports@latest
+	@GOTOOLCHAIN=local go install golang.org/x/tools/cmd/goimports@$(GOIMPORTS_VERSION)
 
 .PHONY: install-mockery
 install-mockery:
-	@go install github.com/vektra/mockery/v3@$(MOCKERY_VERSION)
+	@GOTOOLCHAIN=local go install github.com/vektra/mockery/v3@$(MOCKERY_VERSION)
 
 .PHONY: install-proto-tools
 install-proto-tools:
-	@go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-	@go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+	@GOTOOLCHAIN=local go install google.golang.org/protobuf/cmd/protoc-gen-go@$(PROTOC_GEN_GO_VERSION)
+	@GOTOOLCHAIN=local go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@$(PROTOC_GEN_GO_GRPC_VERSION)
 
 .PHONY: install-swag
 install-swag:
-	@go install github.com/swaggo/swag/cmd/swag@$(SWAG_VERSION)
+	@GOTOOLCHAIN=local go install github.com/swaggo/swag/cmd/swag@$(SWAG_VERSION)
 
 .PHONY: install-gotestsum
 install-gotestsum:
-	@go install gotest.tools/gotestsum@$(GOTESTSUM_VERSION)
+	@GOTOOLCHAIN=local go install gotest.tools/gotestsum@$(GOTESTSUM_VERSION)
 
 .PHONY: upgrade-dependencies
 upgrade-dependencies:
@@ -282,9 +294,13 @@ link-migrations:
 
 .PHONY: install-hooks
 install-hooks:
-	@chmod +x .githooks/pre-commit
-	@git config core.hooksPath .githooks
-	@echo "Git hooks installed successfully."
+	@if [ "$$(git config --local --get core.hooksPath || true)" = .githooks ] && [ -x .githooks/pre-commit ]; then \
+		echo "Git hooks already configured."; \
+	else \
+		chmod +x .githooks/pre-commit; \
+		if [ "$$(git config --local --get core.hooksPath || true)" != .githooks ]; then git config --local core.hooksPath .githooks; fi; \
+		echo "Git hooks installed successfully."; \
+	fi
 
 # -----------------------------------------------------------------------------
 # Environment / Directories / Cleanup
@@ -416,3 +432,18 @@ verify-entrypoint-boundaries: build-development build-production build-dbadmin-d
 .PHONY: verify-docker-boundaries
 verify-docker-boundaries:
 	@sh scripts/verify-docker-boundaries.sh
+
+# System packages are explicit; install-tools/setup-dev never run apt or sudo.
+.PHONY: install-system-deps install-pg-formatter setup-dev sql-fmt sql-fmt-check test-dev-tooling
+install-system-deps:
+	@bash scripts/system-deps.sh
+install-pg-formatter:
+	@bash scripts/install-pg-formatter.sh
+setup-dev:
+	@bash scripts/setup-dev.sh
+sql-fmt:
+	@bash scripts/sql-format.sh fmt
+sql-fmt-check:
+	@bash scripts/sql-format.sh check
+test-dev-tooling:
+	@bash scripts/tests/dev-tooling.sh

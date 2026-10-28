@@ -14,6 +14,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # SQL is tooling-only: no Go runtime, database, migration or privileged installer.
+  sql-format:
+    name: SQL formatting
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned pgFormatter (user-local, verified SHA-256)
+        run: make install-pg-formatter
+      - name: Check SQL formatting without modifying files
+        run: make sql-fmt-check
+      - name: Test staged SQL validation and setup safety
+        run: make test-dev-tooling
+
   # ── 1. LINT ──────────────────────────────────────────────────────────────
   lint:
     name: Lint

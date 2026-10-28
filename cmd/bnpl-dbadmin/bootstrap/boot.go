@@ -30,6 +30,7 @@ func FixConfigPath(path string) {
 		cfgPath = "configs/dbadmin.yaml"
 	}
 }
+
 func configured(fn func(context.Context, *dbadminconfig.Config, corelog.Logger) error) (err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
@@ -48,6 +49,7 @@ func configured(fn func(context.Context, *dbadminconfig.Config, corelog.Logger) 
 
 // Migrate uses only migrator sessions, explicitly switched to the managed owner.
 func Migrate() error { return configured(migrateWithConfig) }
+
 func migrateWithConfig(ctx context.Context, c *dbadminconfig.Config, logger corelog.Logger) error {
 	p, e := c.ConnectionPool(ctx, repo.MigratorRole, logger)
 	if e != nil {

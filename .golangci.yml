@@ -2,6 +2,10 @@
 version: "2"
 
 run:
+  # The repository requires an explicit capability profile even for typechecking.
+  # Local/CI developer lint checks use the existing Development build profile.
+  build-tags:
+    - development
   # Maximum duration allowed for the entire lint process.
   timeout: 5m
 

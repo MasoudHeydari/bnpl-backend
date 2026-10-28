@@ -17,7 +17,10 @@ func TestRegistryMatchesVersionedMigration(t *testing.T) {
 	sum := sha256.Sum256(sql)
 	require.Equal(t, MigrationSHA256, "sha256:"+hex.EncodeToString(sum[:]))
 	bodies := map[string]string{}
-	for _, m := range regexp.MustCompile(`(?s)CREATE FUNCTION bnpl\.(\w+)\(\) RETURNS trigger\nLANGUAGE plpgsql SET search_path = pg_catalog, bnpl AS \$body\$(.*?)\$body\$;`).FindAllStringSubmatch(string(sql), -1) {
+	const functionPattern = `(?is)CREATE\s+FUNCTION\s+bnpl\.(\w+)\s*\(\s*\)\s+RETURNS\s+trigger\s+` +
+		`LANGUAGE\s+plpgsql\s+SET\s+search_path\s*=\s*pg_catalog,\s*bnpl\s+AS\s+` +
+		`\$body\$(.*?)\$body\$;`
+	for _, m := range regexp.MustCompile(functionPattern).FindAllStringSubmatch(string(sql), -1) {
 		sum := sha256.Sum256([]byte(m[2]))
 		bodies[m[1]] = hex.EncodeToString(sum[:])
 	}

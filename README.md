@@ -1,3 +1,8 @@
+Developer environment and SQL formatting: [setup guide](doc/development-setup.md).
+Fresh Ubuntu/Debian: `make install-system-deps`, then `make setup-dev`.
+SQL formatting is mandatory for staged SQL and CI: `make sql-fmt`, restage,
+then commit; `make sql-fmt-check` validates without modifying SQL.
+
 Current database/security architecture: [roles](doc/architecture/database-roles.md),
 [privilege policy](doc/architecture/database-privileges.md), and
 [build/deployment commands](doc/architecture/database-deployment.md).

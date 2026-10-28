@@ -3,6 +3,7 @@
 # Runs project checks before creating a commit.
 #
 # Checks:
+#   - formatting of exact staged SQL blobs
 #   - golangci-lint configuration validity
 #   - go.mod and go.sum tidiness
 #   - lint, vet, static analysis, and formatting rules
@@ -26,6 +27,13 @@ fail() {
 
 echo "Running pre-commit checks..."
 
+echo
+echo "1/4 Validating staged SQL formatting..."
+
+if ! bash scripts/sql-format.sh staged; then
+  fail "Staged SQL validation failed. Format and restage the intended files; no files were changed by this hook."
+fi
+
 if ! command -v go >/dev/null 2>&1; then
   fail "Go is not installed or is not available in PATH."
 fi
@@ -39,14 +47,14 @@ if [[ ! -f ".golangci.yml" && ! -f ".golangci.yaml" ]]; then
 fi
 
 echo
-echo "1/3 Verifying golangci-lint configuration..."
+echo "2/4 Verifying golangci-lint configuration..."
 
 if ! golangci-lint config verify; then
   fail "golangci-lint configuration is invalid."
 fi
 
 echo
-echo "2/3 Checking go.mod and go.sum..."
+echo "3/4 Checking go.mod and go.sum..."
 
 if ! go mod tidy -diff; then
   echo
@@ -60,7 +68,7 @@ if ! go mod tidy -diff; then
 fi
 
 echo
-echo "3/3 Running golangci-lint..."
+echo "4/4 Running golangci-lint..."
 
 if ! golangci-lint run ./...; then
   fail "golangci-lint reported one or more issues."

@@ -35,11 +35,9 @@ func main() {
 
 /*
 TODO:
-	1. Create a Response log middleware.
 	2. Review All source code and find the broken patterns and solve them.
 	4. Bring up a Loki server to collect the BNPL backend logs and try to search among them...
 	5. Ask AI that we have several services and what is the best practice for having protobuf for either each service or
 	 each use case? It could be a service to have several proto files for each use case or aggregate all RPCs into on file.
 	8. Test the whole process of buying a product.
-	9. Remove the x-subject/tenant/context-id from checkout session endpoints.
 */
