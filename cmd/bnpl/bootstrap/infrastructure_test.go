@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/parstis/bnpl-backend/internal/buildprofile"
 	"github.com/parstis/bnpl-backend/pkg/adapter/config"
 	checkoutpaymentext "github.com/parstis/bnpl-backend/pkg/adapter/external/checkoutpayment"
 	creditassessmentext "github.com/parstis/bnpl-backend/pkg/adapter/external/creditassessment"
@@ -25,7 +26,7 @@ import (
 )
 
 func noopTestConfig() *config.Config {
-	return &config.Config{
+	c := &config.Config{
 		Domain: config.Domain{
 			SupportedJurisdictions: []model.Jurisdiction{model.IRJurisdiction},
 		},
@@ -200,6 +201,13 @@ func noopTestConfig() *config.Config {
 			},
 		},
 	}
+	// Production safety forbids a noop scheduler. Keep the same disabled jobs but
+	// construct a real in-process scheduler in production-profile bootstrap tests.
+	if buildprofile.IsProduction() {
+		c.Infrastructure.Task.Provider = taskadapter.InProcessProvider
+		c.Infrastructure.Task.InProcess.DefaultTimezone = "UTC"
+	}
+	return c
 }
 
 func testAppWithInfrastructure(t *testing.T, cfg *config.Config) *App {

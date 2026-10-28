@@ -39,7 +39,6 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/healthcheckuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/installmentlifecycleuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/installmentrepaymentuc"
-	"github.com/parstis/bnpl-backend/pkg/core/usecase/migrationsuc"
 	otpusecase "github.com/parstis/bnpl-backend/pkg/core/usecase/otp"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/outboxpublisheruc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/paymentattemptreconciliationuc"
@@ -48,8 +47,6 @@ import (
 // Usecases groups configuration sections used to build application-layer
 // use cases.
 type Usecases struct {
-	// Migrations configures filesystem-backed migration settings.
-	Migrations Migrations `yaml:"migration"`
 
 	// OutboxPublisher configures outbox publishing use case settings.
 	OutboxPublisher OutboxPublisher `yaml:"outbox_publisher"`
@@ -120,36 +117,6 @@ type RepaymentReminder struct {
 type Collections struct {
 	// BatchSize bounds the number of distinct customers assessed per page.
 	BatchSize int `yaml:"batch_size"`
-}
-
-// Migrations contains filesystem-backed migration settings.
-type Migrations struct {
-	// FilesDir is the filesystem path containing ordered .sql migration files.
-	FilesDir string `yaml:"files-dir"`
-
-	// LockTimeout bounds waiting for another migration process holding the
-	// database-wide advisory lock. Zero uses the use-case default.
-	LockTimeout time.Duration `yaml:"lock_timeout"`
-}
-
-func (m Migrations) newUseCase(
-	p repo.Pool,
-	r repo.Migrations,
-	clk clock.Clock,
-	logger log.Logger,
-) (*migrationsuc.UseCase, error) {
-	uc, err := migrationsuc.New(
-		p,
-		r,
-		clk,
-		m.FilesDir,
-		logger,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return uc.WithLockTimeout(m.LockTimeout), nil
 }
 
 // OutboxPublisher contains outbox publishing use case settings.

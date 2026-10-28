@@ -1,0 +1,27 @@
+application: dbadmin
+runtime:
+  environment: ${APP_ENVIRONMENT}
+versions:
+  config: 0.3.0
+  database: 0.2.0
+database:
+  host: ${POSTGRES_HOST}
+  port: ${POSTGRES_PORT}
+  name: ${POSTGRES_DB}
+  ssl_mode: ${POSTGRES_SSL_MODE}
+  max_connections: 2
+  min_connections: 0
+  max_connection_life_time: 1h
+  max_connection_idle_time: 10m
+  health_check_period: 30s
+  connection_timeout: 30s
+  pgpass_entries:
+    admin: ${POSTGRES_ADMIN_PGPASS}
+    migrator: ${POSTGRES_MIGRATOR_PGPASS}
+provisioning:
+  normal_password: ${POSTGRES_PROVISION_NORMAL_PASSWORD}
+migration:
+  files-dir: ${MIGRATIONS_FILES_DIR}
+  lock_timeout: ${MIGRATIONS_LOCK_TIMEOUT}
+logging:
+  format: json

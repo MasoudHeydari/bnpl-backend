@@ -37,16 +37,14 @@ type SchemaQueryer interface {
 	// may need to interpolate identifiers into DDL statements.
 	CreateSchema(ctx context.Context, schema string) error
 
-	// CreateRoleIfNotExists ensures role exists with login capability and the
-	// supplied password.
+	// CreateRoleIfNotExists validates a typed managed role, creating a LOGIN
+	// role with the supplied password or NOLOGIN OwnerRole without credentials.
 	// The operation is intended for administrative bootstrap and may require
 	// elevated database privileges.
 	CreateRoleIfNotExists(ctx context.Context, role Role, password string) error
 
-	// GrantPrivileges grants the application role the privileges it needs on the
-	// managed schema after schema creation.
-	// Callers should treat schema and role as trusted identifiers controlled by
-	// the application configuration.
+	// GrantPrivileges establishes controlled migrator/owner membership only.
+	// Runtime DML grants belong to reviewed incremental migrations.
 	GrantPrivileges(ctx context.Context, schema string, role Role) error
 
 	// SetSearchPath configures role so new sessions resolve objects from schema

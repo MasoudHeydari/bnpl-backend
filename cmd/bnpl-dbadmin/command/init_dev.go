@@ -5,7 +5,7 @@ package command
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/parstis/bnpl-backend/cmd/bnpl/bootstrap"
+	"github.com/parstis/bnpl-backend/cmd/bnpl-dbadmin/bootstrap"
 )
 
 var initDevCmd = &cobra.Command{

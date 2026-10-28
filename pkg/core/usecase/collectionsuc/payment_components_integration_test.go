@@ -5,9 +5,17 @@ package collectionsuc
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/invariants"
 
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/creditaccountrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/inboxrp"
@@ -110,6 +118,11 @@ func (c aggregateCheckoutClient) CreateCheckoutPayment(ctx context.Context, in f
 }
 
 func TestPostgreSQLRepayment_FullCommandSettlementCompletionAndRecovery(t *testing.T) {
+	for _, restricted := range []bool{false, true} {
+		t.Run(fmt.Sprintf("restricted_runtime_%t", restricted), func(t *testing.T) { testFullCommandSettlement(t, restricted) })
+	}
+}
+func testFullCommandSettlement(t *testing.T, restricted bool) {
 	f := newCollectionsFixture(t)
 	customer, first := f.seed(t)
 	f.settleFixture(t, first, f.now.Add(-24*time.Hour))
@@ -122,6 +135,9 @@ func TestPostgreSQLRepayment_FullCommandSettlementCompletionAndRecovery(t *testi
 	f.exec(t, `UPDATE contracts SET requested_amount_minor=200,approved_financed_amount_minor=200,remaining_principal_amount_minor=100,financial_merchant_entitlement_id='entitlement-complete' WHERE id=$1`, contract)
 	f.exec(t, `UPDATE credit_accounts SET limit_amount_minor=1000,exposure_amount_minor=100 WHERE customer_id=$1`, customer)
 	f.exec(t, `INSERT INTO installment_charges(installment_id,charge_type,charge_status,amount_minor,currency,payer_type,recipient_type,policy_id,policy_version,assessed_at,metadata) VALUES($1,'late_fee','applied',20,'IRR','customer','platform','test','v1',$2,'{}'),($1,'discount','applied',10,'IRR','customer','platform','test','v1',$2,'{}')`, target, f.now)
+	if restricted {
+		useRestrictedRuntime(t, f)
+	}
 	command, e := installmentrepaymentuc.New(f.pool, customerprofilerp.New(), merchantprofilerp.New(), contractrp.New(), installmentrp.New(), installmentchargerp.New(), paymentattemptrp.New(), outboxrp.New(), aggregateCheckoutClient{t: t, now: f.now, amount: 110}, f.clk, lognoop.New(), "bnpl.audit.events.v1", integrationIDs{}, "https://pay.example.com/return")
 	require.NoError(t, e)
 	ctx := trace.WithTraceID(trace.WithCorrelationID(f.ctx, uuid.NewString()), uuid.NewString())
@@ -203,4 +219,50 @@ func TestPostgreSQLRepayment_ChargeMutationOverlapsActualResult(t *testing.T) {
 	require.NoError(t, gate.Commit(f.ctx))
 	require.NoError(t, <-done)
 	require.Equal(t, 100, f.scalar(t, `SELECT exposure_amount_minor FROM credit_accounts WHERE customer_id=$1`, customer))
+}
+
+// useRestrictedRuntime installs the reviewed allowlist only in this test's own
+// schema, then reconnects as the actual bnpl login. Fixture preparation remains
+// administrative; every command/result/Collections transaction uses this login.
+func useRestrictedRuntime(t *testing.T, f *collectionsFixture) {
+	t.Helper()
+	dsn := os.Getenv("COLLECTIONS_RUNTIME_TEST_URL")
+	require.NotEmpty(t, dsn, "provide the dedicated test cluster's bnpl credentials")
+	var schema string
+	require.NoError(t, f.pool.QueryRow(f.ctx, "SELECT current_schema()").Scan(&schema))
+	quote := pgx.Identifier{schema}.Sanitize()
+	sql, e := os.ReadFile("../../../../assets/db/migrations/000004_terminal_permission_history.sql")
+	require.NoError(t, e)
+	_, e = f.pool.Exec(f.ctx, strings.ReplaceAll(string(sql), "bnpl.", quote+"."))
+	require.NoError(t, e)
+	_, e = f.pool.Exec(f.ctx, "GRANT USAGE ON SCHEMA "+quote+" TO bnpl")
+	require.NoError(t, e)
+	for _, p := range invariants.PrivilegeRegistry() {
+		obj := pgx.Identifier{schema, p.Table}.Sanitize()
+		ops := make([]string, len(p.Operations))
+		for i, op := range p.Operations {
+			ops[i] = string(op)
+		}
+		_, e = f.pool.Exec(f.ctx, "GRANT "+strings.Join(ops, ",")+" ON "+obj+" TO bnpl")
+		require.NoError(t, e)
+		if len(p.UpdateColumns) > 0 {
+			columns := make([]string, len(p.UpdateColumns))
+			for i, col := range p.UpdateColumns {
+				columns[i] = pgx.Identifier{col}.Sanitize()
+			}
+			_, e = f.pool.Exec(f.ctx, "GRANT UPDATE("+strings.Join(columns, ",")+") ON "+obj+" TO bnpl")
+			require.NoError(t, e)
+		}
+	}
+	cfg, e := pgxpool.ParseConfig(dsn)
+	require.NoError(t, e)
+	cfg.ConnConfig.RuntimeParams["search_path"] = schema
+	runtime, e := postgres.NewPool(f.ctx, cfg)
+	require.NoError(t, e)
+	original := f.pool.Pool
+	t.Cleanup(original.Close)
+	f.pool.Pool = runtime.Pool
+	var user string
+	require.NoError(t, f.pool.QueryRow(f.ctx, "SELECT session_user").Scan(&user))
+	require.Equal(t, "bnpl", user)
 }

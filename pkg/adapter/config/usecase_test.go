@@ -22,21 +22,6 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/decisionuc"
 )
 
-func TestMigrations_newUseCase(t *testing.T) {
-	t.Parallel()
-
-	pool := mock.NewPool(t)
-	migrations := mock.NewMigrations(t)
-	clock := mock.NewClock(t)
-	logger := mock.NewLogger(t)
-
-	m := Migrations{FilesDir: "/var/migrations"}
-
-	uc, err := m.newUseCase(pool, migrations, clock, logger)
-	require.NoError(t, err)
-	require.NotNil(t, uc)
-}
-
 func TestOutboxPublisher_newUseCase(t *testing.T) {
 	t.Parallel()
 
@@ -76,25 +61,6 @@ func TestHealth_newUseCase(t *testing.T) {
 	h := Health{Enabled: true}
 
 	uc := h.newUseCase(lifecycle, checker)
-	require.NotNil(t, uc)
-}
-
-func TestConfig_NewMigrationsUseCase(t *testing.T) {
-	t.Parallel()
-
-	pool := mock.NewPool(t)
-	migrations := mock.NewMigrations(t)
-	clock := mock.NewClock(t)
-	logger := mock.NewLogger(t)
-
-	cfg := &Config{
-		Usecases: Usecases{
-			Migrations: Migrations{FilesDir: "/data/migrations"},
-		},
-	}
-
-	uc, err := cfg.NewMigrationsUseCase(pool, migrations, clock, logger)
-	require.NoError(t, err)
 	require.NotNil(t, uc)
 }
 

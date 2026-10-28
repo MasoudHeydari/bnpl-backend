@@ -1,3 +1,9 @@
+> Administration commands now belong to `bnpl-dbadmin` with `configs/dbadmin.yaml`.
+> Runtime additionally verifies the managed privilege/ownership contract. See
+> [roles](database-roles.md), [privileges](database-privileges.md) and
+> [deployment](database-deployment.md). Trigger definitions and migration 000003
+> remain unchanged.
+
 # Managed installment integrity
 
 `paid` is complete, terminal installment settlement. Principal-only settlement
@@ -158,7 +164,7 @@ the project's existing controlled migration credentials/lifecycle separately.
 
 ```sh
 make db-invariants-list
-make db-invariants-verify                 # CONFIG defaults to configs/config.yaml
+make db-invariants-verify                 # CONFIG defaults to configs/dbadmin.yaml
 make db-invariants-verify CONFIG=/path/to/config.yaml
 COLLECTIONS_TEST_DATABASE_URL='<disposable PostgreSQL>' make -e db-invariants-test
 ```

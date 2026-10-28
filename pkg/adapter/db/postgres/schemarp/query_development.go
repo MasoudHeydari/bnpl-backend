@@ -6,6 +6,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
 )
 
@@ -17,7 +19,7 @@ func DropIfExists[Q postgres.Queryer](
 	// Schema name is a trusted application constant (bnpl).
 	_, err := q.Exec(
 		ctx,
-		fmt.Sprintf(`DROP SCHEMA IF EXISTS %s CASCADE`, schema),
+		fmt.Sprintf(`DROP SCHEMA IF EXISTS %s CASCADE`, pgx.Identifier{schema}.Sanitize()),
 	)
 	return err
 }

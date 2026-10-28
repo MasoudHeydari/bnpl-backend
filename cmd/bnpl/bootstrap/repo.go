@@ -17,7 +17,6 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/merchantbranchprofilerp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/merchantprofilerp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/merchantterminalrp"
-	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/migrationsrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/otprp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/outboxrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/paymentattemptrp"
@@ -34,8 +33,6 @@ import (
 // Each field implements a core repo port. Adapters are stateless factories;
 // transactional scope comes from the shared Pool passed into use cases.
 type Repos struct {
-	// Migrations applies embedded schema migrations.
-	Migrations repo.Migrations
 
 	// Outbox stores durable outbound integration messages.
 	Outbox repo.Outbox
@@ -114,7 +111,6 @@ type Repos struct {
 // NewRepos constructs the Postgres repository adapter set used by App.
 func NewRepos() Repos {
 	return Repos{
-		Migrations:                 migrationsrp.New(),
 		Outbox:                     outboxrp.New(),
 		Health:                     healthrp.New(),
 		Decision:                   decisionrp.New(),

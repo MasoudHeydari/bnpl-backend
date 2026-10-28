@@ -91,7 +91,7 @@ func newConfirmSagaHarness(t *testing.T, opts confirmSagaHarnessOptions) *confir
 	root, err := repositoryRoot()
 	require.NoError(t, err)
 
-	cfg, err := config.Load(filepath.Join(root, "configs/config.yaml"))
+	cfg, err := config.Load(filepath.Join(root, "configs/runtime.yaml"))
 	require.NoError(t, err)
 
 	app := &bootstrap.App{Config: cfg, Repos: bootstrap.NewRepos()}

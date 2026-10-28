@@ -14,7 +14,6 @@ func TestNewUseCases_NoopConfig(t *testing.T) {
 	usecases, err := app.NewUseCases()
 	require.NoError(t, err)
 
-	require.NotNil(t, usecases.Migrations)
 	require.NotNil(t, usecases.OutboxPublisher)
 	require.NotNil(t, usecases.Health)
 	require.NotNil(t, usecases.Decision)

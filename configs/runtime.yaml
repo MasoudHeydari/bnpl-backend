@@ -1,3 +1,4 @@
+application: runtime
 runtime:
   environment: ${APP_ENVIRONMENT}
 
@@ -22,7 +23,6 @@ database:
     enabled: ${POSTGRES_QUERY_LOGGING_ENABLED}
     include_arguments: ${POSTGRES_QUERY_LOGGING_INCLUDE_ARGUMENTS}
   pgpass_entries:
-    admin: ${POSTGRES_ADMIN_PGPASS}
     normal: ${POSTGRES_NORMAL_PGPASS}
 
 gin:
@@ -54,10 +54,6 @@ gin:
 usecases:
   health:
     enabled: ${HEALTH_ENABLED}
-
-  migration:
-    files-dir: ${MIGRATIONS_FILES_DIR}
-    lock_timeout: ${MIGRATIONS_LOCK_TIMEOUT}
 
   outbox_publisher:
     worker_id: ${OUTBOX_PUBLISHER_WORKER_ID}

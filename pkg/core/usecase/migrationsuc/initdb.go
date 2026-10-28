@@ -23,7 +23,7 @@ type InitDBUseCase struct {
 
 // NewInitDB constructs a database initialization use case.
 // The provided schema settings abstraction must be able to open both admin and
-// application-role connections for the target database.
+// migrator-role connections for the target database.
 // logger is the shared process logger reused for optional query logging on
 // pools opened during bootstrap; it must not be recreated per pool.
 func NewInitDB(
@@ -45,9 +45,9 @@ func (iduc *InitDBUseCase) initDB(
 		return err
 	}
 
-	connPool, err := iduc.ss.ConnectionPool(ctx, repo.NormalRole, iduc.logger)
+	connPool, err := iduc.ss.ConnectionPool(ctx, repo.MigratorRole, iduc.logger)
 	if err != nil {
-		return fmt.Errorf("%s: creating DB pool for normal role: %w", op, err)
+		return fmt.Errorf("%s: creating DB pool for migrator/owner role: %w", op, err)
 	}
 
 	defer func() {
@@ -69,7 +69,7 @@ func (iduc *InitDBUseCase) initDB(
 		})
 	})
 	if err != nil {
-		return fmt.Errorf("%s: normal connection: %w", op, err)
+		return fmt.Errorf("%s: migrator connection: %w", op, err)
 	}
 
 	return nil
@@ -82,33 +82,30 @@ func (iduc *InitDBUseCase) createSchemaRoleAndPrivileges(
 ) error {
 	const op = "migrationsuc.InitDBUseCase.createSchemaRoleAndPrivileges"
 
+	// Provision the NOLOGIN owner before creating schema objects. No Runtime
+	// connection participates in bootstrap; the migrator explicitly assumes owner.
+	if err := q.CreateRoleIfNotExists(ctx, repo.OwnerRole, ""); err != nil {
+		return err
+	}
+	for _, role := range []repo.Role{repo.MigratorRole, repo.NormalRole} {
+		password, err := iduc.ss.GetRolePassword(role)
+		if err != nil {
+			return err
+		}
+		if err = q.CreateRoleIfNotExists(ctx, role, password); err != nil {
+			return err
+		}
+	}
+	if err := q.GrantPrivileges(ctx, schemaName, repo.MigratorRole); err != nil {
+		return err
+	}
 	if err := q.CreateSchema(ctx, schemaName); err != nil {
-		return fmt.Errorf("%s: creating %q: %w", op, schemaName, err)
+		return fmt.Errorf("%s: creating managed schema: %w", op, err)
 	}
-
-	normalRolePassword, err := iduc.ss.GetRolePassword(repo.NormalRole)
-	if err != nil {
-		return fmt.Errorf("%s: getting normal role password %q: %w", op, schemaName, err)
-	}
-
-	if err := q.CreateRoleIfNotExists(
-		ctx, repo.NormalRole, normalRolePassword,
-	); err != nil {
-		return fmt.Errorf("%s: creating normal role: %w", op, err)
-	}
-
-	if err := q.GrantPrivileges(
-		ctx, schemaName, repo.NormalRole,
-	); err != nil {
-		return fmt.Errorf("%s: granting normal role privs: %w", op, err)
-	}
-
-	if err := q.SetSearchPath(
-		ctx, schemaName, repo.NormalRole,
-	); err != nil {
-		return fmt.Errorf(
-			"%s: setting search_path of normal role to %q: %w", op, schemaName, err,
-		)
+	for _, role := range []repo.Role{repo.NormalRole, repo.MigratorRole} {
+		if err := q.SetSearchPath(ctx, schemaName, role); err != nil {
+			return err
+		}
 	}
 
 	return nil

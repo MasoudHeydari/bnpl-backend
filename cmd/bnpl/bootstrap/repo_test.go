@@ -11,7 +11,6 @@ func TestNewRepos(t *testing.T) {
 
 	repos := NewRepos()
 
-	require.NotNil(t, repos.Migrations)
 	require.NotNil(t, repos.Outbox)
 	require.NotNil(t, repos.Health)
 	require.NotNil(t, repos.Decision)

@@ -3,6 +3,8 @@ package bootstrap
 import (
 	"testing"
 
+	"github.com/parstis/bnpl-backend/internal/buildprofile"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -90,7 +92,12 @@ func TestRegisterRoutes_SwaggerEnabled(t *testing.T) {
 	err = app.RegisterRoutes(engine)
 	require.NoError(t, err)
 
-	requireRouteRegistered(t, engine.Routes(), "GET", "/swagger/*any")
+	// A production capability binary must ignore the Development Swagger flag.
+	if buildprofile.IsProduction() {
+		requireRouteNotRegistered(t, engine.Routes(), "GET", "/swagger/*any")
+	} else {
+		requireRouteRegistered(t, engine.Routes(), "GET", "/swagger/*any")
+	}
 }
 
 func TestRegisterRoutes_SwaggerDisabled(t *testing.T) {

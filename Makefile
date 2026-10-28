@@ -79,7 +79,8 @@ build-development: mkdir-bin
 		-tags="$(DEVELOPMENT_BUILD_TAGS)" \
 		-trimpath \
 		-ldflags='-s -w -extldflags "-static"' \
-		-o build/bin/$(APP_NAME) ./cmd/bnpl
+		-o build/bin/$(APP_NAME)-development ./cmd/bnpl
+	@cp build/bin/$(APP_NAME)-development build/bin/$(APP_NAME)
 
 .PHONY: build-production
 build-production: mkdir-bin
@@ -87,27 +88,22 @@ build-production: mkdir-bin
 		-tags="$(PRODUCTION_BUILD_TAGS)" \
 		-trimpath \
 		-ldflags='-s -w -extldflags "-static"' \
-		-o build/bin/$(APP_NAME) ./cmd/bnpl
+		-o build/bin/$(APP_NAME)-production ./cmd/bnpl
 
 .PHONY: run
 # Local run always uses the development-capability binary.
 run: build-development up
-	@chmod +x $(ENTRYPOINT) && ./$(ENTRYPOINT)
+	@chmod +x $(ENTRYPOINT) && CONFIG_FILE="$(RUNTIME_CONFIG)" ./$(ENTRYPOINT)
 
-.PHONY: init-prod
-# One-time production bootstrap uses a production-capability binary.
-init-prod: build-production
-	@./build/bin/$(APP_NAME) db init-prod
-
-.PHONY: init-dev
-# Destructive development reset exists only in development-capability binaries.
-init-dev: build-development
-	@./build/bin/$(APP_NAME) db init-dev
+# Compatibility aliases now invoke the separate database executable.
+.PHONY: init-prod init-dev
+init-prod: db-init-production
+init-dev: db-init-development
 
 .PHONY: policy-assignment-import-trusted
 # Bulk-assign the trusted customer policy bundle from an authoritative subject CSV.
 policy-assignment-import-trusted: build
-	@./build/bin/$(APP_NAME) policy-assignment import-trusted \
+	@./build/bin/$(APP_NAME) --config "$(RUNTIME_CONFIG)" policy-assignment import-trusted \
 		--file $(POLICY_ASSIGNMENT_FILE) \
 		--actor $(POLICY_ASSIGNMENT_ACTOR)
 
@@ -207,15 +203,14 @@ up:
 down:
 	@docker compose -f $(COMPOSE_FILE) down
 
-.PHONY: build-image
-build-image:
-	@docker build -t $(IMAGE_NAME):$(IMAGE_VERSION) .
-
-.PHONY: publish-image
+# Legacy image targets remain Production Runtime only.
+.PHONY: build-image publish-image publish-image-to-hamravesh
+build-image: build-image-production
+	@docker tag $(IMAGE_NAME):$(IMAGE_VERSION)-production $(HAMRAVESH_IMAGE_LOCAL_TAG)
 publish-image-to-hamravesh: build-image
-	@docker image tag $(HAMRAVESH_IMAGE_LOCAL_TAG) $(HAMRAVESH_IMAGE_REMOTE)
+	@docker tag $(HAMRAVESH_IMAGE_LOCAL_TAG) $(HAMRAVESH_IMAGE_REMOTE)
 	@docker push $(HAMRAVESH_IMAGE_REMOTE)
-	@echo "Published: $(HAMRAVESH_IMAGE_REMOTE)"
+publish-image: publish-image-to-hamravesh
 
 .PHONY: run-image
 run-image:
@@ -297,7 +292,7 @@ install-hooks:
 
 .PHONY: env
 env:
-	@grep -v '^\s*#' .env | grep -v '^\s*$$' | sed 's/^/export /'
+	@sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1=<redacted>/p' .env
 
 .env: .env.example
 	@if [ -f .env ]; then \
@@ -361,16 +356,63 @@ list-interfaces:
 
 .PHONY: clean
 clean:
-	@rm -f ./build/bin/$(APP_NAME) coverage.out
+	@rm -f ./build/bin/$(APP_NAME) ./build/bin/$(APP_NAME)-development ./build/bin/$(APP_NAME)-production ./build/bin/bnpl-dbadmin-development ./build/bin/bnpl-dbadmin-production coverage.out
 
-CONFIG ?= configs/config.yaml
+# Runtime and administrative configs are distinct. Command-line overrides win.
+CONFIG ?= configs/dbadmin.yaml
+RUNTIME_CONFIG ?= configs/runtime.yaml
+DBADMIN_IMAGE_NAME ?= $(IMAGE_NAME)-dbadmin
 
-.PHONY: db-invariants-list db-invariants-verify db-invariants-test
+# Separate artifacts keep all environment/capability combinations available.
+define dbadmin-build
+.PHONY: build-dbadmin-$(1)
+build-dbadmin-$(1): mkdir-bin
+	CGO_ENABLED=0 go build -tags="$(GO_BUILD_TAGS) $(1)" -trimpath -ldflags='-s -w -extldflags "-static"' -o build/bin/bnpl-dbadmin-$(1) ./cmd/bnpl-dbadmin
+endef
+$(foreach env,development production,$(eval $(call dbadmin-build,$(env))))
+
+define environment-db
+.PHONY: db-init-$(1) db-migrate-$(1) db-invariants-verify-$(1) db-privileges-verify-$(1)
+db-init-$(1): build-dbadmin-$(1)
+	@./build/bin/bnpl-dbadmin-$(1) --config "$(CONFIG)" db init-$(if $(filter development,$(1)),dev,prod)
+db-migrate-$(1): build-dbadmin-$(1)
+	@./build/bin/bnpl-dbadmin-$(1) --config "$(CONFIG)" db migrate
+db-invariants-verify-$(1): build-dbadmin-$(1)
+	@./build/bin/bnpl-dbadmin-$(1) --config "$(CONFIG)" db invariants verify
+db-privileges-verify-$(1): build-dbadmin-$(1)
+	@./build/bin/bnpl-dbadmin-$(1) --config "$(CONFIG)" db privileges verify
+endef
+$(foreach env,development production,$(eval $(call environment-db,$(env))))
+
+# Builds never publish. Tags distinguish both executable and environment.
+define image-build
+.PHONY: build-image-$(1) build-dbadmin-image-$(1) publish-image-$(1) publish-dbadmin-image-$(1)
+build-image-$(1):
+	@docker build --target runtime --build-arg BUILD_ENV=$(1) -t $(IMAGE_NAME):$(IMAGE_VERSION)-$(1) .
+build-dbadmin-image-$(1):
+	@docker build --target dbadmin --build-arg BUILD_ENV=$(1) -t $(DBADMIN_IMAGE_NAME):$(IMAGE_VERSION)-$(1) .
+publish-image-$(1): build-image-$(1)
+	@docker tag $(IMAGE_NAME):$(IMAGE_VERSION)-$(1) $(HAMRAVESH_CONTAINER_REGISTRY)/$(HAMRAVESH_REGISTRY_NAMESPACE)/$(IMAGE_NAME):$(IMAGE_VERSION)-$(1)
+	@docker push $(HAMRAVESH_CONTAINER_REGISTRY)/$(HAMRAVESH_REGISTRY_NAMESPACE)/$(IMAGE_NAME):$(IMAGE_VERSION)-$(1)
+publish-dbadmin-image-$(1): build-dbadmin-image-$(1)
+	@docker tag $(DBADMIN_IMAGE_NAME):$(IMAGE_VERSION)-$(1) $(HAMRAVESH_CONTAINER_REGISTRY)/$(HAMRAVESH_REGISTRY_NAMESPACE)/$(DBADMIN_IMAGE_NAME):$(IMAGE_VERSION)-$(1)
+	@docker push $(HAMRAVESH_CONTAINER_REGISTRY)/$(HAMRAVESH_REGISTRY_NAMESPACE)/$(DBADMIN_IMAGE_NAME):$(IMAGE_VERSION)-$(1)
+endef
+$(foreach env,development production,$(eval $(call image-build,$(env))))
+
+.PHONY: db-invariants-list db-invariants-verify db-invariants-test db-privileges-list
 db-invariants-list:
-	@go run -tags development ./cmd/bnpl db invariants list
-
-db-invariants-verify:
-	@go run -tags development ./cmd/bnpl --config "$(CONFIG)" db invariants verify
-
+	@go run -tags development ./cmd/bnpl-dbadmin db invariants list
+db-privileges-list:
+	@go run -tags development ./cmd/bnpl-dbadmin db privileges list
+db-invariants-verify: db-invariants-verify-development
 db-invariants-test:
 	@go test -count=1 -race -tags 'development integration' ./pkg/adapter/db/postgres/invariants/...
+
+.PHONY: verify-entrypoint-boundaries
+verify-entrypoint-boundaries: build-development build-production build-dbadmin-development build-dbadmin-production
+	@sh scripts/verify-entrypoint-boundaries.sh
+
+.PHONY: verify-docker-boundaries
+verify-docker-boundaries:
+	@sh scripts/verify-docker-boundaries.sh

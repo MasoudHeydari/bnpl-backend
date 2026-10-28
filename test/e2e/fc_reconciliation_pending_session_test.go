@@ -39,7 +39,7 @@ func seedInstallmentRepaymentReconciliationRequired(
 
 	root, err := repositoryRoot()
 	require.NoError(t, err)
-	cfg, err := config.Load(filepath.Join(root, "configs/config.yaml"))
+	cfg, err := config.Load(filepath.Join(root, "configs/runtime.yaml"))
 	require.NoError(t, err)
 
 	pool := &postgres.Pool{Pool: testDB}
@@ -467,7 +467,7 @@ func TestE2E_InstallmentCreate_FCExpiryLaterThanRequestedAccepted(t *testing.T) 
 
 	root, err := repositoryRoot()
 	require.NoError(t, err)
-	cfg, err := config.Load(filepath.Join(root, "configs/config.yaml"))
+	cfg, err := config.Load(filepath.Join(root, "configs/runtime.yaml"))
 	require.NoError(t, err)
 
 	pool := &postgres.Pool{Pool: testDB}

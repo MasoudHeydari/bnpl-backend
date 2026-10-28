@@ -547,7 +547,7 @@ func ListPermissions[Q postgres.Queryer](
 	const query = `
 SELECT permission
 FROM merchant_terminal_permissions
-WHERE merchant_terminal_id = $1
+WHERE merchant_terminal_id = $1 AND revoked_at IS NULL
 ORDER BY permission`
 
 	type permissionRow struct {
@@ -589,44 +589,36 @@ func ReplacePermissions[Q postgres.Queryer](
 		return err
 	}
 
-	const deleteQuery = `
-DELETE FROM merchant_terminal_permissions
-WHERE merchant_terminal_id = $1`
-
-	_, err = q.Exec(ctx, deleteQuery, merchantTerminalID)
-	if err != nil {
-		return fmt.Errorf("%s: clear permissions: %w", op, postgres.MapError(err))
-	}
-
 	seen := make(map[string]struct{}, len(permissions))
-
-	const insertQuery = `
-INSERT INTO merchant_terminal_permissions (
-	merchant_terminal_id,
-	permission,
-	created_at
-) VALUES ($1, $2, $3)`
-
+	unique := make([]string, 0, len(permissions))
 	for _, permission := range permissions {
 		if permission == "" {
 			return fmt.Errorf("%s: permission must not be empty", op)
 		}
-
-		if _, ok := seen[permission]; ok {
-			continue
+		if _, ok := seen[permission]; !ok {
+			seen[permission] = struct{}{}
+			unique = append(unique, permission)
 		}
-
-		seen[permission] = struct{}{}
-
-		_, err = q.Exec(
-			ctx,
-			insertQuery,
-			merchantTerminalID,
-			permission,
-			createdAt,
-		)
+	}
+	// A separate locking statement refreshes the next READ COMMITTED statement's
+	// snapshot after a competing replacement commits; a single CTE would not.
+	if _, err = LockByID(ctx, q, merchantTerminalID); err != nil {
+		return err
+	}
+	// Materialize the parent serialization boundary without changing its key.
+	// RR transactions with an old permission snapshot must fail serialization;
+	// a row lock alone would not expose a concurrent child-only replacement.
+	if _, err = q.Exec(ctx, `UPDATE merchant_terminals SET id=id WHERE id=$1`, merchantTerminalID); err != nil {
+		return postgres.MapError(err)
+	}
+	_, err = q.Exec(ctx, `UPDATE merchant_terminal_permissions SET revoked_at=$2 WHERE merchant_terminal_id=$1 AND revoked_at IS NULL AND NOT(permission=ANY($3::text[]))`, merchantTerminalID, createdAt, unique)
+	if err != nil {
+		return fmt.Errorf("%s: revoke permissions: %w", op, postgres.MapError(err))
+	}
+	for _, permission := range unique {
+		_, err = q.Exec(ctx, `INSERT INTO merchant_terminal_permissions(merchant_terminal_id,permission,created_at) VALUES($1,$2,$3) ON CONFLICT(merchant_terminal_id,permission) WHERE revoked_at IS NULL DO NOTHING`, merchantTerminalID, permission, createdAt)
 		if err != nil {
-			return fmt.Errorf("%s: insert permission: %w", op, postgres.MapError(err))
+			return fmt.Errorf("%s: grant permission: %w", op, postgres.MapError(err))
 		}
 	}
 
@@ -676,4 +668,9 @@ WHERE id IN (
 	}
 
 	return affected, nil
+}
+
+// LockByID serializes permission replacements on the stable terminal parent.
+func LockByID[Q postgres.Queryer](ctx context.Context, q Q, id model.MerchantTerminalID) (model.MerchantTerminal, error) {
+	return postgres.QueryOne[model.MerchantTerminal](ctx, q, "lock terminal permissions", `SELECT`+merchantTerminalColumns+`FROM merchant_terminals WHERE id=$1 FOR UPDATE`, id)
 }

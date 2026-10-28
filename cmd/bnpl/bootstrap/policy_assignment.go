@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/parstis/bnpl-backend/pkg/adapter/config"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/invariants"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/policyassignmentimportrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/policyassignmentrp"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
@@ -46,6 +47,9 @@ func ImportTrustedPolicyAssignments(sourceFile, actor string) (policyassignmentu
 	}
 
 	defer func() { _ = pool.Close() }()
+	if err = invariants.VerifyRuntime(ctx, pool); err != nil {
+		return policyassignmentuc.ImportTrustedOutput{}, err
+	}
 
 	clk, err := c.NewSystemClockInfrastructure()
 	if err != nil {

@@ -75,9 +75,10 @@ type TaskJobResolver interface {
 //  1. Infrastructure adapters that do not need the DB pool (logger, metrics,
 //     cache, messaging transports, task runtime).
 //  2. Database pool (reuses the process logger for query logging).
-//  3. DependencyChecker — must see the live pool so readiness never treats a
+//  3. Read-only database integrity/privilege verification, then repositories.
+//  4. DependencyChecker — must see the live pool so readiness never treats a
 //     nil pool as healthy.
-//  4. External clients and use cases.
+//  5. External clients and use cases.
 //
 // On any failure, already-constructed resources are released before returning.
 func NewApp(ctx context.Context, c *config.Config) (_ *App, err error) {
@@ -85,7 +86,6 @@ func NewApp(ctx context.Context, c *config.Config) (_ *App, err error) {
 
 	app := &App{
 		Config: c,
-		Repos:  NewRepos(),
 	}
 	defer func() {
 		if err != nil {
@@ -103,9 +103,11 @@ func NewApp(ctx context.Context, c *config.Config) (_ *App, err error) {
 		return nil, fmt.Errorf("%s: creating DB pool: %w", op, err)
 	}
 
-	if err = invariants.Verify(ctx, app.Pool); err != nil {
+	if err = invariants.VerifyRuntime(ctx, app.Pool); err != nil {
 		return nil, fmt.Errorf("%s: database integrity verification: %w", op, err)
 	}
+
+	app.Repos = NewRepos()
 
 	if err = app.wireDependencyChecker(); err != nil {
 		return nil, fmt.Errorf("%s: wire dependency checker: %w", op, err)

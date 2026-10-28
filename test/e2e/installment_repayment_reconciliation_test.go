@@ -43,7 +43,7 @@ func TestE2E_InstallmentRepayment_LostFCResponse_StaleCreatedReconcilesWithoutDu
 
 	root, err := repositoryRoot()
 	require.NoError(t, err)
-	cfg, err := config.Load(filepath.Join(root, "configs/config.yaml"))
+	cfg, err := config.Load(filepath.Join(root, "configs/runtime.yaml"))
 	require.NoError(t, err)
 
 	pool := &postgres.Pool{Pool: testDB}

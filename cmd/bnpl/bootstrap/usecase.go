@@ -27,7 +27,6 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/installmentrepaymentuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/merchantterminaluc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/merchantuc"
-	"github.com/parstis/bnpl-backend/pkg/core/usecase/migrationsuc"
 	otpusecase "github.com/parstis/bnpl-backend/pkg/core/usecase/otp"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/outboxpublisheruc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/paymentattemptreconciliationuc"
@@ -42,8 +41,6 @@ import (
 // and infrastructure from this composition root. HTTP handlers and background
 // jobs depend on these instances; they must not construct use cases themselves.
 type UseCases struct {
-	// Migrations runs database migration workflows.
-	Migrations *migrationsuc.UseCase
 
 	// OutboxPublisher publishes due outbox messages.
 	OutboxPublisher *outboxpublisheruc.UseCase
@@ -114,16 +111,6 @@ type UseCases struct {
 // and resume-path share one definition instance.
 func (a *App) NewUseCases() (UseCases, error) {
 	const op = "bootstrap.App.NewUseCases"
-
-	migrationsUseCase, err := a.Config.NewMigrationsUseCase(
-		a.Pool,
-		a.Repos.Migrations,
-		a.Infrastructure.Clock,
-		a.Infrastructure.Logger,
-	)
-	if err != nil {
-		return UseCases{}, fmt.Errorf("%s: construct migrations use case: %w", op, err)
-	}
 
 	// Webhook routing publisher is owned by External; OutboxPublisher only
 	// consumes the already-constructed messaging.Publisher.
@@ -580,7 +567,6 @@ func (a *App) NewUseCases() (UseCases, error) {
 	repaymentReminderUseCase.WithDefaultNotifications(collectionsUseCase)
 
 	return UseCases{
-		Migrations:                         migrationsUseCase,
 		OutboxPublisher:                    outboxPublisherUseCase,
 		Health:                             healthUseCase,
 		Decision:                           decisionUseCase,

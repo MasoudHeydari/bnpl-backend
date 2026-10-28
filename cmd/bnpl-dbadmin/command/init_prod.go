@@ -5,7 +5,7 @@ package command
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/parstis/bnpl-backend/cmd/bnpl/bootstrap"
+	"github.com/parstis/bnpl-backend/cmd/bnpl-dbadmin/bootstrap"
 )
 
 var initProdCmd = &cobra.Command{
@@ -19,7 +19,7 @@ role and privileges exist, and applies embedded schema DDL plus production seed
 SQL inside a transaction.
 
 If schema bnpl already exists, the command fails with a conflict error and does
-not drop or mutate existing objects. Use db migrate (make migrate) for schema
+not drop or mutate existing objects. Use db migrate (make db-migrate-production) for schema
 evolution on an existing production database.`,
 	RunE: initProd,
 	Args: cobra.NoArgs,

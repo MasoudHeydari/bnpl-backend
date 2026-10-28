@@ -11,7 +11,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/migrationsrp"
 	adapterbotmessage "github.com/parstis/bnpl-backend/pkg/adapter/external/botmessage"
 	fingerprinthmac "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/fingerprint/hmac"
 	secretboxadapter "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/secretbox"
@@ -55,7 +54,6 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/installmentlifecycleuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/installmentrepaymentuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/merchantterminaluc"
-	"github.com/parstis/bnpl-backend/pkg/core/usecase/migrationsuc"
 	otpusecase "github.com/parstis/bnpl-backend/pkg/core/usecase/otp"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/outboxpublisheruc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/paymentattemptreconciliationuc"
@@ -117,16 +115,34 @@ func Load(path string) (*Config, error) {
 	n := &yaml.Node{}
 	expandedEnv := os.ExpandEnv(string(data))
 	if err = yaml.Unmarshal([]byte(expandedEnv), n); err != nil {
-		return nil, fmt.Errorf("%s: unmarshalling yaml: %w", op, err)
+		return nil, fmt.Errorf("%s: unmarshalling yaml: invalid document", op)
 	}
 
 	if l := len(n.Content); l != 1 {
 		return nil, fmt.Errorf("%s: found %d children nodes, instead of 1 mapping child", op, l)
 	}
 
+	// Inspect keys before decoding; privileged fields are rejected, never retained.
+	var shape struct {
+		Application string `yaml:"application"`
+		Database    struct {
+			PGPass map[string]yaml.Node `yaml:"pgpass_entries"`
+		} `yaml:"database"`
+	}
+	if err := n.Decode(&shape); err != nil {
+		return nil, fmt.Errorf("%s: invalid runtime configuration shape", op)
+	}
+	if shape.Application != "runtime" {
+		return nil, fmt.Errorf("%s: application must be runtime", op)
+	}
+	for key := range shape.Database.PGPass {
+		if key != "normal" {
+			return nil, fmt.Errorf("%s: runtime database credentials must contain only normal", op)
+		}
+	}
 	c := &Config{}
 	if err = n.Decode(c); err != nil {
-		return nil, fmt.Errorf("%s: decoding yaml node: %w", op, err)
+		return nil, fmt.Errorf("%s: invalid runtime configuration values", op)
 	}
 
 	if err = c.ValidateVersions(); err != nil {
@@ -190,7 +206,7 @@ func (c *Config) ConnectionPool(
 	p, err := database.ConnectionPool(ctx, r, queryLogger)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"%s: %#v.ConnectionPool: %w", op, c.Database, err,
+			"%s: ConnectionPool: %w", op, err,
 		)
 	}
 
@@ -201,38 +217,6 @@ func (c *Config) ConnectionPool(
 // It is a pure accessor and has no side effects.
 func (c *Config) ConnectionInfo() (dbName, host string, port int) {
 	return c.Database.connectionInfo()
-}
-
-// NewSchemaRepo constructs the schema repository adapter configured for this
-// process. The returned repository is stateless and safe to reuse.
-func (c *Config) NewSchemaRepo() repo.Schema {
-	return c.Database.newSchemaRepo()
-}
-
-// GetRolePassword resolves the configured password for role from the pgpass
-// entries embedded in the configuration. It returns an error when no matching
-// entry exists.
-func (c *Config) GetRolePassword(r repo.Role) (string, error) {
-	return c.Database.getRolePassword(r)
-}
-
-// SchemaInitializer creates a schema initializer bound to tx.
-// The initializer uses the supplied transaction exclusively; callers must not
-// use it after the transaction has been committed or rolled back.
-func (c *Config) SchemaInitializer(tx repo.Tx) repo.SchemaInitializer {
-	return migrationsrp.NewInitializer(tx)
-}
-
-// NewMigrationsUseCase constructs the migration use case configured by this
-// repository. The returned use case reuses the caller-provided pool and
-// repository and does not take ownership beyond its own method calls.
-func (c *Config) NewMigrationsUseCase(
-	p repo.Pool,
-	r repo.Migrations,
-	clk clock.Clock,
-	logger corelog.Logger,
-) (*migrationsuc.UseCase, error) {
-	return c.Usecases.Migrations.newUseCase(p, r, clk, logger)
 }
 
 // NewOutboxPublisherUseCase creates the use case responsible for publishing

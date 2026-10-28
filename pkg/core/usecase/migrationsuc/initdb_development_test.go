@@ -20,7 +20,7 @@ func (d initDBDeps) expectNormalInitDev(ctx context.Context, t *testing.T) {
 	t.Helper()
 
 	settler := mock.NewSchemaInitializer(t)
-	d.settings.EXPECT().ConnectionPool(ctx, repo.NormalRole, nil).Return(d.pool, nil).Once()
+	d.settings.EXPECT().ConnectionPool(ctx, repo.MigratorRole, nil).Return(d.pool, nil).Once()
 	d.pool.EXPECT().Conn(ctx, testifymock.Anything).RunAndReturn(
 		func(ctx context.Context, handler repo.ConnHandler) error {
 			return handler(ctx, d.conn)

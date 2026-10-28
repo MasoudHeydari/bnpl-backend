@@ -10,8 +10,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
-	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/querylog"
-	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/schemarp"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/connection"
+
 	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
@@ -57,9 +57,6 @@ type Database struct {
 
 	// PGPassEntries contains full pgpass lines used to resolve role passwords.
 	PGPassEntries struct {
-		// Admin is the pgpass line for the admin database role.
-		Admin model.Secret `yaml:"admin"`
-
 		// Normal is the pgpass line for the normal application database role.
 		Normal model.Secret `yaml:"normal"`
 	} `yaml:"pgpass_entries"`
@@ -78,7 +75,7 @@ type QueryLogging struct {
 	IncludeArguments bool `yaml:"include_arguments"`
 }
 
-// ConnectionPool builds a PostgreSQL connection pool for role using the
+// ConnectionPool builds only a normal-role PostgreSQL pool using the
 // adapter-layer postgres implementation. The returned pool validates
 // connectivity before being returned and must be closed by the caller.
 // Pool instances are safe for concurrent use after construction.
@@ -107,7 +104,8 @@ func (d Database) ConnectionPool(
 	return p, nil
 }
 
-// ConnectionURL builds a PostgreSQL connection URL for the given database role.
+// ConnectionURL builds a PostgreSQL URL only for NormalRole; privileged roles
+// are rejected before credential resolution.
 // Credentials are resolved from the configured pgpass entries rather than
 // being stored directly in the generated URL configuration. An error is
 // returned if no pgpass entry matches the requested role.
@@ -140,48 +138,9 @@ func (d Database) connectionInfo() (dbName, host string, port int) {
 	return d.Name, d.Host, d.Port
 }
 
-// getConfig parses connURL into a pgx pool configuration and applies the
-// repository's pool and timeout settings.
-func (d Database) getConfig(
-	connURL string,
-	queryLogger corelog.Logger,
-) (*pgxpool.Config, error) {
-	const op = "config.Database.getConfig"
-
-	pgConfig, err := pgxpool.ParseConfig(connURL)
-	if err != nil {
-		return nil, fmt.Errorf("%s: parse PostgreSQL pool configuration: %w", op, err)
-	}
-
-	if d.BusinessTimezone != "" {
-		pgConfig.ConnConfig.RuntimeParams["timezone"] = d.BusinessTimezone
-	}
-
-	pgConfig.MaxConns = d.MaxConnections
-	pgConfig.MinConns = d.MinConnections
-	pgConfig.MaxConnLifetime = d.MaxConnectionLifeTime
-	pgConfig.MaxConnIdleTime = d.MaxConnectionIdleTime
-	pgConfig.HealthCheckPeriod = d.HealthCheckPeriod
-	pgConfig.ConnConfig.ConnectTimeout = d.ConnectionTimeout
-
-	if d.QueryLogging.Enabled {
-		if queryLogger == nil {
-			return nil, fmt.Errorf("%s: query logger is required when database query logging is enabled", op)
-		}
-
-		pgConfig.ConnConfig.Tracer = querylog.New(
-			queryLogger,
-			d.QueryLogging.IncludeArguments,
-		)
-	}
-
-	return pgConfig, nil
-}
-
-// newSchemaRepo returns the PostgreSQL-backed schema repository adapter.
-// The repository is stateless and safe to reuse across requests.
-func (d Database) newSchemaRepo() repo.Schema {
-	return schemarp.New()
+// getConfig adapts Runtime transport settings to the shared connection adapter.
+func (d Database) getConfig(url string, logger corelog.Logger) (*pgxpool.Config, error) {
+	return (connection.Settings{Host: d.Host, Port: d.Port, Name: d.Name, SSLMode: d.SSLMode, MaxConnections: d.MaxConnections, MinConnections: d.MinConnections, MaxConnectionLifeTime: d.MaxConnectionLifeTime, MaxConnectionIdleTime: d.MaxConnectionIdleTime, HealthCheckPeriod: d.HealthCheckPeriod, ConnectionTimeout: d.ConnectionTimeout, BusinessTimezone: d.BusinessTimezone, QueryLogging: connection.QueryLogging{Enabled: d.QueryLogging.Enabled, IncludeArguments: d.QueryLogging.IncludeArguments}}).Config(url, logger)
 }
 
 // getRolePassword extracts the password for role from the configured pgpass
@@ -189,6 +148,9 @@ func (d Database) newSchemaRepo() repo.Schema {
 // matches and returns an error when no entry matches.
 func (d Database) getRolePassword(r repo.Role) (string, error) {
 	const op = "config.Database.getRolePassword"
+	if r != repo.NormalRole {
+		return "", fmt.Errorf("%s: Runtime only supports the normal database role", op)
+	}
 
 	prfx := fmt.Sprintf(
 		"%s:%d:%s:%s:",
@@ -198,7 +160,6 @@ func (d Database) getRolePassword(r repo.Role) (string, error) {
 		r,
 	)
 	passLines := []string{
-		d.PGPassEntries.Admin.Reveal(),
 		d.PGPassEntries.Normal.Reveal(),
 	}
 

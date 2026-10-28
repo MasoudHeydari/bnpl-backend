@@ -1,3 +1,10 @@
+Current database/security architecture: [roles](doc/architecture/database-roles.md),
+[privilege policy](doc/architecture/database-privileges.md), and
+[build/deployment commands](doc/architecture/database-deployment.md).
+Runtime is `cmd/bnpl` (`configs/runtime.yaml`); schema administration is the
+independent `cmd/bnpl-dbadmin` (`configs/dbadmin.yaml`). Database commands below
+use the admin executable; Runtime never loads administrative credentials.
+
 # BNPL Platform
 
 Go backend for a Buy Now Pay Later (BNPL) financial platform. The repository is being built incrementally: today it provides platform foundations (configuration, PostgreSQL bootstrap, infrastructure adapters, health probes, graceful shutdown, migrations scaffolding, CLI, HTTP server shell, Docker assets, and CI/CD). The long-term goal is a regulated BNPL engine for credit decisions, installment plans, repayments, collections, and more.
@@ -81,7 +88,7 @@ Details: [doc/architecture.md](doc/architecture.md) · ADRs: [doc/adr/](doc/adr/
 | `pkg/adapter/db/postgres/` | `pgx` pool, outbox, health, migration adapters |
 | `pkg/adapter/restful/gin/` | Gin wrapper, middleware, healthrs, serdser, pagination |
 | `pkg/core/mock/` | Mockery-generated test doubles |
-| `configs/config.yaml` | Canonical configuration shape |
+| `configs/runtime.yaml` | Canonical configuration shape |
 | `scripts/entrypoint.sh` | Container startup: optional DB init then HTTP server |
 | `doc/` | Architecture, operations, security, and ADR documentation |
 
@@ -93,7 +100,7 @@ Resolution order for the config file path:
 
 1. `--config` / `-c` CLI flag
 2. `CONFIG_FILE` environment variable
-3. Default: `configs/config.yaml`
+3. Default: `configs/runtime.yaml`
 
 Key environment variables are documented in [.env.example](.env.example) and [doc/configuration.md](doc/configuration.md).
 
@@ -123,8 +130,8 @@ Direct CLI usage:
 
 ```bash
 ./build/bin/bnpl                                            # start HTTP server (default command)
-./build/bin/bnpl db init-dev                                # reset schema and apply embedded bootstrap SQL
-./build/bin/bnpl db migrate                                 # apply filesystem migrations
+./build/bin/bnpl-dbadmin-development --config configs/dbadmin.yaml db init-dev                                # reset schema and apply embedded bootstrap SQL
+./build/bin/bnpl-dbadmin-development --config configs/dbadmin.yaml db migrate                                 # apply filesystem migrations
 ./build/bin/bnpl policy-assignment import-trusted \
   --file assets/csv/trusted-subjects/trusted-subjects.csv --actor ops@example          # bulk-assign the trusted policy bundle
 ```
@@ -168,7 +175,7 @@ Database bootstrap is separate: `make init-dev`, `make init-prod`, or `bnpl db m
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `CONFIG_FILE` | `configs/config.yaml` | Application configuration path |
+| `CONFIG_FILE` | `configs/runtime.yaml` | Application configuration path |
 | `APP_EXECUTABLE` | `./bnpl` | Binary path inside the container |
 
 ## Makefile Usage

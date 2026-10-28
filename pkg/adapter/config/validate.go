@@ -206,10 +206,6 @@ func (d Database) validate(environment string) error {
 		return fmt.Errorf("%s: invalid database.name: value is required", op)
 	}
 
-	if d.PGPassEntries.Admin.IsEmpty() {
-		return fmt.Errorf("%s: invalid database.pgpass_entries.admin: value is required", op)
-	}
-
 	if d.PGPassEntries.Normal.IsEmpty() {
 		return fmt.Errorf("%s: invalid database.pgpass_entries.normal: value is required", op)
 	}
@@ -254,14 +250,6 @@ func (u *Usecases) validate(environment string) error {
 	env, err := model.ParseRuntimeEnvironment(environment)
 	if err != nil {
 		return err
-	}
-
-	if strings.TrimSpace(u.Migrations.FilesDir) == "" {
-		return fmt.Errorf("%s: invalid usecases.migration.files-dir: value is required", op)
-	}
-
-	if u.Migrations.LockTimeout < 0 {
-		return fmt.Errorf("%s: invalid usecases.migration.lock_timeout: must not be negative", op)
 	}
 
 	if strings.TrimSpace(u.OutboxPublisher.WorkerID) == "" {

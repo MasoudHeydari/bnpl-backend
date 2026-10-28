@@ -94,10 +94,8 @@ func validConfig() *Config {
 			Port: 5432,
 			Name: "bnpl",
 			PGPassEntries: struct {
-				Admin  model.Secret `yaml:"admin"`
 				Normal model.Secret `yaml:"normal"`
 			}{
-				Admin:  model.NewSecret("localhost:5432:bnpl:admin:secret"),
 				Normal: model.NewSecret("localhost:5432:bnpl:bnpl:secret"),
 			},
 		},
@@ -120,7 +118,6 @@ func validConfig() *Config {
 					{ID: "o1", Secret: model.NewSecret("test-checkout-otp-pepper-0123456789ab")},
 				},
 			},
-			Migrations: Migrations{FilesDir: "assets/db/migrations"},
 			OutboxPublisher: OutboxPublisher{
 				WorkerID:               "worker-1",
 				BatchSize:              10,

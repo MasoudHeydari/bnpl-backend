@@ -1,3 +1,10 @@
+> Current role separation, ownership upgrade, privileges and executable commands
+> are defined in [database-roles](architecture/database-roles.md),
+> [database-privileges](architecture/database-privileges.md) and
+> [deployment](architecture/database-deployment.md). The older bootstrap notes
+> below describe the original baseline; Runtime no longer initializes or migrates
+> schemas and never owns managed objects.
+
 # Database
 
 ## Overview

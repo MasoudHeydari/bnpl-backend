@@ -25,6 +25,7 @@ listening on the configured Gin address.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE:          startWebServer,
+		Args:          cobra.NoArgs,
 	}
 )
 

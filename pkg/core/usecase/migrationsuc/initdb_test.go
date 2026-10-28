@@ -52,11 +52,17 @@ func (d initDBDeps) expectAdminTx(ctx context.Context) {
 }
 
 func (d initDBDeps) expectCreateRolePrivs(ctx context.Context) {
+	d.schemaTx.EXPECT().CreateRoleIfNotExists(ctx, repo.OwnerRole, "").Return(nil).Once()
+	for _, r := range []repo.Role{repo.MigratorRole, repo.NormalRole} {
+		d.settings.EXPECT().GetRolePassword(r).Return("secret", nil).Once()
+		d.schemaTx.EXPECT().CreateRoleIfNotExists(ctx, r, "secret").Return(nil).Once()
+	}
+	d.schemaTx.EXPECT().GrantPrivileges(ctx, "bnpl", repo.MigratorRole).Return(nil).Once()
 	d.schemaTx.EXPECT().CreateSchema(ctx, "bnpl").Return(nil).Once()
-	d.settings.EXPECT().GetRolePassword(repo.NormalRole).Return("secret", nil).Once()
-	d.schemaTx.EXPECT().CreateRoleIfNotExists(ctx, repo.NormalRole, "secret").Return(nil).Once()
-	d.schemaTx.EXPECT().GrantPrivileges(ctx, "bnpl", repo.NormalRole).Return(nil).Once()
-	d.schemaTx.EXPECT().SetSearchPath(ctx, "bnpl", repo.NormalRole).Return(nil).Once()
+	for _, r := range []repo.Role{repo.NormalRole, repo.MigratorRole} {
+		d.schemaTx.EXPECT().SetSearchPath(ctx, "bnpl", r).Return(nil).Once()
+	}
+
 }
 
 func TestSchemaName(t *testing.T) {

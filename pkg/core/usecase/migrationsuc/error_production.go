@@ -47,7 +47,7 @@ func schemaAlreadyExistsConflictError(schemaName string) error {
 		cerr.CodeConflict,
 		"error.request_conflicts_with_the_current_resource_state",
 		fmt.Errorf(
-			"%s: managed schema %q already exists; refusing to recreate — use `bnpl db migrate` (make migrate) for schema changes", op, schemaName,
+			"%s: managed schema %q already exists; refusing to recreate — use the DB Admin migration command for schema changes", op, schemaName,
 		),
 		cerr.Details{
 			Fields: []string{},

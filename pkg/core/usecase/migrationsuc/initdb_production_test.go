@@ -22,7 +22,7 @@ type prodSchemaInitializer struct{}
 func (prodSchemaInitializer) InitProdSchema(context.Context) error { return nil }
 
 func (d initDBDeps) expectNormalInitProd(ctx context.Context) {
-	d.settings.EXPECT().ConnectionPool(ctx, repo.NormalRole, nil).Return(d.pool, nil).Once()
+	d.settings.EXPECT().ConnectionPool(ctx, repo.MigratorRole, nil).Return(d.pool, nil).Once()
 	d.pool.EXPECT().Conn(ctx, testifymock.Anything).RunAndReturn(
 		func(ctx context.Context, handler repo.ConnHandler) error {
 			return handler(ctx, d.conn)

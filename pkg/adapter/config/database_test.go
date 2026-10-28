@@ -20,21 +20,16 @@ func testDatabase(t *testing.T) Database {
 		Name:    "bnpl",
 		SSLMode: "disable",
 		PGPassEntries: struct {
-			Admin  model.Secret `yaml:"admin"`
 			Normal model.Secret `yaml:"normal"`
 		}{
-			Admin:  model.NewSecret("db.example.com:5432:bnpl:admin:admin-secret"),
 			Normal: model.NewSecret("db.example.com:5432:bnpl:bnpl:normal-secret"),
 		},
 	}
 }
 
 func TestDatabase_getRolePassword_AdminRole(t *testing.T) {
-	t.Parallel()
-
-	pass, err := testDatabase(t).getRolePassword(repo.AdminRole)
-	require.NoError(t, err)
-	assert.Equal(t, "admin-secret", pass)
+	_, err := testDatabase(t).getRolePassword(repo.AdminRole)
+	require.Error(t, err)
 }
 
 func TestDatabase_getRolePassword_NormalRole(t *testing.T) {
@@ -49,7 +44,6 @@ func TestDatabase_getRolePassword_SkipsCommentEntry(t *testing.T) {
 	t.Parallel()
 
 	db := testDatabase(t)
-	db.PGPassEntries.Admin = model.NewSecret("# localhost:5432:bnpl:admin:ignored")
 	db.PGPassEntries.Normal = model.NewSecret("db.example.com:5432:bnpl:bnpl:normal-secret")
 
 	pass, err := db.getRolePassword(repo.NormalRole)
@@ -61,7 +55,6 @@ func TestDatabase_getRolePassword_NoMatchingEntry(t *testing.T) {
 	t.Parallel()
 
 	db := testDatabase(t)
-	db.PGPassEntries.Admin = model.NewSecret("")
 	db.PGPassEntries.Normal = model.NewSecret("other-host:5432:other:bnpl:secret")
 
 	_, err := db.getRolePassword(repo.NormalRole)
@@ -82,22 +75,14 @@ func TestDatabase_ConnectionURL_NormalRole(t *testing.T) {
 }
 
 func TestDatabase_ConnectionURL_AdminRole(t *testing.T) {
-	t.Parallel()
-
-	connURL, err := testDatabase(t).ConnectionURL(repo.AdminRole)
-	require.NoError(t, err)
-	assert.Equal(
-		t,
-		"postgresql://admin:admin-secret@db.example.com:5432/bnpl?sslmode=disable",
-		connURL,
-	)
+	_, err := testDatabase(t).ConnectionURL(repo.AdminRole)
+	require.Error(t, err)
 }
 
 func TestDatabase_ConnectionURL_MissingPassword(t *testing.T) {
 	t.Parallel()
 
 	db := testDatabase(t)
-	db.PGPassEntries.Admin = model.NewSecret("")
 	db.PGPassEntries.Normal = model.NewSecret("")
 
 	_, err := db.ConnectionURL(repo.NormalRole)

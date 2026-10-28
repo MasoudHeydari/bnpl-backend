@@ -18,6 +18,7 @@ versions:
 `
 
 const validMinimalValidationYAML = `
+application: runtime
 runtime:
   environment: development
 domain:
@@ -28,7 +29,6 @@ database:
   port: 5432
   name: bnpl
   pgpass_entries:
-    admin: localhost:5432:bnpl:admin:secret
     normal: localhost:5432:bnpl:bnpl:secret
 usecases:
   checkout_session:
@@ -42,8 +42,6 @@ usecases:
     webhook_secret_encryption_keys: w1:ZGV2LW9ubHktd2ViaG9vay1lbmNyeXB0aW9uLWtleSE=
     otp_pepper_keys: o1:test-checkout-otp-pepper-0123456789ab
     customer_phone_encryption_keys: p1:ZGV2LW9ubHktY3VzdG9tZXItcGhvbmUta2V5LTAxMjM=
-  migration:
-    files-dir: assets/db/migrations
   outbox_publisher:
     worker_id: worker-1
     batch_size: 10
@@ -243,6 +241,7 @@ func TestLoad_UnsupportedConfigVersion(t *testing.T) {
 	t.Parallel()
 
 	content := `
+application: runtime
 versions:
   database: 0.2.0
   config: 0.9.0
@@ -257,7 +256,7 @@ versions:
 func TestLoad_MissingVersions(t *testing.T) {
 	t.Parallel()
 
-	_, err := Load(writeConfigFile(t, "database:\n  host: localhost\n"))
+	_, err := Load(writeConfigFile(t, "application: runtime\ndatabase:\n  host: localhost\n"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "validating versions")
 }
