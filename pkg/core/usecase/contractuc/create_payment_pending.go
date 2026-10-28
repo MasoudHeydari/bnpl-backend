@@ -148,6 +148,11 @@ func (uc *UseCase) createPaymentPending(
 					if err = validateOfferedInstallmentsForContract(installments); err != nil {
 						return err
 					}
+					cashAmounts, cashErr := validateCashObligations(ctx, installmentChargeQ, installments)
+					if cashErr != nil {
+						return cashErr
+					}
+					payableNow = cashAmounts[first.ID]
 
 					if err = validateInstallmentSchedule(
 						installments,

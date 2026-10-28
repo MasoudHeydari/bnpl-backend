@@ -362,3 +362,15 @@ list-interfaces:
 .PHONY: clean
 clean:
 	@rm -f ./build/bin/$(APP_NAME) coverage.out
+
+CONFIG ?= configs/config.yaml
+
+.PHONY: db-invariants-list db-invariants-verify db-invariants-test
+db-invariants-list:
+	@go run -tags development ./cmd/bnpl db invariants list
+
+db-invariants-verify:
+	@go run -tags development ./cmd/bnpl --config "$(CONFIG)" db invariants verify
+
+db-invariants-test:
+	@go test -count=1 -race -tags 'development integration' ./pkg/adapter/db/postgres/invariants/...

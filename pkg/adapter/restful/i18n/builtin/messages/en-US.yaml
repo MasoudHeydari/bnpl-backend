@@ -301,3 +301,13 @@ validation.identity_subject_id_invalid: "identity_subject_id is invalid"
 validation.destination_name_invalid: "destination_name must be lowercase kebab-case using letters, digits, and single hyphens"
 validation.merchant_id_invalid: "merchant_id is invalid"
 validation.credential_id_invalid: "credential_id is invalid"
+
+error.installment_already_paid: This installment has already been settled.
+
+error.installment_has_unsettled_charges: Settle all installment components together.
+
+error.installment_payment_in_progress: An installment payment is in progress.
+
+error.installment_financial_component_immutable: Finalized financial components cannot be modified.
+
+error.installment_financial_adjustment_required: This installment requires financial reconciliation before payment.

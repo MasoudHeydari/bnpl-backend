@@ -107,7 +107,7 @@ func (uc *UseCase) ApplyReconciliationSucceededInstallmentPayment(
 		)
 	}
 
-	if installmentRow.Status == model.PaidInstallmentStatus && !model.IsChargeOnlyPayment(attempt.Items) {
+	if installmentRow.Status == model.PaidInstallmentStatus {
 		return uc.finishAlreadyAppliedInstallmentPayment(
 			ctx,
 			inboxQ,
@@ -144,7 +144,7 @@ func (uc *UseCase) ApplyReconciliationSucceededInstallmentPayment(
 	}
 
 	creditAccount, err := lockCreditAccountForPrincipalRelease(
-		ctx, accountQ, contractRow, model.OutstandingPrincipalForPayment(installmentRow),
+		ctx, accountQ, contractRow, installmentRow.PrincipalAmountMinor,
 	)
 	if err != nil {
 		return err
@@ -157,7 +157,7 @@ func (uc *UseCase) ApplyReconciliationSucceededInstallmentPayment(
 		)
 	}
 
-	if contractRow.RemainingPrincipalAmountMinor < model.OutstandingPrincipalForPayment(installmentRow) {
+	if contractRow.RemainingPrincipalAmountMinor < installmentRow.PrincipalAmountMinor {
 		return newReconciliationApplicationError(
 			model.PaymentReferenceMismatchPaymentReconciliationReason,
 			fmt.Errorf("%s: contract remaining principal is insufficient", op),
@@ -223,25 +223,6 @@ func (uc *UseCase) applyNewInstallmentPaymentFromReconciliation(
 		)
 	}
 
-	paidInstallment := installmentRow
-	if installmentRow.Status != model.PaidInstallmentStatus {
-		paidInstallment, err = installmentQ.MarkPaid(
-			ctx,
-			installmentRow.ID,
-			contractRow.ID,
-			payableAmount,
-			input.PaidAt.UTC(),
-			now,
-		)
-		if err != nil {
-			return wrapDeterministicReconciliationApplicationError(
-				model.InvalidInstallmentStatePaymentReconciliationReason,
-				err,
-			)
-		}
-
-	}
-
 	settledChargeIDs := chargeSourceIDsFromSnapshot(attempt.Items)
 	if len(settledChargeIDs) > 0 {
 		affected, markChargeErr := installmentChargeQ.MarkSnapshottedChargeIDsPaid(
@@ -265,25 +246,37 @@ func (uc *UseCase) applyNewInstallmentPaymentFromReconciliation(
 		}
 	}
 
-	if installmentRow.Status != model.PaidInstallmentStatus {
-		if err = reduceCreditExposureForInstallment(
-			ctx,
-			accountQ,
-			creditAccount,
-			installmentRow,
-			contractRow.Currency,
-			input.PaidAt,
-			now,
-		); err != nil {
-			return wrapDeterministicReconciliationApplicationError(
-				model.ExposureInconsistencyPaymentReconciliationReason, err,
-			)
-		}
+	paidInstallment, err := installmentQ.MarkPaid(
+		ctx,
+		installmentRow.ID,
+		contractRow.ID,
+		payableAmount,
+		input.PaidAt.UTC(),
+		now,
+	)
+	if err != nil {
+		return wrapDeterministicReconciliationApplicationError(
+			model.InvalidInstallmentStatePaymentReconciliationReason,
+			err,
+		)
+	}
 
+	if err = reduceCreditExposureForInstallment(
+		ctx,
+		accountQ,
+		creditAccount,
+		installmentRow,
+		contractRow.Currency,
+		input.PaidAt,
+		now,
+	); err != nil {
+		return wrapDeterministicReconciliationApplicationError(
+			model.ExposureInconsistencyPaymentReconciliationReason, err,
+		)
 	}
 
 	updatedContract := contractRow
-	if model.OutstandingPrincipalForPayment(installmentRow) > 0 {
+	if installmentRow.PrincipalAmountMinor > 0 {
 		updatedContract, err = contractQ.ReduceRemainingPrincipal(
 			ctx,
 			contractRow.ID,
@@ -352,7 +345,7 @@ func (uc *UseCase) applyNewInstallmentPaymentFromReconciliation(
 
 func canAcceptReconciliationSuccess(state model.PaymentAttemptState) bool {
 	switch state {
-	case model.ReconciliationRequiredPaymentAttemptState, model.SubmittedPaymentAttemptState:
+	case model.ReconciliationRequiredPaymentAttemptState, model.SubmittedPaymentAttemptState, model.ManualReviewRequiredPaymentAttemptState:
 		return true
 
 	default:
@@ -382,7 +375,7 @@ func markAttemptSucceededFromReconciliation(
 			now,
 		)
 
-	case model.SubmittedPaymentAttemptState:
+	case model.SubmittedPaymentAttemptState, model.ManualReviewRequiredPaymentAttemptState:
 		return paymentAttemptQ.MarkSucceeded(
 			ctx,
 			attempt.ID,

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/parstis/bnpl-backend/pkg/adapter/config"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/invariants"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/migrationsrp"
 	coreerrorreporting "github.com/parstis/bnpl-backend/pkg/core/errorreporting"
 	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
@@ -50,6 +51,10 @@ func Migrate() (err error) {
 	)
 
 	if err = migrateWithConfig(ctx, c, logger); err != nil {
+		if diagnostic, ok := invariants.PreflightDiagnostic(err); ok {
+			logger.Error("database integrity preflight requires reconciliation", "diagnostic", diagnostic)
+			return fmt.Errorf("%s: %s: %w", op, diagnostic, err)
+		}
 		return fmt.Errorf("%s: migrate.MigrateAll: %w", op, err)
 	}
 

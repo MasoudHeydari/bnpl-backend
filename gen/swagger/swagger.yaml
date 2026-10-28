@@ -971,6 +971,9 @@ definitions:
         type: string
       currency:
         $ref: '#/definitions/model.Currency'
+      customer_payable_amount_minor:
+        type: integer
+        x-nullable: true
       due_at:
         type: string
       has_pending_payment:
@@ -1037,6 +1040,9 @@ definitions:
         allOf:
         - $ref: '#/definitions/model.Currency'
         example: IRR
+      customer_payable_amount_minor:
+        type: integer
+        x-nullable: true
       due_at:
         example: "2026-09-09T12:00:00Z"
         type: string

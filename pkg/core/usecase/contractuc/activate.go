@@ -61,7 +61,19 @@ func (uc *UseCase) ActivateFromFinancialCorePaymentResult(
 						now,
 					)
 
-					return activateErr
+					if activateErr != nil {
+						return activateErr
+					}
+					if output.Result == ActivateResultActivated {
+						q := uc.paymentAttempt.Tx(tx)
+						attempt, e := q.GetByContractIDAndPurposeWithItems(ctx, contractID, model.CheckoutFirstInstallmentFinancialCorePaymentPurpose)
+						if e != nil {
+							return e
+						}
+						_, e = q.MarkSucceeded(ctx, attempt.ID, input.FinancialPaymentAttemptID, input.PaidAt, now, now)
+						return e
+					}
+					return nil
 				},
 			)
 		},
@@ -193,7 +205,7 @@ func (uc *UseCase) activateFromFinancialCorePaymentResultInTx(
 	}
 
 	// Lock, validate, and classify the exact first-installment charge rows before any
-	// mutation so only customer-payable debit charges are settled and all monetary
+	// mutation so customer-payable debit and credit components are finalized and all monetary
 	// invariants hold against one exact payable amount.
 	settlement, err := lockClassifyFirstInstallmentCharges(
 		ctx,
@@ -269,18 +281,6 @@ func (uc *UseCase) activateFromFinancialCorePaymentResultInTx(
 		return ActivateOutput{}, err
 	}
 
-	firstPaid, err := installmentQ.MarkPaid(
-		ctx,
-		first.ID,
-		contractRow.ID,
-		first.TotalAmountMinor,
-		input.PaidAt,
-		now,
-	)
-	if err != nil {
-		return ActivateOutput{}, err
-	}
-
 	updatedRemaining := make([]model.Installment, 0, len(installments)-1)
 	for _, installment := range remainingInstallments(installments) {
 		nextStatus := model.ScheduledInstallmentStatus
@@ -319,8 +319,7 @@ func (uc *UseCase) activateFromFinancialCorePaymentResultInTx(
 		))
 	}
 
-	// First-installment non-debit charges (customer credits, merchant/platform charges)
-	// transition to applied so no valid charge is left offered after the installment is paid.
+	// Merchant/platform accounting components become applied before installment closure.
 	firstAppliedCount, err := installmentChargeQ.MarkChargeIDsApplied(
 		ctx,
 		settlement.AppliedChargeIDs,
@@ -335,6 +334,17 @@ func (uc *UseCase) activateFromFinancialCorePaymentResultInTx(
 			"%s: unexpected first installment applied charge count %d, expected %d", op, firstAppliedCount,
 			len(settlement.AppliedChargeIDs),
 		))
+	}
+	firstPaid, err := installmentQ.MarkPaid(
+		ctx,
+		first.ID,
+		contractRow.ID,
+		input.PaidAmountMinor,
+		input.PaidAt,
+		now,
+	)
+	if err != nil {
+		return ActivateOutput{}, err
 	}
 
 	remainingIDs := installmentIDs(updatedRemaining)
@@ -401,9 +411,8 @@ func isContractStateCompatibleWithAppliedCheckoutPayment(status model.ContractSt
 // the payment against immutable persisted application evidence, then safely enriches missing
 // final provider-attempt audit metadata before returning an already-applied result.
 //
-// It deliberately does not read or recompute from current charge rows: charges are mutable
-// after activation, so a later fee, discount, or waiver must not reclassify the original
-// applied payment.
+// It deliberately proves replay from immutable application evidence. Financial
+// components of the paid installment remain permanently closed to mutation.
 func (uc *UseCase) resolveAlreadyAppliedCheckout(
 	ctx context.Context,
 	contractQ repo.ContractTxQueryer,
@@ -497,11 +506,10 @@ func (uc *UseCase) enrichSuccessfulProviderAttemptID(
 // validateCheckoutPaymentAlreadyApplied proves a duplicate successful checkout payment matches
 // the original application using only immutable persisted evidence.
 //
-// contract.PayableNowAmountMinor, first.TotalAmountMinor and first.PaidAmountMinor are frozen
-// after checkout activation (none of them are rewritten by any later write path), so they are
-// authoritative historical evidence of what was paid. Current charge rows are mutable and are
-// intentionally never consulted here, so a fee, discount, waiver, merchant charge, or platform
-// charge added after activation cannot turn a valid duplicate into reconciliation_required.
+// The immutable cash commitment and applied paid amount prove the aggregate.
+// TotalAmountMinor is the original contractual amount and may differ after valid
+// pre-payment discounts or fees. Paid components cannot be changed afterward.
+
 func validateCheckoutPaymentAlreadyApplied(
 	contractRow model.Contract,
 	first model.Installment,
@@ -524,7 +532,6 @@ func validateCheckoutPaymentAlreadyApplied(
 	}
 
 	if input.PaidAmountMinor != contractRow.PayableNowAmountMinor ||
-		input.PaidAmountMinor != first.TotalAmountMinor ||
 		input.PaidAmountMinor != first.PaidAmountMinor {
 		return newReconciliationError(
 			model.PaymentAmountMismatchPaymentReconciliationReason,
@@ -612,7 +619,7 @@ func validateCheckoutPaymentAttemptSnapshot(
 	}
 
 	payable, ok := model.PayableAmountFromItems(items)
-	if !ok || payable != first.TotalAmountMinor {
+	if !ok || payable == 0 {
 		return newReconciliationError(
 			model.PaymentAttemptSnapshotInconsistentPaymentReconciliationReason,
 			fmt.Errorf("%s: checkout payment attempt snapshot total is inconsistent", op),
@@ -815,38 +822,22 @@ const (
 	firstInstallmentChargeBucketApplied
 )
 
-// classifyFirstInstallmentChargePolicy validates the exact (charge type, payer, recipient)
-// tuple against the supported first-installment checkout activation policy.
-//
-// Current production offer creation (decisionuc) emits only:
-//
-//	bnpl_fee, customer payer, platform recipient
-//
-// Enum constants alone do not make a combination supported; only tuples with defined
-// accounting semantics for initial checkout activation are accepted.
-func classifyFirstInstallmentChargePolicy(
-	charge model.InstallmentCharge,
-) (firstInstallmentChargeBucket, error) {
-	const op = "contractuc.classifyFirstInstallmentChargePolicy"
-
-	switch {
-	case charge.ChargeType == model.BNPLFeeInstallmentChargeType &&
-		charge.PayerType == model.CustomerInstallmentChargePayerType &&
-		charge.RecipientType == model.PlatformInstallmentChargeRecipientType:
+// classifyFirstInstallmentChargePolicy separates customer settlement effects from
+// merchant/platform accounting. Credits are consumed as waived, never cash-paid.
+func classifyFirstInstallmentChargePolicy(charge model.InstallmentCharge) (firstInstallmentChargeBucket, error) {
+	if _, err := charge.ChargeType.CustomerPaymentChargeEffect(); err != nil {
+		return 0, newReconciliationError(model.FirstInstallmentChargePolicyInconsistentPaymentReconciliationReason, err)
+	}
+	if charge.RecipientType != model.PlatformInstallmentChargeRecipientType && charge.RecipientType != model.MerchantInstallmentChargeRecipientType && charge.RecipientType != model.CustomerInstallmentChargeRecipientType {
+		return 0, newReconciliationError(model.FirstInstallmentChargePolicyInconsistentPaymentReconciliationReason, fmt.Errorf("invalid charge recipient"))
+	}
+	switch charge.PayerType {
+	case model.CustomerInstallmentChargePayerType:
 		return firstInstallmentChargeBucketCustomerPaid, nil
-
+	case model.MerchantInstallmentChargePayerType, model.PlatformInstallmentChargePayerType:
+		return firstInstallmentChargeBucketApplied, nil
 	default:
-		return 0, newReconciliationError(
-			model.FirstInstallmentChargePolicyInconsistentPaymentReconciliationReason,
-			fmt.Errorf(
-				"%s: unsupported first installment charge policy: charge_id=%s charge_type=%q payer_type=%q recipient_type=%q",
-				op,
-				charge.ID,
-				charge.ChargeType,
-				charge.PayerType,
-				charge.RecipientType,
-			),
-		)
+		return 0, newReconciliationError(model.FirstInstallmentChargePolicyInconsistentPaymentReconciliationReason, fmt.Errorf("invalid charge payer"))
 	}
 }
 
@@ -868,18 +859,8 @@ func validateFirstInstallmentMonetaryEquality(
 		)
 	}
 
-	if computedPayable != first.TotalAmountMinor {
-		return newReconciliationError(
-			model.PaymentAmountMismatchPaymentReconciliationReason,
-			fmt.Errorf("%s: computed first installment payable does not match installment total", op),
-		)
-	}
-
-	if first.TotalAmountMinor != contractRow.PayableNowAmountMinor {
-		return newReconciliationError(
-			model.PaymentAmountMismatchPaymentReconciliationReason,
-			fmt.Errorf("%s: first installment total does not match contract payable now amount", op),
-		)
+	if computedPayable != contractRow.PayableNowAmountMinor {
+		return newReconciliationError(model.PaymentAmountMismatchPaymentReconciliationReason, fmt.Errorf("%s: computed aggregate does not match contract cash commitment", op))
 	}
 
 	if input.PaidAmountMinor != contractRow.PayableNowAmountMinor {

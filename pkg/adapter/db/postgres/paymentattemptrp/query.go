@@ -13,6 +13,7 @@ import (
 )
 
 const paymentAttemptColumns = `
+ financial_outcome_resolved,
 	id,
 	contract_id,
 	installment_id,
@@ -55,6 +56,7 @@ const paymentAttemptColumns = `
 // paymentAttemptColumnsP qualifies payment_attempts columns with the "p" alias.
 // Use this for UPDATE ... FROM CTE queries where unqualified "id" is ambiguous.
 const paymentAttemptColumnsP = `
+ p.financial_outcome_resolved,
 	p.id,
 	p.contract_id,
 	p.installment_id,
@@ -231,7 +233,7 @@ FROM payment_attempts AS pa
 INNER JOIN installments AS i ON i.id = pa.installment_id
 WHERE i.customer_id = $1
   AND pa.installment_id = ANY($2)
-  AND pa.state IN ($3, $4, $5)
+  AND (pa.state IN ($3, $4, $5, 'manual_review_required') OR (pa.state IN ('failed','canceled') AND NOT pa.financial_outcome_resolved))
   AND pa.purpose IN ($6, $7)
 ORDER BY pa.installment_id ASC
 `
@@ -316,7 +318,7 @@ FROM payment_attempts
 WHERE contract_id = $1
   AND purpose = $2
 ORDER BY
-  CASE WHEN state IN ('created', 'submitted', 'reconciliation_required') THEN 0 ELSE 1 END,
+  CASE WHEN state IN ('created', 'submitted', 'reconciliation_required','manual_review_required') OR (state IN ('failed','canceled') AND NOT financial_outcome_resolved) THEN 0 ELSE 1 END,
   created_at DESC,
   updated_at DESC
 LIMIT 1
@@ -667,6 +669,7 @@ func MarkSucceeded[Q postgres.Queryer](
 	const query = `
 UPDATE payment_attempts
 SET
+ financial_outcome_resolved=true,
 	state = $2,
 	financial_payment_attempt_id = $3,
 	financial_paid_at = $4,
@@ -677,7 +680,7 @@ SET
 	END,
 	updated_at = $6
 WHERE id = $1
-  AND state IN ($7, $8, $9)
+  AND state IN ($7, $8, $9, 'manual_review_required')
 RETURNING` + paymentAttemptColumns
 	const op = "paymentattemptrp.MarkSucceeded"
 
@@ -775,6 +778,7 @@ func MarkFailed[Q postgres.Queryer](
 	const query = `
 UPDATE payment_attempts
 SET
+ financial_outcome_resolved=true,
 	state = $2,
 	failure_code = $3,
 	failed_at = $4,
@@ -784,7 +788,7 @@ SET
 	END,
 	updated_at = $5
 WHERE id = $1
-  AND state IN ($6, $7, $8)
+  AND state IN ($6, $7, $8, 'manual_review_required')
 RETURNING` + paymentAttemptColumns
 	const op = "paymentattemptrp.MarkFailed"
 
@@ -828,6 +832,7 @@ func MarkCanceled[Q postgres.Queryer](
 	const query = `
 UPDATE payment_attempts
 SET
+ financial_outcome_resolved=true,
 	state = $2,
 	failure_code = $3,
 	canceled_at = $4,
@@ -837,7 +842,7 @@ SET
 	END,
 	updated_at = $5
 WHERE id = $1
-  AND state IN ($6, $7, $8)
+  AND state IN ($6, $7, $8, 'manual_review_required')
 RETURNING` + paymentAttemptColumns
 	const op = "paymentattemptrp.MarkCanceled"
 

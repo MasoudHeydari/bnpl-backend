@@ -609,7 +609,7 @@ func (uc *UseCase) handleSucceeded(
 	}
 
 	if attempt.State != model.ReconciliationRequiredPaymentAttemptState &&
-		attempt.State != model.SubmittedPaymentAttemptState {
+		attempt.State != model.SubmittedPaymentAttemptState && attempt.State != model.ManualReviewRequiredPaymentAttemptState {
 		reason := model.InvalidPaymentAttemptStatePaymentReconciliationReason
 		return uc.persistReconciliationRequiredWithAcknowledgement(
 			ctx,
@@ -790,7 +790,7 @@ func (uc *UseCase) handleFailed(
 	}
 
 	if attempt.State != model.ReconciliationRequiredPaymentAttemptState &&
-		attempt.State != model.SubmittedPaymentAttemptState {
+		attempt.State != model.SubmittedPaymentAttemptState && attempt.State != model.ManualReviewRequiredPaymentAttemptState {
 		return uc.finishAlreadyProcessed(
 			ctx,
 			inboxQ,
@@ -811,7 +811,7 @@ func (uc *UseCase) handleFailed(
 
 	var failedAttempt model.PaymentAttempt
 	var err error
-	if attempt.State == model.SubmittedPaymentAttemptState {
+	if attempt.State == model.SubmittedPaymentAttemptState || attempt.State == model.ManualReviewRequiredPaymentAttemptState {
 		failedAttempt, err = paymentAttemptQ.MarkFailed(
 			ctx,
 			attempt.ID,
@@ -896,7 +896,7 @@ func (uc *UseCase) handleCanceled(
 	}
 
 	if attempt.State != model.ReconciliationRequiredPaymentAttemptState &&
-		attempt.State != model.SubmittedPaymentAttemptState {
+		attempt.State != model.SubmittedPaymentAttemptState && attempt.State != model.ManualReviewRequiredPaymentAttemptState {
 		return uc.finishAlreadyProcessed(
 			ctx,
 			inboxQ,
@@ -917,7 +917,7 @@ func (uc *UseCase) handleCanceled(
 
 	var canceledAttempt model.PaymentAttempt
 	var err error
-	if attempt.State == model.SubmittedPaymentAttemptState {
+	if attempt.State == model.SubmittedPaymentAttemptState || attempt.State == model.ManualReviewRequiredPaymentAttemptState {
 		canceledAttempt, err = paymentAttemptQ.MarkCanceled(
 			ctx,
 			attempt.ID,
@@ -1066,71 +1066,16 @@ func (uc *UseCase) handleNotFound(
 		)
 	}
 
-	failureCode := model.FinancialCorePaymentNotFoundFailureCode
-	var canceledAttempt model.PaymentAttempt
-	var err error
+	// Absence at lookup time is not authoritative cancellation: a previously
+	// started generic FC request can still become visible. Keep the snapshot and
+	// contract gate frozen until success/failure/cancellation or explicit review.
 	if attempt.State == model.SubmittedPaymentAttemptState {
-		canceledAttempt, err = paymentAttemptQ.MarkCanceled(
-			ctx,
-			attempt.ID,
-			&failureCode,
-			now,
-			now,
-		)
-	} else {
-		canceledAttempt, err = paymentAttemptQ.MarkCanceledFromReconciliationRequired(
-			ctx,
-			attempt.ID,
-			&failureCode,
-			now,
-			now,
-			now,
-		)
+		updated, e := paymentAttemptQ.MarkReconciliationRequired(ctx, attempt.ID, model.FinancialCoreStatusStillUnknownPaymentReconciliationReason, nil, nil, now)
+		if e != nil {
+			return e
+		}
+		updated.Items = attempt.Items
+		attempt = updated
 	}
-
-	if err != nil {
-		return err
-	}
-
-	if err := finalizeCanceledCheckoutContract(
-		ctx,
-		contractQ,
-		installmentQ,
-		installmentChargeQ,
-		canceledAttempt,
-		now,
-	); err != nil {
-		return err
-	}
-
-	if err := uc.insertResolutionAudit(
-		ctx,
-		outboxQ,
-		input,
-		canceledAttempt,
-		previousState,
-		auditActionResolveCanceled,
-		auditReasonResolvedCanceled,
-		true,
-		now,
-	); err != nil {
-		return err
-	}
-
-	return uc.finishReconciliationAcknowledgement(
-		ctx,
-		inboxQ,
-		outboxQ,
-		inboxID,
-		input,
-		canceledAttempt,
-		previousState,
-		canceledAttempt.State,
-		installmentpaymentreconciliation.ResolvedCanceledAcknowledgementResult,
-		canceledAttempt.FinancialPaymentIntentID,
-		canceledAttempt.ReconciliationReason,
-		now,
-		output,
-		ProcessResultResolvedCanceled,
-	)
+	return uc.keepPendingIncomplete(ctx, inboxQ, outboxQ, paymentAttemptQ, inboxID, input, attempt, previousState, "financial source not found; cancellation is not proven", now, output)
 }

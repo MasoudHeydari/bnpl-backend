@@ -215,30 +215,16 @@ func (uc *UseCase) buildCheckoutPaymentInputFromAttempt(
 func checkoutActivationCollectionAmount(attempt model.PaymentAttempt) (uint64, error) {
 	const op = "contractuc.checkoutActivationCollectionAmount"
 
-	var total uint64
 	for _, item := range attempt.Items {
-		if item.Effect != model.DebitPaymentAttemptItemEffect {
-			return 0, cerr.InternalError(fmt.Errorf("%s: checkout activation does not support credit items", op))
-		}
-
 		switch item.ItemType {
-		case model.PrincipalPaymentAttemptItemType, model.UpfrontPaymentAttemptItemType:
-			var err error
-			total, err = model.AddAmountMinor(total, item.AmountMinor)
-			if err != nil {
-				return 0, cerr.InternalError(fmt.Errorf("%s: sum activation cash: %w", op, err))
-			}
-
-		case model.ChargePaymentAttemptItemType:
-			return 0, cerr.InternalError(fmt.Errorf("%s: first-payment FC flow supports only upfront + first principal", op))
-
+		case model.PrincipalPaymentAttemptItemType, model.UpfrontPaymentAttemptItemType, model.ChargePaymentAttemptItemType:
 		default:
-			return 0, cerr.InternalError(fmt.Errorf("%s: unsupported checkout payment attempt item type %q", op, item.ItemType))
+			return 0, cerr.InternalError(fmt.Errorf("%s: unsupported item type", op))
 		}
 	}
-
-	if total == 0 {
-		return 0, cerr.InternalError(fmt.Errorf("%s: activation collection amount is zero", op))
+	total, ok := model.PayableAmountFromItems(attempt.Items)
+	if !ok || total == 0 {
+		return 0, cerr.InternalError(fmt.Errorf("%s: invalid aggregate activation cash", op))
 	}
 
 	return total, nil
@@ -298,7 +284,7 @@ func (uc *UseCase) ensureCheckoutCollectionObligation(
 
 	if amount != contractRow.PayableNowAmountMinor {
 		return model.PaymentAttempt{}, cerr.InternalError(fmt.Errorf(
-			"%s: checkout payable amount must equal upfront plus first principal for FC activation",
+			"%s: checkout payable amount must equal the immutable aggregate for FC activation",
 			op,
 		))
 	}

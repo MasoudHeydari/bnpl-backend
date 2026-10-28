@@ -33,7 +33,7 @@ func TestCheckoutActivationCollectionAmount_IsUpfrontPlusFirstPrincipal(t *testi
 	require.Equal(t, uint64(40), total)
 }
 
-func TestCheckoutActivationCollectionAmount_RejectsCharges(t *testing.T) {
+func TestCheckoutActivationCollectionAmount_IncludesCharges(t *testing.T) {
 	t.Parallel()
 
 	attempt := model.PaymentAttempt{
@@ -52,7 +52,7 @@ func TestCheckoutActivationCollectionAmount_RejectsCharges(t *testing.T) {
 		},
 	}
 
-	_, err := checkoutActivationCollectionAmount(attempt)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "upfront + first principal")
+	amount, err := checkoutActivationCollectionAmount(attempt)
+	require.NoError(t, err)
+	require.EqualValues(t, 22, amount)
 }

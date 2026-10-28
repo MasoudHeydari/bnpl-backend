@@ -97,7 +97,7 @@ func (uc *UseCase) ensureFinancialCoreInstallmentPayment(
 			return loadErr
 		}
 
-		if contractRow.Status != model.ActiveContractStatus && !(contractRow.Status == model.CompletedContractStatus && model.IsChargeOnlyPayment(attempt.Items)) {
+		if contractRow.Status != model.ActiveContractStatus {
 			return contractNotActiveError()
 		}
 

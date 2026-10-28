@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-		lognoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/noop"
+	lognoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/noop"
 	metricsnoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/metrics/noop"
 
 	"github.com/google/uuid"
@@ -561,7 +561,7 @@ func TestPrepareCheckoutContract_PaymentBased_RaceLoserReplaysWithoutRequiringOr
 	deps.installmentChargeTx.EXPECT().
 		ListByInstallmentIDs(ctx, []model.InstallmentID{installmentID}).
 		Return(nil, nil).
-		Once()
+		Twice()
 	deps.paymentAttemptTx.EXPECT().
 		GetByContractIDAndPurposeWithItems(
 			ctx,

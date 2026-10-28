@@ -76,6 +76,20 @@ func (uc *UseCase) ListUnpaidInstallments(
 					return listErr
 				}
 
+				pageCharges := map[model.InstallmentID][]model.InstallmentCharge{}
+				if len(rows) > 0 {
+					ids := make([]model.InstallmentID, 0, len(rows))
+					for _, r := range rows {
+						ids = append(ids, r.ID)
+					}
+					all, e := installmentChargeQ.ListByInstallmentIDs(ctx, ids)
+					if e != nil {
+						return e
+					}
+					for _, c := range all {
+						pageCharges[c.InstallmentID] = append(pageCharges[c.InstallmentID], c)
+					}
+				}
 				installments = make([]UnpaidInstallment, 0, len(rows))
 				for _, row := range rows {
 					item, mapErr := toUnpaidInstallment(row)
@@ -83,6 +97,7 @@ func (uc *UseCase) ListUnpaidInstallments(
 						return mapErr
 					}
 
+					item.CustomerPayableAmountMinor = customerPayableView(row, pageCharges[row.ID])
 					installments = append(installments, item)
 				}
 
@@ -191,13 +206,22 @@ func buildRepaymentSummary(
 	candidates := make([]repaymentpriorityv1.Candidate, 0, len(nextRows))
 	for _, row := range nextRows {
 		candidates = append(candidates, repaymentpriorityv1.Candidate{
-			Installment:           row,
-			HasUnresolvedPayment:  pendingByID[row.ID],
-			HasOutstandingCharges: row.Status == model.PaidInstallmentStatus,
+			Installment:          row,
+			HasUnresolvedPayment: pendingByID[row.ID],
 		})
 	}
 
 	selection := repaymentpriorityv1.New().Select(candidates, now)
+	candidateCharges := map[model.InstallmentID][]model.InstallmentCharge{}
+	if ids := uniqueInstallmentIDs(candidateIDs); len(ids) > 0 {
+		all, e := installmentChargeQ.ListByInstallmentIDs(ctx, ids)
+		if e != nil {
+			return RepaymentSummary{}, e
+		}
+		for _, c := range all {
+			candidateCharges[c.InstallmentID] = append(candidateCharges[c.InstallmentID], c)
+		}
+	}
 
 	dueViews := make([]RepaymentDueInstallment, 0, len(dueRows))
 	for _, row := range dueRows {
@@ -206,14 +230,15 @@ func buildRepaymentSummary(
 		}
 
 		dueViews = append(dueViews, RepaymentDueInstallment{
-			ID:                row.ID,
-			ContractID:        *row.ContractID,
-			InstallmentOrder:  row.InstallmentOrder,
-			TotalAmountMinor:  row.TotalAmountMinor,
-			Currency:          row.Currency,
-			DueAt:             row.DueAt,
-			Status:            row.Status,
-			HasPendingPayment: pendingByID[row.ID],
+			CustomerPayableAmountMinor: customerPayableView(row, candidateCharges[row.ID]),
+			ID:                         row.ID,
+			ContractID:                 *row.ContractID,
+			InstallmentOrder:           row.InstallmentOrder,
+			TotalAmountMinor:           row.TotalAmountMinor,
+			Currency:                   row.Currency,
+			DueAt:                      row.DueAt,
+			Status:                     row.Status,
+			HasPendingPayment:          pendingByID[row.ID],
 		})
 	}
 
@@ -230,20 +255,12 @@ func buildRepaymentSummary(
 	}
 
 	selected := *selection.Selected
-	charges, chargesErr := installmentChargeQ.ListByInstallmentIDs(
-		ctx,
-		[]model.InstallmentID{selected.ID},
-	)
-	if chargesErr != nil {
-		return RepaymentSummary{}, chargesErr
-	}
+	charges := candidateCharges[selected.ID]
 
-	if err := model.ValidateCustomerPaymentComponents(selected, charges); err != nil {
-		return RepaymentSummary{}, cerr.InternalError(err)
-	}
 	payableAmount, payableOK, payableErr := model.CustomerPayableAmount(selected, charges)
-	if payableErr != nil {
-		return RepaymentSummary{}, payableErr
+	if payableErr != nil || model.ValidateCustomerPaymentComponents(selected, charges) != nil {
+		payableAmount = 0
+		payableOK = false
 	}
 
 	var amountMinor uint64
@@ -267,7 +284,14 @@ func buildRepaymentSummary(
 	}
 
 	if !payableOK {
-		summary.NextPayable.PaymentBlockReason = "financial_adjustment_required"
+		switch model.ClassifyCustomerCash(selected, charges).Kind {
+		case model.ZeroCashObligation:
+			summary.NextPayable.PaymentBlockReason = "noncash_settlement_required"
+		case model.NegativeCashObligation:
+			summary.NextPayable.PaymentBlockReason = "negative_net_adjustment_required"
+		default:
+			summary.NextPayable.PaymentBlockReason = "financial_adjustment_required"
+		}
 	}
 	return summary, nil
 }
@@ -318,4 +342,12 @@ func toUnpaidInstallment(row model.Installment) (UnpaidInstallment, error) {
 		Status:                  row.Status,
 		PaidAt:                  row.PaidAt,
 	}, nil
+}
+
+func customerPayableView(i model.Installment, charges []model.InstallmentCharge) *uint64 {
+	assessment := model.ClassifyCustomerCash(i, charges)
+	if assessment.Kind != model.PositiveCashObligation && assessment.Kind != model.ZeroCashObligation {
+		return nil
+	}
+	return &assessment.AmountMinor
 }

@@ -167,6 +167,8 @@ func CreateCheckoutWithItems[Q postgres.Queryer](
 	return attachItems(attempt, persistedItems), nil
 }
 
+// Database invariant: installment_payment_freeze serializes the parent and
+// validates this complete immutable snapshot at commit.
 // CreateWithItems stores a payment attempt and its snapshotted obligation items atomically.
 func CreateWithItems[Q postgres.Queryer](
 	ctx context.Context,
@@ -230,7 +232,7 @@ SELECT EXISTS (
 	SELECT 1
 	FROM payment_attempts
 	WHERE contract_id = $1
-	  AND state IN ($2, $3, $4, $5)
+	  AND (state IN ($2, $3, $4, $5) OR (state IN ('failed','canceled') AND NOT financial_outcome_resolved))
 ) AS exists
 `
 

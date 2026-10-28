@@ -8,8 +8,8 @@ import (
 )
 
 // WithCollectionsCoordination is wired once before consumers start. Payment
-// application and Collections serialize on customer -> contract -> attempt ->
-// installment -> charges -> credit account. No external call runs under locks.
+// application and Collections serialize on customer -> contract -> installment ->
+// attempt -> charges -> credit account. No external call runs under locks.
 func (uc *UseCase) WithCollectionsCoordination(profiles repo.CustomerProfile, reassess func(context.Context, model.CustomerID) error) *UseCase {
 	uc.customerProfile = profiles
 	uc.reassessCustomer = reassess
@@ -31,6 +31,10 @@ func (uc *UseCase) LockSettlementCustomerOnTx(ctx context.Context, tx repo.Tx, i
 		return err
 	}
 	_, err = q.LockByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	_, err = uc.installment.Tx(tx).LockByContractID(ctx, id)
 	return err
 }
 

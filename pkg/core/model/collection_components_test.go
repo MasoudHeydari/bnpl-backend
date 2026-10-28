@@ -53,3 +53,33 @@ func TestRepaymentAggregateRetainsBNPLBreakdown(t *testing.T) {
 		require.False(t, ok)
 	}
 }
+
+func TestCashScheduleRejectsUnsupportedEconomicAdjustments(t *testing.T) {
+	i := model.Installment{ID: model.InstallmentID(uuid.New()), PrincipalAmountMinor: 100, Currency: model.IRRCurrency, Status: model.OfferedInstallmentStatus}
+	for _, amount := range []uint64{99, 100, 101} {
+		c := model.InstallmentCharge{ID: model.InstallmentChargeID(uuid.New()), InstallmentID: i.ID, AmountMinor: amount, Currency: i.Currency, ChargeType: model.DiscountInstallmentChargeType, ChargeStatus: model.OfferedInstallmentChargeStatus, PayerType: model.CustomerInstallmentChargePayerType, RecipientType: model.PlatformInstallmentChargeRecipientType}
+		e := model.ValidateCashObligations([]model.Installment{i}, []model.InstallmentCharge{c})
+		if amount < 100 {
+			require.NoError(t, e)
+		} else {
+			require.Error(t, e)
+		}
+	}
+}
+
+func TestCashObligationClassification(t *testing.T) {
+	i := model.Installment{ID: model.InstallmentID(uuid.New()), PrincipalAmountMinor: 100, Currency: model.IRRCurrency, Status: model.DueInstallmentStatus}
+	for _, tc := range []struct {
+		discount           uint64
+		kind               model.CashObligationKind
+		amount, adjustment uint64
+	}{{90, model.PositiveCashObligation, 10, 0}, {100, model.ZeroCashObligation, 0, 0}, {110, model.NegativeCashObligation, 0, 10}} {
+		c := model.InstallmentCharge{ID: model.InstallmentChargeID(uuid.New()), InstallmentID: i.ID, ChargeType: model.DiscountInstallmentChargeType, ChargeStatus: model.AppliedInstallmentChargeStatus, AmountMinor: tc.discount, Currency: i.Currency, PayerType: model.CustomerInstallmentChargePayerType, RecipientType: model.PlatformInstallmentChargeRecipientType}
+		got := model.ClassifyCustomerCash(i, []model.InstallmentCharge{c})
+		require.Equal(t, tc.kind, got.Kind)
+		require.Equal(t, tc.amount, got.AmountMinor)
+		require.Equal(t, tc.adjustment, got.AdjustmentAmountMinor)
+		c.Currency = model.USDCurrency
+		require.Equal(t, model.InvalidCashObligation, model.ClassifyCustomerCash(i, []model.InstallmentCharge{c}).Kind)
+	}
+}

@@ -63,13 +63,13 @@ func newCreditUsageBlocked(
 	facts := make([]collections.ObligationFact, 0, len(obligations))
 	for _, row := range obligations {
 		fact := collections.FactFromUnpaidInstallment(row.Installment, row.HasUnresolvedPayment)
-		fact.HasUnsettledCharges = row.HasUnsettledCharges
+		fact.HasUnresolvedAdjustment = row.HasUnresolvedAdjustment
 		fact.HasUnresolvedCancellation = row.HasUnresolvedCancellation
 		facts = append(facts, fact)
 	}
 
 	evaluation := selected.Evaluate(facts, now, false)
-	if evaluation.HasUnresolvedCancellation {
+	if evaluation.HasUnresolvedCancellation || evaluation.HasUnresolvedAdjustment {
 		return true, "credit_usage_restricted", nil
 	}
 	return evaluation.IsDefaultEligible, "collections_default", nil

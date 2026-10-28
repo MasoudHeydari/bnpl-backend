@@ -301,3 +301,13 @@ validation.identity_subject_id_invalid: "شناسه هویت نامعتبر اس
 validation.destination_name_invalid: "نام مقصد باید با حروف کوچک لاتین، رقم و خط‌تیره تکی (kebab-case) باشد."
 validation.merchant_id_invalid: "شناسه پذیرنده نامعتبر است."
 validation.credential_id_invalid: "شناسه اعتبارنامه نامعتبر است."
+
+error.installment_already_paid: این قسط قبلاً به‌طور کامل تسویه شده است.
+
+error.installment_has_unsettled_charges: تمام اجزای مالی قسط باید با هم تسویه شوند.
+
+error.installment_payment_in_progress: پرداخت این قسط در حال انجام است.
+
+error.installment_financial_component_immutable: اجزای مالی نهایی‌شده قابل تغییر نیستند.
+
+error.installment_financial_adjustment_required: این قسط پیش از پرداخت به تطبیق مالی نیاز دارد.

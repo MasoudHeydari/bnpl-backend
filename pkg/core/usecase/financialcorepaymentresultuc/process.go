@@ -557,7 +557,7 @@ func (uc *UseCase) finishCheckoutTerminalPaymentResult(
 
 	if attempt.State != model.CreatedPaymentAttemptState &&
 		attempt.State != model.SubmittedPaymentAttemptState &&
-		attempt.State != model.ReconciliationRequiredPaymentAttemptState {
+		attempt.State != model.ReconciliationRequiredPaymentAttemptState && attempt.State != model.ManualReviewRequiredPaymentAttemptState {
 		return uc.persistUnmatchedTerminalCheckoutResult(
 			ctx,
 			inboxQ,

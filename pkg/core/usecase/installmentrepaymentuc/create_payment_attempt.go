@@ -151,7 +151,7 @@ func (uc *UseCase) CreatePaymentAttempt(
 						return contractIsCancelingError()
 					}
 
-					if contractRow.Status != model.ActiveContractStatus && contractRow.Status != model.CompletedContractStatus {
+					if contractRow.Status != model.ActiveContractStatus {
 						return contractNotActiveError()
 					}
 
@@ -164,7 +164,7 @@ func (uc *UseCase) CreatePaymentAttempt(
 						return installmentDoesNotBelongToContractError()
 					}
 
-					if !isPayableInstallmentStatus(installmentRow.Status) && installmentRow.Status != model.PaidInstallmentStatus {
+					if !isPayableInstallmentStatus(installmentRow.Status) {
 						return installmentStatusDoesNotAllowPaymentError()
 					}
 
@@ -173,7 +173,7 @@ func (uc *UseCase) CreatePaymentAttempt(
 						return siblingsErr
 					}
 
-					if installmentRow.Status != model.PaidInstallmentStatus && !model.IsNextPayableInSequence(installmentRow, siblings) {
+					if !model.IsNextPayableInSequence(installmentRow, siblings) {
 						return installmentNotNextPayableError()
 					}
 
@@ -188,8 +188,7 @@ func (uc *UseCase) CreatePaymentAttempt(
 					priorityCandidates := make([]repaymentpriorityv1.Candidate, 0, len(nextPerContract))
 					for _, row := range nextPerContract {
 						priorityCandidates = append(priorityCandidates, repaymentpriorityv1.Candidate{
-							Installment:           row,
-							HasOutstandingCharges: row.Status == model.PaidInstallmentStatus,
+							Installment: row,
 						})
 					}
 
@@ -206,17 +205,11 @@ func (uc *UseCase) CreatePaymentAttempt(
 						return chargesErr
 					}
 
-					if err := model.ValidateCustomerPaymentComponents(installmentRow, charges); err != nil {
-						return cerr.InternalError(err)
+					cash := model.ClassifyCustomerCash(installmentRow, charges)
+					if cash.Kind != model.PositiveCashObligation {
+						return cerr.NewPublic(cerr.CodeConflict, "error.installment_financial_adjustment_required", fmt.Errorf("installment %s has %s cash economics", installmentRow.ID, cash.Kind), cerr.Details{})
 					}
-					payableAmount, payableOK, payableErr := model.CustomerPayableAmount(installmentRow, charges)
-					if payableErr != nil {
-						return payableErr
-					}
-
-					if !payableOK || payableAmount == 0 {
-						return installmentPayableAmountZeroError()
-					}
+					payableAmount := cash.AmountMinor
 
 					if amountErr := model.ValidatePositiveAmountMinor(payableAmount); amountErr != nil {
 						// Programming invariant: payable amount was already confirmed non-zero.

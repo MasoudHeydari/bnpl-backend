@@ -256,7 +256,7 @@ func (uc *UseCase) expirePaymentPendingContract(
 // payment_pending does not imply a PaymentAttempt exists. Merchant-funding
 // contracts wait in payment_pending with no attempt while FC recognition is
 // retried; those must not be expired as orphans. Initial-payment contracts
-// without an attempt are true orphans and may expire. Submitted /
+// without an attempt are true orphans and may expire. Created / submitted /
 // reconciliation / manual-review / succeeded attempt states are never safe:
 // their Financial Core outcome is or was externally observable.
 func (uc *UseCase) paymentPendingContractSafeToExpire(
@@ -295,12 +295,12 @@ func (uc *UseCase) paymentPendingContractSafeToExpire(
 	}
 
 	switch attempt.State {
-	case model.CreatedPaymentAttemptState,
-		model.FailedPaymentAttemptState,
+	case model.FailedPaymentAttemptState,
 		model.CanceledPaymentAttemptState:
-		return true, nil
+		return attempt.FinancialOutcomeResolved, nil
 
-	case model.SubmittedPaymentAttemptState,
+	case model.CreatedPaymentAttemptState,
+		model.SubmittedPaymentAttemptState,
 		model.ReconciliationRequiredPaymentAttemptState,
 		model.ManualReviewRequiredPaymentAttemptState,
 		model.SucceededPaymentAttemptState:

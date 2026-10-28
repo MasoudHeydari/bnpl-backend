@@ -97,12 +97,12 @@ func TestBuildCheckoutPaymentInputFromAttempt_CustomerPlatformEmptyPayee(t *test
 			ExpiresAt:             expires,
 		},
 		model.PaymentAttempt{
-			IdempotencyKey:                   "idem-checkout-1",
-			FinancialCollectionObligationID:  &obligationID,
-			ProviderCode:                     &provider,
-			SuccessReturnURL:                 &success,
-			FailureReturnURL:                 &failure,
-			CancelReturnURL:                  &cancel,
+			IdempotencyKey:                  "idem-checkout-1",
+			FinancialCollectionObligationID: &obligationID,
+			ProviderCode:                    &provider,
+			SuccessReturnURL:                &success,
+			FailureReturnURL:                &failure,
+			CancelReturnURL:                 &cancel,
 		},
 		externalCustomerID,
 	)
@@ -139,16 +139,16 @@ func TestValidatePaymentBasedCreateContractInput_AllowsMissingTenantOrContext(t 
 	t.Parallel()
 
 	generic := CreateContractInput{
-		DecisionID:        model.DecisionID(uuid.New()),
+		DecisionID:         model.DecisionID(uuid.New()),
 		ExternalCustomerID: model.ExternalCustomerID(uuid.New()),
 	}
 	require.NoError(t, validateCreateContractInput(generic))
 
 	paymentBased := CreateContractInput{
-		DecisionID:        model.DecisionID(uuid.New()),
+		DecisionID:         model.DecisionID(uuid.New()),
 		ExternalCustomerID: model.ExternalCustomerID(uuid.New()),
-		TenantID:          model.TenantID{},
-		ContextID:         model.ContextID{},
+		TenantID:           model.TenantID{},
+		ContextID:          model.ContextID{},
 	}
 	require.NoError(t, validatePaymentBasedCreateContractInput(paymentBased))
 }

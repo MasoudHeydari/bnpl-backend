@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/parstis/bnpl-backend/pkg/adapter/config"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/invariants"
 	adapterbotmessage "github.com/parstis/bnpl-backend/pkg/adapter/external/botmessage"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/messaging/consumers"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task/jobs"
@@ -100,6 +101,10 @@ func NewApp(ctx context.Context, c *config.Config) (_ *App, err error) {
 	app.Pool, err = app.ConnectionPool(ctx, repo.NormalRole, app.Infrastructure.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("%s: creating DB pool: %w", op, err)
+	}
+
+	if err = invariants.Verify(ctx, app.Pool); err != nil {
+		return nil, fmt.Errorf("%s: database integrity verification: %w", op, err)
 	}
 
 	if err = app.wireDependencyChecker(); err != nil {

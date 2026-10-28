@@ -101,19 +101,27 @@ type PaymentAttemptItem struct {
 
 // PayableAmountFromItems returns debit total minus credit total without underflow.
 func PayableAmountFromItems(items []PaymentAttemptItem) (uint64, bool) {
+	debits, credits, ok := paymentItemTotals(items)
+	if !ok || credits > debits {
+		return 0, false
+	}
+	return debits - credits, true
+}
+
+func paymentItemTotals(items []PaymentAttemptItem) (uint64, uint64, bool) {
 	var debits uint64
 	var credits uint64
 
 	for _, item := range items {
 		if item.AmountMinor == 0 {
-			return 0, false
+			return 0, 0, false
 		}
 
 		switch item.Effect {
 		case DebitPaymentAttemptItemEffect:
 			next, ok := bits.Add64(debits, item.AmountMinor, 0)
 			if ok != 0 {
-				return 0, false
+				return 0, 0, false
 			}
 
 			debits = next
@@ -121,19 +129,15 @@ func PayableAmountFromItems(items []PaymentAttemptItem) (uint64, bool) {
 		case CreditPaymentAttemptItemEffect:
 			next, ok := bits.Add64(credits, item.AmountMinor, 0)
 			if ok != 0 {
-				return 0, false
+				return 0, 0, false
 			}
 
 			credits = next
 
 		default:
-			return 0, false
+			return 0, 0, false
 		}
 	}
 
-	if credits > debits {
-		return 0, false
-	}
-
-	return debits - credits, true
+	return debits, credits, true
 }

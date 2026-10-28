@@ -111,6 +111,8 @@ func toListUnpaidInstallmentsInput(c *gin.Context) (customeraccountuc.ListUnpaid
 }
 
 type unpaidInstallmentResponse struct {
+	CustomerPayableAmountMinor *uint64 `json:"customer_payable_amount_minor" extensions:"x-nullable"`
+
 	ID                      uuid.UUID                      `json:"id" example:"0a1b2c3d-4e5f-6789-abcd-ef0123456789" format:"uuid"`
 	ContractID              model.ContractID               `json:"contract_id" example:"3fa85f64-5717-4562-b3fc-2c963f66afa6" format:"uuid"`
 	MerchantProfileID       model.MerchantProfileID        `json:"merchant_profile_id" example:"8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c" format:"uuid"`
@@ -124,6 +126,8 @@ type unpaidInstallmentResponse struct {
 }
 
 type repaymentDueInstallmentResponse struct {
+	CustomerPayableAmountMinor *uint64 `json:"customer_payable_amount_minor" extensions:"x-nullable"`
+
 	ID                uuid.UUID               `json:"id" format:"uuid"`
 	ContractID        uuid.UUID               `json:"contract_id" format:"uuid"`
 	InstallmentOrder  int                     `json:"installment_order"`
@@ -167,30 +171,32 @@ func toUnpaidInstallmentsListData(
 	items := make([]unpaidInstallmentResponse, 0, len(output.Installments))
 	for _, item := range output.Installments {
 		items = append(items, unpaidInstallmentResponse{
-			ID:                      item.ID.UUID(),
-			ContractID:              item.ContractID,
-			MerchantProfileID:       item.MerchantProfileID,
-			MerchantBranchProfileID: item.MerchantBranchProfileID,
-			InstallmentOrder:        item.InstallmentOrder,
-			TotalAmountMinor:        item.TotalAmountMinor,
-			Currency:                item.Currency,
-			DueAt:                   item.DueAt,
-			Status:                  item.Status,
-			PaidAt:                  item.PaidAt,
+			CustomerPayableAmountMinor: item.CustomerPayableAmountMinor,
+			ID:                         item.ID.UUID(),
+			ContractID:                 item.ContractID,
+			MerchantProfileID:          item.MerchantProfileID,
+			MerchantBranchProfileID:    item.MerchantBranchProfileID,
+			InstallmentOrder:           item.InstallmentOrder,
+			TotalAmountMinor:           item.TotalAmountMinor,
+			Currency:                   item.Currency,
+			DueAt:                      item.DueAt,
+			Status:                     item.Status,
+			PaidAt:                     item.PaidAt,
 		})
 	}
 
 	dueItems := make([]repaymentDueInstallmentResponse, 0, len(output.Repayment.DueInstallments))
 	for _, item := range output.Repayment.DueInstallments {
 		dueItems = append(dueItems, repaymentDueInstallmentResponse{
-			ID:                item.ID.UUID(),
-			ContractID:        item.ContractID.UUID(),
-			InstallmentOrder:  item.InstallmentOrder,
-			TotalAmountMinor:  item.TotalAmountMinor,
-			Currency:          item.Currency,
-			DueAt:             item.DueAt.UTC(),
-			Status:            item.Status,
-			HasPendingPayment: item.HasPendingPayment,
+			CustomerPayableAmountMinor: item.CustomerPayableAmountMinor,
+			ID:                         item.ID.UUID(),
+			ContractID:                 item.ContractID.UUID(),
+			InstallmentOrder:           item.InstallmentOrder,
+			TotalAmountMinor:           item.TotalAmountMinor,
+			Currency:                   item.Currency,
+			DueAt:                      item.DueAt.UTC(),
+			Status:                     item.Status,
+			HasPendingPayment:          item.HasPendingPayment,
 		})
 	}
 

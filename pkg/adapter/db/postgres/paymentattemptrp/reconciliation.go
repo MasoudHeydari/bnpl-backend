@@ -267,6 +267,7 @@ func MarkSucceededFromReconciliationRequired[Q postgres.Queryer](
 	const query = `
 UPDATE payment_attempts
 SET
+ financial_outcome_resolved=true,
 	state = $2,
 	financial_payment_attempt_id = $3,
 	financial_paid_at = $4,
@@ -306,6 +307,7 @@ func MarkFailedFromReconciliationRequired[Q postgres.Queryer](
 	const query = `
 UPDATE payment_attempts
 SET
+ financial_outcome_resolved=true,
 	state = $2,
 	failure_code = $3,
 	failed_at = $4,
@@ -356,6 +358,7 @@ func MarkCanceledFromReconciliationRequired[Q postgres.Queryer](
 	const query = `
 UPDATE payment_attempts
 SET
+ financial_outcome_resolved=true,
 	state = $2,
 	failure_code = $3,
 	canceled_at = $4,

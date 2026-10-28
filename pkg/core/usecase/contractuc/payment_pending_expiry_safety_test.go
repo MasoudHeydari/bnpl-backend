@@ -26,7 +26,7 @@ func TestPaymentPendingContractSafeToExpire(t *testing.T) {
 		state model.PaymentAttemptState
 		want  bool
 	}{
-		{name: "created is safe", state: model.CreatedPaymentAttemptState, want: true},
+		{name: "created remains ambiguous", state: model.CreatedPaymentAttemptState, want: false},
 		{name: "failed is safe", state: model.FailedPaymentAttemptState, want: true},
 		{name: "canceled is safe", state: model.CanceledPaymentAttemptState, want: true},
 		{name: "submitted is not safe", state: model.SubmittedPaymentAttemptState, want: false},
@@ -42,8 +42,9 @@ func TestPaymentPendingContractSafeToExpire(t *testing.T) {
 			deps := newExpirePaymentPendingDeps(t, time.Now().UTC())
 			uc := deps.newUseCase(t, 5*time.Minute, 100)
 			attempt := model.PaymentAttempt{
-				ID:    attemptID,
-				State: tt.state,
+				ID:                       attemptID,
+				State:                    tt.state,
+				FinancialOutcomeResolved: tt.state == model.FailedPaymentAttemptState || tt.state == model.CanceledPaymentAttemptState,
 			}
 			deps.paymentAttemptTx.EXPECT().GetByContractIDAndPurposeWithItems(
 				ctx, contractID, model.CheckoutFirstInstallmentFinancialCorePaymentPurpose,

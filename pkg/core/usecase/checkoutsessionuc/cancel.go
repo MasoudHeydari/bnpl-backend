@@ -350,9 +350,9 @@ func (uc *UseCase) cancelPaymentPendingContract(
 }
 
 // checkoutPaymentSafeToCancel reports whether the checkout payment provably
-// never left BNPL or is already terminal without success.
+// has an authoritative terminal financial outcome without success, or no attempt exists.
 //
-// Submitted, reconciliation-required, manual-review, and succeeded attempts have
+// Created, submitted, reconciliation-required, manual-review, and succeeded attempts have
 // an externally observable outcome. Canceling the checkout around them could
 // release the single-in-flight-payment gate while Financial Core still reports a
 // success, so they block cancellation until resolved.
@@ -382,12 +382,12 @@ func checkoutPaymentSafeToCancel(
 	}
 
 	switch attempt.State {
-	case model.CreatedPaymentAttemptState,
-		model.FailedPaymentAttemptState,
+	case model.FailedPaymentAttemptState,
 		model.CanceledPaymentAttemptState:
-		return true, nil
+		return attempt.FinancialOutcomeResolved, nil
 
-	case model.SubmittedPaymentAttemptState,
+	case model.CreatedPaymentAttemptState,
+		model.SubmittedPaymentAttemptState,
 		model.ReconciliationRequiredPaymentAttemptState,
 		model.ManualReviewRequiredPaymentAttemptState,
 		model.SucceededPaymentAttemptState:

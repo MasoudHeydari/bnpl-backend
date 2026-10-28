@@ -293,6 +293,9 @@ func (uc *UseCase) prepareMerchantFunding(
 			if err = validateOfferedInstallmentsForContract(installments); err != nil {
 				return err
 			}
+			if _, err := validateCashObligations(ctx, uc.installmentCharge.Tx(tx), installments); err != nil {
+				return err
+			}
 
 			if err = validateInstallmentSchedule(
 				installments,

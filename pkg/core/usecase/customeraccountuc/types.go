@@ -123,6 +123,9 @@ type ListUnpaidInstallmentsInput struct {
 
 // UnpaidInstallment is an API-facing unpaid installment summary.
 type UnpaidInstallment struct {
+	// CustomerPayableAmountMinor is the current complete cash obligation; nil requires reconciliation.
+	CustomerPayableAmountMinor *uint64
+
 	// ID uniquely identifies the record.
 	ID model.InstallmentID
 	// ContractID identifies the contract.
@@ -148,6 +151,8 @@ type UnpaidInstallment struct {
 // RepaymentDueInstallment is one contractually due unpaid installment in the
 // customer-wide repayment summary.
 type RepaymentDueInstallment struct {
+	CustomerPayableAmountMinor *uint64
+
 	// ID uniquely identifies the installment.
 	ID model.InstallmentID
 	// ContractID identifies the owning contract.

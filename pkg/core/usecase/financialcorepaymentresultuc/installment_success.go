@@ -47,6 +47,7 @@ func (uc *UseCase) applySucceededInstallmentPaymentResult(
 
 	if attempt.State != model.CreatedPaymentAttemptState &&
 		attempt.State != model.SubmittedPaymentAttemptState &&
+		attempt.State != model.ManualReviewRequiredPaymentAttemptState &&
 		attempt.State != model.SucceededPaymentAttemptState {
 		return uc.persistInstallmentPaymentReconciliation(
 			ctx,
@@ -231,7 +232,7 @@ func (uc *UseCase) applySucceededInstallmentPaymentResult(
 	// is acknowledged already_applied using the historical application timestamp. The
 	// contract must be in a state compatible with an applied payment; otherwise the local
 	// obligation state does not prove the payment was applied.
-	if installmentRow.Status == model.PaidInstallmentStatus && !model.IsChargeOnlyPayment(attempt.Items) {
+	if installmentRow.Status == model.PaidInstallmentStatus {
 		if !identityMatches {
 			return uc.persistInstallmentPaymentReconciliation(
 				ctx,
@@ -306,7 +307,7 @@ func (uc *UseCase) applySucceededInstallmentPaymentResult(
 	}
 
 	creditAccount, accountErr := lockCreditAccountForPrincipalRelease(
-		ctx, accountQ, contractRow, model.OutstandingPrincipalForPayment(installmentRow),
+		ctx, accountQ, contractRow, installmentRow.PrincipalAmountMinor,
 	)
 	if accountErr != nil {
 		var appErr *ReconciliationApplicationError
@@ -343,7 +344,7 @@ func (uc *UseCase) applySucceededInstallmentPaymentResult(
 		)
 	}
 
-	if contractRow.RemainingPrincipalAmountMinor < model.OutstandingPrincipalForPayment(installmentRow) {
+	if contractRow.RemainingPrincipalAmountMinor < installmentRow.PrincipalAmountMinor {
 		return uc.persistInstallmentPaymentReconciliation(
 			ctx,
 			inboxQ,
@@ -504,22 +505,6 @@ func (uc *UseCase) applyNewInstallmentPayment(
 		return err
 	}
 
-	paidInstallment := installmentRow
-	if installmentRow.Status != model.PaidInstallmentStatus {
-		paidInstallment, err = installmentQ.MarkPaid(
-			ctx,
-			installmentRow.ID,
-			contractRow.ID,
-			payableAmount,
-			input.PaidAt.UTC(),
-			now,
-		)
-		if err != nil {
-			return err
-		}
-
-	}
-
 	settledChargeIDs := chargeSourceIDsFromSnapshot(attempt.Items)
 	if len(settledChargeIDs) > 0 {
 		affected, markChargeErr := installmentChargeQ.MarkSnapshottedChargeIDsPaid(
@@ -537,23 +522,32 @@ func (uc *UseCase) applyNewInstallmentPayment(
 		}
 	}
 
-	if installmentRow.Status != model.PaidInstallmentStatus {
-		if err = reduceCreditExposureForInstallment(
-			ctx,
-			accountQ,
-			creditAccount,
-			installmentRow,
-			contractRow.Currency,
-			input.PaidAt,
-			now,
-		); err != nil {
-			return err
-		}
+	paidInstallment, err := installmentQ.MarkPaid(
+		ctx,
+		installmentRow.ID,
+		contractRow.ID,
+		payableAmount,
+		input.PaidAt.UTC(),
+		now,
+	)
+	if err != nil {
+		return err
+	}
 
+	if err = reduceCreditExposureForInstallment(
+		ctx,
+		accountQ,
+		creditAccount,
+		installmentRow,
+		contractRow.Currency,
+		input.PaidAt,
+		now,
+	); err != nil {
+		return err
 	}
 
 	updatedContract := contractRow
-	if model.OutstandingPrincipalForPayment(installmentRow) > 0 {
+	if installmentRow.PrincipalAmountMinor > 0 {
 		updatedContract, err = contractQ.ReduceRemainingPrincipal(
 			ctx,
 			contractRow.ID,
@@ -661,7 +655,7 @@ func canCompleteContract(
 		}
 	}
 
-	if !allRequiredInstallmentsPaid(installments) {
+	if len(installments) != contractRow.InstallmentCount || !allRequiredInstallmentsPaid(installments) {
 		return false, nil
 	}
 
@@ -693,8 +687,7 @@ func validateInstallmentSuccessPreconditions(
 	installmentRow model.Installment,
 	payableAmount uint64,
 ) installmentSuccessValidation {
-	chargeOnly := installmentRow.Status == model.PaidInstallmentStatus && model.IsChargeOnlyPayment(attempt.Items)
-	if contractRow.Status != model.ActiveContractStatus && !(chargeOnly && contractRow.Status == model.CompletedContractStatus) {
+	if contractRow.Status != model.ActiveContractStatus {
 		reason := model.InvalidContractStatePaymentReconciliationReason
 		return installmentSuccessValidation{reason: &reason}
 	}
@@ -704,17 +697,17 @@ func validateInstallmentSuccessPreconditions(
 		return installmentSuccessValidation{reason: &reason}
 	}
 
-	if installmentRow.InstallmentOrder <= 1 && !chargeOnly {
+	if installmentRow.InstallmentOrder <= 1 {
 		reason := model.InvalidInstallmentStatePaymentReconciliationReason
 		return installmentSuccessValidation{reason: &reason}
 	}
 
-	if installmentRow.Status == model.PaidInstallmentStatus && !chargeOnly {
+	if installmentRow.Status == model.PaidInstallmentStatus {
 		reason := model.InstallmentAlreadyPaidByOtherPaymentPaymentReconciliationReason
 		return installmentSuccessValidation{reason: &reason}
 	}
 
-	if !isPayableInstallmentStatus(installmentRow.Status) && !chargeOnly {
+	if !isPayableInstallmentStatus(installmentRow.Status) {
 		reason := model.InvalidInstallmentStatePaymentReconciliationReason
 		return installmentSuccessValidation{reason: &reason}
 	}

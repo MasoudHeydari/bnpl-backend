@@ -26,7 +26,7 @@ func (uc *UseCase) DefaultNoticeOnTx(ctx context.Context, tx repo.Tx, id model.C
 			return DefaultNoticeEligibility{}, err
 		}
 		evaluation, e := uc.evaluateObligations(ctx, uc.installment.Tx(tx), id, now, false)
-		return DefaultNoticeEligibility{Reserved: evaluation.IsDefaultEligible}, e
+		return DefaultNoticeEligibility{Reserved: evaluation.IsDefaultEligible || evaluation.HasUnresolvedAdjustment}, e
 	}
 	result := DefaultNoticeEligibility{Reserved: true, EpisodeID: episode.ID}
 	opening, err := uc.decision.Tx(tx).GetByID(ctx, episode.OpeningDecisionID)
@@ -45,16 +45,12 @@ func (uc *UseCase) DefaultNoticeOnTx(ctx context.Context, tx repo.Tx, id model.C
 	if err != nil {
 		return result, err
 	}
-	outstanding := map[model.InstallmentID]bool{}
-	for _, i := range evaluation.TriggerInstallmentIDs {
-		outstanding[i] = true
-	}
+	// Entry timing remains tied to immutable episode history. Message references
+	// current qualifying debt, never an already-paid original trigger. If only
+	// within-grace due debt remains, keep the episode but suppress this notice.
+	result.InstallmentIDs = append(result.InstallmentIDs, evaluation.TriggerInstallmentIDs...)
 	var boundary time.Time
 	for _, trigger := range triggers {
-		if !outstanding[trigger.InstallmentID] {
-			continue
-		}
-		result.InstallmentIDs = append(result.InstallmentIDs, trigger.InstallmentID)
 		if boundary.IsZero() || trigger.OverdueEligibleAt.Before(boundary) {
 			boundary = trigger.OverdueEligibleAt
 		}

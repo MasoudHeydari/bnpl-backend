@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-		lognoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/noop"
+	lognoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/noop"
 	metricsnoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/metrics/noop"
 
 	"github.com/google/uuid"

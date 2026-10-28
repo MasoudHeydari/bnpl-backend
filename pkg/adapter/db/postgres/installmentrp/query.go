@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/installmentchargerp"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/pagination"
@@ -186,7 +187,7 @@ FOR UPDATE
 // ListUnpaidByCustomerID returns unpaid contract installments for a
 // customer profile using keyset pagination ordered by due_at ASC, id ASC.
 //
-// Unpaid includes scheduled, due, overdue and principal-paid residual charges. Pre-contract offers
+// Unpaid means status in scheduled, due, or overdue. Pre-contract offers
 // (contract_id IS NULL) are excluded.
 func ListUnpaidByCustomerID[Q postgres.Queryer](
 	ctx context.Context,
@@ -210,8 +211,8 @@ func ListUnpaidByCustomerID[Q postgres.Queryer](
 	conditions := []string{
 		"customer_id = $1",
 		"contract_id IS NOT NULL",
-		"(status IN ($2, $3, $4) OR (status = 'paid' AND EXISTS (SELECT 1 FROM installment_charges ch WHERE ch.installment_id = installments.id AND ch.payer_type = 'customer' AND ch.charge_type NOT IN ('discount','waiver') AND ch.charge_status IN ('offered','applied'))))",
-		"EXISTS (SELECT 1 FROM contracts c WHERE c.id = installments.contract_id AND (c.status = $5 OR (c.status = 'completed' AND installments.status = 'paid')))",
+		"status IN ($2, $3, $4)",
+		"EXISTS (SELECT 1 FROM contracts c WHERE c.id = installments.contract_id AND c.status = $5)",
 	}
 
 	keysetWhere, keysetArgs, err := postgres.KeysetWhere("due_at", "id", page, len(args)+1)
@@ -263,18 +264,12 @@ FROM (
 	FROM installments
 	WHERE customer_id = $1
 	  AND contract_id IS NOT NULL
-	  AND (status IN ($2, $3, $4) OR (status = 'paid' AND EXISTS (
-        SELECT 1 FROM installment_charges ch
-        WHERE ch.installment_id = installments.id
-          AND ch.payer_type = 'customer'
-          AND ch.charge_type NOT IN ('discount', 'waiver')
-          AND ch.charge_status IN ('offered', 'applied')
-      )))
+	  AND status IN ($2, $3, $4)
 	  AND EXISTS (
 		SELECT 1
 		FROM contracts c
 		WHERE c.id = installments.contract_id
-		  AND (c.status = $5 OR (c.status = 'completed' AND installments.status = 'paid'))
+		  AND c.status = $5
 	  )
 	ORDER BY contract_id ASC, installment_order ASC, id ASC
 ) AS next_per_contract
@@ -313,7 +308,7 @@ SELECT` + installmentColumns + `
 FROM installments
 WHERE customer_id = $1
   AND contract_id IS NOT NULL
-  AND (status IN ($2, $3, $4) OR (status = 'paid' AND EXISTS (SELECT 1 FROM installment_charges ch WHERE ch.installment_id = installments.id AND ch.payer_type = 'customer' AND ch.charge_type NOT IN ('discount','waiver') AND ch.charge_status IN ('offered','applied'))))
+  AND status IN ($2, $3, $4)
   AND (
 	due_at <= $5
 	OR status IN ($3, $4)
@@ -322,7 +317,7 @@ WHERE customer_id = $1
 	SELECT 1
 	FROM contracts c
 	WHERE c.id = installments.contract_id
-	  AND (c.status = $6 OR (c.status = 'completed' AND installments.status = 'paid'))
+	  AND c.status = $6
   )
 ORDER BY due_at ASC, id ASC
 `
@@ -358,12 +353,12 @@ SELECT COUNT(*)::int AS count
 FROM installments
 WHERE customer_id = $1
   AND contract_id IS NOT NULL
-  AND (status IN ($2, $3, $4) OR (status = 'paid' AND EXISTS (SELECT 1 FROM installment_charges ch WHERE ch.installment_id = installments.id AND ch.payer_type = 'customer' AND ch.charge_type NOT IN ('discount','waiver') AND ch.charge_status IN ('offered','applied'))))
+  AND status IN ($2, $3, $4)
   AND EXISTS (
 	SELECT 1
 	FROM contracts c
 	WHERE c.id = installments.contract_id
-	  AND (c.status = $5 OR (c.status = 'completed' AND installments.status = 'paid'))
+	  AND c.status = $5
   )
 `
 
@@ -391,7 +386,6 @@ WHERE customer_id = $1
 
 type collectionsObligationRow struct {
 	HasUnresolvedCancellation bool                           `db:"has_unresolved_cancellation"`
-	HasUnsettledCharges       bool                           `db:"has_unsettled_charges"`
 	ID                        model.InstallmentID            `db:"id"`
 	DecisionID                model.DecisionID               `db:"decision_id"`
 	ContractID                *model.ContractID              `db:"contract_id"`
@@ -415,7 +409,7 @@ type collectionsObligationRow struct {
 }
 
 // ListCollectionsObligationsByCustomerID returns economically outstanding debt,
-// including unresolved cancellations and historical residual customer charges.
+// including unresolved cancellations; inconsistent paid rows belong to the integrity audit.
 func ListCollectionsObligationsByCustomerID[Q postgres.Queryer](
 	ctx context.Context,
 	q Q,
@@ -429,7 +423,6 @@ func ListCollectionsObligationsByCustomerID[Q postgres.Queryer](
 
 	const query = `
 SELECT
-	EXISTS(SELECT 1 FROM installment_charges outstanding WHERE outstanding.installment_id=i.id AND outstanding.payer_type='customer' AND outstanding.charge_status IN ('offered','applied') AND outstanding.charge_type IN ('bnpl_fee','commission','late_fee','tax')) AS has_unsettled_charges,
 	EXISTS(SELECT 1 FROM contracts pending_cancel WHERE pending_cancel.id=i.contract_id AND pending_cancel.status='canceling') AS has_unresolved_cancellation,
 	i.id,
 	i.decision_id,
@@ -454,17 +447,17 @@ SELECT
 		SELECT 1
 		FROM payment_attempts pa
 		WHERE pa.installment_id = i.id
-		  AND pa.state IN ($5, $6, $7)
+		  AND (pa.state IN ($5, $6, $7, 'manual_review_required') OR (pa.state IN ('failed','canceled') AND NOT pa.financial_outcome_resolved))
 	) AS has_unresolved_payment
 FROM installments i
 WHERE i.customer_id = $1
   AND i.contract_id IS NOT NULL
-  AND (i.status IN ($2, $3, $4) OR (i.status='paid' AND EXISTS(SELECT 1 FROM installment_charges outstanding WHERE outstanding.installment_id=i.id AND outstanding.payer_type='customer' AND outstanding.charge_status IN ('offered','applied') AND outstanding.charge_type IN ('bnpl_fee','commission','late_fee','tax'))))
+  AND i.status IN ($2, $3, $4)
   AND EXISTS (
 	SELECT 1
 	FROM contracts c
 	WHERE c.id = i.contract_id
-	  AND (c.status IN ($8, 'canceling') OR (c.status='completed' AND EXISTS(SELECT 1 FROM installment_charges outstanding WHERE outstanding.installment_id=i.id AND outstanding.payer_type='customer' AND outstanding.charge_status IN ('offered','applied') AND outstanding.charge_type IN ('bnpl_fee','commission','late_fee','tax'))))
+	  AND c.status IN ($8, 'canceling')
   )
 ORDER BY i.due_at ASC, i.id ASC
 `
@@ -485,6 +478,19 @@ ORDER BY i.due_at ASC, i.id ASC
 	)
 	if err != nil {
 		return nil, err
+	}
+
+	ids := make([]model.InstallmentID, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+	}
+	charges, err := installmentchargerp.ListByInstallmentIDs(ctx, q, ids)
+	if err != nil {
+		return nil, err
+	}
+	chargesByID := map[model.InstallmentID][]model.InstallmentCharge{}
+	for _, ch := range charges {
+		chargesByID[ch.InstallmentID] = append(chargesByID[ch.InstallmentID], ch)
 	}
 
 	out := make([]repo.CollectionsObligation, 0, len(rows))
@@ -512,9 +518,12 @@ ORDER BY i.due_at ASC, i.id ASC
 				UpdatedAt:               row.UpdatedAt,
 			},
 			HasUnresolvedPayment:      row.HasUnresolvedPayment,
-			HasUnsettledCharges:       row.HasUnsettledCharges,
 			HasUnresolvedCancellation: row.HasUnresolvedCancellation,
 		})
+	}
+
+	for n := range out {
+		out[n].HasUnresolvedAdjustment = model.ClassifyCustomerCash(out[n].Installment, chargesByID[out[n].Installment.ID]).Kind != model.PositiveCashObligation
 	}
 
 	return out, nil
@@ -543,13 +552,13 @@ FROM (
 	SELECT DISTINCT i.customer_id
 	FROM installments i
 	WHERE i.contract_id IS NOT NULL
-	  AND (i.status IN ($1, $2, $3) OR (i.status='paid' AND EXISTS(SELECT 1 FROM installment_charges outstanding WHERE outstanding.installment_id=i.id AND outstanding.payer_type='customer' AND outstanding.charge_status IN ('offered','applied') AND outstanding.charge_type IN ('bnpl_fee','commission','late_fee','tax'))))
+	  AND i.status IN ($1, $2, $3)
 	  AND i.due_at <= $4
 	  AND EXISTS (
 		SELECT 1
 		FROM contracts c
 		WHERE c.id = i.contract_id
-		  AND (c.status IN ($5, 'canceling') OR (c.status='completed' AND EXISTS(SELECT 1 FROM installment_charges outstanding WHERE outstanding.installment_id=i.id AND outstanding.payer_type='customer' AND outstanding.charge_status IN ('offered','applied') AND outstanding.charge_type IN ('bnpl_fee','commission','late_fee','tax'))))
+		  AND c.status IN ($5, 'canceling')
 	  )
 
 	UNION
@@ -694,6 +703,8 @@ WHERE decision_id = $1
 	return affected, nil
 }
 
+// Database invariant: installment_complete_settlement requires every customer
+// component finalized before this statement; paid is terminal.
 // MarkPaid marks an installment paid.
 func MarkPaid[Q postgres.Queryer](
 	ctx context.Context,
@@ -1168,11 +1179,7 @@ WITH page_customers AS (
 	SELECT DISTINCT i.customer_id
 	FROM installments i
 	WHERE i.contract_id IS NOT NULL
-	  AND (i.status IN ($1, $2, $3) OR (i.status='paid' AND EXISTS (
- SELECT 1 FROM installment_charges ch WHERE ch.installment_id=i.id
- AND ch.payer_type='customer' AND ch.charge_type NOT IN ('discount','waiver')
- AND ch.charge_status IN ('offered','applied')
- )))
+	  AND i.status IN ($1, $2, $3)
 	  AND (EXISTS (SELECT 1 FROM default_episodes de WHERE de.customer_id=i.customer_id AND de.status='active') OR i.due_at >= $8 OR (((i.due_at AT TIME ZONE current_setting('TimeZone'))::date + i.grace_period_days + 1)::timestamp AT TIME ZONE current_setting('TimeZone')) >= $8)
 	  AND i.due_at < $9
 	  AND ($10::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR i.customer_id > $10)
@@ -1180,7 +1187,7 @@ WITH page_customers AS (
 		SELECT 1
 		FROM contracts c
 		WHERE c.id = i.contract_id
-		  AND (c.status = $4 OR (c.status='completed' AND i.status='paid') OR (c.status='canceling' AND EXISTS(SELECT 1 FROM default_episodes de WHERE de.customer_id=i.customer_id AND de.status='active')))
+		  AND (c.status = $4 OR (c.status='canceling' AND EXISTS(SELECT 1 FROM default_episodes de WHERE de.customer_id=i.customer_id AND de.status='active')))
 	  )
 	  AND NOT EXISTS (
 		SELECT 1
@@ -1216,24 +1223,20 @@ SELECT
 		SELECT 1
 		FROM payment_attempts pa
 		WHERE pa.installment_id = i.id
-		  AND pa.state IN ($5, $6, $7)
+		  AND (pa.state IN ($5, $6, $7, 'manual_review_required') OR (pa.state IN ('failed','canceled') AND NOT pa.financial_outcome_resolved))
 	) AS has_unresolved_payment
 FROM installments i
 INNER JOIN page_customers pc ON pc.customer_id = i.customer_id
 INNER JOIN customer_profiles cp ON cp.id = i.customer_id
 WHERE i.contract_id IS NOT NULL
-  AND (i.status IN ($1, $2, $3) OR (i.status='paid' AND EXISTS (
- SELECT 1 FROM installment_charges ch WHERE ch.installment_id=i.id
- AND ch.payer_type='customer' AND ch.charge_type NOT IN ('discount','waiver')
- AND ch.charge_status IN ('offered','applied')
- )))
+  AND i.status IN ($1, $2, $3)
   AND (EXISTS (SELECT 1 FROM default_episodes de WHERE de.customer_id=i.customer_id AND de.status='active') OR i.due_at >= $8 OR (((i.due_at AT TIME ZONE current_setting('TimeZone'))::date + i.grace_period_days + 1)::timestamp AT TIME ZONE current_setting('TimeZone')) >= $8)
   AND i.due_at < $9
   AND EXISTS (
 	SELECT 1
 	FROM contracts c
 	WHERE c.id = i.contract_id
-	  AND (c.status = $4 OR (c.status='completed' AND i.status='paid') OR (c.status='canceling' AND EXISTS(SELECT 1 FROM default_episodes de WHERE de.customer_id=i.customer_id AND de.status='active')))
+	  AND (c.status = $4 OR (c.status='canceling' AND EXISTS(SELECT 1 FROM default_episodes de WHERE de.customer_id=i.customer_id AND de.status='active')))
   )
 ORDER BY i.customer_id ASC, i.due_at ASC, i.id ASC
 `

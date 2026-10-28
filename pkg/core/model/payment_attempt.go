@@ -83,6 +83,7 @@ var paymentAttemptStateTransitions = newStatusTransitionTable(
 			CanceledPaymentAttemptState,
 			ReconciliationRequiredPaymentAttemptState,
 		},
+		ManualReviewRequiredPaymentAttemptState: {SucceededPaymentAttemptState, FailedPaymentAttemptState, CanceledPaymentAttemptState},
 		ReconciliationRequiredPaymentAttemptState: {
 			SubmittedPaymentAttemptState,
 			SucceededPaymentAttemptState,
@@ -95,7 +96,6 @@ var paymentAttemptStateTransitions = newStatusTransitionTable(
 		SucceededPaymentAttemptState,
 		FailedPaymentAttemptState,
 		CanceledPaymentAttemptState,
-		ManualReviewRequiredPaymentAttemptState,
 	},
 )
 
@@ -252,6 +252,9 @@ func (s FinancialPaymentResultStatus) IsValid() bool {
 
 // PaymentAttempt stores a local BNPL repayment orchestration record.
 type PaymentAttempt struct {
+	// FinancialOutcomeResolved records authoritative terminal FC outcome, not local expiry/cancel.
+	FinancialOutcomeResolved bool `db:"financial_outcome_resolved" json:"-"`
+
 	// ID uniquely identifies this payment attempt.
 	ID PaymentAttemptID `db:"id" json:"id,omitempty"`
 

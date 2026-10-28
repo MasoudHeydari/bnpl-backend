@@ -13,10 +13,10 @@ func ValidateCustomerPaymentComponents(i Installment, charges []InstallmentCharg
 		if c.InstallmentID != i.ID || c.Currency != i.Currency || !c.ChargeStatus.IsValid() {
 			return fmt.Errorf("payment component identity, currency or status mismatch")
 		}
-		if c.PayerType != CustomerInstallmentChargePayerType && c.PayerType != MerchantInstallmentChargePayerType {
+		if c.PayerType != CustomerInstallmentChargePayerType && c.PayerType != MerchantInstallmentChargePayerType && c.PayerType != PlatformInstallmentChargePayerType {
 			return fmt.Errorf("invalid charge payer")
 		}
-		if c.RecipientType != PlatformInstallmentChargeRecipientType && c.RecipientType != MerchantInstallmentChargeRecipientType {
+		if c.RecipientType != PlatformInstallmentChargeRecipientType && c.RecipientType != MerchantInstallmentChargeRecipientType && c.RecipientType != CustomerInstallmentChargeRecipientType {
 			return fmt.Errorf("invalid charge recipient")
 		}
 		if _, err := c.ChargeType.CustomerPaymentChargeEffect(); err != nil {
@@ -33,24 +33,71 @@ func ValidateCustomerPaymentComponents(i Installment, charges []InstallmentCharg
 	return nil
 }
 
-// IsChargeOnlyPayment identifies an immutable residual-charge payment. Its absence
-// of principal prevents a historical principal settlement from being applied twice.
-func IsChargeOnlyPayment(items []PaymentAttemptItem) bool {
-	if len(items) == 0 {
-		return false
+// ValidateCashObligations rejects financed zero/negative-net schedules until a
+// generic authoritative noncash adjustment exists. A zero placeholder carrying
+// no principal/upfront/customer components is not a financed obligation.
+func ValidateCashObligations(installments []Installment, charges []InstallmentCharge) error {
+	byID := map[InstallmentID][]InstallmentCharge{}
+	for _, c := range charges {
+		byID[c.InstallmentID] = append(byID[c.InstallmentID], c)
 	}
-	for _, item := range items {
-		if item.ItemType != ChargePaymentAttemptItemType {
-			return false
+	for _, i := range installments {
+		if i.PrincipalAmountMinor == 0 && i.UpfrontAmountMinor == 0 && len(byID[i.ID]) == 0 {
+			continue
+		}
+		assessment := ClassifyCustomerCash(i, byID[i.ID])
+		if assessment.Kind != PositiveCashObligation {
+			return fmt.Errorf("installment %s requires reconciliation of %s cash economics", i.ID, assessment.Kind)
 		}
 	}
-	return true
+	return nil
 }
 
-// OutstandingPrincipalForPayment excludes principal already settled historically.
-func OutstandingPrincipalForPayment(i Installment) uint64 {
-	if i.Status == PaidInstallmentStatus {
-		return 0
+// CashObligationKind distinguishes collection, pending noncash recognition,
+// negative economic treatment, and invalid components without inventing settlement.
+type CashObligationKind string
+
+const (
+	PositiveCashObligation CashObligationKind = "positive"
+	ZeroCashObligation     CashObligationKind = "zero"
+	NegativeCashObligation CashObligationKind = "negative"
+	InvalidCashObligation  CashObligationKind = "invalid"
+)
+
+type CashObligationAssessment struct {
+	Kind        CashObligationKind
+	AmountMinor uint64
+	// AdjustmentAmountMinor is the magnitude of a negative net, not a payable payment.
+	AdjustmentAmountMinor uint64
+}
+
+func ClassifyCustomerCash(i Installment, charges []InstallmentCharge) CashObligationAssessment {
+	invalid := CashObligationAssessment{Kind: InvalidCashObligation}
+	if ValidateCustomerPaymentComponents(i, charges) != nil {
+		return invalid
 	}
-	return i.PrincipalAmountMinor
+	for _, c := range charges {
+		if i.Status != PaidInstallmentStatus && c.PayerType == CustomerInstallmentChargePayerType && (c.ChargeStatus == PaidInstallmentChargeStatus || ((c.ChargeType == DiscountInstallmentChargeType || c.ChargeType == WaiverInstallmentChargeType) && c.ChargeStatus == WaivedInstallmentChargeStatus)) {
+			return invalid
+		}
+	}
+	items, err := BuildPaymentAttemptItems(i, charges)
+	if err != nil {
+		return invalid
+	}
+	debits, credits, ok := paymentItemTotals(items)
+	if !ok {
+		return invalid
+	}
+	if credits > debits {
+		return CashObligationAssessment{Kind: NegativeCashObligation, AdjustmentAmountMinor: credits - debits}
+	}
+	if credits == debits {
+		return CashObligationAssessment{Kind: ZeroCashObligation}
+	}
+	amount := debits - credits
+	if ValidatePositiveAmountMinor(amount) != nil {
+		return invalid
+	}
+	return CashObligationAssessment{Kind: PositiveCashObligation, AmountMinor: amount}
 }

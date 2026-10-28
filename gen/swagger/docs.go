@@ -7381,6 +7381,10 @@ const docTemplate = `{
                 "currency": {
                     "$ref": "#/definitions/model.Currency"
                 },
+                "customer_payable_amount_minor": {
+                    "type": "integer",
+                    "x-nullable": true
+                },
                 "due_at": {
                     "type": "string"
                 },
@@ -7480,6 +7484,10 @@ const docTemplate = `{
                         }
                     ],
                     "example": "IRR"
+                },
+                "customer_payable_amount_minor": {
+                    "type": "integer",
+                    "x-nullable": true
                 },
                 "due_at": {
                     "type": "string",

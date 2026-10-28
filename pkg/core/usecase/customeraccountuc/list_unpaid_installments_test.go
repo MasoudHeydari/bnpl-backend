@@ -156,6 +156,7 @@ func TestListUnpaidInstallments_OrdersByDueAtAndBuildsDueAtCursor(t *testing.T) 
 		Return(nil, nil)
 
 	installmentCharge.EXPECT().Tx(testifymock.Anything).Return(installmentChargeQ)
+	installmentChargeQ.EXPECT().ListByInstallmentIDs(testifymock.Anything, []model.InstallmentID{id1, id2}).Return(nil, nil).Once()
 	installmentChargeQ.EXPECT().
 		ListByInstallmentIDs(testifymock.Anything, []model.InstallmentID{id1}).
 		Return(nil, nil)

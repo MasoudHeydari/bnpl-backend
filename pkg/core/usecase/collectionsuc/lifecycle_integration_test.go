@@ -113,10 +113,10 @@ func newCollectionsFixture(t *testing.T, locations ...*time.Location) *collectio
 	require.NoError(t, err)
 	_, err = pool.Pool.Exec(ctx, strings.ReplaceAll(string(ddl), "SET search_path TO bnpl;", "SET search_path TO "+schema+";"))
 	require.NoError(t, err)
-	for _, file := range []string{"000001_collections_default_notification.sql", "000002_independent_credit_restrictions.sql"} {
+	for _, file := range []string{"000001_collections_default_notification.sql", "000002_independent_credit_restrictions.sql", "000003_installment_payment_invariants.sql"} {
 		migration, e := os.ReadFile("../../../../assets/db/migrations/" + file)
 		require.NoError(t, e)
-		_, e = pool.Pool.Exec(ctx, strings.ReplaceAll(string(migration), "bnpl.", schema+"."))
+		_, e = pool.Pool.Exec(ctx, strings.ReplaceAll(strings.ReplaceAll(string(migration), "bnpl.", schema+"."), "pg_catalog, bnpl", "pg_catalog, "+schema))
 		require.NoError(t, e)
 	}
 
@@ -196,7 +196,7 @@ func TestPostgreSQLCollections_DefaultEntryConcurrencyAndRecoveryLineage(t *test
 	require.NoError(t, pool.Pool.QueryRow(ctx, `SELECT id,opening_decision_id FROM default_episodes WHERE customer_id=$1`, customer).Scan(&episode, &opening))
 	require.Equal(t, 1, scalar(t, `SELECT count(*) FROM collections_case_events e JOIN collections_cases c ON c.id=e.case_id WHERE c.customer_id=$1`, customer))
 	require.Equal(t, 1, scalar(t, `SELECT count(*) FROM integration_outbox WHERE message_key=$1`, opening.String()))
-	exec(t, `UPDATE installments SET status='paid',paid_amount_minor=100,paid_at=$2 WHERE id=$1`, installment, now)
+	f.settleFixture(t, installment, now)
 	recovered, e := uc.AssessCustomer(ctx, customer)
 	require.NoError(t, e)
 	require.Equal(t, AssessTransitionRecovered, recovered.Transition)
@@ -238,7 +238,7 @@ func TestPostgreSQLCollections_RecoveryRollbackAndRestrictionIdentity(t *testing
 	customer, installment := seed(t)
 	opened, e := uc.AssessCustomer(ctx, customer)
 	require.NoError(t, e)
-	exec(t, `UPDATE installments SET status='paid',paid_amount_minor=100,paid_at=$2 WHERE id=$1`, installment, now)
+	f.settleFixture(t, installment, now)
 	uc.auditDestination = ""
 	_, e = uc.AssessCustomer(ctx, customer)
 	uc.auditDestination = "bnpl.audit.events.v1"
@@ -259,7 +259,7 @@ func TestPostgreSQLCollections_RecoveryRollbackAndRestrictionIdentity(t *testing
 
 func TestPostgreSQLCollections_ReadSnapshot(t *testing.T) {
 	f := newCollectionsFixture(t)
-	ctx, pool, now, exec, scalar, seed := f.ctx, f.pool, f.now, f.exec, f.scalar, f.seed
+	ctx, pool, now, scalar, seed := f.ctx, f.pool, f.now, f.scalar, f.seed
 
 	customer, installment := seed(t)
 	require.NoError(t, pool.Conn(ctx, func(ctx context.Context, c repo.Conn) error {
@@ -269,7 +269,7 @@ func TestPostgreSQLCollections_ReadSnapshot(t *testing.T) {
 			if e != nil {
 				return e
 			}
-			exec(t, `UPDATE installments SET status='paid',paid_amount_minor=100,paid_at=$2 WHERE id=$1`, installment, now)
+			f.settleFixture(t, installment, now)
 			after, e := q.CountUnpaidByCustomerID(ctx, customer)
 			if e != nil {
 				return e
@@ -551,7 +551,7 @@ func TestPostgreSQLCollections_IndependentRestrictionSurvivesRecovery(t *testing
 	opened, e := f.uc.AssessCustomer(f.ctx, customer)
 	require.NoError(t, e)
 	f.exec(t, `INSERT INTO customer_restrictions(id,customer_id,restriction_type,reason,status,opening_decision_id,applied_at) VALUES($1,$2,'new_credit_usage','administrative_hold','active',$3,$4)`, uuid.New(), customer, opened.OpeningDecisionID, f.now)
-	f.exec(t, `UPDATE installments SET status='paid',paid_at=$2,paid_amount_minor=100 WHERE id=$1`, installment, f.now)
+	f.settleFixture(t, installment, f.now)
 	result, e := f.uc.AssessCustomer(f.ctx, customer)
 	require.NoError(t, e)
 	require.Equal(t, AssessTransitionRecovered, result.Transition)
@@ -580,8 +580,25 @@ func (f *collectionsFixture) settlement(t *testing.T, customer model.CustomerID,
 	require.NoError(t, f.pool.Pool.QueryRow(f.ctx, `SELECT contract_id FROM installments WHERE id=$1`, installment).Scan(&contract))
 	attempt := uuid.New()
 	intent := "fc-" + uuid.NewString()
-	f.exec(t, `INSERT INTO payment_attempts(id,contract_id,installment_id,amount_minor,currency,state,channel,idempotency_key,request_fingerprint,financial_payment_intent_id,financial_collection_obligation_id,submitted_at) VALUES($1,$2,$3,100,'IRR','submitted','gateway',$4,$5,$6,'collection-1',$7)`, attempt, contract, installment, uuid.NewString(), "sha256:"+fmt.Sprintf("%064x", 1), intent, f.now.Add(-time.Hour))
-	f.exec(t, `INSERT INTO payment_attempt_items(payment_attempt_id,item_type,source_id,amount_minor,effect) VALUES($1,'principal',$2,100,'debit')`, attempt, installment)
+
+	tx, e := f.pool.Pool.Begin(f.ctx)
+	require.NoError(t, e)
+	defer tx.Rollback(f.ctx)
+	charges, e := installmentchargerp.New().Tx(&postgres.Tx{Tx: tx}).ListByInstallmentIDs(f.ctx, []model.InstallmentID{model.InstallmentID(installment)})
+	require.NoError(t, e)
+	row := model.Installment{ID: model.InstallmentID(installment), PrincipalAmountMinor: 100, Currency: model.IRRCurrency, Status: model.ScheduledInstallmentStatus}
+	items, e := model.BuildPaymentAttemptItems(row, charges)
+	require.NoError(t, e)
+	cash, ok := model.PayableAmountFromItems(items)
+	require.True(t, ok)
+	_, e = tx.Exec(f.ctx, `INSERT INTO payment_attempts(id,contract_id,installment_id,amount_minor,currency,state,channel,idempotency_key,request_fingerprint,financial_payment_intent_id,financial_collection_obligation_id,submitted_at) VALUES($1,$2,$3,$8,'IRR','submitted','gateway',$4,$5,$6,'collection-1',$7)`, attempt, contract, installment, uuid.NewString(), "sha256:"+fmt.Sprintf("%064x", 1), intent, f.now.Add(-time.Hour), cash)
+	require.NoError(t, e)
+	for _, item := range items {
+		_, e = tx.Exec(f.ctx, `INSERT INTO payment_attempt_items(payment_attempt_id,item_type,source_id,amount_minor,effect) VALUES($1,$2,$3,$4,$5)`, attempt, item.ItemType, item.SourceID, item.AmountMinor, item.Effect)
+		require.NoError(t, e)
+	}
+	require.NoError(t, tx.Commit(f.ctx))
+
 	client := authoritativePaymentClient{status: fc.GetPaymentStatusResult{PaymentIntentID: intent, Status: fc.SucceededPaymentStatus, AmountMinor: amount, Currency: "IRR", CompletedAt: paidAt}}
 	result, e := financialcorepaymentresultuc.New(f.pool, &contractuc.UseCase{}, &checkoutsessionuc.UseCase{}, client, inboxrp.New(), outboxrp.New(), paymentattemptrp.New(), contractrp.New(), installmentrp.New(), installmentchargerp.New(), creditaccountrp.New(), integrationIDs{}, sha256fingerprint.New(), "fc.payment.applications", "bnpl.audit.events.v1", f.clk, 0, metricsnoop.New())
 	require.NoError(t, e)
@@ -683,16 +700,16 @@ func TestPostgreSQLCollections_MismatchedAmountDoesNotSettle(t *testing.T) {
 	require.Equal(t, 1, f.scalar(t, `SELECT count(*) FROM customer_restrictions WHERE customer_id=$1 AND status='active'`, customer))
 }
 
-func TestPostgreSQLCollections_AdditionalChargesPreventFalseSettlement(t *testing.T) {
+func TestPostgreSQLCollections_AdditionalChargesRejectedDuringPayment(t *testing.T) {
 	f := newCollectionsFixture(t)
 	customer, installment := f.seed(t)
 	result, input := f.settlement(t, customer, installment, f.now.Add(-time.Minute), 100)
-	f.exec(t, `INSERT INTO installment_charges(installment_id,charge_type,charge_status,amount_minor,currency,payer_type,recipient_type,policy_id,policy_version,assessed_at,metadata) VALUES($1,'late_fee','applied',20,'IRR','customer','platform','test','v1',$2,'{}')`, installment, f.now)
+	_, e := f.pool.Pool.Exec(f.ctx, `INSERT INTO installment_charges(installment_id,charge_type,charge_status,amount_minor,currency,payer_type,recipient_type,policy_id,policy_version,assessed_at,metadata) VALUES($1,'late_fee','applied',20,'IRR','customer','platform','test','v1',$2,'{}')`, installment, f.now)
+	require.Error(t, e)
 	got, e := result.Process(f.ctx, input)
 	require.NoError(t, e)
-	require.Equal(t, financialcorepaymentresultuc.ProcessResultReconciliationRequired, got.Result)
-	require.Equal(t, 0, f.scalar(t, `SELECT count(*) FROM installments WHERE id=$1 AND status='paid'`, installment))
-	require.Equal(t, 200, f.scalar(t, `SELECT exposure_amount_minor FROM credit_accounts WHERE customer_id=$1`, customer))
+	require.Equal(t, financialcorepaymentresultuc.ProcessResultPaymentApplied, got.Result)
+	require.Equal(t, 100, f.scalar(t, `SELECT exposure_amount_minor FROM credit_accounts WHERE customer_id=$1`, customer))
 }
 
 type cancellationClient struct{ accepted bool }
@@ -783,7 +800,7 @@ func TestPostgreSQLCollections_HistoricalPolicyRemainsV1(t *testing.T) {
 	opening, e := f.uc.AssessCustomer(f.ctx, customer)
 	require.NoError(t, e)
 	f.uc.policies = currentTestPolicies(time.UTC)
-	f.exec(t, `UPDATE installments SET status='paid',paid_amount_minor=100,paid_at=$2 WHERE id=$1`, installment, f.now)
+	f.settleFixture(t, installment, f.now)
 	recovered, e := f.uc.AssessCustomer(f.ctx, customer)
 	require.NoError(t, e)
 	require.Equal(t, 1, f.scalar(t, `SELECT count(*) FROM decisions WHERE id=$1 AND prior_decision_id=$2 AND policy_id='collections_default' AND policy_version='v1'`, recovered.ClosingDecisionID, opening.OpeningDecisionID))
@@ -800,7 +817,7 @@ func TestPostgreSQLRepaymentReminder_IndependentEpisodesAndDailyCeiling(t *testi
 	require.Equal(t, 1, f.scalar(t, `SELECT count(*) FROM repayment_reminders WHERE customer_id=$1`, customer))
 	// Repository fixture for notification history. Monetary settlement itself is
 	// exercised separately through the actual authoritative FC application path.
-	f.exec(t, `UPDATE installments SET status='paid',paid_amount_minor=100,paid_at=$2 WHERE id=$1`, installment, f.now)
+	f.settleFixture(t, installment, f.now)
 	recovered, e := f.uc.AssessCustomer(f.ctx, customer)
 	require.NoError(t, e)
 	require.Equal(t, AssessTransitionRecovered, recovered.Transition)
@@ -816,4 +833,118 @@ func TestPostgreSQLRepaymentReminder_IndependentEpisodesAndDailyCeiling(t *testi
 	require.Equal(t, 2, f.scalar(t, `SELECT count(*) FROM repayment_reminders WHERE customer_id=$1 AND reminder_type='collections_default'`, customer))
 	require.Equal(t, 2, f.scalar(t, `SELECT count(DISTINCT notification_idempotency_key) FROM repayment_reminders WHERE customer_id=$1`, customer))
 	require.Equal(t, 2, f.scalar(t, `SELECT count(*) FROM default_episodes WHERE customer_id=$1`, customer))
+}
+
+func TestPostgreSQLCollections_ZeroAndNegativeCashNeedReconciliation(t *testing.T) {
+	for _, discount := range []int{100, 101} {
+		t.Run(fmt.Sprint(discount), func(t *testing.T) {
+			f := newCollectionsFixture(t)
+			customer, installment := f.seed(t)
+			f.exec(t, `INSERT INTO installment_charges(installment_id,charge_type,charge_status,amount_minor,currency,payer_type,recipient_type,policy_id,policy_version,assessed_at,metadata) VALUES($1,'discount','applied',$2,'IRR','customer','platform','test','v1',$3,'{}')`, installment, discount, f.now)
+			got, e := f.uc.AssessCustomer(f.ctx, customer)
+			require.NoError(t, e)
+			require.Equal(t, AssessTransitionNone, got.Transition)
+			require.Zero(t, f.scalar(t, `SELECT count(*) FROM default_episodes WHERE customer_id=$1`, customer))
+			require.NoError(t, f.pool.Conn(f.ctx, func(ctx context.Context, c repo.Conn) error {
+				return c.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
+					_, e := customerprofilerp.New().Tx(tx).LockByID(ctx, customer)
+					require.NoError(t, e)
+					require.Error(t, f.uc.AssertNewCreditAllowed(ctx, tx, customer, f.now))
+					return nil
+				})
+			}))
+			_, e = f.reminders(t, f.now.Add(time.Hour), outboxrp.New()).Dispatch(f.ctx)
+			require.NoError(t, e)
+			require.Zero(t, f.scalar(t, `SELECT count(*) FROM repayment_reminders WHERE customer_id=$1`, customer))
+			require.Zero(t, f.scalar(t, `SELECT count(*) FROM installments WHERE customer_id=$1 AND status='paid'`, customer))
+		})
+	}
+}
+
+func TestPostgreSQLRepaymentReminder_SettledTriggerWithAnotherDueWithinGrace(t *testing.T) {
+	f := newCollectionsFixture(t)
+	customer, installment := f.seed(t)
+	result, input := f.settlement(t, customer, installment, f.now.Add(-time.Minute), 100)
+	f.exec(t, `UPDATE installments SET due_at=$2,grace_period_days=5 WHERE customer_id=$1 AND id<>$3`, customer, f.now.Add(-time.Hour), installment)
+	opened, e := f.uc.AssessCustomer(f.ctx, customer)
+	require.NoError(t, e)
+	require.Equal(t, AssessTransitionDefaulted, opened.Transition)
+	_, e = result.Process(f.ctx, input)
+	require.NoError(t, e)
+	require.Equal(t, 1, f.scalar(t, `SELECT count(*) FROM default_episodes WHERE customer_id=$1 AND status='active'`, customer))
+	_, e = f.reminders(t, f.now.Add(time.Hour), outboxrp.New()).Dispatch(f.ctx)
+	require.NoError(t, e)
+	require.Zero(t, f.scalar(t, `SELECT count(*) FROM repayment_reminders WHERE customer_id=$1`, customer))
+	require.Equal(t, 1, f.scalar(t, `SELECT count(*) FROM customer_restrictions WHERE customer_id=$1 AND status='active'`, customer))
+	// Once the remaining debt itself exceeds grace, a still-unsent episode notice
+	// may truthfully reference that current debt, while the original trigger stays paid.
+	later, e := f.reminders(t, f.now.AddDate(0, 0, 6).Add(time.Hour), outboxrp.New()).Dispatch(f.ctx)
+	require.NoError(t, e)
+	require.Equal(t, 1, later.CreatedCount)
+	require.Zero(t, f.scalar(t, `SELECT count(*) FROM repayment_reminders WHERE customer_id=$1 AND $2=ANY(installment_ids)`, customer, installment))
+
+}
+
+func TestPostgreSQLCollections_ManualReviewStillAcceptsAuthoritativeSuccess(t *testing.T) {
+	f := newCollectionsFixture(t)
+	customer, installment := f.seed(t)
+	result, input := f.settlement(t, customer, installment, f.now.Add(-time.Minute), 100)
+	f.exec(t, `UPDATE payment_attempts SET state='manual_review_required',manual_review_required_at=$2,last_reconciliation_error='lookup timeout',next_reconciliation_at=NULL WHERE installment_id=$1`, installment, f.now)
+	_, e := result.Process(f.ctx, input)
+	require.NoError(t, e)
+	require.Equal(t, 1, f.scalar(t, `SELECT count(*) FROM payment_attempts WHERE installment_id=$1 AND state='succeeded' AND financial_outcome_resolved`, installment))
+	require.Equal(t, 100, f.scalar(t, `SELECT exposure_amount_minor FROM credit_accounts WHERE customer_id=$1`, customer))
+}
+
+func TestPostgreSQLCollections_ReconciliationNotFoundKeepsFinancialFreeze(t *testing.T) {
+	f := newCollectionsFixture(t)
+	customer, installment := f.seed(t)
+	result, _ := f.settlement(t, customer, installment, f.now.Add(-time.Minute), 100)
+	var attempt model.PaymentAttemptID
+	require.NoError(t, f.pool.Pool.QueryRow(f.ctx, `SELECT id FROM payment_attempts WHERE installment_id=$1`, installment).Scan(&attempt))
+	f.exec(t, `UPDATE payment_attempts SET state='reconciliation_required',reconciliation_reason='financial_core_status_still_unknown',reconciliation_requested_at=$2,reconciliation_attempt_count=1 WHERE id=$1`, attempt, f.now)
+	uc, e := reconciliationuc.New(f.pool, result, inboxrp.New(), outboxrp.New(), paymentattemptrp.New(), contractrp.New(), installmentrp.New(), installmentchargerp.New(), creditaccountrp.New(), sha256fingerprint.New(), integrationIDs{}, "fc.reconciliation.acks", "bnpl.audit.events.v1", time.Second, time.Minute, f.clk, lognoop.New())
+	require.NoError(t, e)
+	message := reconciliationuc.ProcessInput{EventID: uuid.NewString(), EventType: reconciliationevent.ReconciliationResultEventType, EventVersion: "1", SourceService: "financial-core", RawPayload: json.RawMessage(`{"absent":true}`), Data: reconciliationevent.ResultEventData{RequestEventID: reconciliationevent.RequestEventID(attempt, 1), BNPLPaymentAttemptID: attempt, ReconciliationGeneration: 1, Status: reconciliationevent.NotFoundResultStatus, AmountMinor: 100, Currency: "IRR", OccurredAt: f.now}}
+	got, e := uc.Process(f.ctx, message)
+	require.NoError(t, e)
+	require.Equal(t, reconciliationuc.ProcessResultStillReconciliationRequired, got.Result)
+	require.Equal(t, 1, f.scalar(t, `SELECT count(*) FROM payment_attempts WHERE id=$1 AND state='reconciliation_required' AND NOT financial_outcome_resolved`, attempt))
+	require.Equal(t, 1, f.scalar(t, `SELECT count(*) FROM contracts WHERE customer_id=$1 AND status='active'`, customer))
+}
+
+// settleFixture creates explicit immutable payment evidence for policy/repository
+// fixtures. Financial correctness scenarios above use the actual FC consumer.
+func (f *collectionsFixture) settleFixture(t *testing.T, id uuid.UUID, paidAt time.Time) {
+	t.Helper()
+	tx, e := f.pool.Pool.Begin(f.ctx)
+	require.NoError(t, e)
+	defer tx.Rollback(f.ctx)
+	q := &postgres.Tx{Tx: tx}
+	i, e := installmentrp.New().Tx(q).LockByID(f.ctx, model.InstallmentID(id))
+	require.NoError(t, e)
+	charges, e := installmentchargerp.New().Tx(q).ListByInstallmentIDs(f.ctx, []model.InstallmentID{i.ID})
+	require.NoError(t, e)
+	items, e := model.BuildPaymentAttemptItems(i, charges)
+	require.NoError(t, e)
+	amount, ok := model.PayableAmountFromItems(items)
+	require.True(t, ok)
+	attempt := uuid.New()
+	_, e = tx.Exec(f.ctx, `INSERT INTO payment_attempts(id,contract_id,installment_id,amount_minor,currency,state,channel,idempotency_key,request_fingerprint,financial_paid_at,applied_at,financial_outcome_resolved) VALUES($1,$2,$3,$4,$5,'succeeded','gateway',$6,$7,$8,$8,true)`, attempt, i.ContractID, i.ID, amount, i.Currency, uuid.NewString(), "sha256:"+strings.Repeat("0", 64), paidAt)
+	require.NoError(t, e)
+	var ids []model.InstallmentChargeID
+	for _, x := range items {
+		_, e = tx.Exec(f.ctx, `INSERT INTO payment_attempt_items(payment_attempt_id,item_type,source_id,amount_minor,effect) VALUES($1,$2,$3,$4,$5)`, attempt, x.ItemType, x.SourceID, x.AmountMinor, x.Effect)
+		require.NoError(t, e)
+		if x.ItemType == model.ChargePaymentAttemptItemType {
+			ids = append(ids, model.InstallmentChargeID(x.SourceID))
+		}
+	}
+	if len(ids) > 0 {
+		_, e = installmentchargerp.New().Tx(q).MarkSnapshottedChargeIDsPaid(f.ctx, ids, paidAt, paidAt)
+		require.NoError(t, e)
+	}
+	_, e = installmentrp.New().Tx(q).MarkPaid(f.ctx, i.ID, *i.ContractID, amount, paidAt, paidAt)
+	require.NoError(t, e)
+	require.NoError(t, tx.Commit(f.ctx))
 }

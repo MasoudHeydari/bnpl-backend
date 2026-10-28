@@ -11,7 +11,7 @@ import (
 // ObligationFact carries the explicit facts needed to evaluate one installment
 // for collections default entry and recovery.
 type ObligationFact struct {
-	HasUnsettledCharges       bool
+	HasUnresolvedAdjustment   bool
 	HasUnresolvedCancellation bool
 	// InstallmentID identifies the installment.
 	InstallmentID model.InstallmentID
@@ -41,6 +41,7 @@ type ObligationFact struct {
 
 // Evaluation is the pure collections policy outcome for one customer.
 type Evaluation struct {
+	HasUnresolvedAdjustment bool
 	// HasUnresolvedCancellation blocks new credit without claiming debt settlement.
 	HasUnresolvedCancellation bool
 	// IsDefaultEligible is true when at least one applicable outstanding
@@ -128,7 +129,7 @@ func Evaluate(p Policy, facts []ObligationFact, now time.Time, currentlyDefaulte
 			continue
 		}
 
-		if !fact.Status.IsActive() && !fact.IsFullySettled && !fact.HasUnsettledCharges {
+		if !fact.Status.IsActive() && !fact.IsFullySettled {
 			// Non-active, unsettled rows are ignored for collections unless
 			// already settled; cancelled/expired are not contractual debt.
 			continue
@@ -140,16 +141,19 @@ func Evaluate(p Policy, facts []ObligationFact, now time.Time, currentlyDefaulte
 		dueAt := fact.DueAt.UTC()
 		overdueEligibleAt := p.Boundary(model.Installment{DueAt: dueAt, GracePeriodDays: fact.GracePeriodDays})
 
-		if !fact.IsFullySettled && !now.Before(overdueEligibleAt) {
+		if fact.HasUnresolvedAdjustment {
+			out.HasUnresolvedAdjustment = true
+		}
+		if !fact.HasUnresolvedAdjustment && !fact.IsFullySettled && !now.Before(overdueEligibleAt) {
 			triggers = append(triggers, fact.InstallmentID)
-			if fact.HasUnresolvedPayment || fact.HasUnresolvedCancellation {
+			if fact.HasUnresolvedPayment || fact.HasUnresolvedCancellation || fact.HasUnresolvedAdjustment {
 				out.HasPaymentUncertainty = true
 			}
 		}
 
 		if !dueAt.After(now) && !fact.IsFullySettled {
 			unsettledDue = append(unsettledDue, fact.InstallmentID)
-			if fact.HasUnresolvedPayment || fact.HasUnresolvedCancellation {
+			if fact.HasUnresolvedPayment || fact.HasUnresolvedCancellation || fact.HasUnresolvedAdjustment {
 				out.HasPaymentUncertainty = true
 			}
 		}

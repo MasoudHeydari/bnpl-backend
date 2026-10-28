@@ -51,3 +51,12 @@ func TestPaymentReconciliationReason_IsValid(t *testing.T) {
 	assert.True(t, PaymentAfterDeadlinePaymentReconciliationReason.IsValid())
 	assert.False(t, PaymentReconciliationReason("unknown").IsValid())
 }
+
+func TestManualReviewIsNotFinancialFinality(t *testing.T) {
+	if ManualReviewRequiredPaymentAttemptState.IsTerminal() {
+		t.Fatal("manual review must retain ambiguous financial outcome")
+	}
+	if !ManualReviewRequiredPaymentAttemptState.CanTransitionTo(SucceededPaymentAttemptState) {
+		t.Fatal("authoritative late success must remain applicable")
+	}
+}

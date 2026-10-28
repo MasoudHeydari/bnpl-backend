@@ -66,6 +66,15 @@ func IsUniqueViolation(err error, constraint string) bool {
 // Constraint names/columns are intentionally not copied into public metadata.
 // Known business constraints should be remapped by the owning repository.
 func mapPgError(err *pgconn.PgError) error {
+	keys := map[string]struct{ constraint, key string }{
+		"BN001": {"installment_already_paid", "error.installment_already_paid"},
+		"BN002": {"installment_has_unsettled_charges", "error.installment_has_unsettled_charges"},
+		"BN003": {"installment_payment_in_progress", "error.installment_payment_in_progress"},
+		"BN004": {"installment_financial_component_immutable", "error.installment_financial_component_immutable"},
+	}
+	if managed, ok := keys[err.Code]; ok && err.ConstraintName == managed.constraint {
+		return cerr.NewPublic(cerr.CodeConflict, cerr.MessageKey(managed.key), err, cerr.Details{Violations: []cerr.Violation{{Code: managed.constraint, MessageKey: cerr.MessageKey(managed.key)}}})
+	}
 	switch err.Code {
 
 	// Unique constraint violations typically indicate duplicate business keys

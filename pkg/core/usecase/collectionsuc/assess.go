@@ -234,7 +234,7 @@ func (uc *UseCase) AssertNewCreditAllowed(
 	if evaluation.IsDefaultEligible {
 		return newCreditUsageRestrictedError()
 	}
-	if evaluation.HasUnresolvedCancellation {
+	if evaluation.HasUnresolvedCancellation || evaluation.HasUnresolvedAdjustment {
 		return cerr.Conflict(fmt.Errorf("%s: unresolved contract cancellation blocks new credit", op))
 	}
 
@@ -405,7 +405,7 @@ func (uc *UseCase) evaluateObligationsWithFacts(
 	for _, row := range obligations {
 		factByID[row.Installment.ID] = row
 		fact := collections.FactFromUnpaidInstallment(row.Installment, row.HasUnresolvedPayment)
-		fact.HasUnsettledCharges = row.HasUnsettledCharges
+		fact.HasUnresolvedAdjustment = row.HasUnresolvedAdjustment
 		fact.HasUnresolvedCancellation = row.HasUnresolvedCancellation
 		facts = append(facts, fact)
 	}

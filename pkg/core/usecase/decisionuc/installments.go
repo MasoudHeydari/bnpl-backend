@@ -53,6 +53,9 @@ func buildCheckoutPresentation(
 	charges []model.InstallmentCharge,
 ) (InstallmentOffer, CheckoutAction, error) {
 	const op = "decisionuc.buildCheckoutPresentation"
+	if err := model.ValidateCashObligations(installments, charges); err != nil {
+		return InstallmentOffer{}, CheckoutAction{}, err
+	}
 
 	totalPayable, err := totalPayableAmountMinor(installments)
 	if err != nil {

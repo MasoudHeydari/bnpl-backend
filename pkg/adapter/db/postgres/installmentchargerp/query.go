@@ -31,6 +31,8 @@ const installmentChargeColumns = `
 	updated_at
 `
 
+// Database invariants: installment_no_charges_after_paid / installment_payment_freeze.
+// Parent-row serialization and immutable paid components are enforced in PostgreSQL.
 // Create inserts an installment charge row and returns the persisted row.
 func Create[Q postgres.Queryer](
 	ctx context.Context,
@@ -405,8 +407,8 @@ func MarkSnapshottedChargeIDsPaid[Q postgres.Queryer](
 	const query = `
 UPDATE installment_charges
 SET
-	charge_status = $3,
-	paid_at = $2,
+	charge_status = CASE WHEN charge_type IN ('discount','waiver') THEN 'waived' ELSE $3 END,
+	paid_at = CASE WHEN charge_type IN ('discount','waiver') THEN NULL ELSE $2::timestamptz END,
 	updated_at = $1
 WHERE id = ANY($4)
   AND payer_type = $7

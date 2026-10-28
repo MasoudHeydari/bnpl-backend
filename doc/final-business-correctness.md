@@ -1,3 +1,9 @@
+> Historical implementation report for commit `0c79f1c`. Its residual-charge
+> payment flow is explicitly superseded: paid is now complete and terminal.
+> See [atomic installment settlement](atomic-installment-settlement-verification.md)
+> and [managed database invariants](architecture/database-invariants.md).
+> This historical report is retained, not a description of current business rules.
+
 # Final BNPL business correctness implementation
 
 Baseline: `10c2b180ba52de1fd71ad7e07488bce05a9b4ce8` on
