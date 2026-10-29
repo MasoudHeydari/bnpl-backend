@@ -103,16 +103,19 @@ done
 baseline="pkg/adapter/db/postgres/migrationsrp/000_schema.sql"
 [[ -f "$baseline" ]] || die "baseline schema not found: ${baseline}"
 
+# Mirror production's separation of administrative, schema-owner, migrator,
+# and restricted Runtime roles. The migrator must explicitly assume owner.
 "$engine" exec "$container" psql \
     --set ON_ERROR_STOP=1 \
     --username "$admin_user" \
     --dbname "$database" \
-    --command "CREATE SCHEMA bnpl; CREATE ROLE ${runtime_user} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '${runtime_password}';" \
+    --command "CREATE ROLE bnpl_owner NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS; CREATE ROLE bnpl_migrator LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD 'security-test-migrator'; GRANT bnpl_owner TO bnpl_migrator WITH INHERIT FALSE, SET TRUE; CREATE ROLE ${runtime_user} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '${runtime_password}'; CREATE SCHEMA bnpl AUTHORIZATION bnpl_owner;" \
     >/dev/null
 "$engine" exec --interactive "$container" psql \
     --set ON_ERROR_STOP=1 \
-    --username "$admin_user" \
+    --username "bnpl_migrator" \
     --dbname "$database" \
+    --command "SET ROLE bnpl_owner" \
     <"$baseline" \
     >/dev/null
 "$engine" exec "$container" psql \
