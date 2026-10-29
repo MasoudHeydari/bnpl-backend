@@ -54,6 +54,8 @@ SWAG_SEARCH_DIRS ?= ./cmd/bnpl,./pkg
 # Docker Compose / Podman for local infra and integration tests
 COMPOSE_FILE ?= docker-compose.local.yml
 DOCKER_HOST_PODMAN ?= unix://$(XDG_RUNTIME_DIR)/podman/podman.sock
+INTEGRATION_CONTAINER_ENGINE ?= docker
+INTEGRATION_POSTGRES_IMAGE ?= postgres:18-alpine
 
 # Trusted customer policy-assignment import defaults
 POLICY_ASSIGNMENT_FILE ?= assets/csv/trusted-subjects/trusted-subjects.csv
@@ -121,11 +123,16 @@ policy-assignment-import-trusted: build
 test:
 	@$(GOTESTSUM) --format $(GOTESTSUM_FORMAT) -- -tags="$(DEVELOPMENT_BUILD_TAGS)" $(GO_TEST_PACKAGES)
 
-# Integration tests (development + integration tags). May skip when PostgreSQL
-# / infrastructure env is unavailable — treat skips as incomplete verification.
+# Integration tests (development + integration tags). By default the runner
+# creates and removes an isolated PostgreSQL container; it never uses bnpl-db.
+# Set INTEGRATION_POSTGRES_MODE=external only for an explicitly disposable
+# cluster with every required test variable configured.
 .PHONY: test-integration
 test-integration:
-	@DOCKER_HOST=$(DOCKER_HOST_PODMAN) $(GOTESTSUM) --format $(GOTESTSUM_FORMAT) -- \
+	@INTEGRATION_CONTAINER_ENGINE="$(INTEGRATION_CONTAINER_ENGINE)" \
+		INTEGRATION_POSTGRES_IMAGE="$(INTEGRATION_POSTGRES_IMAGE)" \
+		bash scripts/run-integration-tests.sh \
+		$(GOTESTSUM) --format $(GOTESTSUM_FORMAT) -- \
 		-tags="$(DEVELOPMENT_BUILD_TAGS) integration" -count=1 -timeout=15m -p 1 $(GO_TEST_PACKAGES)
 
 # Runs normal tests then integration tests sequentially. Fails if either fails.

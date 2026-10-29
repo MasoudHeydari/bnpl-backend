@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"os"
 	"regexp"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -24,6 +23,11 @@ func TestRegistryMatchesVersionedMigration(t *testing.T) {
 		sum := sha256.Sum256([]byte(m[2]))
 		bodies[m[1]] = hex.EncodeToString(sum[:])
 	}
+	triggers := map[string]bool{}
+	const triggerPattern = `(?i)CREATE\s+(?:CONSTRAINT\s+)?TRIGGER\s+(\w+)\b`
+	for _, m := range regexp.MustCompile(triggerPattern).FindAllStringSubmatch(string(sql), -1) {
+		triggers[m[1]] = true
+	}
 	seen := map[string]bool{}
 	for _, v := range Registry() {
 		require.False(t, seen[v.Trigger])
@@ -31,7 +35,7 @@ func TestRegistryMatchesVersionedMigration(t *testing.T) {
 		require.NotEmpty(t, v.Description)
 		require.NotEmpty(t, v.Guidance)
 		require.Equal(t, bodies[v.Function], v.FunctionSHA256)
-		require.True(t, strings.Contains(string(sql), "TRIGGER "+v.Trigger+" "))
+		require.True(t, triggers[v.Trigger])
 	}
 	require.Len(t, seen, 8)
 	copy := Registry()

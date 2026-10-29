@@ -203,6 +203,7 @@ Database bootstrap is separate: `make init-dev`, `make init-prod`, or `bnpl db m
 | `make init-dev` | Destructive development schema recreate (`APP_ENVIRONMENT=development`) |
 | `make init-prod` | One-time production schema create (`APP_ENVIRONMENT=production`; refuses if exists) |
 | `make test` | Run unit tests |
+| `make test-integration` | Run integration tests in an isolated temporary PostgreSQL 18 container |
 | `make test-coverage` | Generate coverage report |
 | `make lint` | Run golangci-lint |
 | `make build-image` | Build Docker image |

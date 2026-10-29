@@ -40,12 +40,20 @@ Explicit CLI `--config` wins over CONFIG_FILE. Existing .env loading remains;
 use `make -e` or command-line assignments when overriding .env with an isolated
 test environment. `make env` now prints names with redacted values.
 
-`make db-invariants-test` requires real disposable PostgreSQL, with
-`COLLECTIONS_TEST_DATABASE_URL` and `DATABASE_SECURITY_TEST_URL`. Security tests
-create/drop uniquely named test databases and provision the four roles; use a
-**dedicated cluster**, never production or a shared project DB. The restricted
-payment integration additionally uses `COLLECTIONS_RUNTIME_TEST_URL` for the
-actual test bnpl login. Dependency absence is failure, never a successful skip.
+`make test-integration` creates a short-lived PostgreSQL 18 container bound to a
+random loopback port, initializes the baseline needed by generic integration
+tests, supplies the three dedicated test DSNs and removes the container on exit.
+It never reuses `bnpl-db` or a persistent volume. Override the image or engine
+with `INTEGRATION_POSTGRES_IMAGE` and `INTEGRATION_CONTAINER_ENGINE=podman`.
+To use an already provisioned disposable cluster, set
+`INTEGRATION_POSTGRES_MODE=external` and provide `COLLECTIONS_TEST_DATABASE_URL`,
+`DATABASE_SECURITY_TEST_URL`, `COLLECTIONS_RUNTIME_TEST_URL`, and the `POSTGRES_*`
+test values explicitly. External mode never initializes or cleans that cluster.
+
+`make db-invariants-test` remains the focused real-PostgreSQL/race target and
+requires explicit dedicated DSNs. Security tests create/drop uniquely named test
+databases and provision the four roles; never point either target at production
+or a shared project DB. Dependency absence is failure, never a successful skip.
 
 ## Four local and published image combinations
 

@@ -87,7 +87,7 @@ It does **not** touch the database. Bootstrap/reset is only via `make init-dev`
 | Target | Action |
 | --- | --- |
 | `test` | `go test ./...` |
-| `test-integration` | Integration tests with `integration` tag |
+| `test-integration` | Integration tests with an automatic disposable PostgreSQL 18 container; never uses `bnpl-db` |
 | `test-coverage` | Coverage report |
 | `lint` | golangci-lint |
 | `staticcheck` | staticcheck |
