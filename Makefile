@@ -1,7 +1,7 @@
-# Auto-load an existing .env. Commands do not create or modify it implicitly.
-ifneq ($(wildcard .env),)
+# Create .env from .env.example when missing, before running any make target.
+# GNU Make rebuilds included makefiles using their rules below, then reloads them.
+# The .env recipe preserves an existing file without overwriting local settings.
 include .env
-endif
 export
 
 .DEFAULT_GOAL := build-development
