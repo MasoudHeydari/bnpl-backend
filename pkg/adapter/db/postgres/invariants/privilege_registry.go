@@ -73,7 +73,7 @@ var privileges = []TablePrivilegePolicy{
 	{Schema: "bnpl", Table: "collections_case_events", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{}},
 }
 
-const PrivilegeMigrationSHA256 = "sha256:b9cc06a580a24f2173980bd1655692cfe02160e40f3863d96b39a9820fd421df"
+const PrivilegeMigrationSHA256 = "sha256:af4ed884c13eaf64b5c0a7e8ebf3164b68ceec623753ba8763bf54cf57123293"
 
 const PermissionHistoryMigration = "000_schema.sql"
-const PermissionHistoryMigrationSHA256 = "sha256:b9cc06a580a24f2173980bd1655692cfe02160e40f3863d96b39a9820fd421df"
+const PermissionHistoryMigrationSHA256 = "sha256:af4ed884c13eaf64b5c0a7e8ebf3164b68ceec623753ba8763bf54cf57123293"
