@@ -116,6 +116,7 @@ baseline="pkg/adapter/db/postgres/migrationsrp/000_schema.sql"
     --username "bnpl_migrator" \
     --dbname "$database" \
     --command "SET ROLE bnpl_owner" \
+    --file - \
     <"$baseline" \
     >/dev/null
 "$engine" exec "$container" psql \
