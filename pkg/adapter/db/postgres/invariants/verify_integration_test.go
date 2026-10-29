@@ -203,28 +203,29 @@ func TestDirectDatabaseInvariants(t *testing.T) {
 	}
 }
 
-func TestHistoricalIntegrityPreflightDoesNotRepairData(t *testing.T) {
+func TestHistoricalIntegrityQueryDoesNotRepairData(t *testing.T) {
 	f := newFixture(t, false)
 	f.exec(t, markPaidSQL, f.installment)
 	charge := f.charge(t, "late_fee", "customer")
-	sql, e := os.ReadFile("../../../../../assets/db/audits/installment_integrity.sql")
-	require.NoError(t, e)
-	query := strings.Split(strings.Split(string(sql), "BEGIN TRANSACTION READ ONLY;")[1], ";")[0]
-	query = strings.ReplaceAll(query, "bnpl.", f.schema+".")
-	var issue, kind, status, currency string
-	var customer, contract, installment, id uuid.UUID
-	var amount int
-	require.NoError(t, f.pool.Pool.QueryRow(f.ctx, query).Scan(&issue, &customer, &contract, &installment, &id, &kind, &status, &amount, &currency))
-	require.Equal(t, f.customer, customer)
-	require.Equal(t, f.contract, contract)
-	require.Equal(t, f.installment, installment)
-	require.Equal(t, charge, id)
+	// Query the deliberate historical inconsistency directly. The test uses
+	// a disposable schema and needs no separately deployed audit SQL file.
+	const query = `
+SELECT c.id
+FROM installment_charges AS c
+JOIN installments AS i ON i.id = c.installment_id
+WHERE i.status = 'paid'
+  AND c.payer_type = 'customer'
+  AND c.charge_status IN ('offered', 'applied')
+`
+	var chargeID uuid.UUID
+	require.NoError(t, f.pool.Pool.QueryRow(f.ctx, query).Scan(&chargeID))
+	require.Equal(t, charge, chargeID)
 	// Re-enabling financial guards rejects new mutations but does not silently
 	// change rows that were already corrupted while the guards were disabled.
 	for _, table := range []string{"installments", "installment_charges", "payment_attempts", "payment_attempt_items"} {
 		f.exec(t, "ALTER TABLE "+pgx.Identifier{f.schema, table}.Sanitize()+" ENABLE TRIGGER USER")
 	}
-	_, e = f.pool.Pool.Exec(f.ctx, "UPDATE installments SET paid_amount_minor=paid_amount_minor+1 WHERE id=$1", f.installment)
+	_, e := f.pool.Pool.Exec(f.ctx, "UPDATE installments SET paid_amount_minor=paid_amount_minor+1 WHERE id=$1", f.installment)
 	assertViolation(t, e, "BN001")
 	var actual string
 	require.NoError(t, f.pool.Pool.QueryRow(f.ctx, `SELECT charge_status FROM installment_charges WHERE id=$1`, charge).Scan(&actual))

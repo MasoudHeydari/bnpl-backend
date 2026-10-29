@@ -118,7 +118,8 @@ and existing linker flags. There is no new capability build tag.
 One Dockerfile has runtime/dbadmin final targets, BUILD_ENV selection, CA/tzdata
 and an unprivileged OS user. Runtime contains only its executable/template and
 existing entrypoint. DB Admin contains only its executable/template plus migration
-and audit assets. No .env, pgpass or credential ENV is baked in. Default DB Admin
+assets. The previously bundled standalone audit SQL files were subsequently
+removed. No .env, pgpass or credential ENV is baked in. Default DB Admin
 CMD is help. Both compiled dependencies and actual image binaries/build tags were
 inspected; separation is not merely command-name filtering.
 

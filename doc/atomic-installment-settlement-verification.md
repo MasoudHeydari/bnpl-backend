@@ -213,12 +213,12 @@ and to provide explicit successful settlement evidence instead of raw paid rows.
 Changes cover Core economic classification, atomic activation/repayment/result
 application, financial ambiguity and Collections communication; PostgreSQL queries,
 new versioned guards and verifier; startup/CLI/Make tooling; current-payable API and
-localization/Swagger; read-only audits, real PG/concurrency tests and documentation.
+localization/Swagger; formerly standalone read-only audits, real PG/concurrency
+tests and documentation. The audits were later removed in favor of an inline
+integration-test query; this manifest records the original implementation.
 The following manifest is relative to the repository root:
 
 - `Makefile`
-- `assets/db/audits/installment_integrity.sql`
-- `assets/db/audits/unresolved_financial_outcomes.sql`
 - `assets/db/migrations/000003_installment_payment_invariants.sql`
 - `cmd/bnpl/bootstrap/app.go`
 - `cmd/bnpl/bootstrap/boot.go`

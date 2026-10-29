@@ -1,8 +1,8 @@
 > Administration commands now belong to `bnpl-dbadmin` with `configs/dbadmin.yaml`.
 > Runtime additionally verifies the managed privilege/ownership contract. See
 > [roles](database-roles.md), [privileges](database-privileges.md) and
-> [deployment](database-deployment.md). Trigger definitions and migration 000003
-> remain unchanged.
+> [deployment](database-deployment.md). Financial integrity definitions now live
+> in the initial schema; no separate pre-release migration is installed.
 
 # Managed installment integrity
 
@@ -18,10 +18,9 @@ Use Cases. PostgreSQL enforces persisted cross-table integrity even for direct
 SQL. The adapter registry in `pkg/adapter/db/postgres/invariants` describes and
 verifies those rules; it is not another business policy or migration engine.
 
-Only `assets/db/migrations/000003_installment_payment_invariants.sql` installs the
-objects, through the existing checksum/advisory-lock/dirty-aware migration runner.
-The frozen baseline and migrations 000001/000002 are unchanged. No decisions
-schema change or business-row cleanup is included.
+The initial `pkg/adapter/db/postgres/migrationsrp/000_schema.sql` installs these
+objects on a freshly initialized database. There is no separate pre-release
+migration. Initial schema setup does not repair or delete business rows.
 
 The three managed invariants are:
 
@@ -176,8 +175,8 @@ no live database/config. Verification never runs migrations. Test target uses
 `-count=1 -race` with development/integration tags and fails if PostgreSQL/DSN is
 unavailable; it never reports skipped tests as success.
 
-Tests install the frozen baseline plus the ordered incremental chain into unique
-schemas in a disposable database. They test direct mutations, both competing lock
+Tests install the complete initial schema into unique schemas in a disposable
+database; incremental migrations are exercised separately. They test direct mutations, both competing lock
 orders, old repeatable-read snapshots, deferred rollback, read-only verification,
 real payment/reconciliation/activation paths, exactly-once principal release,
 contract completion, history, Collections and message suppression. Only external
@@ -185,12 +184,11 @@ FC calls are faked; repositories and transaction constraints are real.
 
 ## Preflight and rollout
 
-Run `assets/db/audits/installment_integrity.sql` read-only before deployment. It
-reports customer/contract/installment/charge/attempt references for inconsistent
-paid components, nonpositive/invalid economics and incomplete/charge-only
-historical snapshots. After installation,
-`assets/db/audits/unresolved_financial_outcomes.sql` inventories unproven terminal
-outcomes. Neither audit updates any record.
+The standalone historical-data audit SQL files have been removed. For an
+existing database containing retained financial data, operators must perform
+an explicit read-only reconciliation assessment against Financial Core before
+migration; initial schema verification only checks managed object definitions
+and permissions, not the economic correctness of every historical row.
 
 The original pre-release migration contained a historical-data preflight for
 installing these guards onto an already populated database. That migration has
@@ -203,8 +201,8 @@ fresh initial schema.
 For the first Production release, initialize an empty schema using the matching
 DB Admin binary and run read-only invariant and privilege verification before
 starting Runtime. Do not let an old binary overlap with newly restricted grants.
-The historical audit scripts remain useful for explicitly reviewing retained
-data; they never repair or rewrite evidence.
+The integration tests retain a focused read-only query that detects an
+inconsistent historical paid installment without modifying evidence.
 
 Future changes require a new incremental migration, explicit registry/checksum
 and definition-contract updates, compatibility review and updated real PostgreSQL

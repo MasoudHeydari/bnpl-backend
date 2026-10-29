@@ -75,8 +75,8 @@ the Production Runtime `<name>:<version>` compatibility tag only.
 One multi-stage Dockerfile has `runtime` and `dbadmin` finals and BUILD_ENV as its
 compile-time environment dimension. Both run as unprivileged bnpluser with CA
 certificates and tzdata. Runtime contains only bnpl, runtime.yaml and the existing
-startup script. It contains no admin binary/config or migration/audit assets.
-DB Admin contains only bnpl-dbadmin, dbadmin.yaml, migrations and read-only audits;
+startup script. It contains no admin binary/config or migration assets.
+DB Admin contains only bnpl-dbadmin, dbadmin.yaml and future migration files;
 it has no Runtime executable/config or business entrypoint. The baseline is
 embedded only in the admin binary. Credentials are injected, never copied into
 an image. .dockerignore excludes .env, pgpass, private keys and local credentials.

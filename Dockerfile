@@ -33,7 +33,6 @@ ENV CONFIG_FILE=configs/dbadmin.yaml
 COPY --from=dbadmin-builder --chown=bnpluser:bnpluser /out/bnpl-dbadmin ./bnpl-dbadmin
 COPY --chown=bnpluser:bnpluser configs/dbadmin.yaml ./configs/dbadmin.yaml
 COPY --chown=bnpluser:bnpluser assets/db/migrations ./assets/db/migrations
-COPY --chown=bnpluser:bnpluser assets/db/audits ./assets/db/audits
 ENTRYPOINT ["./bnpl-dbadmin"]
 CMD ["--help"]
 
