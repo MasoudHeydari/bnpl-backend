@@ -1431,7 +1431,8 @@ COMMENT ON COLUMN merchant_terminal_permissions.created_at IS 'When BNPL persist
 COMMENT ON COLUMN merchant_terminal_permissions.revoked_at IS 'Revocation evidence; NULL is active. Regrant creates a new assignment.';
 
 CREATE UNIQUE INDEX uq_merchant_terminal_permissions_active ON merchant_terminal_permissions (merchant_terminal_id, permission)
-WHERE revoked_at IS NULL;
+WHERE
+    revoked_at IS NULL;
 
 -- Auth lookup of all grants for one terminal.
 CREATE INDEX IF NOT EXISTS idx_merchant_terminal_permissions_terminal ON merchant_terminal_permissions (merchant_terminal_id);

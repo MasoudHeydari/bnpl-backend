@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"gopkg.in/yaml.v3"
+
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/connection"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/migrationsrp"
@@ -18,7 +20,6 @@ import (
 	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
-	"gopkg.in/yaml.v3"
 )
 
 // Config is the independently validated administration document. Owner has no secret.
@@ -73,6 +74,7 @@ func (c *Config) Validate() error {
 	if c.Application != "dbadmin" {
 		return fmt.Errorf("dbadmin config: application must be dbadmin")
 	}
+	fmt.Println("Env: ", c.Runtime.Environment)
 	if _, e := model.ParseRuntimeEnvironment(c.Runtime.Environment); e != nil {
 		return fmt.Errorf("dbadmin config: invalid environment")
 	}
