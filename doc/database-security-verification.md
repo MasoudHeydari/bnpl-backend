@@ -2,7 +2,10 @@
 
 > Historical report from the initial refactor. The subsequent cleanup allows
 > session-local TEMPORARY tables, simplifies developer tooling and updates
-> SQL fingerprints after formatting. Refer to the latest source and README.
+> SQL fingerprints after formatting. A later pre-release consolidation moved
+> the five development-only migrations into the initial schema. This file is a
+> historical implementation report, not the current installation procedure.
+> Refer to the latest source and README.
 
 Actual starting HEAD: `bdf5bd01dd5678e71a3465adc0b7d95b6482d3b1`.
 Branch: `feat-add-decision-domain`. The remote was rechecked before publication;

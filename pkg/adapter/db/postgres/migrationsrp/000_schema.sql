@@ -725,6 +725,8 @@ CREATE TABLE IF NOT EXISTS installments (
     status text NOT NULL,
     paid_amount_minor bigint NOT NULL DEFAULT 0,
     paid_at timestamptz NULL,
+    -- Optimistic serialization fence for monetary child mutations.
+    financial_revision bigint NOT NULL DEFAULT 0 CHECK (financial_revision >= 0),
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT chk_installments_order CHECK (installment_order > 0),
@@ -821,6 +823,10 @@ CREATE TABLE IF NOT EXISTS payment_attempts (
     manual_review_required_at timestamptz NULL,
     submitted_at timestamptz NULL,
     financial_paid_at timestamptz NULL,
+    -- Authoritative payment outcome state, resolved by Financial Core.
+    financial_outcome_resolved boolean NOT NULL DEFAULT FALSE,
+    -- Records the transaction that created the immutable payment snapshot.
+    snapshot_xid xid8 NOT NULL DEFAULT pg_current_xact_id (),
     applied_at timestamptz NULL,
     failed_at timestamptz NULL,
     canceled_at timestamptz NULL,
@@ -1409,7 +1415,8 @@ CREATE TABLE IF NOT EXISTS merchant_terminal_permissions (
     permission text NOT NULL,
     -- When the assignment was persisted.
     created_at timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT uq_merchant_terminal_permissions_terminal_permission UNIQUE (merchant_terminal_id, permission),
+    -- NULL means active; re-granting after revocation preserves history.
+    revoked_at timestamptz NULL,
     CONSTRAINT chk_merchant_terminal_permissions_permission CHECK (char_length(permission) BETWEEN 1 AND 128)
 );
 
@@ -1420,6 +1427,11 @@ COMMENT ON COLUMN merchant_terminal_permissions.merchant_terminal_id IS 'Owning 
 COMMENT ON COLUMN merchant_terminal_permissions.permission IS 'BNPL catalog wire permission code assigned to the terminal.';
 
 COMMENT ON COLUMN merchant_terminal_permissions.created_at IS 'When BNPL persisted this assignment.';
+
+COMMENT ON COLUMN merchant_terminal_permissions.revoked_at IS 'Revocation evidence; NULL is active. Regrant creates a new assignment.';
+
+CREATE UNIQUE INDEX uq_merchant_terminal_permissions_active ON merchant_terminal_permissions (merchant_terminal_id, permission)
+WHERE revoked_at IS NULL;
 
 -- Auth lookup of all grants for one terminal.
 CREATE INDEX IF NOT EXISTS idx_merchant_terminal_permissions_terminal ON merchant_terminal_permissions (merchant_terminal_id);
@@ -1479,7 +1491,7 @@ CREATE TABLE IF NOT EXISTS repayment_reminders (
     created_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT repayment_reminders_customer_business_date_unique UNIQUE (customer_id, business_date),
     CONSTRAINT repayment_reminders_idempotency_key_unique UNIQUE (notification_idempotency_key),
-    CONSTRAINT repayment_reminders_reminder_type_check CHECK (reminder_type IN ('pre_due', 'due_today', 'grace_period', 'grace_final_day')),
+    CONSTRAINT repayment_reminders_reminder_type_check CHECK (reminder_type IN ('pre_due', 'due_today', 'grace_period', 'grace_final_day', 'collections_default')),
     CONSTRAINT repayment_reminders_installment_ids_nonempty CHECK (cardinality(installment_ids) >= 1)
 );
 
@@ -1550,14 +1562,14 @@ CREATE TABLE IF NOT EXISTS customer_restrictions (
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT customer_restrictions_type_check CHECK (restriction_type IN ('new_credit_usage')),
-    CONSTRAINT customer_restrictions_reason_check CHECK (reason IN ('collections_default')),
+    CONSTRAINT customer_restrictions_reason_check CHECK (reason ~ '^[a-z][a-z0-9_]{0,63}$'),
     CONSTRAINT customer_restrictions_status_check CHECK (status IN ('active', 'released')),
     CONSTRAINT customer_restrictions_released_consistency_check CHECK ((status = 'active' AND released_at IS NULL AND releasing_decision_id IS NULL) OR (status = 'released' AND released_at IS NOT NULL AND releasing_decision_id IS NOT NULL))
 );
 
 COMMENT ON TABLE customer_restrictions IS 'Durable customer capability restrictions; released rows are never deleted.';
 
-CREATE UNIQUE INDEX IF NOT EXISTS customer_restrictions_one_active_type_idx ON customer_restrictions (customer_id, restriction_type)
+CREATE UNIQUE INDEX IF NOT EXISTS customer_restrictions_one_active_reason_idx ON customer_restrictions (customer_id, restriction_type, reason)
 WHERE
     status = 'active';
 
@@ -1598,3 +1610,746 @@ CREATE TABLE IF NOT EXISTS collections_case_events (
 COMMENT ON TABLE collections_case_events IS 'Append-only collections case history; never deleted.';
 
 CREATE INDEX IF NOT EXISTS collections_case_events_case_occurred_idx ON collections_case_events (case_id, occurred_at ASC, id ASC);
+
+-- -----------------------------------------------------------------------------
+-- FINANCIAL INTEGRITY: canonical initial definitions (pre-release)
+-- Guards run on every newly initialized database, not via a later migration.
+-- -----------------------------------------------------------------------------
+CREATE FUNCTION bnpl.guard_installment_charge ()
+    RETURNS TRIGGER
+    LANGUAGE plpgsql
+    SET search_path = pg_catalog, bnpl
+    AS $body$
+DECLARE
+    parent bnpl.installments%ROWTYPE;
+    frozen boolean;
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION
+            USING ERRCODE = 'BN004', CONSTRAINT = 'installment_financial_component_immutable', MESSAGE = 'Financial charge history cannot be deleted';
+    END IF;
+    IF TG_OP = 'UPDATE' AND NEW.installment_id IS DISTINCT FROM OLD.installment_id THEN
+        RAISE EXCEPTION
+            USING ERRCODE = 'BN004', CONSTRAINT = 'installment_financial_component_immutable', MESSAGE = 'Charge ownership is immutable';
+    END IF;
+    -- NOWAIT avoids the child-row -> parent-row deadlock of arbitrary UPDATE SQL.
+    BEGIN
+        SELECT
+            *
+        INTO
+            parent
+        FROM
+            bnpl.installments
+        WHERE
+            id = NEW.installment_id
+        FOR UPDATE
+            NOWAIT;
+    EXCEPTION
+        WHEN lock_not_available THEN
+            RAISE EXCEPTION USING ERRCODE = 'BN003', CONSTRAINT = 'installment_payment_in_progress', MESSAGE = 'Installment financial operation is in progress';
+    END;
+    IF parent.status = 'paid' THEN
+        -- Only an exact no-op is permitted; even metadata is frozen after settlement.
+        IF TG_OP = 'INSERT' OR NEW IS DISTINCT FROM OLD THEN
+            RAISE EXCEPTION USING ERRCODE = 'BN001', CONSTRAINT = 'installment_already_paid', MESSAGE = 'Settled installment is immutable';
+            END IF;
+            RETURN NEW;
+        END IF;
+        SELECT
+            EXISTS (
+                SELECT
+                    1
+                FROM
+                    bnpl.payment_attempts p
+                WHERE
+                    p.installment_id = NEW.installment_id
+                    AND (p.state IN ('created', 'submitted', 'reconciliation_required', 'manual_review_required', 'succeeded')
+                        OR (p.state IN ('failed', 'canceled')
+                            AND NOT p.financial_outcome_resolved)))
+        INTO
+            frozen;
+            UPDATE
+                bnpl.installments
+            SET
+                financial_revision = financial_revision + 1
+            WHERE
+                id = NEW.installment_id;
+                IF frozen THEN
+                    IF TG_OP = 'UPDATE' AND OLD.payer_type <> 'customer' AND OLD.charge_status = 'offered' AND NEW.charge_status = 'applied' AND (to_jsonb (NEW) - ARRAY['charge_status', 'updated_at']) = (to_jsonb (OLD) - ARRAY['charge_status', 'updated_at']) THEN
+                        RETURN NEW;
+                        END IF;
+                        IF TG_OP = 'UPDATE' AND (to_jsonb (NEW) - ARRAY['charge_status', 'paid_at', 'updated_at']) = (to_jsonb (OLD) - ARRAY['charge_status', 'paid_at', 'updated_at']) AND OLD.charge_status IN ('offered', 'applied') AND ((OLD.charge_type IN ('discount', 'waiver') AND NEW.charge_status = 'waived' AND NEW.paid_at IS NULL) OR (OLD.charge_type NOT IN ('discount', 'waiver') AND NEW.charge_status = 'paid' AND NEW.paid_at IS NOT NULL)) AND OLD.payer_type = 'customer' AND EXISTS (
+        SELECT
+            1
+        FROM
+            bnpl.payment_attempts p
+            JOIN bnpl.payment_attempt_items x ON x.payment_attempt_id = p.id
+        WHERE
+            p.installment_id = parent.id AND p.state IN ('created', 'submitted', 'reconciliation_required', 'manual_review_required', 'succeeded') AND x.item_type = 'charge' AND x.source_id = OLD.id AND x.amount_minor = OLD.amount_minor AND x.effect = CASE WHEN OLD.charge_type IN ('discount', 'waiver') THEN
+                'credit'
+            ELSE
+                'debit'
+            END) THEN
+    RETURN NEW;
+    -- deferred guard requires complete successful settlement at commit
+                            END IF;
+                            IF TG_OP = 'UPDATE' AND NEW IS NOT DISTINCT FROM OLD THEN
+                                RETURN NEW;
+                                END IF;
+                                RAISE EXCEPTION USING ERRCODE = 'BN003', CONSTRAINT = 'installment_payment_in_progress', MESSAGE = 'Payment snapshot freezes financial components';
+                    END IF;
+                    RETURN NEW;
+END
+$body$;
+
+CREATE FUNCTION bnpl.guard_installment_settlement ()
+    RETURNS TRIGGER
+    LANGUAGE plpgsql
+    SET search_path = pg_catalog, bnpl
+    AS $body$
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION
+            USING ERRCODE = 'BN004', CONSTRAINT = 'installment_financial_component_immutable', MESSAGE = 'Installment history cannot be deleted';
+    END IF;
+    IF OLD.status = 'paid' AND NEW IS DISTINCT FROM OLD THEN
+        RAISE EXCEPTION
+            USING ERRCODE = 'BN001', CONSTRAINT = 'installment_already_paid', MESSAGE = 'Paid installment is terminal and immutable';
+    END IF;
+    IF (NEW.id,
+        NEW.merchant_profile_id,
+        NEW.merchant_branch_profile_id,
+        NEW.principal_amount_minor,
+        NEW.upfront_amount_minor,
+        NEW.currency,
+        NEW.contract_id,
+        NEW.customer_id,
+        NEW.decision_id,
+        NEW.installment_order,
+        NEW.total_amount_minor,
+        NEW.base_fee_amount_minor,
+        NEW.due_at,
+        NEW.grace_period_days) IS DISTINCT FROM (OLD.id,
+    OLD.merchant_profile_id,
+    OLD.merchant_branch_profile_id,
+    OLD.principal_amount_minor,
+    OLD.upfront_amount_minor,
+    OLD.currency,
+    OLD.contract_id,
+    OLD.customer_id,
+    OLD.decision_id,
+    OLD.installment_order,
+    OLD.total_amount_minor,
+    OLD.base_fee_amount_minor,
+    OLD.due_at,
+    OLD.grace_period_days) AND EXISTS (
+SELECT
+    1
+FROM
+    bnpl.payment_attempts p
+WHERE
+    p.installment_id = OLD.id AND (p.state IN ('created', 'submitted', 'reconciliation_required', 'manual_review_required', 'succeeded') OR (p.state IN ('failed', 'canceled') AND NOT p.financial_outcome_resolved))) THEN
+        RAISE EXCEPTION
+            USING ERRCODE = 'BN003', CONSTRAINT = 'installment_payment_in_progress', MESSAGE = 'Payment snapshot freezes installment economics';
+    END IF;
+    IF TG_OP = 'UPDATE' AND NEW.status IS DISTINCT FROM OLD.status AND NEW.status NOT IN ('scheduled', 'due', 'overdue', 'paid') AND EXISTS (
+        SELECT
+            1
+        FROM
+            bnpl.payment_attempts p
+        WHERE
+            p.installment_id = OLD.id AND (p.state IN ('created', 'submitted', 'reconciliation_required', 'manual_review_required', 'succeeded') OR (p.state IN ('failed', 'canceled') AND NOT p.financial_outcome_resolved))) THEN
+        RAISE EXCEPTION
+            USING ERRCODE = 'BN003', CONSTRAINT = 'installment_payment_in_progress', MESSAGE = 'Unresolved payment prevents extinguishing its installment';
+    END IF;
+    IF NEW.status = 'paid' AND EXISTS (
+        SELECT
+            1
+        FROM
+            bnpl.installment_charges c
+        WHERE
+            c.installment_id = NEW.id AND c.payer_type = 'customer' AND c.charge_status IN ('offered', 'applied')) THEN
+        RAISE EXCEPTION
+            USING ERRCODE = 'BN002', CONSTRAINT = 'installment_has_unsettled_charges', MESSAGE = 'Customer components must be finalized before installment settlement';
+    END IF;
+    IF NEW.status = 'paid' AND NOT EXISTS (
+        SELECT
+            1
+        FROM
+            bnpl.payment_attempts p
+            JOIN bnpl.payment_attempt_items x ON x.payment_attempt_id = p.id
+        WHERE
+            p.installment_id = NEW.id AND p.amount_minor = NEW.paid_amount_minor AND p.currency = NEW.currency AND p.contract_id IS NOT DISTINCT FROM NEW.contract_id AND p.state IN ('created', 'submitted', 'reconciliation_required', 'manual_review_required', 'succeeded') AND x.item_type = 'principal' AND x.source_id = NEW.id AND x.amount_minor = NEW.principal_amount_minor AND x.effect = 'debit') THEN
+        RAISE EXCEPTION
+            USING ERRCODE = 'BN002', CONSTRAINT = 'installment_has_unsettled_charges', MESSAGE = 'Full installment cash must match its immutable payment snapshot';
+    END IF;
+    RETURN NEW;
+END
+$body$;
+
+CREATE FUNCTION bnpl.guard_payment_attempt_freeze ()
+    RETURNS TRIGGER
+    LANGUAGE plpgsql
+    SET search_path = pg_catalog, bnpl
+    AS $body$
+DECLARE
+    parent bnpl.installments%ROWTYPE;
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION
+            USING ERRCODE = 'BN004', CONSTRAINT = 'installment_financial_component_immutable', MESSAGE = 'Payment history cannot be deleted';
+    END IF;
+    IF TG_OP = 'UPDATE' AND (NEW.id,
+        NEW.idempotency_key,
+        NEW.request_fingerprint,
+        NEW.created_at,
+        NEW.installment_id,
+        NEW.contract_id,
+        NEW.amount_minor,
+        NEW.currency,
+        NEW.purpose,
+        NEW.snapshot_xid) IS DISTINCT FROM (OLD.id,
+    OLD.idempotency_key,
+    OLD.request_fingerprint,
+    OLD.created_at,
+    OLD.installment_id,
+    OLD.contract_id,
+    OLD.amount_minor,
+    OLD.currency,
+    OLD.purpose,
+    OLD.snapshot_xid) THEN
+        RAISE EXCEPTION
+            USING ERRCODE = 'BN004', CONSTRAINT = 'installment_financial_component_immutable', MESSAGE = 'Payment economic identity is immutable';
+    END IF;
+    BEGIN
+        SELECT
+            *
+        INTO
+            parent
+        FROM
+            bnpl.installments
+        WHERE
+            id = NEW.installment_id
+        FOR UPDATE
+            NOWAIT;
+    EXCEPTION
+        WHEN lock_not_available THEN
+            RAISE EXCEPTION USING ERRCODE = 'BN003', CONSTRAINT = 'installment_payment_in_progress', MESSAGE = 'Installment financial operation is in progress';
+    END;
+    IF TG_OP = 'UPDATE' AND ((OLD.financial_payment_intent_id IS NOT NULL AND NEW.financial_payment_intent_id IS DISTINCT FROM OLD.financial_payment_intent_id) OR (OLD.financial_collection_obligation_id IS NOT NULL AND NEW.financial_collection_obligation_id IS DISTINCT FROM OLD.financial_collection_obligation_id) OR (OLD.state = 'succeeded' AND (NEW.financial_paid_at,
+NEW.applied_at) IS DISTINCT FROM (OLD.financial_paid_at,
+OLD.applied_at))) THEN
+        RAISE EXCEPTION USING ERRCODE = 'BN004', CONSTRAINT = 'installment_financial_component_immutable', MESSAGE = 'Payment financial identity and effective application evidence are immutable';
+        END IF;
+        IF TG_OP = 'UPDATE' AND OLD.state = 'succeeded' AND NEW.state <> OLD.state THEN
+            RAISE EXCEPTION USING ERRCODE = 'BN004', CONSTRAINT = 'installment_financial_component_immutable', MESSAGE = 'Successful payment history is terminal';
+            END IF;
+            IF TG_OP = 'INSERT' AND EXISTS (
+                SELECT
+                    1
+                FROM
+                    bnpl.payment_attempts p
+                WHERE
+                    p.installment_id = NEW.installment_id AND (p.state IN ('created', 'submitted', 'reconciliation_required', 'manual_review_required', 'succeeded') OR (p.state IN ('failed', 'canceled') AND NOT p.financial_outcome_resolved))) THEN
+                RAISE EXCEPTION USING ERRCODE = 'BN003', CONSTRAINT = 'installment_payment_in_progress', MESSAGE = 'Existing financial outcome must be resolved before another payment';
+                END IF;
+                IF TG_OP = 'INSERT' AND parent.status = 'paid' THEN
+                    RAISE EXCEPTION USING ERRCODE = 'BN001', CONSTRAINT = 'installment_already_paid', MESSAGE = 'Cannot pay a settled installment again';
+                    END IF;
+                    IF TG_OP = 'INSERT' THEN
+                        NEW.snapshot_xid := pg_current_xact_id ();
+                        UPDATE
+                            bnpl.installments
+                        SET
+                            financial_revision = financial_revision + 1
+                        WHERE
+                            id = NEW.installment_id;
+                        END IF;
+                        RETURN NEW;
+END
+$body$;
+
+CREATE FUNCTION bnpl.guard_payment_items ()
+    RETURNS TRIGGER
+    LANGUAGE plpgsql
+    SET search_path = pg_catalog, bnpl
+    AS $body$
+DECLARE
+    parent_id uuid;
+    creator xid8;
+BEGIN
+    IF TG_OP <> 'INSERT' THEN
+        RAISE EXCEPTION
+            USING ERRCODE = 'BN004', CONSTRAINT = 'installment_financial_component_immutable', MESSAGE = 'Payment items are immutable history';
+    END IF;
+    SELECT
+        installment_id,
+        snapshot_xid
+    INTO
+        parent_id,
+        creator
+    FROM
+        bnpl.payment_attempts
+    WHERE
+        id = NEW.payment_attempt_id;
+    IF creator IS DISTINCT FROM pg_current_xact_id () THEN
+        RAISE EXCEPTION
+            USING ERRCODE = 'BN004', CONSTRAINT = 'installment_financial_component_immutable', MESSAGE = 'Payment snapshot can only be created with its attempt';
+    END IF;
+    BEGIN
+        PERFORM
+            1
+        FROM
+            bnpl.installments
+        WHERE
+            id = parent_id
+        FOR UPDATE
+            NOWAIT;
+    EXCEPTION
+        WHEN lock_not_available THEN
+            RAISE EXCEPTION USING ERRCODE = 'BN003', CONSTRAINT = 'installment_payment_in_progress', MESSAGE = 'Installment financial operation is in progress';
+    END;
+    RETURN NEW;
+END
+$body$;
+
+-- Deferred validation permits ordered item inserts, and checkout's successful
+-- attempt bookkeeping after charge application, but never an incomplete commit.
+CREATE FUNCTION bnpl.verify_payment_snapshot_commit ()
+    RETURNS TRIGGER
+    LANGUAGE plpgsql
+    SET search_path = pg_catalog, bnpl
+    AS $body$
+DECLARE
+    pid uuid;
+    p bnpl.payment_attempts%ROWTYPE;
+    i bnpl.installments%ROWTYPE;
+BEGIN
+    IF TG_TABLE_NAME = 'installments' THEN
+        IF NEW.status = 'paid' AND NOT EXISTS (
+            SELECT
+                1
+            FROM
+                bnpl.payment_attempts evidence
+            WHERE
+                evidence.installment_id = NEW.id AND evidence.state = 'succeeded' AND evidence.amount_minor = NEW.paid_amount_minor AND evidence.currency = NEW.currency) THEN
+            RAISE EXCEPTION
+                USING ERRCODE = 'BN002', CONSTRAINT = 'installment_has_unsettled_charges', MESSAGE = 'Full installment settlement requires successful payment evidence at commit';
+        END IF;
+        RETURN NULL;
+    END IF;
+    IF TG_TABLE_NAME = 'payment_attempts' THEN
+        pid := NEW.id;
+    ELSIF TG_TABLE_NAME = 'payment_attempt_items' THEN
+        pid := NEW.payment_attempt_id;
+    ELSE
+        IF OLD.charge_status IS NOT DISTINCT FROM NEW.charge_status OR NEW.charge_status NOT IN ('paid', 'waived') THEN
+            RETURN NULL;
+        END IF;
+        IF NEW.payer_type <> 'customer' OR (NEW.charge_status = 'waived' AND NEW.charge_type NOT IN ('discount', 'waiver')) THEN
+            RETURN NULL;
+        END IF;
+        IF NOT EXISTS (
+            SELECT
+                1
+            FROM
+                bnpl.installments
+            WHERE
+                id = NEW.installment_id
+                AND status = 'paid') THEN
+        RAISE EXCEPTION
+            USING ERRCODE = 'BN002', CONSTRAINT = 'installment_has_unsettled_charges', MESSAGE = 'Customer settlement cannot commit separately from full installment settlement';
+    END IF;
+    IF NOT EXISTS (
+        SELECT
+            1
+        FROM
+            bnpl.payment_attempts a
+        WHERE
+            a.installment_id = NEW.installment_id
+            AND (a.state IN ('created', 'submitted', 'reconciliation_required', 'manual_review_required', 'succeeded')
+                OR (a.state IN ('failed', 'canceled')
+                    AND NOT a.financial_outcome_resolved))) THEN
+    RETURN NULL;
+END IF;
+    IF NOT EXISTS (
+        SELECT
+            1
+        FROM
+            bnpl.installments
+        WHERE
+            id = NEW.installment_id
+            AND status = 'paid')
+    OR NOT EXISTS (
+        SELECT
+            1
+        FROM
+            bnpl.payment_attempts a
+            JOIN bnpl.payment_attempt_items x ON x.payment_attempt_id = a.id
+        WHERE
+            a.installment_id = NEW.installment_id
+            AND a.state = 'succeeded'
+            AND x.item_type = 'charge'
+            AND x.source_id = NEW.id
+            AND x.amount_minor = NEW.amount_minor) THEN
+    RAISE EXCEPTION
+    USING ERRCODE = 'BN003', CONSTRAINT = 'installment_payment_in_progress', MESSAGE = 'Component settlement requires atomic successful installment application';
+END IF;
+    RETURN NULL;
+END IF;
+    SELECT
+        *
+    INTO
+        p
+    FROM
+        bnpl.payment_attempts
+    WHERE
+        id = pid;
+    SELECT
+        *
+    INTO
+        i
+    FROM
+        bnpl.installments
+    WHERE
+        id = p.installment_id;
+    IF p.id IS NULL THEN
+        RETURN NULL;
+    END IF;
+    IF (
+        SELECT
+            count(*)
+        FROM
+            bnpl.payment_attempt_items x
+        WHERE
+            x.payment_attempt_id = pid AND x.item_type = 'principal' AND x.source_id = i.id AND x.amount_minor = i.principal_amount_minor AND x.effect = 'debit') <> 1 OR (
+    SELECT
+        count(*)
+    FROM
+        bnpl.payment_attempt_items x
+    WHERE
+        x.payment_attempt_id = pid AND x.item_type = 'upfront') <> (
+CASE WHEN i.upfront_amount_minor > 0 THEN
+    1
+ELSE
+    0
+END)
+    OR EXISTS (
+        SELECT
+            1
+        FROM
+            bnpl.payment_attempt_items x
+        WHERE
+            x.payment_attempt_id = pid
+            AND ((x.item_type = 'principal'
+                    AND (x.source_id <> i.id
+                        OR x.amount_minor <> i.principal_amount_minor
+                        OR x.effect <> 'debit'))
+                OR (x.item_type = 'upfront'
+                    AND (x.source_id <> i.id
+                        OR x.amount_minor <> i.upfront_amount_minor
+                        OR x.effect <> 'debit'))
+                OR (x.item_type = 'charge'
+                    AND NOT EXISTS (
+                        SELECT
+                            1
+                        FROM
+                            bnpl.installment_charges c
+                        WHERE
+                            c.id = x.source_id
+                            AND c.installment_id = i.id
+                            AND c.payer_type = 'customer'
+                            AND c.amount_minor = x.amount_minor
+                            AND c.currency = p.currency
+                            AND x.effect = CASE WHEN c.charge_type IN ('discount', 'waiver') THEN
+                                'credit'
+                            ELSE
+                                'debit'
+                            END))
+                    OR x.item_type NOT IN ('principal', 'upfront', 'charge')))
+            OR EXISTS (
+                SELECT
+                    1
+                FROM
+                    bnpl.installment_charges c
+                WHERE
+                    c.installment_id = i.id
+                    AND c.payer_type = 'customer'
+                    AND c.charge_status IN ('offered', 'applied')
+                    AND NOT EXISTS (
+                        SELECT
+                            1
+                        FROM
+                            bnpl.payment_attempt_items x
+                        WHERE
+                            x.payment_attempt_id = pid
+                            AND x.item_type = 'charge'
+                            AND x.source_id = c.id))
+                OR EXISTS (
+                    SELECT
+                        1
+                    FROM
+                        bnpl.payment_attempt_items x
+                    WHERE
+                        x.payment_attempt_id = pid
+                    GROUP BY
+                        x.item_type,
+                        x.source_id
+                    HAVING
+                        count(*) > 1)
+                OR p.currency <> i.currency
+                OR p.contract_id IS DISTINCT FROM i.contract_id
+                OR p.amount_minor <> (
+                    SELECT
+                        coalesce(sum(
+                                CASE WHEN x.effect = 'debit' THEN
+                                    x.amount_minor
+                                ELSE
+                                    - x.amount_minor
+                                END), 0)
+                    FROM
+                        bnpl.payment_attempt_items x
+                    WHERE
+                        x.payment_attempt_id = pid) THEN
+                RAISE EXCEPTION
+            USING ERRCODE = 'BN004', CONSTRAINT = 'installment_financial_component_immutable', MESSAGE = 'Payment snapshot does not cover the complete installment';
+    END IF;
+    RETURN NULL;
+END
+$body$;
+
+CREATE TRIGGER installment_no_charges_after_paid
+    BEFORE INSERT OR UPDATE OR DELETE ON bnpl.installment_charges
+    FOR EACH ROW
+    EXECUTE FUNCTION bnpl.guard_installment_charge ();
+
+CREATE TRIGGER installment_complete_settlement
+    BEFORE INSERT OR UPDATE OR DELETE ON bnpl.installments
+    FOR EACH ROW
+    EXECUTE FUNCTION bnpl.guard_installment_settlement ();
+
+CREATE TRIGGER installment_payment_freeze
+    BEFORE INSERT OR UPDATE OR DELETE ON bnpl.payment_attempts
+    FOR EACH ROW
+    EXECUTE FUNCTION bnpl.guard_payment_attempt_freeze ();
+
+CREATE TRIGGER installment_snapshot_immutable
+    BEFORE INSERT OR UPDATE OR DELETE ON bnpl.payment_attempt_items
+    FOR EACH ROW
+    EXECUTE FUNCTION bnpl.guard_payment_items ();
+
+CREATE CONSTRAINT TRIGGER installment_snapshot_complete
+    AFTER INSERT ON bnpl.payment_attempts DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW
+    EXECUTE FUNCTION bnpl.verify_payment_snapshot_commit ();
+
+CREATE CONSTRAINT TRIGGER installment_items_complete
+    AFTER INSERT ON bnpl.payment_attempt_items DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW
+    EXECUTE FUNCTION bnpl.verify_payment_snapshot_commit ();
+
+CREATE CONSTRAINT TRIGGER installment_components_settled
+    AFTER UPDATE ON bnpl.installment_charges DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW
+    EXECUTE FUNCTION bnpl.verify_payment_snapshot_commit ();
+
+CREATE CONSTRAINT TRIGGER installment_paid_evidence
+    AFTER INSERT OR UPDATE ON bnpl.installments DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW
+    EXECUTE FUNCTION bnpl.verify_payment_snapshot_commit ();
+
+-- -----------------------------------------------------------------------------
+-- MANAGED DATABASE PERMISSIONS: canonical initial grants (pre-release)
+-- -----------------------------------------------------------------------------
+-- Bootstrap provisions bnpl_owner and the restricted bnpl role before applying this schema.
+DO $check$
+BEGIN
+    IF CURRENT_USER <> 'bnpl_owner' THEN
+        RAISE EXCEPTION 'Run migrations as bnpl_migrator with SET ROLE bnpl_owner';
+    END IF;
+END
+$check$;
+
+REVOKE ALL ON SCHEMA bnpl FROM PUBLIC, bnpl;
+
+GRANT USAGE ON SCHEMA bnpl TO bnpl;
+
+REVOKE ALL ON ALL TABLES IN SCHEMA bnpl FROM PUBLIC, bnpl;
+
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA bnpl FROM PUBLIC, bnpl;
+
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA bnpl FROM PUBLIC, bnpl;
+
+-- Table revocation does not revoke old column grants. Clear those explicitly.
+DO $columns$
+DECLARE
+    r record;
+BEGIN
+    FOR r IN
+    SELECT
+        c.relname,
+        a.attname
+    FROM
+        pg_catalog.pg_class c
+        JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+        JOIN pg_catalog.pg_attribute a ON a.attrelid = c.oid
+    WHERE
+        n.nspname = 'bnpl'
+        AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
+        AND a.attnum > 0
+        AND NOT a.attisdropped LOOP
+            EXECUTE format('REVOKE ALL (%I) ON TABLE bnpl.%I FROM PUBLIC, bnpl', r.attname, r.relname);
+        END LOOP;
+END
+$columns$;
+
+-- Future owner-created objects are default deny; no blanket business DML grants.
+ALTER DEFAULT PRIVILEGES FOR ROLE bnpl_owner IN SCHEMA bnpl REVOKE ALL ON TABLES FROM PUBLIC, bnpl;
+
+ALTER DEFAULT PRIVILEGES FOR ROLE bnpl_owner IN SCHEMA bnpl REVOKE ALL ON SEQUENCES FROM PUBLIC, bnpl;
+
+ALTER DEFAULT PRIVILEGES FOR ROLE bnpl_owner REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
+
+ALTER DEFAULT PRIVILEGES FOR ROLE bnpl_owner IN SCHEMA bnpl REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, bnpl;
+
+GRANT SELECT ON bnpl.migrations TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.integration_outbox TO bnpl;
+
+GRANT UPDATE (attempt_count, last_error, lock_version, locked_at, locked_by, next_attempt_at, published_at, status) ON bnpl.integration_outbox TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.integration_inbox TO bnpl;
+
+GRANT UPDATE (failed_at, failure_code, failure_message, processed_at, status, updated_at) ON bnpl.integration_inbox TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.integration_inbox_conflicts TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.saga_instances TO bnpl;
+
+GRANT UPDATE (current_step, finished_at, last_error, lease_until, locked_by, next_attempt_at, phase, status, step_attempt_count, updated_at, version) ON bnpl.saga_instances TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.saga_forward_step_completions TO bnpl;
+
+GRANT UPDATE (compensation_resolved_at, compensation_state) ON bnpl.saga_forward_step_completions TO bnpl;
+
+GRANT SELECT, INSERT, UPDATE ON bnpl.decisions TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.customer_profiles TO bnpl;
+
+GRANT UPDATE (external_customer_id, jurisdiction, status, updated_at) ON bnpl.customer_profiles TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.policy_assignments TO bnpl;
+
+GRANT UPDATE (updated_at, valid_until) ON bnpl.policy_assignments TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.policy_assignment_imports TO bnpl;
+
+GRANT UPDATE (completed_at, failure_count, status, success_count) ON bnpl.policy_assignment_imports TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.policy_assignment_import_items TO bnpl;
+
+GRANT UPDATE (error_code, error_message, status, updated_at) ON bnpl.policy_assignment_import_items TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.merchant_profiles TO bnpl;
+
+GRANT UPDATE (id) ON bnpl.merchant_profiles TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.merchant_branch_profiles TO bnpl;
+
+GRANT UPDATE (offer_preparation_mode, updated_at) ON bnpl.merchant_branch_profiles TO bnpl;
+
+GRANT SELECT ON bnpl.merchant_pos_terminals TO bnpl;
+
+GRANT UPDATE (id) ON bnpl.merchant_pos_terminals TO bnpl;
+
+GRANT SELECT ON bnpl.merchant_online_stores TO bnpl;
+
+GRANT UPDATE (id) ON bnpl.merchant_online_stores TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.credit_accounts TO bnpl;
+
+GRANT UPDATE (effective_from, expires_at, exposure_amount_minor, last_limit_decision_id, limit_amount_minor, revoked_at, status, updated_at, version) ON bnpl.credit_accounts TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.credit_transactions TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.contracts TO bnpl;
+
+GRANT UPDATE (activated_at, canceled_at, cancellation_context_id, cancellation_financial_core_accepted_at, cancellation_financial_core_idempotency_key, cancellation_idempotency_key, cancellation_reason, cancellation_request_fingerprint, cancellation_requested_at, cancellation_tenant_id, completed_at, financial_invoice_id, financial_merchant_entitlement_id, financial_payment_attempt_id, financial_payment_expires_at, financial_payment_intent_id, financial_payment_link, financial_payment_reused_idempotent_result, financial_payment_session_id, financial_receivable_id, payment_id, payment_reference, remaining_principal_amount_minor, status, successful_financial_payment_attempt_id, updated_at) ON bnpl.contracts TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.installments TO bnpl;
+
+GRANT UPDATE (contract_id, due_at, financial_revision, paid_amount_minor, paid_at, status, updated_at) ON bnpl.installments TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.installment_charges TO bnpl;
+
+GRANT UPDATE (charge_status, paid_at, updated_at) ON bnpl.installment_charges TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.payment_attempts TO bnpl;
+
+GRANT UPDATE (applied_at, cancel_return_url, canceled_at, context_id, failed_at, failure_code, failure_return_url, financial_collection_obligation_id, financial_outcome_resolved, financial_paid_at, financial_payment_attempt_id, financial_payment_expires_at, financial_payment_intent_id, financial_payment_session_id, last_reconciliation_error, manual_review_required_at, next_reconciliation_at, payment_url, provider_code, reconciliation_attempt_count, reconciliation_reason, reconciliation_requested_at, reconciliation_resolved_at, state, submitted_at, success_return_url, tenant_id, updated_at) ON bnpl.payment_attempts TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.payment_attempt_items TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.checkout_decision_allocations TO bnpl;
+
+GRANT UPDATE (decision_id) ON bnpl.checkout_decision_allocations TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.merchant_return_destinations TO bnpl;
+
+GRANT UPDATE (enabled, return_url, updated_at) ON bnpl.merchant_return_destinations TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.merchant_webhook_destinations TO bnpl;
+
+GRANT UPDATE (enabled, signing_secret_ciphertext, signing_secret_key_id, updated_at, webhook_url) ON bnpl.merchant_webhook_destinations TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.checkout_sessions TO bnpl;
+
+GRANT UPDATE (canceled_at, cancellation_reason, completed_at, confirmation_attempt_id, contract_id, customer_id, decision_id, evaluation_generation, expires_at, status, updated_at) ON bnpl.checkout_sessions TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.otp_challenges TO bnpl;
+
+GRANT UPDATE (attempt_count, context_version, expires_at, issue_id, next_issue_at, notification_accepted_at, notification_request_id, send_count, updated_at, verified_at, verifier) ON bnpl.otp_challenges TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.otp_rate_limits TO bnpl;
+
+GRANT UPDATE (send_count, updated_at, window_started_at) ON bnpl.otp_rate_limits TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.merchant_terminals TO bnpl;
+
+GRANT UPDATE (id) ON bnpl.merchant_terminals TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.merchant_terminal_credentials TO bnpl;
+
+GRANT UPDATE (retire_at, retired_at, status, updated_at) ON bnpl.merchant_terminal_credentials TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.merchant_terminal_issuance_deliveries TO bnpl;
+
+GRANT UPDATE (api_key_ciphertext, api_key_encryption_key_id, consumed_at, purged_at) ON bnpl.merchant_terminal_issuance_deliveries TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.merchant_terminal_permissions TO bnpl;
+
+GRANT UPDATE (revoked_at) ON bnpl.merchant_terminal_permissions TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.short_links TO bnpl;
+
+GRANT UPDATE (destination_url, revoked_at, updated_at) ON bnpl.short_links TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.repayment_reminders TO bnpl;
+
+GRANT UPDATE (id) ON bnpl.repayment_reminders TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.default_episodes TO bnpl;
+
+GRANT UPDATE (closing_decision_id, recovered_at, status, updated_at) ON bnpl.default_episodes TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.default_episode_triggers TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.customer_restrictions TO bnpl;
+
+GRANT UPDATE (released_at, releasing_decision_id, status, updated_at) ON bnpl.customer_restrictions TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.collections_cases TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.collections_case_events TO bnpl;
+
+GRANT EXECUTE ON FUNCTION bnpl.guard_installment_charge (), bnpl.guard_installment_settlement (), bnpl.guard_payment_attempt_freeze (), bnpl.guard_payment_items (), bnpl.verify_payment_snapshot_commit () TO bnpl;

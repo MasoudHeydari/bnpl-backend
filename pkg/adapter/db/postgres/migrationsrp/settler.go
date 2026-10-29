@@ -27,19 +27,18 @@ func NewSettler(tx repo.Tx) *Settler {
 //go:embed 000_schema.sql
 var schemaDDLStatements string
 
-// baselineSchemaSHA256 freezes the pre-production baseline schema. Once this
-// baseline ships, schema evolution must happen through assets/db/migrations so
-// a fresh database and an upgraded database traverse the same incremental
-// changes. Editing 000_schema.sql requires an explicit code change here and is
-// therefore intentionally review-visible.
-const baselineSchemaSHA256 = "3d6a6bea1a70b181771376cb676633b7f693619a233c8c8e86d0b29a1ff7043f"
+// baselineSchemaSHA256 identifies the canonical pre-release schema. The file
+// becomes immutable when the first Production version ships; subsequent schema
+// evolution then belongs exclusively in versioned incremental migrations.
+// Updating this digest is intentionally review-visible.
+const baselineSchemaSHA256 = "b9cc06a580a24f2173980bd1655692cfe02160e40f3863d96b39a9820fd421df"
 
 func validateBaselineSchema() error {
 	digest := sha256.Sum256([]byte(schemaDDLStatements))
 	actual := hex.EncodeToString(digest[:])
 	if actual != baselineSchemaSHA256 {
 		return fmt.Errorf(
-			"baseline schema checksum changed: expected=%s actual=%s; add an incremental migration instead of editing 000_schema.sql",
+			"baseline schema checksum changed: expected=%s actual=%s; inspect the baseline and review the corresponding checksum update",
 			baselineSchemaSHA256,
 			actual,
 		)

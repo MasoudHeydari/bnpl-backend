@@ -82,12 +82,13 @@ server audit sink. Restrict admin Job logs and secret access accordingly.
    they are not individually reassigned. Standalone sequences, functions,
    domains/types and migration metadata are covered. Unsupported object kinds
    fail preflight. No blanket REASSIGN OWNED or cross-schema operation is used.
-4. Run `... db migrate` with migrator credentials. Incremental 000004 adds
-   permission revocation history; 000005 installs explicit privileges/default deny.
-   The frozen baseline and migrations 000001–000003 remain unchanged.
-5. Run `... db invariants verify`, then deploy the matching Runtime with only
-   normal credentials. Do not resume old binaries that DELETE terminal permissions
-   or use table-wide mutations forbidden by the new policy.
+4. Before the first Production release, reinitialize a disposable Development
+   database from the complete canonical baseline. The former development-only
+   migrations were consolidated into it. Existing databases with old migration
+   history must not be silently reinterpreted as the new baseline.
+5. For future Production changes, use `... db migrate` with migrator credentials
+   and new versioned files. Verify invariants before deploying Runtime; do not
+   resume older writers incompatible with the tightened privilege allowlist.
 
 Plan/apply is repeatable. Failure rolls back the ownership transaction; migration
 failure retains the existing engine's transactional/dirty semantics. Neither

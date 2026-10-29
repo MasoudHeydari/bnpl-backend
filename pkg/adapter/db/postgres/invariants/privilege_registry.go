@@ -10,7 +10,8 @@ const (
 )
 
 // TablePrivilegePolicy describes expected effective Runtime permissions, not an
-// installer. Changes require a new migration; see database-privileges.md.
+// installer. Initial grants live in 000_schema.sql; post-release policy changes
+// require a new migration. See database-privileges.md.
 type TablePrivilegePolicy struct {
 	Schema, Table, Migration, Description string
 	Operations                            []Operation
@@ -28,7 +29,7 @@ func PrivilegeRegistry() []TablePrivilegePolicy {
 	return out
 }
 
-const PrivilegeMigration = "000005_runtime_privileges.sql"
+const PrivilegeMigration = "000_schema.sql"
 
 var privileges = []TablePrivilegePolicy{
 	{Schema: "bnpl", Table: "migrations", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation}, UpdateColumns: []string{}},
@@ -72,7 +73,7 @@ var privileges = []TablePrivilegePolicy{
 	{Schema: "bnpl", Table: "collections_case_events", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{}},
 }
 
-const PrivilegeMigrationSHA256 = "sha256:7b6e4c7e8f1fc97802ed532b5c4b62b7c77e34764f4af0d330b6ceedfbc6f07c"
+const PrivilegeMigrationSHA256 = "sha256:b9cc06a580a24f2173980bd1655692cfe02160e40f3863d96b39a9820fd421df"
 
-const PermissionHistoryMigration = "000004_terminal_permission_history.sql"
-const PermissionHistoryMigrationSHA256 = "sha256:0442b7e4fd60f3be20c75f7fc4ba7c61d2b839ff06a2e488ae5db4441f221b69"
+const PermissionHistoryMigration = "000_schema.sql"
+const PermissionHistoryMigrationSHA256 = "sha256:b9cc06a580a24f2173980bd1655692cfe02160e40f3863d96b39a9820fd421df"

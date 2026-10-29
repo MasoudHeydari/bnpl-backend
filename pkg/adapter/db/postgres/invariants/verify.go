@@ -1,4 +1,4 @@
-// Package invariants describes and verifies migration-owned PostgreSQL integrity
+// Package invariants describes and verifies initial-schema and migration-owned PostgreSQL integrity
 // rules. Verification is read-only; it never installs or repairs database objects.
 package invariants
 
@@ -33,17 +33,8 @@ func Verify(ctx context.Context, pool repo.Pool) error { return VerifySchema(ctx
 func VerifySchema(ctx context.Context, pool repo.Pool, schema string) error {
 	return pool.Conn(ctx, func(ctx context.Context, c repo.Conn) error {
 		return c.ReadSnapshot(ctx, func(ctx context.Context, tx repo.Tx) error {
-			type migration struct {
-				Checksum string `db:"checksum"`
-				Dirty    bool   `db:"dirty"`
-			}
-			m, err := postgres.QueryOne[migration](ctx, postgres.MustTx(tx), "read managed invariant migration", `SELECT checksum,dirty FROM `+pgx.Identifier{schema}.Sanitize()+`.migrations WHERE name=$1`, Migration)
-			if err != nil {
-				return fmt.Errorf("managed invariants: migration %s absent/unreadable; run db migrate after integrity preflight: %w", Migration, err)
-			}
-			if m.Dirty || m.Checksum != MigrationSHA256 {
-				return fmt.Errorf("managed invariants: migration %s dirty or incompatible checksum; verify deployment history", Migration)
-			}
+			// Baseline financial functions are installed during initialization.
+			// There is no incremental migration record for these definitions.
 			type compatibility struct {
 				Compatible bool `db:"compatible"`
 			}

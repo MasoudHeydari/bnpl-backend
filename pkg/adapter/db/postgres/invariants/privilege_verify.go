@@ -178,25 +178,14 @@ func VerifyPrivileges(ctx context.Context, p repo.Pool) error {
 					failures = append(failures, fmt.Errorf("function execute drift bnpl.%s", f.Name))
 				}
 			}
-			// Metadata is required but does not replace actual effective-right checks.
-			type migration struct {
-				Checksum string `db:"checksum"`
-				Dirty    bool   `db:"dirty"`
-			}
-			m, e := postgres.QueryOne[migration](ctx, q, "verify privilege migration", `SELECT checksum,dirty FROM bnpl.migrations WHERE name=$1`, PrivilegeMigration)
-			if e != nil || m.Dirty || m.Checksum != PrivilegeMigrationSHA256 {
-				failures = append(failures, fmt.Errorf("privilege migration missing/dirty/incompatible; apply reviewed DB Admin migrations"))
-			}
-			history, e := postgres.QueryOne[migration](ctx, q, "verify permission history migration", `SELECT checksum,dirty FROM bnpl.migrations WHERE name=$1`, PermissionHistoryMigration)
-			if e != nil || history.Dirty || history.Checksum != PermissionHistoryMigrationSHA256 {
-				failures = append(failures, fmt.Errorf("permission history migration missing/dirty/incompatible"))
-			}
+			// Initial-schema privileges are checked against actual PostgreSQL
+			// effective rights above, not obsolete pre-release migration records.
 			type compatible struct {
 				Safe bool `db:"safe"`
 			}
 			h, e := postgres.QueryOne[compatible](ctx, q, "verify active permission history schema", `SELECT EXISTS(SELECT 1 FROM pg_attribute a WHERE a.attrelid='bnpl.merchant_terminal_permissions'::regclass AND a.attname='revoked_at' AND a.atttypid='timestamptz'::regtype AND NOT a.attnotnull AND NOT a.attisdropped) AND EXISTS(SELECT 1 FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='bnpl' AND c.relname='uq_merchant_terminal_permissions_active' AND i.indisunique AND i.indisvalid AND i.indisready AND replace(replace(pg_get_expr(i.indpred,i.indrelid),'(',''),')','')='revoked_at IS NULL' AND i.indkey::text=(SELECT a.attnum::text||' '||b.attnum::text FROM pg_attribute a JOIN pg_attribute b ON b.attrelid=a.attrelid WHERE a.attrelid='bnpl.merchant_terminal_permissions'::regclass AND a.attname='merchant_terminal_id' AND b.attname='permission')) AND NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid='bnpl.merchant_terminal_permissions'::regclass AND conname='uq_merchant_terminal_permissions_terminal_permission') AS safe`)
 			if e != nil || !h.Safe {
-				failures = append(failures, fmt.Errorf("incompatible terminal permission history schema; inspect reviewed migration"))
+				failures = append(failures, fmt.Errorf("incompatible terminal permission history schema; inspect the initial baseline"))
 			}
 			return errors.Join(failures...)
 		})

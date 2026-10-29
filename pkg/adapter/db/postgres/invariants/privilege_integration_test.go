@@ -225,10 +225,7 @@ func TestLegacyOwnershipUpgradePreservesBusinessData(t *testing.T) {
 	require.NoError(t, roleTx.Commit(f.ctx))
 	_, e = f.admin.Exec(f.ctx, "CREATE SCHEMA bnpl AUTHORIZATION bnpl; CREATE SCHEMA unrelated; CREATE TABLE unrelated.keep(id int); INSERT INTO unrelated.keep VALUES(7); SET ROLE bnpl; SET search_path=bnpl; CREATE TYPE bnpl.legacy_enum AS ENUM('retained'); CREATE DOMAIN bnpl.legacy_domain AS int; CREATE TYPE bnpl.legacy_composite AS (value int)")
 	require.NoError(t, e)
-	tx, e := f.admin.Begin(f.ctx)
-	require.NoError(t, e)
-	require.NoError(t, migrationsrp.NewSettler(&postgres.Tx{Tx: tx}).InitDevSchema(f.ctx))
-	require.NoError(t, tx.Commit(f.ctx))
+	// The new baseline can only be installed after ownership handoff.
 	_, e = f.admin.Exec(f.ctx, "RESET ROLE")
 	require.NoError(t, e)
 	// Preflight/plan doesn't change ownership.
@@ -239,23 +236,30 @@ func TestLegacyOwnershipUpgradePreservesBusinessData(t *testing.T) {
 	require.NoError(t, e)
 	require.NotEmpty(t, plan)
 	var countBefore int
-	require.NoError(t, f.admin.QueryRow(f.ctx, "SELECT count(*) FROM bnpl.merchant_profiles").Scan(&countBefore))
-	tx, e = f.admin.Begin(f.ctx)
+	require.NoError(t, f.admin.QueryRow(f.ctx, "SELECT count(*) FROM unrelated.keep").Scan(&countBefore))
+	tx, e := f.admin.Begin(f.ctx)
 	require.NoError(t, e)
 	pt := &postgres.Tx{Tx: tx}
 	require.NoError(t, schemarp.GrantPrivileges(f.ctx, pt, "bnpl", repo.MigratorRole))
 	require.NoError(t, schemarp.ApplyOwnership(f.ctx, pt, plan))
 	require.NoError(t, tx.Commit(f.ctx))
-	f.migrate(t)
-	f.migrate(t)
-	var countAfter, unrelated int
-	require.NoError(t, f.admin.QueryRow(f.ctx, "SELECT count(*) FROM bnpl.merchant_profiles").Scan(&countAfter))
-	require.Equal(t, countBefore, countAfter)
-	require.NoError(t, f.admin.QueryRow(f.ctx, "SELECT id FROM unrelated.keep").Scan(&unrelated))
-	require.Equal(t, 7, unrelated)
 	p, e := f.c.ConnectionPool(f.ctx, repo.MigratorRole, nil)
 	require.NoError(t, e)
 	defer p.Close()
+	// Install the complete baseline as the effective NOLOGIN owner, after
+	// transferring legacy schema/type ownership. No old migration files run.
+	require.NoError(t, p.Conn(f.ctx, func(ctx context.Context, c repo.Conn) error {
+		return c.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
+			return migrationsrp.NewSettler(tx).InitDevSchema(ctx)
+		})
+	}))
+	f.migrate(t)
+	f.migrate(t)
+	var countAfter, unrelated int
+	require.NoError(t, f.admin.QueryRow(f.ctx, "SELECT count(*) FROM unrelated.keep").Scan(&countAfter))
+	require.Equal(t, countBefore, countAfter)
+	require.NoError(t, f.admin.QueryRow(f.ctx, "SELECT id FROM unrelated.keep").Scan(&unrelated))
+	require.Equal(t, 7, unrelated)
 	require.NoError(t, Verify(f.ctx, p))
 	require.NoError(t, VerifyPrivileges(f.ctx, p))
 	// Explicit upgrade is repeatable and remains scoped.
@@ -365,21 +369,31 @@ func TestDefaultDenyAndMigratorEffectiveRole(t *testing.T) {
 	require.NoError(t, VerifyRuntime(f.ctx, f.runtime))
 }
 
+// A temporary post-release migration verifies that checksum and dirty-state
+// enforcement remain intact after the pre-release SQL migration squash.
 func TestRealMigratorRejectsChecksumAndDirtyHistory(t *testing.T) {
 	f := newSecurityFixture(t)
 	f.init(t)
 	p, e := f.c.ConnectionPool(f.ctx, repo.MigratorRole, nil)
 	require.NoError(t, e)
 	defer p.Close()
-	uc, e := migrationsuc.New(p, migrationsrp.New(), adapterclock.NewSystem(time.UTC, time.UTC), f.c.Migrations.FilesDir, lognoop.New())
+
+	migrationDir := t.TempDir()
+	name := "000001_future_test.sql"
+	contents := []byte("-- A future incremental migration.\nSELECT 1;\n")
+	require.NoError(t, os.WriteFile(filepath.Join(migrationDir, name), contents, 0600))
+	uc, e := migrationsuc.New(p, migrationsrp.New(), adapterclock.NewSystem(time.UTC, time.UTC), migrationDir, lognoop.New())
 	require.NoError(t, e)
-	_, e = f.admin.Exec(f.ctx, `UPDATE bnpl.migrations SET checksum='sha256:0000000000000000000000000000000000000000000000000000000000000000' WHERE name=$1`, PrivilegeMigration)
+	require.NoError(t, uc.MigrateAll(f.ctx))
+	require.NoError(t, uc.MigrateAll(f.ctx))
+
+	_, e = f.admin.Exec(f.ctx, `UPDATE bnpl.migrations SET checksum='sha256:0000000000000000000000000000000000000000000000000000000000000000' WHERE name=$1`, name)
 	require.NoError(t, e)
 	require.Error(t, uc.MigrateAll(f.ctx))
-	_, e = f.admin.Exec(f.ctx, `UPDATE bnpl.migrations SET checksum=$2,dirty=true WHERE name=$1`, PrivilegeMigration, PrivilegeMigrationSHA256)
+	_, e = f.admin.Exec(f.ctx, `UPDATE bnpl.migrations SET checksum=$2,dirty=true WHERE name=$1`, name, MigrationFingerprint(contents))
 	require.NoError(t, e)
 	require.Error(t, uc.MigrateAll(f.ctx))
-	_, e = f.admin.Exec(f.ctx, `UPDATE bnpl.migrations SET dirty=false WHERE name=$1`, PrivilegeMigration)
+	_, e = f.admin.Exec(f.ctx, `UPDATE bnpl.migrations SET dirty=false WHERE name=$1`, name)
 	require.NoError(t, e)
 	require.NoError(t, uc.MigrateAll(f.ctx))
 	require.NoError(t, VerifyRuntime(f.ctx, f.runtime))

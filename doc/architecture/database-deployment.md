@@ -87,13 +87,17 @@ Optional business import CSV files and TLS secrets must be mounted explicitly.
 For a fresh environment, provision the database plus admin credential using the
 platform, then run a Production DB Admin Kubernetes Job with its isolated secrets:
 `bnpl-dbadmin --config configs/dbadmin.yaml db init-prod`. This provisions roles,
-creates owner-owned schema, initializes the frozen baseline and applies the
-existing incremental chain using migrator/owner. Run a separate verification Job:
+creates the owner-owned schema and the complete canonical initial baseline
+using migrator/owner. No incremental SQL files are required for the first
+release. Run a separate verification Job:
 `... db invariants verify`. Only after success deploy Runtime with the normal
 PGPass secret and business configuration, then check readiness.
 
-For an existing environment first follow the non-destructive ownership plan/apply
-procedure in [database-roles.md](database-roles.md). Audit financial invariants and
+For an existing database from the old development-only migration chain, do not
+assume that removing those files automatically upgrades its history. Recreate
+disposable Development databases, and explicitly plan any non-disposable data
+upgrade. For post-release Production upgrades, follow the non-destructive
+ownership and migration procedure in [database-roles.md](database-roles.md). Audit financial invariants and
 resolve historical findings explicitly before migration. Drain old writers before
 ownership/ACL tightening. An old/new rolling overlap is not compatible with the
 old permission DELETE path or the new strict startup verifier. Keep a maintenance

@@ -1,8 +1,9 @@
-// Code fingerprints derive from migration 000003; update only with a reviewed versioned migration.
+// Financial trigger definitions are installed by the initial baseline schema.
+// After the first Production release, changes require a reviewed migration.
 package invariants
 
-const Migration = "000003_installment_payment_invariants.sql"
-const MigrationSHA256 = "sha256:6bc8d59281b16dacd812620864ed4e014d29258a62b7fe139d3cb782e8b54a50"
+const Migration = "000_schema.sql"
+const MigrationSHA256 = "sha256:b9cc06a580a24f2173980bd1655692cfe02160e40f3863d96b39a9820fd421df"
 
 var managed = []Invariant{
 	{

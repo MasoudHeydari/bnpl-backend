@@ -39,7 +39,7 @@ for environment in development production; do
 			fi
 		else
 			docker run --rm "$image" >/dev/null
-			docker run --rm --entrypoint /bin/sh "$image" -c 'test ! -e configs/runtime.yaml && test -f assets/db/migrations/000005_runtime_privileges.sql && test -f assets/db/audits/installment_integrity.sql'
+			docker run --rm --entrypoint /bin/sh "$image" -c 'test ! -e configs/runtime.yaml && test -f assets/db/migrations/README.md && test -f assets/db/audits/installment_integrity.sql'
 			if docker run --rm "$image" serve >/dev/null 2>&1; then
 				echo "Admin image exposes serve" >&2
 				exit 1

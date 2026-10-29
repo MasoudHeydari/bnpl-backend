@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPrivilegeRegistryMatchesReviewedMigration(t *testing.T) {
-	data, e := os.ReadFile("../../../../../assets/db/migrations/" + PrivilegeMigration)
+func TestPrivilegeRegistryMatchesInitialSchema(t *testing.T) {
+	data, e := os.ReadFile("../migrationsrp/" + PrivilegeMigration)
 	require.NoError(t, e)
 	require.Equal(t, PrivilegeMigrationSHA256, MigrationFingerprint(data))
 	seen := map[string]bool{}

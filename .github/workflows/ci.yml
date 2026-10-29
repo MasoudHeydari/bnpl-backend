@@ -3,7 +3,8 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [ main ]
+    # Validate both the released branch and the active database-baseline refactor.
+    branches: [ main, feat-add-decision-domain ]
 
 # Least-privilege default; individual jobs add nothing extra.
 permissions:

@@ -231,10 +231,7 @@ func useRestrictedRuntime(t *testing.T, f *collectionsFixture) {
 	var schema string
 	require.NoError(t, f.pool.QueryRow(f.ctx, "SELECT current_schema()").Scan(&schema))
 	quote := pgx.Identifier{schema}.Sanitize()
-	sql, e := os.ReadFile("../../../../assets/db/migrations/000004_terminal_permission_history.sql")
-	require.NoError(t, e)
-	_, e = f.pool.Exec(f.ctx, strings.ReplaceAll(string(sql), "bnpl.", quote+"."))
-	require.NoError(t, e)
+	// Revocation history is now part of the canonical initial schema.
 	_, e = f.pool.Exec(f.ctx, "GRANT USAGE ON SCHEMA "+quote+" TO bnpl")
 	require.NoError(t, e)
 	for _, p := range invariants.PrivilegeRegistry() {

@@ -49,14 +49,19 @@ func newFixture(t *testing.T, install bool) *fixture {
 	f.exec(t, "CREATE SCHEMA "+schema)
 	ddl, e := os.ReadFile("../migrationsrp/000_schema.sql")
 	require.NoError(t, e)
-	f.exec(t, strings.ReplaceAll(string(ddl), "SET search_path TO bnpl;", "SET search_path TO "+schema+";"))
-	f.exec(t, `CREATE TABLE IF NOT EXISTS migrations(id bigserial PRIMARY KEY,name text UNIQUE NOT NULL,checksum text NOT NULL,dirty boolean NOT NULL DEFAULT false,created_at timestamptz NOT NULL DEFAULT now())`)
-	for _, file := range []string{"000001_collections_default_notification.sql", "000002_independent_credit_restrictions.sql"} {
-		f.apply(t, file)
-	}
-	if install {
-		f.apply(t, Migration)
-		f.exec(t, `INSERT INTO migrations(name,checksum) VALUES($1,$2)`, Migration, MigrationSHA256)
+	// Every financial trigger is installed by the initial schema. The isolated
+	// fixture excludes owner-specific grants, which are covered by real-role tests.
+	baseline := strings.SplitN(string(ddl), "-- MANAGED DATABASE PERMISSIONS: canonical initial grants (pre-release)", 2)[0]
+	baseline = strings.ReplaceAll(baseline, "SET search_path TO bnpl;", "SET search_path TO "+schema+";")
+	baseline = strings.ReplaceAll(baseline, "bnpl.", schema+".")
+	baseline = strings.ReplaceAll(baseline, "pg_catalog, bnpl", "pg_catalog, "+schema)
+	f.exec(t, baseline)
+	if !install {
+		// A separately simulated legacy dataset can have historical bad rows.
+		// Normal initialization always leaves these triggers enabled.
+		for _, table := range []string{"installments", "installment_charges", "payment_attempts", "payment_attempt_items"} {
+			f.exec(t, "ALTER TABLE "+pgx.Identifier{schema, table}.Sanitize()+" DISABLE TRIGGER USER")
+		}
 	}
 	merchant, account, decision := uuid.New(), uuid.New(), uuid.New()
 	f.exec(t, `INSERT INTO customer_profiles(id,external_customer_id,jurisdiction,status) VALUES($1,$2,'IR','active')`, f.customer, uuid.New())
@@ -86,14 +91,6 @@ func (f *fixture) exec(t *testing.T, sql string, args ...any) {
 		t.Logf("position=%d internal=%d where=%s query=%s detail=%s", pg.Position, pg.InternalPosition, pg.Where, pg.InternalQuery, pg.Detail)
 	}
 	require.NoError(t, e)
-}
-func (f *fixture) apply(t *testing.T, name string) {
-	t.Helper()
-	sql, e := os.ReadFile("../../../../../assets/db/migrations/" + name)
-	require.NoError(t, e)
-	s := strings.ReplaceAll(string(sql), "bnpl.", f.schema+".")
-	s = strings.ReplaceAll(s, "pg_catalog, bnpl", "pg_catalog, "+f.schema)
-	f.exec(t, s)
 }
 func (f *fixture) charge(t *testing.T, kind, payer string) uuid.UUID {
 	t.Helper()
@@ -134,8 +131,7 @@ func TestInstalledAndDriftedDefinitions(t *testing.T) {
 		{"wrong function", `DROP TRIGGER installment_no_charges_after_paid ON %s.installment_charges; CREATE TRIGGER installment_no_charges_after_paid BEFORE INSERT OR UPDATE OR DELETE ON %[1]s.installment_charges FOR EACH ROW EXECUTE FUNCTION %[1]s.guard_payment_items()`},
 		{"wrong event", `DROP TRIGGER installment_no_charges_after_paid ON %s.installment_charges; CREATE TRIGGER installment_no_charges_after_paid BEFORE INSERT ON %[1]s.installment_charges FOR EACH ROW EXECUTE FUNCTION %[1]s.guard_installment_charge()`},
 		{"body drift", `CREATE OR REPLACE FUNCTION %s.guard_installment_charge() RETURNS trigger LANGUAGE plpgsql AS 'BEGIN RETURN NEW; END'`},
-		{"missing migration", `DELETE FROM %s.migrations WHERE name='000003_installment_payment_invariants.sql'`},
-		{"incompatible migration", `UPDATE %s.migrations SET checksum='sha256:0000000000000000000000000000000000000000000000000000000000000000'`},
+		{"dirty future migration", `INSERT INTO %s.migrations(name,checksum,dirty) VALUES('future.sql','sha256:0000000000000000000000000000000000000000000000000000000000000000',true)`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newFixture(t, true)
@@ -223,11 +219,13 @@ func TestHistoricalIntegrityPreflightDoesNotRepairData(t *testing.T) {
 	require.Equal(t, f.contract, contract)
 	require.Equal(t, f.installment, installment)
 	require.Equal(t, charge, id)
-	ddl, e := os.ReadFile("../../../../../assets/db/migrations/" + Migration)
-	require.NoError(t, e)
-	_, e = f.pool.Pool.Exec(f.ctx, strings.ReplaceAll(string(ddl), "bnpl.", f.schema+"."))
-	assertViolation(t, e, "BN002")
-	require.Contains(t, e.Error(), charge.String())
+	// Re-enabling financial guards rejects new mutations but does not silently
+	// change rows that were already corrupted while the guards were disabled.
+	for _, table := range []string{"installments", "installment_charges", "payment_attempts", "payment_attempt_items"} {
+		f.exec(t, "ALTER TABLE "+pgx.Identifier{f.schema, table}.Sanitize()+" ENABLE TRIGGER USER")
+	}
+	_, e = f.pool.Pool.Exec(f.ctx, "UPDATE installments SET paid_amount_minor=paid_amount_minor+1 WHERE id=$1", f.installment)
+	assertViolation(t, e, "BN001")
 	var actual string
 	require.NoError(t, f.pool.Pool.QueryRow(f.ctx, `SELECT charge_status FROM installment_charges WHERE id=$1`, charge).Scan(&actual))
 	require.Equal(t, "applied", actual)
@@ -235,7 +233,7 @@ func TestHistoricalIntegrityPreflightDoesNotRepairData(t *testing.T) {
 	require.Equal(t, "paid", actual)
 	var hasRevision bool
 	require.NoError(t, f.pool.Pool.QueryRow(f.ctx, `SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=$1 AND table_name='installments' AND column_name='financial_revision')`, f.schema).Scan(&hasRevision))
-	require.False(t, hasRevision)
+	require.True(t, hasRevision)
 	// Invalid historical paid rows are never presented as another payable installment.
 	q := installmentrp.New()
 	require.NoError(t, f.pool.Conn(f.ctx, func(ctx context.Context, c repo.Conn) error {

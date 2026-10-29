@@ -3,12 +3,14 @@ Install `pg_format` yourself following its official installation instructions.
 Run `make sql-fmt` to format all regular `.sql` files, or
 `make sql-fmt SQL=assets/db/migrations/000006_example.sql` to format one.
 Run `make sql-fmt-check` (or pass `SQL=...`) for read-only verification.
-**Important:** formatting changes file bytes and SHA-256. The frozen
-`pkg/adapter/db/postgres/migrationsrp/000_schema.sql` digest is checked
+**Important:** formatting changes file bytes and SHA-256. Before the first
+Production release, the canonical `pkg/adapter/db/postgres/migrationsrp/000_schema.sql`
+may be revised. Its digest is checked
 in `pkg/adapter/db/postgres/migrationsrp/settler.go`; migration digests
 and PL/pgSQL function fingerprints are recorded in
 `pkg/adapter/db/postgres/invariants/registry.go` and
-`pkg/adapter/db/postgres/invariants/privilege_registry.go`. Applied SQL
+`pkg/adapter/db/postgres/invariants/privilege_registry.go`. The baseline
+becomes immutable after the first Production release. Applied SQL
 migration checksums are also stored in `bnpl.migrations`. Review and
 synchronize checksums intentionally; formatting already-applied migration
 files can block upgrades. Never silently rewrite DB migration history.
@@ -160,12 +162,12 @@ Full operational guide: [doc/operations.md](doc/operations.md)
 
 Flow (see [doc/database.md](doc/database.md)):
 
-1. Admin role: drop schema → create schema → ensure `bnpl` role → grant privileges
-2. Application role: execute embedded `000_schema.sql` (migrations + integration outbox) and environment seed SQL
+1. DB Admin provisions/validates `bnpl_owner`, `bnpl_migrator`, and restricted `bnpl` roles and the owned schema.
+2. The migrator assumes `bnpl_owner` to install the complete embedded `000_schema.sql`, including financial integrity triggers and reviewed Runtime privileges, followed by environment-specific seed SQL.
 
 Embedded SQL lives in `pkg/adapter/db/postgres/migrationsrp/` and is compiled into the binary via `go:embed`.
 
-**Note:** Prefer `db migrate` for evolving an existing production schema. Use `init-prod` only for first-time creation when `bnpl` is absent.
+**Note:** The first Production release freezes the complete initial schema. Later releases use `db migrate` for versioned changes; `init-prod` is only for a fresh schema. Old disposable Development databases should be reset rather than silently reusing obsolete migration history.
 
 ## Migrations
 

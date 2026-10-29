@@ -192,23 +192,19 @@ historical snapshots. After installation,
 `assets/db/audits/unresolved_financial_outcomes.sql` inventories unproven terminal
 outcomes. Neither audit updates any record.
 
-Migration preflight locks the affected tables and rejects paid rows with unresolved
-customer components, partial finalized components on unpaid parents, or inconsistent
-unresolved snapshots with actionable IDs. The migration CLI reports those IDs;
-HTTP still receives only semantic localized errors.
-It never marks a charge paid, issues another collection, deletes history or rewrites
-a Decision. Remediate explicitly against retained FC evidence and an approved
-reconciliation case. Keep original snapshots/history; do not simply edit them to
-satisfy installation. Re-run preflight after explicit economic remediation.
+The original pre-release migration contained a historical-data preflight for
+installing these guards onto an already populated database. That migration has
+now been folded into the initial schema, which creates the protections before
+any business rows exist. Fresh initialization neither audits nor rewrites old
+financial history because there is none. An existing non-disposable database
+must be reviewed and migrated explicitly rather than silently treated as a
+fresh initial schema.
 
-This release is not compatible with live old writers that mark a parent paid
-before its components. Prepare/test the binary first, drain old traffic and all
-old financial/scheduler workers, run preflight and existing `db migrate`, then
-start the new binary and verify before traffic/workers resume. The migration
-requires table locks; internal metadata defaults (notably transaction ownership)
-can rewrite storage. Schedule a maintenance window for the measured data size.
-There is no unsafe rolling overlap, bypass flag or automatic DDL at startup.
-A failed transactional migration leaves no partial invariant installation.
+For the first Production release, initialize an empty schema using the matching
+DB Admin binary and run read-only invariant and privilege verification before
+starting Runtime. Do not let an old binary overlap with newly restricted grants.
+The historical audit scripts remain useful for explicitly reviewing retained
+data; they never repair or rewrite evidence.
 
 Future changes require a new incremental migration, explicit registry/checksum
 and definition-contract updates, compatibility review and updated real PostgreSQL

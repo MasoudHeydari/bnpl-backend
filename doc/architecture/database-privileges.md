@@ -2,8 +2,8 @@
 
 The existing `invariants` package now contains `privilege_registry.go` and
 `privilege_verify.go`, alongside the unchanged trigger registry/verifier.
-The registry describes expected state. Only reviewed versioned SQL migrations
-install grants. Startup/CLI verification reads catalogs and effective privileges;
+The registry describes expected state. The initial baseline installs current
+grants; reviewed versioned SQL migrations install changes after first release. Startup/CLI verification reads catalogs and effective privileges;
 it never intercepts individual SQL commands or grants/revokes privileges.
 PostgreSQL itself rejects forbidden operations at execution time.
 
@@ -72,16 +72,16 @@ invoker trigger functions must serialize financial child mutations on the parent
 
 ## Installation and future changes
 
-Migration 000004 retains permission assignments with nullable revoked_at and a
-partial active uniqueness index. Replacement locks the stable terminal parent,
+The initial baseline retains permission assignments with nullable revoked_at
+and a partial active uniqueness index. Replacement locks the stable terminal parent,
 validates the complete input, revokes removed active assignments, inserts missing
 active grants and commits atomically. All authorization reads filter revoked_at
 IS NULL. Regrant creates a new assignment, preserving the revoked history.
 No DELETE is used; concurrent replacements end with one complete set.
 
-Migration 000005 revokes old table, column, sequence, function and schema grants
-from PUBLIC/bnpl, grants schema USAGE plus only the explicit allowlist, and sets
-owner-created future objects to default deny. Public function EXECUTE defaults
+The initial baseline revokes public/unreviewed table, column, sequence, function
+and schema grants, grants schema USAGE plus only the explicit allowlist, and
+sets owner-created future objects to default deny. Public function EXECUTE defaults
 are revoked at the creating owner role's global default scope, because a
 schema-local revoke cannot undo PostgreSQL's global PUBLIC EXECUTE default.
 No blanket current/future-table write grant is installed. Attached migration-ID
@@ -92,12 +92,13 @@ update typed registry metadata with a reason and owning migration, add a new
 incremental SQL migration with exact GRANT/REVOKE statements, update required
 fingerprints and add actual-role tests. Editing registry metadata alone never
 changes permissions. A new unregistered table has no Runtime access and makes
-verification fail until the policy is reviewed. Previous migrations are immutable.
+verification fail until the policy is reviewed. The baseline is frozen at the
+first Production release; migrations applied afterward are immutable.
 
 ## Effective read-only verification
 
 Runtime authenticates and executes as bnpl, then verifies trigger definitions
-with the existing body fingerprints, clean migration/checksum compatibility,
+with the existing body fingerprints, clean incremental migration history,
 permission-history schema, all registered tables and required columns, effective
 SELECT/INSERT/UPDATE/REFERENCES at table and column scope, DELETE/TRUNCATE/TRIGGER,
 schema USAGE/no CREATE, no database/public-schema CREATE, no ownership of managed

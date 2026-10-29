@@ -111,14 +111,14 @@ func newCollectionsFixture(t *testing.T, locations ...*time.Location) *collectio
 	require.NoError(t, err)
 	_, err = pool.Pool.Exec(ctx, "CREATE SCHEMA "+schema)
 	require.NoError(t, err)
-	_, err = pool.Pool.Exec(ctx, strings.ReplaceAll(string(ddl), "SET search_path TO bnpl;", "SET search_path TO "+schema+";"))
+	// Financial triggers and Collections constraints are part of the complete
+	// pre-release baseline; never replay old migrations in fresh fixtures.
+	baseline := strings.SplitN(string(ddl), "-- MANAGED DATABASE PERMISSIONS: canonical initial grants (pre-release)", 2)[0]
+	baseline = strings.ReplaceAll(baseline, "SET search_path TO bnpl;", "SET search_path TO "+schema+";")
+	baseline = strings.ReplaceAll(baseline, "bnpl.", schema+".")
+	baseline = strings.ReplaceAll(baseline, "pg_catalog, bnpl", "pg_catalog, "+schema)
+	_, err = pool.Pool.Exec(ctx, baseline)
 	require.NoError(t, err)
-	for _, file := range []string{"000001_collections_default_notification.sql", "000002_independent_credit_restrictions.sql", "000003_installment_payment_invariants.sql"} {
-		migration, e := os.ReadFile("../../../../assets/db/migrations/" + file)
-		require.NoError(t, e)
-		_, e = pool.Pool.Exec(ctx, strings.ReplaceAll(strings.ReplaceAll(string(migration), "bnpl.", schema+"."), "pg_catalog, bnpl", "pg_catalog, "+schema))
-		require.NoError(t, e)
-	}
 
 	now := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
 	clk := adapterclock.NewFixed(now, location)

@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRegistryMatchesVersionedMigration(t *testing.T) {
-	sql, e := os.ReadFile("../../../../../assets/db/migrations/" + Migration)
+func TestRegistryMatchesInitialSchema(t *testing.T) {
+	sql, e := os.ReadFile("../migrationsrp/" + Migration)
 	require.NoError(t, e)
 	sum := sha256.Sum256(sql)
 	require.Equal(t, MigrationSHA256, "sha256:"+hex.EncodeToString(sum[:]))

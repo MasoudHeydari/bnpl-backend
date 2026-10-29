@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
@@ -19,7 +20,6 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/customerprofilerp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/installmentchargerp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/installmentrp"
-	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/invariants"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/paymentattemptrp"
 	adapterclock "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/clock"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
@@ -53,14 +53,17 @@ func newActivationFixture(t *testing.T, install bool) *activationFixture {
 	f.exec(t, "CREATE SCHEMA "+schema)
 	ddl, e := os.ReadFile("../../../adapter/db/postgres/migrationsrp/000_schema.sql")
 	require.NoError(t, e)
-	f.exec(t, strings.ReplaceAll(string(ddl), "SET search_path TO bnpl;", "SET search_path TO "+schema+";"))
-	f.exec(t, `CREATE TABLE IF NOT EXISTS migrations(id bigserial PRIMARY KEY,name text UNIQUE NOT NULL,checksum text NOT NULL,dirty boolean NOT NULL DEFAULT false,created_at timestamptz NOT NULL DEFAULT now())`)
-	for _, file := range []string{"000001_collections_default_notification.sql", "000002_independent_credit_restrictions.sql"} {
-		f.apply(t, file)
-	}
-	if install {
-		f.apply(t, invariants.Migration)
-		f.exec(t, `INSERT INTO migrations(name,checksum) VALUES($1,$2)`, invariants.Migration, invariants.MigrationSHA256)
+	// The baseline installs all financial guards before the first business row.
+	// Owner-only grants are tested separately under the real managed roles.
+	baseline := strings.SplitN(string(ddl), "-- MANAGED DATABASE PERMISSIONS: canonical initial grants (pre-release)", 2)[0]
+	baseline = strings.ReplaceAll(baseline, "SET search_path TO bnpl;", "SET search_path TO "+schema+";")
+	baseline = strings.ReplaceAll(baseline, "bnpl.", schema+".")
+	baseline = strings.ReplaceAll(baseline, "pg_catalog, bnpl", "pg_catalog, "+schema)
+	f.exec(t, baseline)
+	if !install {
+		for _, table := range []string{"installments", "installment_charges", "payment_attempts", "payment_attempt_items"} {
+			f.exec(t, "ALTER TABLE "+pgx.Identifier{schema, table}.Sanitize()+" DISABLE TRIGGER USER")
+		}
 	}
 	merchant, account, decision := uuid.New(), uuid.New(), uuid.New()
 	f.exec(t, `INSERT INTO customer_profiles(id,external_customer_id,jurisdiction,status) VALUES($1,$2,'IR','active')`, f.customer, uuid.New())
@@ -90,14 +93,6 @@ func (f *activationFixture) exec(t *testing.T, sql string, args ...any) {
 		t.Logf("position=%d internal=%d where=%s query=%s detail=%s", pg.Position, pg.InternalPosition, pg.Where, pg.InternalQuery, pg.Detail)
 	}
 	require.NoError(t, e)
-}
-func (f *activationFixture) apply(t *testing.T, name string) {
-	t.Helper()
-	sql, e := os.ReadFile("../../../../assets/db/migrations/" + name)
-	require.NoError(t, e)
-	s := strings.ReplaceAll(string(sql), "bnpl.", f.schema+".")
-	s = strings.ReplaceAll(s, "pg_catalog, bnpl", "pg_catalog, "+f.schema)
-	f.exec(t, s)
 }
 func (f *activationFixture) charge(t *testing.T, kind, payer string) uuid.UUID {
 	t.Helper()
