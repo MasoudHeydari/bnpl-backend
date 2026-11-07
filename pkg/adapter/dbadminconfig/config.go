@@ -73,7 +73,7 @@ func (c *Config) Validate() error {
 	if c.Application != "dbadmin" {
 		return fmt.Errorf("dbadmin config: application must be dbadmin")
 	}
-	fmt.Println("Env: ", c.Runtime.Environment)
+
 	if _, e := model.ParseRuntimeEnvironment(c.Runtime.Environment); e != nil {
 		return fmt.Errorf("dbadmin config: invalid environment")
 	}

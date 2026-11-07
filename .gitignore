@@ -70,4 +70,9 @@ assets/local-development/**/*.key
 assets/local-development/**/*-key.pem
 assets/local-development/**/certs/
 assets/local-development/**/.env
+# Grafana admin Docker secret for local Loki stack.
+assets/local-development/secrets/bnpl_loki_grafana_password
+# Local host log files collected by Promtail (keep directory .gitkeep files).
+assets/local-development/logs/**/*.log
+assets/local-development/logs/**/*.json
 .gocache

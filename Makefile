@@ -207,8 +207,29 @@ swagger-fmt:
 # Docker / Local Infrastructure
 # -----------------------------------------------------------------------------
 
+# Local infra: Postgres, Kafka, Temporal, Envoy, Loki, Promtail, Grafana, …
+# Creates the Grafana Docker secret and Promtail log dirs when missing so a
+# plain `make up` is enough after `cp .env.example .env`.
+GRAFANA_SECRET_FILE ?= assets/local-development/secrets/bnpl_loki_grafana_password
+LOKI_LOG_ROOT ?= assets/local-development/logs
+
 .PHONY: up
 up:
+	@mkdir -p assets/local-development/secrets \
+		$(LOKI_LOG_ROOT)/identity-service \
+		$(LOKI_LOG_ROOT)/merchant-service \
+		$(LOKI_LOG_ROOT)/location-service \
+		$(LOKI_LOG_ROOT)/bnpl-service \
+		$(LOKI_LOG_ROOT)/document-service \
+		$(LOKI_LOG_ROOT)/financial-core-service \
+		$(LOKI_LOG_ROOT)/customer-service \
+		$(LOKI_LOG_ROOT)/notification-service
+	@if [ ! -f "$(GRAFANA_SECRET_FILE)" ]; then \
+		printf '%s' 'change-me-grafana-admin' > "$(GRAFANA_SECRET_FILE)"; \
+		echo "created $(GRAFANA_SECRET_FILE) (change this password for shared machines)"; \
+	fi
+	@# Grafana container user (uid 472) must read this file-backed secret.
+	@chmod 644 "$(GRAFANA_SECRET_FILE)"
 	@docker compose -f $(COMPOSE_FILE) up -d
 
 .PHONY: down

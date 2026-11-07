@@ -36,10 +36,13 @@ MESSAGING_PROVIDER=noop
 make up
 ```
 
-Starts via `docker-compose.local.yml`:
+Starts the full local stack via `docker-compose.local.yml` (creates the Grafana
+password secret and Promtail log dirs when missing):
 
 - PostgreSQL — `127.0.0.1:5432`
 - Kafka — `127.0.0.1:9092` (only required when `MESSAGING_PROVIDER=kafka`)
+- Temporal + UI, Envoy, Redpanda Console
+- Loki — `127.0.0.1:3100`, Promtail — `127.0.0.1:3101`, Grafana — `127.0.0.1:3001`
 
 Redis is **not** included in Compose. Start Redis separately or use `CACHE_PROVIDER=noop` (default).
 

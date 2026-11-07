@@ -1,25 +1,28 @@
-# Local development Docker Compose
+# Local development Docker Compose (includes Loki / Promtail / Grafana).
 #
 # Usage:
 #   cp .env.example .env
-#   docker compose -f docker-compose.local.yml up -d
+#   make up
 #   make build && make init-dev && ./build/bin/bnpl
+#
+# `make up` creates the Grafana password secret and log dirs when missing.
 #
 # Local endpoints:
 #   BNPL:              http://127.0.0.1:8080
 #   Envoy Gateway:     http://127.0.0.1:8088
 #   Envoy Admin:       http://127.0.0.1:9901
 #   Redpanda Console:  http://127.0.0.1:8081
-#   Temporal UI:       http://127.0.0.1:8233
+#   Temporal UI:       http://127.0.0.1:${TEMPORAL_UI_PORT:-8233}
+#   Loki:              http://127.0.0.1:3100
+#   Promtail:          http://127.0.0.1:3101
+#   Grafana:           http://127.0.0.1:${GRAFANA_PORT:-3001}
 #
-# Credentials come from .env (gitignored).
+# Loki configs live under assets/local-development/{loki,promtail,grafana,secrets,logs}.
+# Loki has no authentication. Bind is loopback-only. Test/local only.
+#
+# Credentials come from .env (gitignored). Grafana admin password is the Docker
+# secret file assets/local-development/secrets/bnpl_loki_grafana_password.
 # The BNPL application runs on the host, not inside Compose.
-# PostgreSQL, Kafka, and Redpanda Console ports are bound to 127.0.0.1
-# for local host access only.
-#
-# Envoy uses host networking because BNPL listens only on
-# 127.0.0.1:8080 on the host. With Docker bridge networking,
-# 127.0.0.1 inside the Envoy container would refer to Envoy itself.
 
 services:
   # ── PostgreSQL ─────────────────────────────────────────────────────────────
@@ -116,8 +119,7 @@ services:
   # ── Local Kafka topic initialization ───────────────────────────────────────
   #
   # One-shot, idempotent provisioning for the single-broker development setup.
-  # The broker must be healthy before topics are created. This is not used in
-  # staging/production. Topic names follow the same .env settings as BNPL.
+  # Requires ./scripts/kafka/init-topics.sh on the host (not shipped here).
   kafka-init:
     image: docker.arvancloud.ir/apache/kafka:4.3.1
     container_name: bnpl-kafka-init
@@ -165,11 +167,7 @@ services:
   # ── Redpanda Console ───────────────────────────────────────────────────────
   #
   # Redpanda Console is only a Kafka UI in this setup.
-  # It does not replace the Kafka broker above.
-  #
-  # Open:
-  #   http://127.0.0.1:8081
-  #
+  # Open: http://127.0.0.1:8081
   redpanda-console:
     image: docker.redpanda.com/redpandadata/console:v3.9.0
     container_name: bnpl-redpanda-console
@@ -177,9 +175,6 @@ services:
 
     environment:
       # Use Kafka's internal Docker listener.
-      #
-      # Do not use localhost:9092 here. Inside this container, localhost
-      # refers to Redpanda Console itself, not the Kafka container.
       KAFKA_BROKERS: kafka:29092
 
     ports:
@@ -190,13 +185,19 @@ services:
       kafka:
         condition: service_healthy
 
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
     networks:
       - bnpl-net
 
   # ── Temporal development server ────────────────────────────────────────────
   #
-  # This single-process development server is for local development only.
-  # Production must use a production-grade Temporal deployment or Temporal Cloud.
+  # Single-process development server for test only.
   temporal:
     image: temporalio/temporal:1.8.3
     container_name: bnpl-temporal
@@ -208,40 +209,48 @@ services:
       - --ip
       - 0.0.0.0
       # The standalone temporal-ui service below owns the local Web UI.
-      # Disable the UI bundled with start-dev so both services do not compete
-      # for the same host port.
       - --headless
 
     ports:
       - "127.0.0.1:7233:7233"
+
+    healthcheck:
+      test: [
+        "CMD-SHELL",
+        "temporal operator cluster health --address 127.0.0.1:7233 >/dev/null 2>&1 || exit 1"
+      ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
 
     networks:
       - bnpl-net
 
   # ── Temporal Web UI ───────────────────────────────────────────────────────
   #
-  # Standalone UI for inspecting local Temporal namespaces, workflows,
-  # activities, schedules, and execution history. It connects to the Temporal
-  # frontend over the internal Docker network.
-  #
-  # Open:
-  #   http://127.0.0.1:${TEMPORAL_UI_PORT}
-  #
+  # Open: http://127.0.0.1:${TEMPORAL_UI_PORT}
   temporal-ui:
     image: temporalio/ui:2.54.1
     container_name: bnpl-temporal-ui
     restart: unless-stopped
 
     environment:
-      # Use the Temporal service name inside Docker. Do not use 127.0.0.1 here;
-      # localhost inside this container refers to the UI container itself.
       TEMPORAL_ADDRESS: temporal:7233
 
     ports:
       - "127.0.0.1:${TEMPORAL_UI_PORT}:8080"
 
     depends_on:
-      - temporal
+      temporal:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
     networks:
       - bnpl-net
@@ -251,12 +260,7 @@ services:
   # Envoy runs in the host network namespace because BNPL itself runs
   # directly on the host and listens only on 127.0.0.1:8080.
   #
-  # The mounted config is a development snapshot maintained under assets/.
-  # Adjust listener IPs, upstream IPs, TLS cert paths and the local Gateway
-  # proof placeholder for the workstation before starting Envoy. The snapshot
-  # is not suitable for staging or production.
-  # The trusted proof must match the separately managed Identity/Merchant setup.
-  #
+  # Requires local Envoy config + certs (not shipped in this pack).
   envoy:
     image: envoyproxy/envoy:v1.39.0
     container_name: bnpl-envoy
@@ -266,6 +270,7 @@ services:
 
     volumes:
       - ./assets/local-development/envoy/development/config.yaml:/etc/envoy/envoy.yaml:ro
+      # Replace this host path on the target machine with the real certs directory.
       - /home/masoud-dev/Documents/projects/golang/platform-infra/envoy/certs:/etc/envoy/certs:ro
 
     command:
@@ -275,6 +280,153 @@ services:
       - --log-level
       - info
 
+    # Envoy image has no wget; TCP to admin port is the portable ready signal.
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/9901'"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # ── Loki (log store) ───────────────────────────────────────────────────────
+  #
+  # Test single-binary Loki with filesystem TSDB. Retention TTL 744h.
+  # No auth. Loopback bind only. Not HA / not production.
+  loki:
+    image: docker.arvancloud.ir/grafana/loki:3.6.8
+    container_name: bnpl-loki
+    restart: unless-stopped
+
+    command:
+      - -config.file=/etc/loki/local-config.yaml
+
+    volumes:
+      - ./assets/local-development/loki/local-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+
+    ports:
+      - "127.0.0.1:3100:3100"
+
+    # Distroless image: no shell/wget. Binary check + start_period covers boot.
+    # Orchestrators with HTTP probes should hit GET /ready on :3100 instead.
+    healthcheck:
+      test: ["CMD", "/usr/bin/loki", "-version"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+    networks:
+      - bnpl-net
+
+  # ── Promtail (collector) ───────────────────────────────────────────────────
+  #
+  # Pushes to http://loki:3100/loki/api/v1/push
+  # Host app logs: per-service *_LOG_DIR -> /host-logs/<service> (read-only)
+  # Docker logs: explicit opt-in and per-service *_LOG_SOURCE=docker
+  # HTTP listen 3101 reserved for ready/metrics (optional future receiver not activated)
+  promtail:
+    image: docker.arvancloud.ir/grafana/promtail:3.6.8
+    container_name: bnpl-promtail
+    restart: unless-stopped
+
+    command:
+      - -config.file=/etc/promtail/config.yml
+      - -config.expand-env=true
+
+    environment:
+      IDENTITY_LOG_SOURCE: ${IDENTITY_LOG_SOURCE:-host}
+      MERCHANT_LOG_SOURCE: ${MERCHANT_LOG_SOURCE:-host}
+      LOCATION_LOG_SOURCE: ${LOCATION_LOG_SOURCE:-host}
+      BNPL_LOG_SOURCE: ${BNPL_LOG_SOURCE:-host}
+      DOCUMENT_LOG_SOURCE: ${DOCUMENT_LOG_SOURCE:-host}
+      FINANCIAL_CORE_LOG_SOURCE: ${FINANCIAL_CORE_LOG_SOURCE:-host}
+      CUSTOMER_LOG_SOURCE: ${CUSTOMER_LOG_SOURCE:-host}
+      NOTIFICATION_LOG_SOURCE: ${NOTIFICATION_LOG_SOURCE:-host}
+
+    volumes:
+      - ./assets/local-development/promtail/config.yml:/etc/promtail/config.yml:ro
+      - bnpl_loki_positions:/var/lib/promtail
+      - ${IDENTITY_LOG_DIR:-./assets/local-development/logs/identity-service}:/host-logs/identity-service:ro
+      - ${MERCHANT_LOG_DIR:-./assets/local-development/logs/merchant-service}:/host-logs/merchant-service:ro
+      - ${LOCATION_LOG_DIR:-./assets/local-development/logs/location-service}:/host-logs/location-service:ro
+      - ${BNPL_LOG_DIR:-./assets/local-development/logs/bnpl-service}:/host-logs/bnpl-service:ro
+      - ${DOCUMENT_LOG_DIR:-./assets/local-development/logs/document-service}:/host-logs/document-service:ro
+      - ${FINANCIAL_CORE_LOG_DIR:-./assets/local-development/logs/financial-core-service}:/host-logs/financial-core-service:ro
+      - ${CUSTOMER_LOG_DIR:-./assets/local-development/logs/customer-service}:/host-logs/customer-service:ro
+      - ${NOTIFICATION_LOG_DIR:-./assets/local-development/logs/notification-service}:/host-logs/notification-service:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+    ports:
+      - "127.0.0.1:3101:3101"
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    depends_on:
+      loki:
+        condition: service_healthy
+
+    # Ubuntu base: no wget packaged. TCP open on HTTP listen port ≈ ready.
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/3101'"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+    networks:
+      - bnpl-net
+
+  # ── Grafana (Explore Loki) ─────────────────────────────────────────────────
+  #
+  # Open: http://127.0.0.1:${GRAFANA_PORT:-3001}
+  # Admin password from Docker secret file secrets/bnpl_loki_grafana_password
+  grafana:
+    image: docker.arvancloud.ir/grafana/grafana:12.3.0
+    container_name: bnpl-grafana
+    restart: unless-stopped
+
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/bnpl_loki_grafana_password
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_HTTP_ADDR: 0.0.0.0
+      GF_SERVER_ROOT_URL: http://127.0.0.1:${GRAFANA_PORT:-3001}
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+
+    volumes:
+      - ./assets/local-development/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+
+    # Grafana runs as UID 472. Compose file-backed secrets inherit host mode
+    # bits (uid/gid/mode are ignored on this engine), so `make up` keeps the
+    # secret file mode 0644 for the grafana user to read.
+    secrets:
+      - bnpl_loki_grafana_password
+
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
+
+    depends_on:
+      loki:
+        condition: service_healthy
+
+    healthcheck:
+      test: [
+        "CMD-SHELL",
+        "wget -qO- http://127.0.0.1:3000/api/health >/dev/null 2>&1 || curl -fsS http://127.0.0.1:3000/api/health >/dev/null 2>&1 || exit 1",
+      ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+    networks:
+      - bnpl-net
+
 networks:
   bnpl-net:
     driver: bridge
@@ -282,3 +434,10 @@ networks:
 volumes:
   postgres_data_bnpl:
   kafka_data_bnpl:
+  loki_data:
+  bnpl_loki_positions:
+  grafana_data:
+
+secrets:
+  bnpl_loki_grafana_password:
+    file: ./assets/local-development/secrets/bnpl_loki_grafana_password
