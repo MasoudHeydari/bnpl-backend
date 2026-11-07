@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	customerext "github.com/parstis/bnpl-backend/pkg/adapter/external/customer"
 	customergrpc "github.com/parstis/bnpl-backend/pkg/adapter/external/customer/grpc"
 	customernoop "github.com/parstis/bnpl-backend/pkg/adapter/external/customer/noop"
+	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/grpcclient"
 	"github.com/parstis/bnpl-backend/pkg/core/circuitbreaker"
 	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
@@ -83,6 +85,16 @@ func (e ExternalCustomer) newGRPCClient(
 	conn, err := customergrpc.Dial(e.GRPC.Address, e.GRPC.Insecure)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%s: initialize external customer grpc client: %w", op, err)
+	}
+
+	pingCtx, cancel := context.WithTimeout(context.Background(), grpcclient.ConnectTimeout)
+	defer cancel()
+
+	if err := grpcclient.Ping(pingCtx, conn); err != nil {
+		return nil, nil, errors.Join(
+			fmt.Errorf("%s: customer grpc service %q unavailable: %w", op, e.GRPC.Address, err),
+			conn.Close(),
+		)
 	}
 
 	client, err := customergrpc.New(conn, e.GRPC.Timeout, breaker)

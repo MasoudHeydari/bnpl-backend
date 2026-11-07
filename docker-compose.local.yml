@@ -140,6 +140,14 @@ services:
         ${KAFKA_TOPIC_INSTALLMENT_PAYMENT_RECONCILIATION_RESULTS:-financial_core.installment_payment_reconciliation_results}
         ${KAFKA_TOPIC_INSTALLMENT_PAYMENT_RECONCILIATION_ACKNOWLEDGEMENTS:-bnpl.installment_payment_reconciliation_acknowledgements}
         ${KAFKA_TOPIC_NOTIFICATION_SMS_REQUESTS:-notification.sms.requests}
+        ${KAFKA_TOPIC_DOCUMENT_LIFECYCLE:-document.lifecycle}
+        ${KAFKA_TOPIC_DOCUMENT_OWNER_LIFECYCLE:-document.owner.lifecycle}
+        ${KAFKA_TOPIC_FINANCIAL_EVENTS:-financial.events}
+        ${KAFKA_TOPIC_FINANCIAL_PROVIDER_COMMANDS:-financial.provider.commands}
+        ${KAFKA_TOPIC_IDENTITY_AUTH_REVOCATIONS:-identity.auth.revocations.v1}
+        ${KAFKA_TOPIC_IDENTITY_OUTBOX:-identity.outbox.v1}
+        ${KAFKA_TOPIC_NOTIFICATION_COMMANDS:-notification.commands.v1}
+        ${KAFKA_TOPIC_NOTIFICATION_LIFECYCLE:-parstis.notification.lifecycle.v1}
         ${KAFKA_CONSUMER_QUARANTINE_TOPIC:-bnpl.consumer.quarantine.v1}
         ${KAFKA_CONSUMER_TOPIC_PAYMENT_RESULTS:-financial-core.payment-results}
         ${KAFKA_CONSUMER_TOPIC_INSTALLMENT_PAYMENT_RECONCILIATION_RESULTS:-financial_core.installment_payment_reconciliation_results}

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	notificationext "github.com/parstis/bnpl-backend/pkg/adapter/external/notification"
 	notificationgrpc "github.com/parstis/bnpl-backend/pkg/adapter/external/notification/grpc"
 	notificationnoop "github.com/parstis/bnpl-backend/pkg/adapter/external/notification/noop"
+	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/grpcclient"
 	"github.com/parstis/bnpl-backend/pkg/core/circuitbreaker"
 	extnotification "github.com/parstis/bnpl-backend/pkg/core/external/notification"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
@@ -83,6 +85,16 @@ func (e ExternalNotification) newGRPCClient(
 	conn, err := notificationgrpc.Dial(e.GRPC.Address, e.GRPC.Insecure)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%s: initialize external notification grpc client: %w", op, err)
+	}
+
+	pingCtx, cancel := context.WithTimeout(context.Background(), grpcclient.ConnectTimeout)
+	defer cancel()
+
+	if err := grpcclient.Ping(pingCtx, conn); err != nil {
+		return nil, nil, errors.Join(
+			fmt.Errorf("%s: notification grpc service %q unavailable: %w", op, e.GRPC.Address, err),
+			conn.Close(),
+		)
 	}
 
 	client, err := notificationgrpc.New(conn, e.GRPC.Timeout, breaker)

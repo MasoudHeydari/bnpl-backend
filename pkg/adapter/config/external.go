@@ -1,6 +1,8 @@
 package config
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -17,6 +19,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/external/creditassessment/creditbureau"
 	creditassessmentnoop "github.com/parstis/bnpl-backend/pkg/adapter/external/creditassessment/noop"
 	installmentpaymentnoop "github.com/parstis/bnpl-backend/pkg/adapter/external/installmentpayment/noop"
+	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/grpcclient"
 	"github.com/parstis/bnpl-backend/pkg/core/circuitbreaker"
 	coreclock "github.com/parstis/bnpl-backend/pkg/core/clock"
 	extcheckoutpayment "github.com/parstis/bnpl-backend/pkg/core/external/checkoutpayment"
@@ -273,6 +276,16 @@ func (e ExternalFinancialCore) newGRPCExternalCheckoutPaymentClient(
 	conn, err := checkoutpaymentgrpc.Dial(e.GRPC.Address, e.GRPC.Insecure)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%s: initialize external financial core grpc client: %w", op, err)
+	}
+
+	pingCtx, cancel := context.WithTimeout(context.Background(), grpcclient.ConnectTimeout)
+	defer cancel()
+
+	if err := grpcclient.Ping(pingCtx, conn); err != nil {
+		return nil, nil, errors.Join(
+			fmt.Errorf("%s: financial core grpc service %q unavailable: %w", op, e.GRPC.Address, err),
+			conn.Close(),
+		)
 	}
 
 	return checkoutpaymentgrpc.New(conn, e.GRPC.Timeout, breaker), conn, nil

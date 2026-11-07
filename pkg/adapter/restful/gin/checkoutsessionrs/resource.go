@@ -42,41 +42,46 @@ func RegisterPartner(
 	rs := &resource{checkoutSession: checkoutSession}
 	authMW := middleware.AuthContext()
 
-	router.POST(
-		"/checkout-sessions",
+	sessions := router.Group("/checkout-sessions")
+	sessions.POST(
+		"",
 		authMW.RequireAny(permission.CheckoutSessionsCreateMerchant),
 		rs.CreatePartner,
 	)
-	router.GET(
-		"/checkout-sessions/:checkout_session_id",
+	sessions.GET(
+		"/:checkout_session_id",
 		authMW.RequireAny(permission.CheckoutSessionsReadMerchant),
 		rs.GetPartnerStatus,
 	)
-	router.POST(
-		"/checkout-sessions/:checkout_session_id/cancel",
+	sessions.POST(
+		"/:checkout_session_id/cancel",
 		authMW.RequireAny(permission.CheckoutSessionsCreateMerchant),
 		rs.CancelByMerchant,
 	)
-	router.PUT(
-		"/return-destinations/:destination_name",
+
+	returnDestinations := router.Group("/return-destinations")
+	returnDestinations.PUT(
+		"/:destination_name",
 		authMW.RequireAny(permission.CheckoutReturnDestinationsManageMerchant),
 		rs.UpsertReturnDestination,
 	)
-	router.PUT(
-		"/webhook-destination",
+
+	webhookDestination := router.Group("/webhook-destination")
+	webhookDestination.PUT(
+		"",
 		authMW.RequireAny(permission.CheckoutWebhooksManageMerchant),
 		rs.UpsertWebhookDestination,
 	)
 }
 
+// RegisterCustomerToken attaches the unauthenticated customer checkout routes to
+// router as a sibling of the gateway AuthContext.Attach group.
+//
 // SECURITY BOUNDARY: hosted browser routes must remain separate from the
 // terminal-authenticated merchant routes. The public token locates a checkout;
 // it does not authenticate a merchant or authorize purchase confirmation.
 // Confirmation requires the checkout-bound, single-use OTP. This distinction
 // is independent of whether the merchant is internal or external.
-//
-// RegisterCustomerToken attaches the unauthenticated customer checkout routes to
-// router as a sibling of the gateway AuthContext.Attach group.
 //
 // router must be the /api/v1 group without AuthContext.Attach. The public
 // checkout token is an unguessable locator; OTP verification authorizes
@@ -91,14 +96,14 @@ func RegisterCustomerToken(
 	}
 
 	rs := &resource{checkoutSession: checkoutSession}
-	group := router.Group("/checkout-sessions")
-	group.Use(middleware.HostedExternalHardening())
 
-	group.GET("/:token", rs.GetHostedExternal)
-	group.POST("/:token/start", rs.StartHostedExternal)
-	group.POST("/:token/otp", rs.RequestHostedExternalOTP)
-	group.POST("/:token/confirm", rs.ConfirmHostedExternal)
-	group.GET("/:token/confirmation-status", rs.GetHostedConfirmationStatus)
-	group.GET("/:token/return", rs.ReturnHostedExternal)
-	group.POST("/:token/cancel", rs.CancelByToken)
+	sessions := router.Group("/checkout-sessions")
+	sessions.Use(middleware.HostedExternalHardening())
+	sessions.GET("/:token", rs.GetHostedExternal)
+	sessions.POST("/:token/start", rs.StartHostedExternal)
+	sessions.POST("/:token/otp", rs.RequestHostedExternalOTP)
+	sessions.POST("/:token/confirm", rs.ConfirmHostedExternal)
+	sessions.GET("/:token/confirmation-status", rs.GetHostedConfirmationStatus)
+	sessions.GET("/:token/return", rs.ReturnHostedExternal)
+	sessions.POST("/:token/cancel", rs.CancelByToken)
 }
