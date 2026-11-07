@@ -415,6 +415,7 @@ func (h *ordinaryHarness) dispatch(t *testing.T) repaymentreminderuc.DispatchOut
 		"dpay.ir",
 		"https://app.example/repayments",
 		10,
+		1,
 	)
 	require.NoError(t, err)
 
@@ -642,6 +643,7 @@ func (h *defaultHarness) dispatch(t *testing.T) repaymentreminderuc.DispatchOutp
 		"dpay.ir",
 		"https://app.example/repayments",
 		10,
+		1,
 	)
 	require.NoError(t, err)
 	uc.WithDefaultNotifications(h.notice)

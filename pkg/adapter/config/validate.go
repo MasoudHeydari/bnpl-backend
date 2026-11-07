@@ -325,6 +325,18 @@ func (u *Usecases) validate(environment string) error {
 		u.RepaymentReminder.BatchSize = 200
 	}
 
+	if u.RepaymentReminder.NotificationSchemaVersion == 0 {
+		u.RepaymentReminder.NotificationSchemaVersion = 1
+	}
+
+	if u.RepaymentReminder.NotificationSchemaVersion != 1 &&
+		u.RepaymentReminder.NotificationSchemaVersion != 2 {
+		return fmt.Errorf(
+			"%s: invalid usecases.repayment_reminder.notification_schema_version: must be 1 or 2",
+			op,
+		)
+	}
+
 	if u.PaymentAttemptReconciliation.BatchSize <= 0 {
 		return fmt.Errorf("%s: invalid usecases.payment_attempt_reconciliation.batch_size: must be positive", op)
 	}

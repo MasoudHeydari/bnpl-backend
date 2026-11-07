@@ -114,6 +114,15 @@ type RepaymentReminder struct {
 	// BatchSize bounds the number of distinct customers loaded per dispatch
 	// page. Each page returns every eligible installment for those customers.
 	BatchSize int `yaml:"batch_size"`
+
+	// NotificationSchemaVersion selects the Kafka payload schema for reminder
+	// and collections-default notification outbox events:
+	//   1 — legacy notificationsms.Event (default)
+	//   2 — Notification Service envelope (EventV2)
+	// Enable 2 only after Notification confirms v2 consumer support on the
+	// shared topic. Existing Outbox rows are never rewritten; the publisher
+	// republishes durable payload bytes unchanged.
+	NotificationSchemaVersion int `yaml:"notification_schema_version"`
 }
 
 // Collections configures collections default assessment operational settings.

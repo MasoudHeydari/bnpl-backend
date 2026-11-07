@@ -131,6 +131,9 @@ usecases:
 
   repayment_reminder:
     batch_size: ${REPAYMENT_REMINDER_BATCH_SIZE}
+    # 1 = legacy SMS envelope (safe default). 2 = Notification schema v2.
+    # Flip to 2 only after Notification confirms v2 consumer support.
+    notification_schema_version: ${REPAYMENT_REMINDER_NOTIFICATION_SCHEMA_VERSION}
 
   collections:
     batch_size: ${COLLECTIONS_ASSESSMENT_BATCH_SIZE}

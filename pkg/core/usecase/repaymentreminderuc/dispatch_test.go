@@ -276,6 +276,7 @@ func TestDispatch_PagesBeyondFirstCustomerBatch(t *testing.T) {
 		"dpay.ir",
 		"https://app.example/repayments",
 		1,
+		1,
 	)
 	require.NoError(t, err)
 

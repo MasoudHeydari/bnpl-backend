@@ -7,6 +7,9 @@ import (
 )
 
 const (
+	// SchemaVersionV1 selects the legacy Event payload for Kafka publication.
+	SchemaVersionV1 = 1
+
 	// EventType is the machine-readable outbox / Kafka event type for SMS requests.
 	EventType = "notification.sms.requested.v1"
 
