@@ -7,18 +7,20 @@
 #
 # `make up` creates the Grafana password secret and log dirs when missing.
 #
-# Local endpoints:
-#   BNPL:              http://127.0.0.1:8080
-#   Envoy Gateway:     http://127.0.0.1:8088
-#   Envoy Admin:       http://127.0.0.1:9901
-#   Redpanda Console:  http://127.0.0.1:8081
-#   Temporal UI:       http://127.0.0.1:${TEMPORAL_UI_PORT:-8233}
-#   Loki:              http://127.0.0.1:3100
-#   Promtail:          http://127.0.0.1:3101
-#   Grafana:           http://127.0.0.1:${GRAFANA_PORT:-3001}
+# Publish host for all Compose-mapped ports comes from COMPOSE_PUBLISH_HOST
+# (see .env.example). Envoy uses host networking and is unchanged here.
+#
+# Local endpoints (host = COMPOSE_PUBLISH_HOST):
+#   BNPL (host process): http://127.0.0.1:8080  (or GIN_HOST)
+#   Envoy Gateway:       http://${COMPOSE_PUBLISH_HOST}:8088  (host net / envoy config)
+#   Redpanda Console:    http://${COMPOSE_PUBLISH_HOST}:8081
+#   Temporal UI:         http://${COMPOSE_PUBLISH_HOST}:${TEMPORAL_UI_PORT:-8233}
+#   Loki:                http://${COMPOSE_PUBLISH_HOST}:3100
+#   Promtail:            http://${COMPOSE_PUBLISH_HOST}:3101
+#   Grafana:             http://${COMPOSE_PUBLISH_HOST}:${GRAFANA_PORT:-3001}
 #
 # Loki configs live under assets/local-development/{loki,promtail,grafana,secrets,logs}.
-# Loki has no authentication. Bind is loopback-only. Test/local only.
+# Test/local only; do not expose these ports beyond a trusted network.
 #
 # Credentials come from .env (gitignored). Grafana admin password is the Docker
 # secret file assets/local-development/secrets/bnpl_loki_grafana_password.
@@ -40,7 +42,7 @@ services:
       - postgres_data_bnpl:/var/lib/postgresql
 
     ports:
-      - "127.0.0.1:5432:5432"
+      - "${COMPOSE_PUBLISH_HOST}:5432:5432"
 
     healthcheck:
       test: [
@@ -75,9 +77,9 @@ services:
       # CONTROLLER is used only by Kafka's KRaft controller.
       KAFKA_LISTENERS: EXTERNAL://:9092,INTERNAL://:29092,CONTROLLER://:9093
 
-      # Host-side clients connect through localhost:9092.
+      # Host-side clients connect through ${COMPOSE_PUBLISH_HOST}:9092.
       # Docker services connect through kafka:29092.
-      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:9092,INTERNAL://kafka:29092
+      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://${COMPOSE_PUBLISH_HOST}:9092,INTERNAL://kafka:29092
 
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
 
@@ -101,7 +103,7 @@ services:
 
     ports:
       # Only the external listener needs to be accessible from the host.
-      - "127.0.0.1:9092:9092"
+      - "${COMPOSE_PUBLISH_HOST}:9092:9092"
 
     healthcheck:
       test: [
@@ -167,7 +169,7 @@ services:
   # ── Redpanda Console ───────────────────────────────────────────────────────
   #
   # Redpanda Console is only a Kafka UI in this setup.
-  # Open: http://127.0.0.1:8081
+  # Open: http://${COMPOSE_PUBLISH_HOST}:8081
   redpanda-console:
     image: docker.redpanda.com/redpandadata/console:v3.9.0
     container_name: bnpl-redpanda-console
@@ -179,7 +181,7 @@ services:
 
     ports:
       # Port 8080 is reserved for the host-side BNPL application.
-      - "127.0.0.1:8081:8080"
+      - "${COMPOSE_PUBLISH_HOST}:8081:8080"
 
     depends_on:
       kafka:
@@ -212,7 +214,7 @@ services:
       - --headless
 
     ports:
-      - "127.0.0.1:7233:7233"
+      - "${COMPOSE_PUBLISH_HOST}:7233:7233"
 
     healthcheck:
       test: [
@@ -229,7 +231,7 @@ services:
 
   # ── Temporal Web UI ───────────────────────────────────────────────────────
   #
-  # Open: http://127.0.0.1:${TEMPORAL_UI_PORT}
+  # Open: http://${COMPOSE_PUBLISH_HOST}:${TEMPORAL_UI_PORT}
   temporal-ui:
     image: temporalio/ui:2.54.1
     container_name: bnpl-temporal-ui
@@ -239,7 +241,7 @@ services:
       TEMPORAL_ADDRESS: temporal:7233
 
     ports:
-      - "127.0.0.1:${TEMPORAL_UI_PORT}:8080"
+      - "${COMPOSE_PUBLISH_HOST}:${TEMPORAL_UI_PORT}:8080"
 
     depends_on:
       temporal:
@@ -305,7 +307,7 @@ services:
       - loki_data:/loki
 
     ports:
-      - "127.0.0.1:3100:3100"
+      - "${COMPOSE_PUBLISH_HOST}:3100:3100"
 
     # Distroless image: no shell/wget. Binary check + start_period covers boot.
     # Orchestrators with HTTP probes should hit GET /ready on :3100 instead.
@@ -358,7 +360,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
     ports:
-      - "127.0.0.1:3101:3101"
+      - "${COMPOSE_PUBLISH_HOST}:3101:3101"
 
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -380,7 +382,7 @@ services:
 
   # ── Grafana (Explore Loki) ─────────────────────────────────────────────────
   #
-  # Open: http://127.0.0.1:${GRAFANA_PORT:-3001}
+  # Open: http://${COMPOSE_PUBLISH_HOST}:${GRAFANA_PORT:-3001}
   # Admin password from Docker secret file secrets/bnpl_loki_grafana_password
   grafana:
     image: docker.arvancloud.ir/grafana/grafana:12.3.0
@@ -393,7 +395,7 @@ services:
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_SERVER_HTTP_ADDR: 0.0.0.0
-      GF_SERVER_ROOT_URL: http://127.0.0.1:${GRAFANA_PORT:-3001}
+      GF_SERVER_ROOT_URL: http://${COMPOSE_PUBLISH_HOST}:${GRAFANA_PORT:-3001}
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
 
@@ -408,7 +410,7 @@ services:
       - bnpl_loki_grafana_password
 
     ports:
-      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
+      - "${COMPOSE_PUBLISH_HOST}:${GRAFANA_PORT:-3001}:3000"
 
     depends_on:
       loki:

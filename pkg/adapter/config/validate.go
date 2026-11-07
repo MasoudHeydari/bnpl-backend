@@ -1018,6 +1018,10 @@ func (e ExternalFinancialCore) validate(env model.RuntimeEnvironment) error {
 			return fmt.Errorf("%s: invalid external.financial_core.grpc.timeout: must be positive", op)
 		}
 
+		if e.GRPC.ConnectionTimeout <= 0 {
+			return fmt.Errorf("%s: invalid external.financial_core.grpc.connection_timeout: must be positive", op)
+		}
+
 		if isProductionMode(env) && e.GRPC.Insecure {
 			return fmt.Errorf("%s: external.financial_core.grpc.insecure must be false in production", op)
 		}

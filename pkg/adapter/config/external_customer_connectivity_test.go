@@ -22,9 +22,10 @@ func TestExternalCustomer_NewGRPCClient_UnavailableAddressFailsFast(t *testing.T
 	cfg := ExternalCustomer{
 		Provider: string(customerext.GRPCProvider),
 		GRPC: ExternalCustomerGRPC{
-			Address:  address,
-			Timeout:  time.Second,
-			Insecure: true,
+			Address:           address,
+			Timeout:           time.Second,
+			ConnectionTimeout: 200 * time.Millisecond,
+			Insecure:          true,
 		},
 	}
 

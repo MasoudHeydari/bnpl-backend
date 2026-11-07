@@ -449,6 +449,7 @@ Provider-specific settings live under `external.webhook_dispatcher.http` / `noop
 | `FINANCIAL_CORE_PAYMENT_RETURN_URL` | env | Yes | — | Backend-owned HTTPS redirect URL sent to Financial Core; not accepted from API clients |
 | `EXTERNAL_FINANCIAL_CORE_GRPC_ADDRESS` | env | When grpc | — | Required when provider is `grpc` |
 | `EXTERNAL_FINANCIAL_CORE_GRPC_TIMEOUT` | env | When grpc | `5s` | Must be positive |
+| `EXTERNAL_FINANCIAL_CORE_GRPC_CONNECTION_TIMEOUT` | env | When grpc | `10s` | Startup READY check budget; must be positive |
 | `EXTERNAL_FINANCIAL_CORE_GRPC_INSECURE` | env | When grpc | `true` | Local development only |
 
 ### External Customer Reference Service
@@ -458,6 +459,7 @@ Provider-specific settings live under `external.webhook_dispatcher.http` / `noop
 | `EXTERNAL_CUSTOMER_PROVIDER` | env | Yes | `noop` | `grpc` in production; `noop` forbidden when `APP_ENVIRONMENT=production` |
 | `EXTERNAL_CUSTOMER_GRPC_ADDRESS` | env | When grpc | — | Required when provider is `grpc` |
 | `EXTERNAL_CUSTOMER_GRPC_TIMEOUT` | env | When grpc | `5s` | Must be positive |
+| `EXTERNAL_CUSTOMER_GRPC_CONNECTION_TIMEOUT` | env | When grpc | `10s` | Startup READY check budget; must be positive |
 | `EXTERNAL_CUSTOMER_GRPC_INSECURE` | env | When grpc | `true` | Local development only; must be `false` in production |
 
 Identity owns `ResolveSubjectByMobile` only (merchant-asserted phone → subject). It does not submit notifications or SMS.
@@ -469,6 +471,7 @@ Identity owns `ResolveSubjectByMobile` only (merchant-asserted phone → subject
 | `EXTERNAL_NOTIFICATION_PROVIDER` | env | Yes | `noop` | `grpc` in production; `noop` forbidden when `APP_ENVIRONMENT=production` |
 | `EXTERNAL_NOTIFICATION_GRPC_ADDRESS` | env | When grpc | — | Required when provider is `grpc` |
 | `EXTERNAL_NOTIFICATION_GRPC_TIMEOUT` | env | When grpc | `5s` | Must be positive |
+| `EXTERNAL_NOTIFICATION_GRPC_CONNECTION_TIMEOUT` | env | When grpc | `10s` | Startup READY check budget; must be positive |
 | `EXTERNAL_NOTIFICATION_GRPC_INSECURE` | env | When grpc | `true` | Local development only; must be `false` in production |
 
 Notification owns durable `SubmitNotification` acceptance for customer token checkout OTP. BNPL still generates and verifies OTP codes.

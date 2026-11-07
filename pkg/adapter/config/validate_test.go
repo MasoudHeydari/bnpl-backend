@@ -40,9 +40,11 @@ func requireProductionIdentityAndNotification(cfg *Config) {
 	cfg.External.Customer.Provider = string(customerext.GRPCProvider)
 	cfg.External.Customer.GRPC.Address = "127.0.0.1:50053"
 	cfg.External.Customer.GRPC.Timeout = time.Second
+	cfg.External.Customer.GRPC.ConnectionTimeout = 10 * time.Second
 	cfg.External.Notification.Provider = string(notificationext.GRPCProvider)
 	cfg.External.Notification.GRPC.Address = "127.0.0.1:50054"
 	cfg.External.Notification.GRPC.Timeout = time.Second
+	cfg.External.Notification.GRPC.ConnectionTimeout = 10 * time.Second
 }
 
 func enabledSagaExecutorTask(provider taskadapter.Provider) Task {
@@ -247,6 +249,7 @@ func hardenValidConfigForProductionBinary(cfg *Config) {
 	cfg.External.FinancialCore.Provider = string(checkoutpaymentext.GRPCProvider)
 	cfg.External.FinancialCore.GRPC.Address = "127.0.0.1:50052"
 	cfg.External.FinancialCore.GRPC.Timeout = time.Second
+	cfg.External.FinancialCore.GRPC.ConnectionTimeout = 10 * time.Second
 	requireProductionIdentityAndNotification(cfg)
 }
 
@@ -333,6 +336,7 @@ func TestConfig_Validate_ProductionRequiresIssuanceScrub(t *testing.T) {
 	cfg.External.FinancialCore.Provider = string(checkoutpaymentext.GRPCProvider)
 	cfg.External.FinancialCore.GRPC.Address = "127.0.0.1:50052"
 	cfg.External.FinancialCore.GRPC.Timeout = time.Second
+	cfg.External.FinancialCore.GRPC.ConnectionTimeout = 10 * time.Second
 	requireProductionIdentityAndNotification(cfg)
 	cfg.External.CreditAssessment.Provider = string(creditassessmentext.CreditBureauProvider)
 	cfg.Infrastructure.Logger.Provider = log.SlogProvider
@@ -382,6 +386,7 @@ func TestConfig_Validate_ProductionNoopGuards(t *testing.T) {
 	cfg.External.FinancialCore.Provider = string(checkoutpaymentext.GRPCProvider)
 	cfg.External.FinancialCore.GRPC.Address = "127.0.0.1:50052"
 	cfg.External.FinancialCore.GRPC.Timeout = time.Second
+	cfg.External.FinancialCore.GRPC.ConnectionTimeout = 10 * time.Second
 	requireProductionIdentityAndNotification(cfg)
 	cfg.External.CreditAssessment.Provider = string(creditassessmentext.CreditBureauProvider)
 	cfg.Infrastructure.Logger.Provider = log.SlogProvider
@@ -482,6 +487,7 @@ func TestConfig_Validate_ProductionCircuitBreakerNoopForbidden(t *testing.T) {
 	cfg.External.FinancialCore.Provider = string(checkoutpaymentext.GRPCProvider)
 	cfg.External.FinancialCore.GRPC.Address = "127.0.0.1:50052"
 	cfg.External.FinancialCore.GRPC.Timeout = time.Second
+	cfg.External.FinancialCore.GRPC.ConnectionTimeout = 10 * time.Second
 	requireProductionIdentityAndNotification(cfg)
 	cfg.Infrastructure.CircuitBreaker.Provider = circuitbreaker.NoopProvider
 
@@ -528,6 +534,7 @@ func TestConfig_Validate_ProductionWebhookDispatcherNoopForbidden(t *testing.T) 
 	cfg.External.FinancialCore.Provider = string(checkoutpaymentext.GRPCProvider)
 	cfg.External.FinancialCore.GRPC.Address = "127.0.0.1:50052"
 	cfg.External.FinancialCore.GRPC.Timeout = time.Second
+	cfg.External.FinancialCore.GRPC.ConnectionTimeout = 10 * time.Second
 	requireProductionIdentityAndNotification(cfg)
 	cfg.External.WebhookDispatcher.Provider = string(merchantwebhook.NoopProvider)
 
@@ -571,6 +578,20 @@ func TestExternalNotificationValidate(t *testing.T) {
 		require.Contains(t, err.Error(), "external.notification.grpc.timeout")
 	})
 
+	t.Run("grpc requires positive connection_timeout", func(t *testing.T) {
+		t.Parallel()
+
+		err := ExternalNotification{
+			Provider: string(notificationext.GRPCProvider),
+			GRPC: ExternalNotificationGRPC{
+				Address: "127.0.0.1:50054",
+				Timeout: time.Second,
+			},
+		}.validate(model.DevelopmentRuntimeEnvironment)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "external.notification.grpc.connection_timeout")
+	})
+
 	t.Run("noop forbidden in production", func(t *testing.T) {
 		t.Parallel()
 
@@ -587,9 +608,10 @@ func TestExternalNotificationValidate(t *testing.T) {
 		err := ExternalNotification{
 			Provider: string(notificationext.GRPCProvider),
 			GRPC: ExternalNotificationGRPC{
-				Address:  "127.0.0.1:50054",
-				Timeout:  time.Second,
-				Insecure: true,
+				Address:           "127.0.0.1:50054",
+				Timeout:           time.Second,
+				ConnectionTimeout: 10 * time.Second,
+				Insecure:          true,
 			},
 		}.validate(model.ProductionRuntimeEnvironment)
 		require.Error(t, err)
@@ -641,6 +663,7 @@ func TestConfig_Validate_ProductionFinancialCoreInsecureGRPCForbidden(t *testing
 	cfg.External.FinancialCore.Provider = string(checkoutpaymentext.GRPCProvider)
 	cfg.External.FinancialCore.GRPC.Address = "financial-core:50052"
 	cfg.External.FinancialCore.GRPC.Timeout = time.Second
+	cfg.External.FinancialCore.GRPC.ConnectionTimeout = 10 * time.Second
 	cfg.External.FinancialCore.GRPC.Insecure = true
 
 	err := cfg.Validate()
@@ -713,6 +736,7 @@ func TestConfig_Validate_KafkaNewestInitialOffsetForbiddenInProduction(t *testin
 	cfg.External.FinancialCore.Provider = string(checkoutpaymentext.GRPCProvider)
 	cfg.External.FinancialCore.GRPC.Address = "financial-core:50052"
 	cfg.External.FinancialCore.GRPC.Timeout = time.Second
+	cfg.External.FinancialCore.GRPC.ConnectionTimeout = 10 * time.Second
 
 	err := cfg.Validate()
 	require.Error(t, err)

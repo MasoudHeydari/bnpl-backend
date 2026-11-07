@@ -503,6 +503,7 @@ external:
     grpc:
       address: ${EXTERNAL_FINANCIAL_CORE_GRPC_ADDRESS}
       timeout: ${EXTERNAL_FINANCIAL_CORE_GRPC_TIMEOUT}
+      connection_timeout: ${EXTERNAL_FINANCIAL_CORE_GRPC_CONNECTION_TIMEOUT}
       insecure: ${EXTERNAL_FINANCIAL_CORE_GRPC_INSECURE}
 
   customer:
@@ -513,6 +514,7 @@ external:
     grpc:
       address: ${EXTERNAL_CUSTOMER_GRPC_ADDRESS}
       timeout: ${EXTERNAL_CUSTOMER_GRPC_TIMEOUT}
+      connection_timeout: ${EXTERNAL_CUSTOMER_GRPC_CONNECTION_TIMEOUT}
       insecure: ${EXTERNAL_CUSTOMER_GRPC_INSECURE}
 
   notification:
@@ -523,6 +525,7 @@ external:
     grpc:
       address: ${EXTERNAL_NOTIFICATION_GRPC_ADDRESS}
       timeout: ${EXTERNAL_NOTIFICATION_GRPC_TIMEOUT}
+      connection_timeout: ${EXTERNAL_NOTIFICATION_GRPC_CONNECTION_TIMEOUT}
       insecure: ${EXTERNAL_NOTIFICATION_GRPC_INSECURE}
 
   bot_messaging:

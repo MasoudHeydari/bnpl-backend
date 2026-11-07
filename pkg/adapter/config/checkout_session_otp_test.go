@@ -134,12 +134,23 @@ func TestExternalCustomer_Validate(t *testing.T) {
 		{name: "empty provider", cfg: ExternalCustomer{}, env: dev, wantErr: "unsupported"},
 		{
 			name: "grpc ok",
-			cfg:  ExternalCustomer{Provider: string(customerext.GRPCProvider), GRPC: ExternalCustomerGRPC{Address: "id:50053", Timeout: time.Second, Insecure: true}},
-			env:  dev,
+			cfg: ExternalCustomer{
+				Provider: string(customerext.GRPCProvider),
+				GRPC: ExternalCustomerGRPC{
+					Address:           "id:50053",
+					Timeout:           time.Second,
+					ConnectionTimeout: 10 * time.Second,
+					Insecure:          true,
+				},
+			},
+			env: dev,
 		},
 		{
-			name:    "grpc requires address",
-			cfg:     ExternalCustomer{Provider: string(customerext.GRPCProvider), GRPC: ExternalCustomerGRPC{Timeout: time.Second}},
+			name: "grpc requires address",
+			cfg: ExternalCustomer{
+				Provider: string(customerext.GRPCProvider),
+				GRPC:     ExternalCustomerGRPC{Timeout: time.Second, ConnectionTimeout: 10 * time.Second},
+			},
 			env:     dev,
 			wantErr: "grpc.address",
 		},
@@ -150,8 +161,25 @@ func TestExternalCustomer_Validate(t *testing.T) {
 			wantErr: "grpc.timeout",
 		},
 		{
-			name:    "grpc insecure rejected in production",
-			cfg:     ExternalCustomer{Provider: string(customerext.GRPCProvider), GRPC: ExternalCustomerGRPC{Address: "id:50053", Timeout: time.Second, Insecure: true}},
+			name: "grpc requires connection_timeout",
+			cfg: ExternalCustomer{
+				Provider: string(customerext.GRPCProvider),
+				GRPC:     ExternalCustomerGRPC{Address: "id:50053", Timeout: time.Second},
+			},
+			env:     dev,
+			wantErr: "grpc.connection_timeout",
+		},
+		{
+			name: "grpc insecure rejected in production",
+			cfg: ExternalCustomer{
+				Provider: string(customerext.GRPCProvider),
+				GRPC: ExternalCustomerGRPC{
+					Address:           "id:50053",
+					Timeout:           time.Second,
+					ConnectionTimeout: 10 * time.Second,
+					Insecure:          true,
+				},
+			},
 			env:     prod,
 			wantErr: "insecure",
 		},

@@ -41,6 +41,10 @@ type ExternalNotificationGRPC struct {
 	// Timeout configures the per-RPC timeout for Notification Service gRPC calls.
 	Timeout time.Duration `yaml:"timeout"`
 
+	// ConnectionTimeout is the startup budget for verifying the gRPC transport
+	// reaches READY after dial (before business RPCs).
+	ConnectionTimeout time.Duration `yaml:"connection_timeout"`
+
 	// Insecure controls whether TLS is disabled for the Notification Service
 	// gRPC connection. Production must keep this false; mTLS is configured later.
 	Insecure bool `yaml:"insecure"`
@@ -87,7 +91,7 @@ func (e ExternalNotification) newGRPCClient(
 		return nil, nil, fmt.Errorf("%s: initialize external notification grpc client: %w", op, err)
 	}
 
-	pingCtx, cancel := context.WithTimeout(context.Background(), grpcclient.ConnectTimeout)
+	pingCtx, cancel := context.WithTimeout(context.Background(), e.GRPC.ConnectionTimeout)
 	defer cancel()
 
 	if err := grpcclient.Ping(pingCtx, conn); err != nil {
@@ -126,6 +130,10 @@ func (e ExternalNotification) validate(env model.RuntimeEnvironment) error {
 
 		if e.GRPC.Timeout <= 0 {
 			return fmt.Errorf("%s: invalid external.notification.grpc.timeout: must be positive", op)
+		}
+
+		if e.GRPC.ConnectionTimeout <= 0 {
+			return fmt.Errorf("%s: invalid external.notification.grpc.connection_timeout: must be positive", op)
 		}
 
 		if isProductionMode(env) && e.GRPC.Insecure {

@@ -41,7 +41,7 @@ func TestPing_ReadyLocalServer(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = conn.Close() })
 
-	pingCtx, cancel := context.WithTimeout(ctx, grpcclient.ConnectTimeout)
+	pingCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	require.NoError(t, grpcclient.Ping(pingCtx, conn))

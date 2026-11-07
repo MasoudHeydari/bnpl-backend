@@ -241,6 +241,10 @@ type ExternalFinancialCoreGRPC struct {
 	// Timeout configures the per-RPC timeout for Financial Core gRPC calls.
 	Timeout time.Duration `yaml:"timeout"`
 
+	// ConnectionTimeout is the startup budget for verifying the gRPC transport
+	// reaches READY after dial (before business RPCs).
+	ConnectionTimeout time.Duration `yaml:"connection_timeout"`
+
 	// Insecure controls whether TLS is disabled for the Financial Core gRPC connection.
 	Insecure bool `yaml:"insecure"`
 }
@@ -278,7 +282,7 @@ func (e ExternalFinancialCore) newGRPCExternalCheckoutPaymentClient(
 		return nil, nil, fmt.Errorf("%s: initialize external financial core grpc client: %w", op, err)
 	}
 
-	pingCtx, cancel := context.WithTimeout(context.Background(), grpcclient.ConnectTimeout)
+	pingCtx, cancel := context.WithTimeout(context.Background(), e.GRPC.ConnectionTimeout)
 	defer cancel()
 
 	if err := grpcclient.Ping(pingCtx, conn); err != nil {
