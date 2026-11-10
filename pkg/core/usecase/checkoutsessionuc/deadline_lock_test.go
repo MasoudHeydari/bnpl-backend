@@ -208,7 +208,7 @@ func TestEvaluateSession_DurableUnavailableWinsOverLocalApprovedOffer(t *testing
 	// Concurrent denied winner already terminalized the session.
 	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(unavailable, nil).Once()
 
-	got, offer, err := h.uc.evaluateSession(h.ctx, open, h.profileID)
+	got, offer, err := h.uc.evaluateSession(h.ctx, open)
 	require.NoError(t, err)
 	require.Equal(t, model.UnavailableCheckoutSessionStatus, got.Status)
 	require.Equal(t, DeniedOfferOutcome, offer.Outcome)

@@ -43,7 +43,7 @@ func (uc *UseCase) createPaymentPending(
 					paymentAttemptQ := uc.paymentAttempt.Tx(tx)
 					auditOutboxQ := uc.outbox.Tx(tx)
 
-					profile, profileErr := customerProfileQ.LockByExternalCustomerID(ctx, input.ExternalCustomerID)
+					profile, profileErr := customerProfileQ.LockByExternalSubjectID(ctx, input.ExternalSubjectID)
 					if profileErr != nil {
 						if cerr.IsCode(profileErr, cerr.CodeResourceNotFound) {
 							return checkoutDecisionDoesNotBelongToCustomerError(
@@ -293,7 +293,7 @@ func (uc *UseCase) createPaymentPending(
 						ctx,
 						auditOutboxQ,
 						createPaymentPendingAuditFacts{
-							ExternalCustomerID: input.ExternalCustomerID,
+							ExternalSubjectID: input.ExternalSubjectID,
 							Contract:           contractRow,
 							Installments:       installments,
 							InstallmentCharges: firstCharges,
@@ -335,8 +335,8 @@ func validateCreateContractInput(input CreateContractInput) error {
 		return decisionIDRequiredError()
 	}
 
-	if input.ExternalCustomerID.IsZero() {
-		return externalCustomerIDRequiredError()
+	if input.ExternalSubjectID.IsZero() {
+		return externalSubjectIDRequiredError()
 	}
 
 	return nil

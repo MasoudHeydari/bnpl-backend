@@ -21,7 +21,7 @@ const (
 // checkoutDecisionAuditFacts carries in-transaction identifiers already loaded
 // for the audited Decision. Do not query repositories to populate this struct.
 type checkoutDecisionAuditFacts struct {
-	ExternalCustomerID      model.ExternalCustomerID
+	ExternalSubjectID      model.ExternalSubjectID
 	CustomerID              model.CustomerID
 	MerchantProfileID       model.MerchantProfileID
 	ExternalMerchantID      model.ExternalMerchantID
@@ -97,14 +97,14 @@ func buildCheckoutDecisionAuditEvent(
 ) (audit.Event, error) {
 	const op = "decisionuc.buildCheckoutDecisionAuditEvent"
 
-	actorID := facts.ExternalCustomerID.String()
+	actorID := facts.ExternalSubjectID.String()
 	reasonCodes := decision.ReasonCodes
 
 	metadata := map[string]any{
 		"decision_id":                decision.ID.String(),
 		"checkout_key":               decision.IdempotencyKey,
 		"customer_id":                facts.CustomerID.String(),
-		"identity_subject_id":        facts.ExternalCustomerID.String(),
+		"identity_subject_id":        facts.ExternalSubjectID.String(),
 		"merchant_profile_id":        facts.MerchantProfileID.String(),
 		"external_merchant_id":       facts.ExternalMerchantID.String(),
 		"merchant_branch_profile_id": facts.MerchantBranchProfileID.String(),

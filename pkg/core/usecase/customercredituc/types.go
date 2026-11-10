@@ -21,10 +21,15 @@ const (
 	SummaryStatusExpired SummaryStatus = "expired"
 )
 
-// Input identifies the authenticated external customer (Identity Service subject).
+// Input identifies the authenticated customer via gateway subject + mobile for credit summary.
 type Input struct {
-	// ExternalCustomerID is the Identity Service subject mapped to customer_profiles.external_customer_id.
-	ExternalCustomerID model.ExternalCustomerID
+	// SubjectID is the Identity Service subject from x-auth-subject-id
+	// (customer_profiles.external_subject_id).
+	SubjectID model.SubjectID
+
+	// MobileE164 is the gateway-injected authenticated mobile
+	// (x-auth-mobile-number ← JWT auth_mobile_number), canonical E.164.
+	MobileE164 string
 }
 
 // Output carries the customer's current BNPL credit summary.
@@ -39,8 +44,13 @@ type Output struct {
 	// CustomerID is the internal customer_profiles.id primary key.
 	CustomerID model.CustomerID
 
-	// AvailableAmountMinor is the available credit amount in minor currency units.
+	// LimitAmountMinor is the governed total credit capacity in minor units.
+	LimitAmountMinor uint64
+
+	// AvailableAmountMinor is remaining usable credit in minor currency units
+	// (limit minus committed financed exposure; zero while new-credit use is blocked).
 	AvailableAmountMinor uint64
+
 	// Currency is the ISO currency for monetary amounts.
 	Currency model.Currency
 

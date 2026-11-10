@@ -44,12 +44,13 @@ func (s *stubCreditLimitUseCase) AssignInitialLimit(
 	}, nil
 }
 
-func TestAssignInitialLimit_UsesAuthSubjectAsExternalCustomerID_EmptyBody(t *testing.T) {
+func TestAssignInitialLimit_UsesAuthMobileFromHeader_EmptyBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	externalCustomerID := model.ExternalCustomerID(uuid.New())
+	subjectID := model.SubjectID(uuid.New())
 	tenantID := model.TenantID(uuid.New())
 	contextID := model.ContextID(uuid.New())
+	mobile := "+989121234567"
 	stub := &stubCreditLimitUseCase{}
 
 	engine := gin.New()
@@ -58,23 +59,27 @@ func TestAssignInitialLimit_UsesAuthSubjectAsExternalCustomerID_EmptyBody(t *tes
 	engine.POST("/api/v1/customer-credit/initiate", func(c *gin.Context) {
 		authCtx, ok := permission.FromContext(c.Request.Context())
 		require.True(t, ok)
+		require.Equal(t, subjectID, authCtx.SubjectID)
+
+		mobileHeader := c.GetHeader(header.AuthMobileNumber)
 		_, err := stub.AssignInitialLimit(c.Request.Context(), customercredituc.AssignInitialLimitInput{
-			ExternalCustomerID: authCtx.SubjectID.AsExternalCustomerID(),
+			MobileE164: mobileHeader,
 		})
 		require.NoError(t, err)
 		c.Status(http.StatusCreated)
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/customer-credit/initiate", http.NoBody)
-	req.Header.Set(header.AuthSubjectID, externalCustomerID.String())
+	req.Header.Set(header.AuthSubjectID, subjectID.String())
 	req.Header.Set(header.AuthTenantID, tenantID.String())
 	req.Header.Set(header.AuthContextID, contextID.String())
 	req.Header.Set(header.AuthPermissions, permission.CreditLimitsCreateSelf.Code)
+	req.Header.Set(header.AuthMobileNumber, mobile)
 
 	recorder := httptest.NewRecorder()
 	engine.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusCreated, recorder.Code)
-	require.Equal(t, externalCustomerID, stub.lastInput.ExternalCustomerID)
+	require.Equal(t, mobile, stub.lastInput.MobileE164)
 
 	authCtx, ok := permission.FromContext(stub.lastCtx)
 	require.True(t, ok)

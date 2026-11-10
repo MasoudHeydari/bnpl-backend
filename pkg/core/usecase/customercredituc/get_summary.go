@@ -16,20 +16,22 @@ import (
 // journal explains how that state changed; it is not recomputed as a financial
 // ledger.
 func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) {
-	if input.ExternalCustomerID.IsZero() {
-		return Output{}, externalCustomerIDRequiredError()
+	externalCustomerID, err := uc.resolveActiveExternalCustomerID(ctx, input.MobileE164)
+	if err != nil {
+		return Output{}, err
 	}
 
 	now := uc.clock.Now().UTC()
 	var output Output
 
-	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
+	err = uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
 			customerProfileQ := uc.customerProfile.Tx(tx)
 			profile, err := uc.ensureActiveCustomerProfile(
 				ctx,
 				customerProfileQ,
-				input.ExternalCustomerID,
+				input.SubjectID.AsExternalSubjectID(),
+				externalCustomerID,
 				now,
 			)
 			if err != nil {
@@ -38,7 +40,7 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 
 			accountQ := uc.creditAccount.Tx(tx)
 			policyAssignmentQ := uc.policyAssignment.Tx(tx)
-			selectedPolicy, err := uc.resolveInitialLimitPolicy(ctx, policyAssignmentQ, input.ExternalCustomerID, now)
+			selectedPolicy, err := uc.resolveInitialLimitPolicy(ctx, policyAssignmentQ, externalCustomerID, now)
 			if err != nil {
 				return err
 			}
@@ -113,6 +115,7 @@ func summaryFromAccount(account model.CreditAccount, newCreditBlocked bool) Outp
 	return Output{
 		CreditUsage:          usage,
 		CustomerID:           account.CustomerID,
+		LimitAmountMinor:     account.LimitAmountMinor,
 		AvailableAmountMinor: available,
 		Currency:             account.Currency,
 		Status:               status,
@@ -125,6 +128,7 @@ func zeroSummary(customerID model.CustomerID, currency model.Currency) Output {
 	return Output{
 		CreditUsage:          CreditUsage{Status: "unavailable"},
 		CustomerID:           customerID,
+		LimitAmountMinor:     0,
 		AvailableAmountMinor: 0,
 		Currency:             currency,
 		Status:               SummaryStatusNotAssigned,
@@ -138,11 +142,13 @@ func zeroSummary(customerID model.CustomerID, currency model.Currency) Output {
 func (uc *UseCase) ensureActiveCustomerProfile(
 	ctx context.Context,
 	profileQ repo.CustomerProfileTxQueryer,
+	externalSubjectID model.ExternalSubjectID,
 	externalCustomerID model.ExternalCustomerID,
 	now time.Time,
 ) (model.CustomerProfile, error) {
 	profile, _, err := profileQ.EnsureExists(
 		ctx,
+		externalSubjectID,
 		externalCustomerID,
 		model.IRJurisdiction,
 		model.ActiveCustomerStatus,

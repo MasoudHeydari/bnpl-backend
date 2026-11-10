@@ -65,7 +65,7 @@ func (uc *UseCase) prepareOfferForBoundSession(
 		return existing.Session, *existing.Offer, nil
 	}
 
-	evaluated, offer, err := uc.evaluateSession(ctx, session, externalCustomerID)
+	evaluated, offer, err := uc.evaluateSession(ctx, session)
 	if err != nil {
 		return model.CheckoutSession{}, Offer{}, err
 	}

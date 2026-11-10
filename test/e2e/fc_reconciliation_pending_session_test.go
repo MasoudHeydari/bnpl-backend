@@ -71,7 +71,7 @@ func seedInstallmentRepaymentReconciliationRequired(
 		ContextID:          contextID,
 		ContractID:         contractRow.ID,
 		InstallmentID:      installmentID,
-		ExternalCustomerID: externalCustomerID,
+		ExternalSubjectID: externalSubjectIDForExternalCustomer(t, externalCustomerID),
 		IdempotencyKey:     idempotencyKey,
 		Channel:            model.GatewayPaymentChannel,
 	})
@@ -512,7 +512,7 @@ func TestE2E_InstallmentCreate_FCExpiryLaterThanRequestedAccepted(t *testing.T) 
 		ContextID:          model.ContextID(uuid.MustParse("00000000-0000-4000-8000-0000000000bb")),
 		ContractID:         contractRow.ID,
 		InstallmentID:      installmentID,
-		ExternalCustomerID: externalCustomerID,
+		ExternalSubjectID: externalSubjectIDForExternalCustomer(t, externalCustomerID),
 		IdempotencyKey:     idempotencyKey,
 		Channel:            model.GatewayPaymentChannel,
 	})
@@ -530,7 +530,7 @@ func TestE2E_InstallmentCreate_FCExpiryLaterThanRequestedAccepted(t *testing.T) 
 		ContextID:          model.ContextID(uuid.MustParse("00000000-0000-4000-8000-0000000000bb")),
 		ContractID:         contractRow.ID,
 		InstallmentID:      installmentID,
-		ExternalCustomerID: externalCustomerID,
+		ExternalSubjectID: externalSubjectIDForExternalCustomer(t, externalCustomerID),
 		IdempotencyKey:     idempotencyKey,
 		Channel:            model.GatewayPaymentChannel,
 	})

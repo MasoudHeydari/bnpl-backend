@@ -34,10 +34,14 @@ func authHeaders(subjectID model.SubjectID, permissions ...string) map[string]st
 }
 
 // creditCreateAuthHeaders returns auth headers for the initial credit-limit
-// endpoint (permission bnpl:credit-limits:create:self). SubjectID is the customer
-// identity ID (customer_profiles.external_customer_id).
-func creditCreateAuthHeaders(externalCustomerID model.ExternalCustomerID) map[string]string {
-	return authHeaders(model.SubjectID(externalCustomerID.UUID()), permission.CreditLimitsCreateSelf.Code)
+// endpoint (permission bnpl:credit-limits:create:self).
+//
+// subjectID authenticates the caller; mobileE164 is resolved through Customer
+// Reference Service to customer_profiles.external_customer_id.
+func creditCreateAuthHeaders(subjectID model.SubjectID, mobileE164 string) map[string]string {
+	headers := authHeaders(subjectID, permission.CreditLimitsCreateSelf.Code)
+	headers[header.AuthMobileNumber] = mobileE164
+	return headers
 }
 
 // withoutHeader returns a copy of headers with name removed.

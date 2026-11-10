@@ -65,7 +65,7 @@ func toCreatePaymentAttemptInput(c *gin.Context) (installmentrepaymentuc.CreateP
 		ContextID:          authCtx.ContextID,
 		ContractID:         contractID,
 		InstallmentID:      installmentID,
-		ExternalCustomerID: authCtx.SubjectID.AsExternalCustomerID(),
+		ExternalSubjectID: authCtx.SubjectID.AsExternalSubjectID(),
 		IdempotencyKey:     idempotencyKey,
 		Channel:            channel,
 	}, true

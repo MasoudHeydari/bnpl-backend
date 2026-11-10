@@ -461,6 +461,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Infrastructure.Clock,
 		a.Infrastructure.FingerprintHasher,
 		a.External.CreditAssessmentClient,
+		a.External.CustomerResolver,
 		a.Repos.PolicyAssignment,
 		initialCreditLimitPolicies,
 		initialcreditcatalog.DefaultRef(),

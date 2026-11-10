@@ -302,7 +302,7 @@ func TestCancel_ActiveToCanceling(t *testing.T) {
 	uc := deps.newUseCase(t)
 	ctx := cancelTraceContext()
 
-	externalCustomerID := model.ExternalCustomerID(uuid.New())
+	externalSubjectID := model.ExternalSubjectID(uuid.New())
 	customerID := model.CustomerID(uuid.New())
 	contractID := model.ContractID(uuid.New())
 	tenantID := model.TenantID(uuid.New())
@@ -333,8 +333,8 @@ func TestCancel_ActiveToCanceling(t *testing.T) {
 
 	deps.expectConnTx(ctx)
 	deps.customerProfileTx.EXPECT().
-		LockByExternalCustomerID(ctx, externalCustomerID).
-		Return(model.CustomerProfile{ID: customerID, ExternalCustomerID: externalCustomerID}, nil).
+		LockByExternalSubjectID(ctx, externalSubjectID).
+		Return(model.CustomerProfile{ID: customerID, ExternalSubjectID: externalSubjectID, ExternalCustomerID: model.ExternalCustomerID(externalSubjectID.UUID())}, nil).
 		Once()
 	deps.contractTx.EXPECT().LockByID(ctx, contractID).Return(active, nil).Once()
 	deps.paymentAttemptTx.EXPECT().
@@ -401,7 +401,7 @@ func TestCancel_ActiveToCanceling(t *testing.T) {
 		TenantID:           tenantID,
 		ContextID:          contextID,
 		ContractID:         contractID,
-		ExternalCustomerID: externalCustomerID,
+		ExternalSubjectID: externalSubjectID,
 		IdempotencyKey:     idempotencyKey,
 		Reason:             reason,
 	})
@@ -428,7 +428,7 @@ func TestCancel_SagaExecuteByIDFailureReturnsUnavailable(t *testing.T) {
 	uc := deps.newUseCase(t)
 	ctx := cancelTraceContext()
 
-	externalCustomerID := model.ExternalCustomerID(uuid.New())
+	externalSubjectID := model.ExternalSubjectID(uuid.New())
 	customerID := model.CustomerID(uuid.New())
 	contractID := model.ContractID(uuid.New())
 	tenantID := model.TenantID(uuid.New())
@@ -457,8 +457,8 @@ func TestCancel_SagaExecuteByIDFailureReturnsUnavailable(t *testing.T) {
 
 	deps.expectConnTx(ctx)
 	deps.customerProfileTx.EXPECT().
-		LockByExternalCustomerID(ctx, externalCustomerID).
-		Return(model.CustomerProfile{ID: customerID, ExternalCustomerID: externalCustomerID}, nil).
+		LockByExternalSubjectID(ctx, externalSubjectID).
+		Return(model.CustomerProfile{ID: customerID, ExternalSubjectID: externalSubjectID, ExternalCustomerID: model.ExternalCustomerID(externalSubjectID.UUID())}, nil).
 		Once()
 	deps.contractTx.EXPECT().LockByID(ctx, contractID).Return(active, nil).Once()
 	deps.paymentAttemptTx.EXPECT().
@@ -500,7 +500,7 @@ func TestCancel_SagaExecuteByIDFailureReturnsUnavailable(t *testing.T) {
 		TenantID:           tenantID,
 		ContextID:          contextID,
 		ContractID:         contractID,
-		ExternalCustomerID: externalCustomerID,
+		ExternalSubjectID: externalSubjectID,
 		IdempotencyKey:     idempotencyKey,
 		Reason:             reason,
 	})
@@ -525,7 +525,7 @@ func TestCancel_ExactIdempotentReplay(t *testing.T) {
 	uc := deps.newUseCase(t)
 	ctx := cancelTraceContext()
 
-	externalCustomerID := model.ExternalCustomerID(uuid.New())
+	externalSubjectID := model.ExternalSubjectID(uuid.New())
 	customerID := model.CustomerID(uuid.New())
 	contractID := model.ContractID(uuid.New())
 	tenantID := model.TenantID(uuid.New())
@@ -552,8 +552,8 @@ func TestCancel_ExactIdempotentReplay(t *testing.T) {
 
 	deps.expectConnTx(ctx)
 	deps.customerProfileTx.EXPECT().
-		LockByExternalCustomerID(ctx, externalCustomerID).
-		Return(model.CustomerProfile{ID: customerID, ExternalCustomerID: externalCustomerID}, nil).
+		LockByExternalSubjectID(ctx, externalSubjectID).
+		Return(model.CustomerProfile{ID: customerID, ExternalSubjectID: externalSubjectID, ExternalCustomerID: model.ExternalCustomerID(externalSubjectID.UUID())}, nil).
 		Once()
 	deps.contractTx.EXPECT().LockByID(ctx, contractID).Return(canceling, nil).Once()
 
@@ -561,7 +561,7 @@ func TestCancel_ExactIdempotentReplay(t *testing.T) {
 		TenantID:           tenantID,
 		ContextID:          contextID,
 		ContractID:         contractID,
-		ExternalCustomerID: externalCustomerID,
+		ExternalSubjectID: externalSubjectID,
 		IdempotencyKey:     idempotencyKey,
 		Reason:             reason,
 	})
@@ -587,7 +587,7 @@ func TestCancel_IdempotencyConflictDifferentReason(t *testing.T) {
 	uc := deps.newUseCase(t)
 	ctx := cancelTraceContext()
 
-	externalCustomerID := model.ExternalCustomerID(uuid.New())
+	externalSubjectID := model.ExternalSubjectID(uuid.New())
 	customerID := model.CustomerID(uuid.New())
 	contractID := model.ContractID(uuid.New())
 	tenantID := model.TenantID(uuid.New())
@@ -610,8 +610,8 @@ func TestCancel_IdempotencyConflictDifferentReason(t *testing.T) {
 
 	deps.expectConnTx(ctx)
 	deps.customerProfileTx.EXPECT().
-		LockByExternalCustomerID(ctx, externalCustomerID).
-		Return(model.CustomerProfile{ID: customerID, ExternalCustomerID: externalCustomerID}, nil).
+		LockByExternalSubjectID(ctx, externalSubjectID).
+		Return(model.CustomerProfile{ID: customerID, ExternalSubjectID: externalSubjectID, ExternalCustomerID: model.ExternalCustomerID(externalSubjectID.UUID())}, nil).
 		Once()
 	deps.contractTx.EXPECT().LockByID(ctx, contractID).Return(canceling, nil).Once()
 
@@ -620,7 +620,7 @@ func TestCancel_IdempotencyConflictDifferentReason(t *testing.T) {
 		TenantID:           model.TenantID(uuid.New()),
 		ContextID:          contextID,
 		ContractID:         contractID,
-		ExternalCustomerID: externalCustomerID,
+		ExternalSubjectID: externalSubjectID,
 		IdempotencyKey:     idempotencyKey,
 		Reason:             storedReason,
 	})
@@ -645,15 +645,15 @@ func TestCancel_OwnershipForbidden(t *testing.T) {
 	uc := deps.newUseCase(t)
 	ctx := cancelTraceContext()
 
-	externalCustomerID := model.ExternalCustomerID(uuid.New())
+	externalSubjectID := model.ExternalSubjectID(uuid.New())
 	customerID := model.CustomerID(uuid.New())
 	otherCustomerID := model.CustomerID(uuid.New())
 	contractID := model.ContractID(uuid.New())
 
 	deps.expectConnTx(ctx)
 	deps.customerProfileTx.EXPECT().
-		LockByExternalCustomerID(ctx, externalCustomerID).
-		Return(model.CustomerProfile{ID: customerID, ExternalCustomerID: externalCustomerID}, nil).
+		LockByExternalSubjectID(ctx, externalSubjectID).
+		Return(model.CustomerProfile{ID: customerID, ExternalSubjectID: externalSubjectID, ExternalCustomerID: model.ExternalCustomerID(externalSubjectID.UUID())}, nil).
 		Once()
 	deps.contractTx.EXPECT().
 		LockByID(ctx, contractID).
@@ -664,7 +664,7 @@ func TestCancel_OwnershipForbidden(t *testing.T) {
 		TenantID:           model.TenantID(uuid.New()),
 		ContextID:          model.ContextID(uuid.New()),
 		ContractID:         contractID,
-		ExternalCustomerID: externalCustomerID,
+		ExternalSubjectID: externalSubjectID,
 		IdempotencyKey:     "k",
 		Reason:             model.CustomerRequestedContractCancellationReason,
 	})
@@ -701,7 +701,7 @@ func TestCancel_RejectsNonActiveStates(t *testing.T) {
 			uc := deps.newUseCase(t)
 			ctx := cancelTraceContext()
 
-			externalCustomerID := model.ExternalCustomerID(uuid.New())
+			externalSubjectID := model.ExternalSubjectID(uuid.New())
 			customerID := model.CustomerID(uuid.New())
 			contractID := model.ContractID(uuid.New())
 			row := activeContractFixture(contractID, customerID, 1)
@@ -709,8 +709,8 @@ func TestCancel_RejectsNonActiveStates(t *testing.T) {
 
 			deps.expectConnTx(ctx)
 			deps.customerProfileTx.EXPECT().
-				LockByExternalCustomerID(ctx, externalCustomerID).
-				Return(model.CustomerProfile{ID: customerID, ExternalCustomerID: externalCustomerID}, nil).
+				LockByExternalSubjectID(ctx, externalSubjectID).
+				Return(model.CustomerProfile{ID: customerID, ExternalSubjectID: externalSubjectID, ExternalCustomerID: model.ExternalCustomerID(externalSubjectID.UUID())}, nil).
 				Once()
 			deps.contractTx.EXPECT().LockByID(ctx, contractID).Return(row, nil).Once()
 
@@ -718,7 +718,7 @@ func TestCancel_RejectsNonActiveStates(t *testing.T) {
 				TenantID:           model.TenantID(uuid.New()),
 				ContextID:          model.ContextID(uuid.New()),
 				ContractID:         contractID,
-				ExternalCustomerID: externalCustomerID,
+				ExternalSubjectID: externalSubjectID,
 				IdempotencyKey:     "k",
 				Reason:             model.CustomerRequestedContractCancellationReason,
 			})
@@ -745,7 +745,7 @@ func TestCancel_CanceledWithoutMatchingKey_Conflicts(t *testing.T) {
 	uc := deps.newUseCase(t)
 	ctx := cancelTraceContext()
 
-	externalCustomerID := model.ExternalCustomerID(uuid.New())
+	externalSubjectID := model.ExternalSubjectID(uuid.New())
 	customerID := model.CustomerID(uuid.New())
 	contractID := model.ContractID(uuid.New())
 	row := activeContractFixture(contractID, customerID, 1)
@@ -753,8 +753,8 @@ func TestCancel_CanceledWithoutMatchingKey_Conflicts(t *testing.T) {
 
 	deps.expectConnTx(ctx)
 	deps.customerProfileTx.EXPECT().
-		LockByExternalCustomerID(ctx, externalCustomerID).
-		Return(model.CustomerProfile{ID: customerID, ExternalCustomerID: externalCustomerID}, nil).
+		LockByExternalSubjectID(ctx, externalSubjectID).
+		Return(model.CustomerProfile{ID: customerID, ExternalSubjectID: externalSubjectID, ExternalCustomerID: model.ExternalCustomerID(externalSubjectID.UUID())}, nil).
 		Once()
 	deps.contractTx.EXPECT().LockByID(ctx, contractID).Return(row, nil).Once()
 
@@ -762,7 +762,7 @@ func TestCancel_CanceledWithoutMatchingKey_Conflicts(t *testing.T) {
 		TenantID:           model.TenantID(uuid.New()),
 		ContextID:          model.ContextID(uuid.New()),
 		ContractID:         contractID,
-		ExternalCustomerID: externalCustomerID,
+		ExternalSubjectID: externalSubjectID,
 		IdempotencyKey:     "new-key",
 		Reason:             model.CustomerRequestedContractCancellationReason,
 	})
@@ -787,7 +787,7 @@ func TestCancel_SecondKeyWhileCanceling_Conflicts(t *testing.T) {
 	uc := deps.newUseCase(t)
 	ctx := cancelTraceContext()
 
-	externalCustomerID := model.ExternalCustomerID(uuid.New())
+	externalSubjectID := model.ExternalSubjectID(uuid.New())
 	customerID := model.CustomerID(uuid.New())
 	contractID := model.ContractID(uuid.New())
 	tenantID := model.TenantID(uuid.New())
@@ -810,8 +810,8 @@ func TestCancel_SecondKeyWhileCanceling_Conflicts(t *testing.T) {
 
 	deps.expectConnTx(ctx)
 	deps.customerProfileTx.EXPECT().
-		LockByExternalCustomerID(ctx, externalCustomerID).
-		Return(model.CustomerProfile{ID: customerID, ExternalCustomerID: externalCustomerID}, nil).
+		LockByExternalSubjectID(ctx, externalSubjectID).
+		Return(model.CustomerProfile{ID: customerID, ExternalSubjectID: externalSubjectID, ExternalCustomerID: model.ExternalCustomerID(externalSubjectID.UUID())}, nil).
 		Once()
 	deps.contractTx.EXPECT().LockByID(ctx, contractID).Return(canceling, nil).Once()
 
@@ -819,7 +819,7 @@ func TestCancel_SecondKeyWhileCanceling_Conflicts(t *testing.T) {
 		TenantID:           tenantID,
 		ContextID:          contextID,
 		ContractID:         contractID,
-		ExternalCustomerID: externalCustomerID,
+		ExternalSubjectID: externalSubjectID,
 		IdempotencyKey:     "other-key",
 		Reason:             reason,
 	})
@@ -854,15 +854,15 @@ func TestCancel_BlockedByInFlightPaymentAttempt(t *testing.T) {
 	uc := deps.newUseCase(t)
 	ctx := cancelTraceContext()
 
-	externalCustomerID := model.ExternalCustomerID(uuid.New())
+	externalSubjectID := model.ExternalSubjectID(uuid.New())
 	customerID := model.CustomerID(uuid.New())
 	contractID := model.ContractID(uuid.New())
 	active := activeContractFixture(contractID, customerID, 500_000)
 
 	deps.expectConnTx(ctx)
 	deps.customerProfileTx.EXPECT().
-		LockByExternalCustomerID(ctx, externalCustomerID).
-		Return(model.CustomerProfile{ID: customerID, ExternalCustomerID: externalCustomerID}, nil).
+		LockByExternalSubjectID(ctx, externalSubjectID).
+		Return(model.CustomerProfile{ID: customerID, ExternalSubjectID: externalSubjectID, ExternalCustomerID: model.ExternalCustomerID(externalSubjectID.UUID())}, nil).
 		Once()
 	deps.contractTx.EXPECT().LockByID(ctx, contractID).Return(active, nil).Once()
 	deps.paymentAttemptTx.EXPECT().
@@ -874,7 +874,7 @@ func TestCancel_BlockedByInFlightPaymentAttempt(t *testing.T) {
 		TenantID:           model.TenantID(uuid.New()),
 		ContextID:          model.ContextID(uuid.New()),
 		ContractID:         contractID,
-		ExternalCustomerID: externalCustomerID,
+		ExternalSubjectID: externalSubjectID,
 		IdempotencyKey:     "cancel-with-payment-in-flight",
 		Reason:             model.CustomerRequestedContractCancellationReason,
 	})

@@ -93,6 +93,7 @@ func TestEnsureMerchantEntitlement_PersistsEntitlementAndReceivableWithExternalI
 	customerProfile.EXPECT().Conn(conn).Return(customerCQ).Once()
 	customerCQ.EXPECT().GetByID(ctx, customerInternalID).Return(model.CustomerProfile{
 		ID:                 customerInternalID,
+		ExternalSubjectID:  model.ExternalSubjectID(externalCustomerID.UUID()),
 		ExternalCustomerID: externalCustomerID,
 	}, nil).Once()
 	merchantProfile.EXPECT().Conn(conn).Return(merchantCQ).Once()
@@ -224,6 +225,7 @@ func TestRecordMerchantEntitlement_ActivationPendingCallsFinancialCoreOnceAndDoe
 	customerProfile.EXPECT().Conn(conn).Return(customerCQ).Once()
 	customerCQ.EXPECT().GetByID(ctx, customerInternalID).Return(model.CustomerProfile{
 		ID:                 customerInternalID,
+		ExternalSubjectID:  model.ExternalSubjectID(externalCustomerID.UUID()),
 		ExternalCustomerID: externalCustomerID,
 	}, nil).Once()
 	merchantProfile.EXPECT().Conn(conn).Return(merchantCQ).Once()

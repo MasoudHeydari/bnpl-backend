@@ -9,11 +9,12 @@ import (
 
 // ListActiveContractsInput identifies the authenticated external customer and keyset page.
 //
-// ExternalCustomerID is the Identity Service subject ID (x-auth-subject-id /
-// customer_profiles.external_customer_id), not customer_profiles.id.
+// ExternalSubjectID is the Identity Service subject ID (x-auth-subject-id /
+// customer_profiles.external_subject_id), not customer_profiles.id and not
+// ExternalCustomerID.
 type ListActiveContractsInput struct {
-	// ExternalCustomerID is the Identity Service subject mapped to customer_profiles.external_customer_id.
-	ExternalCustomerID model.ExternalCustomerID
+	// ExternalSubjectID is the Identity Service subject mapped to customer_profiles.external_subject_id.
+	ExternalSubjectID model.ExternalSubjectID
 	// Page carries pagination request or response metadata.
 	Page pagination.KeysetRequest
 }
@@ -48,11 +49,12 @@ type ListActiveContractsOutput struct {
 
 // GetContractInstallmentsInput identifies the authenticated external customer and target contract.
 //
-// ExternalCustomerID is the Identity Service subject ID (x-auth-subject-id /
-// customer_profiles.external_customer_id), not customer_profiles.id.
+// ExternalSubjectID is the Identity Service subject ID (x-auth-subject-id /
+// customer_profiles.external_subject_id), not customer_profiles.id and not
+// ExternalCustomerID.
 type GetContractInstallmentsInput struct {
-	// ExternalCustomerID is the Identity Service subject mapped to customer_profiles.external_customer_id.
-	ExternalCustomerID model.ExternalCustomerID
+	// ExternalSubjectID is the Identity Service subject mapped to customer_profiles.external_subject_id.
+	ExternalSubjectID model.ExternalSubjectID
 	// ContractID identifies the contract.
 	ContractID model.ContractID
 }
@@ -112,11 +114,12 @@ type GetContractInstallmentsOutput struct {
 
 // ListUnpaidInstallmentsInput identifies the authenticated external customer and keyset page.
 //
-// ExternalCustomerID is the Identity Service subject ID (x-auth-subject-id /
-// customer_profiles.external_customer_id), not customer_profiles.id.
+// ExternalSubjectID is the Identity Service subject ID (x-auth-subject-id /
+// customer_profiles.external_subject_id), not customer_profiles.id and not
+// ExternalCustomerID.
 type ListUnpaidInstallmentsInput struct {
-	// ExternalCustomerID is the Identity Service subject mapped to customer_profiles.external_customer_id.
-	ExternalCustomerID model.ExternalCustomerID
+	// ExternalSubjectID is the Identity Service subject mapped to customer_profiles.external_subject_id.
+	ExternalSubjectID model.ExternalSubjectID
 	// Page carries pagination request or response metadata.
 	Page pagination.KeysetRequest
 }
@@ -223,11 +226,12 @@ type ListUnpaidInstallmentsOutput struct {
 
 // ListPaymentsInput identifies the authenticated external customer and keyset page.
 //
-// ExternalCustomerID is the Identity Service subject ID (x-auth-subject-id /
-// customer_profiles.external_customer_id), not customer_profiles.id.
+// ExternalSubjectID is the Identity Service subject ID (x-auth-subject-id /
+// customer_profiles.external_subject_id), not customer_profiles.id and not
+// ExternalCustomerID.
 type ListPaymentsInput struct {
-	// ExternalCustomerID is the Identity Service subject mapped to customer_profiles.external_customer_id.
-	ExternalCustomerID model.ExternalCustomerID
+	// ExternalSubjectID is the Identity Service subject mapped to customer_profiles.external_subject_id.
+	ExternalSubjectID model.ExternalSubjectID
 	// Page carries pagination request or response metadata.
 	Page pagination.KeysetRequest
 }

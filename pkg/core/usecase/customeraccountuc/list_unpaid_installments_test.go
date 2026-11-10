@@ -30,7 +30,7 @@ func TestListUnpaidInstallments_EmptyWhenCustomerProfileMissing(t *testing.T) {
 	customerProfileQ := mock.NewCustomerProfileTxQueryer(t)
 	installment := mock.NewInstallment(t)
 
-	externalCustomerID := model.ExternalCustomerID(uuid.New())
+	externalSubjectID := model.ExternalSubjectID(uuid.New())
 
 	pool.EXPECT().
 		Conn(testifymock.Anything, testifymock.Anything).
@@ -39,7 +39,7 @@ func TestListUnpaidInstallments_EmptyWhenCustomerProfileMissing(t *testing.T) {
 		})
 	customerProfile.EXPECT().Tx(testifymock.Anything).Return(customerProfileQ)
 	customerProfileQ.EXPECT().
-		GetByExternalCustomerID(testifymock.Anything, externalCustomerID).
+		GetByExternalSubjectID(testifymock.Anything, externalSubjectID).
 		Return(model.CustomerProfile{}, cerr.ResourceNotFound(errors.New("missing")))
 
 	uc, err := customeraccountuc.New(
@@ -54,7 +54,7 @@ func TestListUnpaidInstallments_EmptyWhenCustomerProfileMissing(t *testing.T) {
 	require.NoError(t, err)
 
 	out, err := uc.ListUnpaidInstallments(context.Background(), customeraccountuc.ListUnpaidInstallmentsInput{
-		ExternalCustomerID: externalCustomerID,
+		ExternalSubjectID: externalSubjectID,
 		Page:               pagination.KeysetRequest{Limit: 20},
 	})
 	require.NoError(t, err)
@@ -75,7 +75,7 @@ func TestListUnpaidInstallments_OrdersByDueAtAndBuildsDueAtCursor(t *testing.T) 
 	installment := mock.NewInstallment(t)
 	installmentQ := mock.NewInstallmentTxQueryer(t)
 
-	externalCustomerID := model.ExternalCustomerID(uuid.New())
+	externalSubjectID := model.ExternalSubjectID(uuid.New())
 	profileID := model.CustomerID(uuid.New())
 	contractID := model.ContractID(uuid.New())
 	due1 := time.Date(
@@ -108,8 +108,8 @@ func TestListUnpaidInstallments_OrdersByDueAtAndBuildsDueAtCursor(t *testing.T) 
 		})
 	customerProfile.EXPECT().Tx(testifymock.Anything).Return(customerProfileQ)
 	customerProfileQ.EXPECT().
-		GetByExternalCustomerID(testifymock.Anything, externalCustomerID).
-		Return(model.CustomerProfile{ID: profileID, ExternalCustomerID: externalCustomerID}, nil)
+		GetByExternalSubjectID(testifymock.Anything, externalSubjectID).
+		Return(model.CustomerProfile{ID: profileID, ExternalSubjectID: externalSubjectID}, nil)
 	paymentAttempt := mock.NewPaymentAttempt(t)
 	paymentAttemptQ := mock.NewPaymentAttemptTxQueryer(t)
 	installmentCharge := mock.NewInstallmentCharge(t)
@@ -173,7 +173,7 @@ func TestListUnpaidInstallments_OrdersByDueAtAndBuildsDueAtCursor(t *testing.T) 
 	require.NoError(t, err)
 
 	out, err := uc.ListUnpaidInstallments(context.Background(), customeraccountuc.ListUnpaidInstallmentsInput{
-		ExternalCustomerID: externalCustomerID,
+		ExternalSubjectID: externalSubjectID,
 		Page:               pagination.KeysetRequest{Limit: 1},
 	})
 	require.NoError(t, err)

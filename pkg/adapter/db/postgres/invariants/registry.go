@@ -3,7 +3,7 @@
 package invariants
 
 const Migration = "000_schema.sql"
-const MigrationSHA256 = "sha256:78bafe39291917f11b38616a0a04c1b8f74645de98b522db350155445976e00e"
+const MigrationSHA256 = "sha256:f6a6d51321685c21c1203fc425291bd2e1e3899c1c1317ec12ef689d8ed38237"
 
 var managed = []Invariant{
 	{

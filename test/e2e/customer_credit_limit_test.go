@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sort"
 	"sync"
@@ -61,8 +62,8 @@ type assignInitialLimitDataDTO struct {
 // Request construction and auth headers
 // -----------------------------------------------------------------------------
 
-// assignInitialLimit POSTs with no body. The customer identity is identified by
-// x-auth-subject-id in headers (SubjectID == customer_profiles.external_customer_id).
+// assignInitialLimit POSTs with no body. The customer is resolved from
+// x-auth-mobile-number via Customer Reference Service (noop in local e2e).
 func assignInitialLimit(t *testing.T, headers map[string]string) *http.Response {
 	t.Helper()
 	return doRequest(
@@ -78,9 +79,15 @@ func assignInitialLimit(t *testing.T, headers map[string]string) *http.Response 
 // Customer setup
 // -----------------------------------------------------------------------------
 
+// noopCustomerNamespace matches pkg/adapter/external/customer/noop customerNamespace.
+var noopCustomerNamespace = uuid.MustParse("6f0c3a56-8d52-4c43-9d51-1f3b3e0a7c10")
+
 // activeCustomerProfile is a profile inserted directly into the database, ready
-// for initial credit assignment.
+// for initial credit assignment. ExternalCustomerID matches the e2e noop CRS
+// derivation for MobileE164.
 type activeCustomerProfile struct {
+	MobileE164         string
+	SubjectID          model.SubjectID
 	ExternalCustomerID model.ExternalCustomerID
 	CustomerID         model.CustomerID
 }
@@ -88,12 +95,39 @@ type activeCustomerProfile struct {
 func createActiveCustomerProfile(t *testing.T) activeCustomerProfile {
 	t.Helper()
 
-	externalCustomerID := model.ExternalCustomerID(uuid.New())
+	// Unique E.164 so concurrent tests do not collide on noop CRS ids.
+	mobile := fmt.Sprintf("+9891%08d", time.Now().UnixNano()%100_000_000)
+	externalCustomerID, err := model.ParseExternalCustomerID(
+		uuid.NewSHA1(noopCustomerNamespace, []byte(mobile)).String(),
+	)
+	require.NoError(t, err)
+
 	customerID := insertCustomerProfile(t, externalCustomerID, model.ActiveCustomerStatus)
 	return activeCustomerProfile{
+		MobileE164:         mobile,
+		SubjectID:          model.SubjectID(uuid.New()),
 		ExternalCustomerID: externalCustomerID,
 		CustomerID:         customerID,
 	}
+}
+
+func creditHeadersFor(bp activeCustomerProfile) map[string]string {
+	return creditCreateAuthHeaders(bp.SubjectID, bp.MobileE164)
+}
+
+// newMissingProfileAuth returns headers for a mobile that has no local profile yet.
+// externalCustomerID is the noop CRS id that AssignInitialLimit will EnsureExists.
+func newMissingProfileAuth(t *testing.T) (map[string]string, model.ExternalCustomerID) {
+	t.Helper()
+
+	mobile := fmt.Sprintf("+9892%08d", time.Now().UnixNano()%100_000_000)
+	externalCustomerID, err := model.ParseExternalCustomerID(
+		uuid.NewSHA1(noopCustomerNamespace, []byte(mobile)).String(),
+	)
+	require.NoError(t, err)
+
+	headers := creditCreateAuthHeaders(model.SubjectID(uuid.New()), mobile)
+	return headers, externalCustomerID
 }
 
 // -----------------------------------------------------------------------------
@@ -358,7 +392,7 @@ func TestE2E_CustomerCreditLimit_Create_Succeeds(t *testing.T) {
 
 	bp := createActiveCustomerProfile(t)
 
-	response := assignInitialLimit(t, creditCreateAuthHeaders(bp.ExternalCustomerID))
+	response := assignInitialLimit(t, creditHeadersFor(bp))
 	require.Equal(t, http.StatusCreated, response.StatusCode)
 
 	data, meta := decodeSuccess[assignInitialLimitDataDTO](t, response)
@@ -427,10 +461,10 @@ func TestE2E_CustomerCreditLimit_Create_Succeeds(t *testing.T) {
 func TestE2E_CustomerCreditLimit_MissingProfile_IsCreatedAndAssigned(t *testing.T) {
 	resetDatabase(t)
 
-	subjectID := model.ExternalCustomerID(uuid.New())
+	headers, externalCustomerID := newMissingProfileAuth(t)
 	require.Equal(t, 0, countAllCustomerProfiles(t))
 
-	response := assignInitialLimit(t, creditCreateAuthHeaders(subjectID))
+	response := assignInitialLimit(t, headers)
 	require.Equal(t, http.StatusCreated, response.StatusCode)
 
 	data, _ := decodeSuccess[assignInitialLimitDataDTO](t, response)
@@ -441,10 +475,10 @@ func TestE2E_CustomerCreditLimit_MissingProfile_IsCreatedAndAssigned(t *testing.
 	assert.Equal(t, "active", data.CreditLimit.Status)
 	assert.Equal(t, "limit_set", data.CreditLimitDecision.Outcome)
 
-	profile, found := queryCustomerProfile(t, subjectID)
+	profile, found := queryCustomerProfile(t, externalCustomerID)
 	require.True(t, found, "missing profile must be created")
 	assert.NotEqual(t, uuid.Nil, profile.ID)
-	assert.Equal(t, subjectID, profile.ExternalCustomerID)
+	assert.Equal(t, externalCustomerID, profile.ExternalCustomerID)
 	assert.Equal(t, "active", profile.Status)
 	assert.Equal(t, "IR", profile.Jurisdiction)
 
@@ -455,8 +489,7 @@ func TestE2E_CustomerCreditLimit_MissingProfile_IsCreatedAndAssigned(t *testing.
 func TestE2E_CustomerCreditLimit_MissingProfile_ConcurrentRequests_CreateOneProfile(t *testing.T) {
 	resetDatabase(t)
 
-	subjectID := model.ExternalCustomerID(uuid.New())
-	headers := creditCreateAuthHeaders(subjectID)
+	headers, externalCustomerID := newMissingProfileAuth(t)
 
 	const concurrency = 8
 
@@ -537,10 +570,10 @@ func TestE2E_CustomerCreditLimit_MissingProfile_ConcurrentRequests_CreateOneProf
 	assert.Equal(t, 1, countAllCustomerProfiles(t), "exactly one customer profile must be created")
 	assert.Equal(t, 1, countAllCreditAccounts(t))
 
-	profile, found := queryCustomerProfile(t, subjectID)
+	profile, found := queryCustomerProfile(t, externalCustomerID)
 	require.True(t, found)
 	assert.NotEqual(t, uuid.Nil, profile.ID)
-	assert.Equal(t, subjectID, profile.ExternalCustomerID)
+	assert.Equal(t, externalCustomerID, profile.ExternalCustomerID)
 	assert.Equal(t, "active", profile.Status)
 	assert.Equal(t, "IR", profile.Jurisdiction)
 	assert.Equal(t, 1, countActiveCreditAccountsByCustomerID(t, model.CustomerID(profile.ID)))
@@ -549,8 +582,7 @@ func TestE2E_CustomerCreditLimit_MissingProfile_ConcurrentRequests_CreateOneProf
 func TestE2E_CustomerCreditLimit_MissingProfile_IdempotentRetry(t *testing.T) {
 	resetDatabase(t)
 
-	subjectID := model.ExternalCustomerID(uuid.New())
-	headers := creditCreateAuthHeaders(subjectID)
+	headers, externalCustomerID := newMissingProfileAuth(t)
 
 	first := assignInitialLimit(t, headers)
 	require.Equal(t, http.StatusCreated, first.StatusCode)
@@ -562,7 +594,7 @@ func TestE2E_CustomerCreditLimit_MissingProfile_IdempotentRetry(t *testing.T) {
 	secondData, _ := decodeSuccess[assignInitialLimitDataDTO](t, second)
 	assert.Equal(t, "already_assigned", secondData.Result)
 
-	profile, found := queryCustomerProfile(t, subjectID)
+	profile, found := queryCustomerProfile(t, externalCustomerID)
 	require.True(t, found)
 
 	assert.Equal(t, 1, countAllCustomerProfiles(t))
@@ -590,7 +622,7 @@ func TestE2E_CustomerCreditLimit_NonActiveProfile_IsDenied(t *testing.T) {
 			bp := createActiveCustomerProfile(t)
 			setCustomerProfileStatus(t, bp.CustomerID, tt.status)
 
-			response := assignInitialLimit(t, creditCreateAuthHeaders(bp.ExternalCustomerID))
+			response := assignInitialLimit(t, creditHeadersFor(bp))
 			require.Equal(t, http.StatusOK, response.StatusCode)
 
 			data, _ := decodeSuccess[assignInitialLimitDataDTO](t, response)
@@ -620,13 +652,13 @@ func TestE2E_CustomerCreditLimit_RepeatedRequest_IsIdempotent(t *testing.T) {
 
 	bp := createActiveCustomerProfile(t)
 
-	first := assignInitialLimit(t, creditCreateAuthHeaders(bp.ExternalCustomerID))
+	first := assignInitialLimit(t, creditHeadersFor(bp))
 	require.Equal(t, http.StatusCreated, first.StatusCode)
 	firstData, _ := decodeSuccess[assignInitialLimitDataDTO](t, first)
 	require.Equal(t, "created", firstData.Result)
 	require.NotNil(t, firstData.CreditLimit)
 
-	second := assignInitialLimit(t, creditCreateAuthHeaders(bp.ExternalCustomerID))
+	second := assignInitialLimit(t, creditHeadersFor(bp))
 	require.Equal(t, http.StatusOK, second.StatusCode, "a repeated assignment while the limit is still active must be idempotent")
 	secondData, secondMeta := decodeSuccess[assignInitialLimitDataDTO](t, second)
 	assert.Equal(t, "already_assigned", secondData.Result)
@@ -657,7 +689,7 @@ func TestE2E_CustomerCreditLimit_ExpiredLimit_IsRefreshed(t *testing.T) {
 
 	bp := createActiveCustomerProfile(t)
 
-	first := assignInitialLimit(t, creditCreateAuthHeaders(bp.ExternalCustomerID))
+	first := assignInitialLimit(t, creditHeadersFor(bp))
 	require.Equal(t, http.StatusCreated, first.StatusCode)
 	firstData, _ := decodeSuccess[assignInitialLimitDataDTO](t, first)
 	require.NotNil(t, firstData.CreditLimit)
@@ -669,7 +701,7 @@ func TestE2E_CustomerCreditLimit_ExpiredLimit_IsRefreshed(t *testing.T) {
 
 	expireCreditAccount(t, accountID, time.Now().Add(-1*time.Hour))
 
-	second := assignInitialLimit(t, creditCreateAuthHeaders(bp.ExternalCustomerID))
+	second := assignInitialLimit(t, creditHeadersFor(bp))
 	require.Equal(t, http.StatusCreated, second.StatusCode, "a fresh assignment must be created once the active limit has expired")
 	secondData, _ := decodeSuccess[assignInitialLimitDataDTO](t, second)
 	assert.Equal(t, "created", secondData.Result)
@@ -747,7 +779,7 @@ func TestE2E_CustomerCreditLimit_RequiresCreditCreatePermission(t *testing.T) {
 		resetDatabase(t)
 
 		bp := createActiveCustomerProfile(t)
-		response := assignInitialLimit(t, creditCreateAuthHeaders(bp.ExternalCustomerID))
+		response := assignInitialLimit(t, creditHeadersFor(bp))
 		require.Equal(t, http.StatusCreated, response.StatusCode)
 
 		data, _ := decodeSuccess[assignInitialLimitDataDTO](t, response)
@@ -850,6 +882,12 @@ func TestE2E_CustomerCreditLimit_MissingOrInvalidHeaders(t *testing.T) {
 			wantStatus: http.StatusForbidden,
 			wantCode:   "FORBIDDEN",
 		},
+		{
+			name:       "missing auth mobile number",
+			mutate:     func(h map[string]string) map[string]string { return withoutHeader(h, header.AuthMobileNumber) },
+			wantStatus: http.StatusBadRequest,
+			wantCode:   "INVALID_ARGUMENT",
+		},
 	}
 
 	for _, tt := range tests {
@@ -857,7 +895,7 @@ func TestE2E_CustomerCreditLimit_MissingOrInvalidHeaders(t *testing.T) {
 			resetDatabase(t)
 
 			bp := createActiveCustomerProfile(t)
-			headers := tt.mutate(creditCreateAuthHeaders(bp.ExternalCustomerID))
+			headers := tt.mutate(creditHeadersFor(bp))
 
 			response := assignInitialLimit(t, headers)
 			require.Equal(t, tt.wantStatus, response.StatusCode)
@@ -907,7 +945,7 @@ func TestE2E_CustomerCreditLimit_RequestBody_IsIgnored(t *testing.T) {
 			resetDatabase(t)
 
 			bp := createActiveCustomerProfile(t)
-			headers := creditCreateAuthHeaders(bp.ExternalCustomerID)
+			headers := creditHeadersFor(bp)
 
 			var response *http.Response
 			switch {
@@ -942,7 +980,7 @@ func TestE2E_CustomerCreditLimit_TraceHeaders_GeneratedWhenAbsent(t *testing.T) 
 	resetDatabase(t)
 
 	bp := createActiveCustomerProfile(t)
-	response := assignInitialLimit(t, creditCreateAuthHeaders(bp.ExternalCustomerID))
+	response := assignInitialLimit(t, creditHeadersFor(bp))
 	require.Equal(t, http.StatusCreated, response.StatusCode)
 	drainAndClose(response)
 
@@ -955,7 +993,7 @@ func TestE2E_CustomerCreditLimit_TraceHeaders_PreservedWhenSupplied(t *testing.T
 	bp := createActiveCustomerProfile(t)
 	headers := withHeader(
 		withHeader(
-			withHeader(creditCreateAuthHeaders(bp.ExternalCustomerID), header.TraceID, "client-trace-id"),
+			withHeader(creditHeadersFor(bp), header.TraceID, "client-trace-id"),
 			header.RequestID, "client-request-id",
 		),
 		header.CorrelationID, "client-correlation-id",
@@ -978,7 +1016,7 @@ func TestE2E_CustomerCreditLimit_ConcurrentIdenticalRequests(t *testing.T) {
 	resetDatabase(t)
 
 	bp := createActiveCustomerProfile(t)
-	headers := creditCreateAuthHeaders(bp.ExternalCustomerID)
+	headers := creditHeadersFor(bp)
 
 	const concurrency = 8
 
@@ -1082,7 +1120,7 @@ func TestE2E_CustomerCreditLimit_ConcurrentRefreshRequests(t *testing.T) {
 
 	bp := createActiveCustomerProfile(t)
 
-	first := assignInitialLimit(t, creditCreateAuthHeaders(bp.ExternalCustomerID))
+	first := assignInitialLimit(t, creditHeadersFor(bp))
 	require.Equal(t, http.StatusCreated, first.StatusCode)
 	firstData, _ := decodeSuccess[assignInitialLimitDataDTO](t, first)
 	require.NotNil(t, firstData.CreditLimit)
@@ -1094,7 +1132,7 @@ func TestE2E_CustomerCreditLimit_ConcurrentRefreshRequests(t *testing.T) {
 
 	expireCreditAccount(t, accountID, time.Now().Add(-1*time.Hour))
 
-	headers := creditCreateAuthHeaders(bp.ExternalCustomerID)
+	headers := creditHeadersFor(bp)
 
 	const concurrency = 8
 

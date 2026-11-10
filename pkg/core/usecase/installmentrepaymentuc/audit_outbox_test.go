@@ -25,7 +25,7 @@ func TestBuildCreatePaymentAttemptAuditEvent(t *testing.T) {
 		0,
 		time.UTC,
 	)
-	externalCustomerID := model.ExternalCustomerID(uuid.New())
+	externalSubjectID := model.ExternalSubjectID(uuid.New())
 	customerID := model.CustomerID(uuid.New())
 	contractID := model.ContractID(uuid.New())
 	decisionID := model.DecisionID(uuid.New())
@@ -74,7 +74,7 @@ func TestBuildCreatePaymentAttemptAuditEvent(t *testing.T) {
 		"trace-id",
 		attempt,
 		installmentRepaymentAuditFacts{
-			ExternalCustomerID: externalCustomerID,
+			ExternalSubjectID: externalSubjectID,
 			CustomerID:         customerID,
 			Installment:        installment,
 			Charges:            charges,
@@ -87,7 +87,7 @@ func TestBuildCreatePaymentAttemptAuditEvent(t *testing.T) {
 	assert.Equal(t, createInstallmentRepaymentAttemptAuditAction, event.Data.Action)
 	assert.Equal(t, audit.CustomerActorType, event.Data.Actor.Type)
 	require.NotNil(t, event.Data.Actor.ID)
-	assert.Equal(t, externalCustomerID.String(), *event.Data.Actor.ID)
+	assert.Equal(t, externalSubjectID.String(), *event.Data.Actor.ID)
 	assert.Equal(t, paymentAttemptAuditResourceType, event.Data.Resource.Type)
 	assert.Equal(t, attemptID.String(), event.Data.Resource.ID)
 	assert.Equal(t, audit.SucceededOutcome, event.Data.Outcome)

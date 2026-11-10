@@ -1,0 +1,124 @@
+# Hamravesh Darkoob: independent identity deployment; do not merge files.
+# Internal DNS: <service>.parstis-technology-dpay-dev.svc
+name: dpay-dev-identity
+
+# Shared read-only runtime scratch space (local to this standalone manifest).
+x-platform-tmpfs: &platform-tmpfs /tmp:rw,noexec,nosuid,size=64m,mode=1777
+
+x-identity-image: &identity-image
+  image: registry.hamdocker.ir/parstis-technology/identity-service@sha256:408910ebecad5a3f0b592f229c3bc4ec8adee0dd24f5b0d0269e525708d1be46
+
+x-identity-env: &identity-env
+  GATEWAY_TRUST_PROOF:
+  IDENTITY_ACCESS_JWT_AUDIENCE:
+  IDENTITY_ACCESS_JWT_ISSUER:
+  IDENTITY_ACCESS_JWT_KEY_ID:
+  IDENTITY_ACCESS_JWT_PRIVATE_KEY_PEM_BASE64:
+  IDENTITY_ACCESS_JWT_PUBLIC_KEY_PEM_BASE64:
+  IDENTITY_AUTH_CHALLENGE_PROOF_HMAC_SECRET:
+  IDENTITY_AUTH_DELIVERY_PROVIDER: sms
+  IDENTITY_AUTH_IDENTIFIER_ENCRYPTION_KEY_MATERIAL:
+  IDENTITY_AUTH_IDENTIFIER_PROTECTION_PROVIDER: aes_gcm
+  IDENTITY_AUTH_NOTIFICATION_DISPATCHER: notification_submission
+  IDENTITY_AUTH_NOTIFICATION_DISPATCH_WORKER_ENABLED: "true"
+  IDENTITY_AUTH_NOTIFICATION_SUBMISSION_CLIENT_CERTIFICATE_FILE_BASE64:
+  IDENTITY_AUTH_NOTIFICATION_SUBMISSION_CLIENT_PRIVATE_KEY_FILE_BASE64:
+  IDENTITY_AUTH_NOTIFICATION_SUBMISSION_TARGET: notification.parstis-technology-dpay-dev.svc:9092
+  IDENTITY_AUTH_NOTIFICATION_SUBMISSION_TRUSTED_SERVER_CA_FILE_BASE64:
+  IDENTITY_AUTH_REVOCATION_CACHE_PROVIDER: redis
+  IDENTITY_AUTH_REVOCATION_REDIS_KEY_PREFIX:
+  IDENTITY_AUTH_REVOCATION_REDIS_URI: redis://redis.parstis-technology-dpay-dev.svc:6379
+  IDENTITY_AUTH_TOTP_SEED_ENCRYPTION_KEYS_FILE_BASE64:
+  IDENTITY_DB_JDBC_URL: jdbc:postgresql://postgres.parstis-technology-dpay-dev.svc:5432/identity
+  IDENTITY_DB_PASSWORD:
+  IDENTITY_DB_USERNAME: dpay
+  IDENTITY_GRPC_HOST: 0.0.0.0
+  IDENTITY_GRPC_PORT: 9090
+  IDENTITY_GRPC_REQUIRED: "true"
+  IDENTITY_GRPC_TLS_ENABLED: "true"
+  IDENTITY_GRPC_TLS_SERVER_CERTIFICATE_FILE_BASE64:
+  IDENTITY_GRPC_TLS_SERVER_PRIVATE_KEY_FILE_BASE64:
+  IDENTITY_GRPC_TLS_TRUSTED_CLIENT_CA_FILE_BASE64:
+  IDENTITY_HTTP_HOST: 0.0.0.0
+  IDENTITY_HTTP_PORT: 8080
+  IDENTITY_OUTBOX_KAFKA_BOOTSTRAP_SERVERS: kafka.parstis-technology-dpay-dev.svc:29092
+  IDENTITY_OUTBOX_KAFKA_CLIENT_ID:
+  IDENTITY_OUTBOX_PUBLISHER: kafka
+  IDENTITY_REVOCATION_PROJECTOR_KAFKA_BOOTSTRAP_SERVERS: kafka.parstis-technology-dpay-dev.svc:29092
+  IDENTITY_REVOCATION_PROJECTOR_KAFKA_CLIENT_ID:
+  IDENTITY_REVOCATION_PROJECTOR_KAFKA_GROUP_ID:
+  IDENTITY_REVOCATION_PROJECTOR_KAFKA_TOPIC: identity.auth.revocations.v1
+  IDENTITY_REVOCATION_PROJECTOR_REDIS_KEY_PREFIX:
+  IDENTITY_REVOCATION_PROJECTOR_REDIS_URI: redis://redis.parstis-technology-dpay-dev.svc:6379
+  IDENTITY_VERIFICATION_ASSOCIATED_DATA_PREFIX:
+  IDENTITY_VERIFICATION_ENABLED: "true"
+  IDENTITY_VERIFICATION_ENCRYPTION_KEY_BASE64:
+  IDENTITY_VERIFICATION_ENCRYPTION_KEY_ID:
+  IDENTITY_VERIFICATION_NATIONAL_CODE_HMAC_SECRET:
+  IDENTITY_VERIFICATION_PROVIDER_TYPE: static_reference
+  IDENTITY_VERIFICATION_STATIC_REFERENCE_DATA_BASE64:
+  IDENTITY_VERIFICATION_STATIC_REFERENCE_DIGEST_HMAC_SECRET_FILE_BASE64:
+  IDENTITY_VERIFICATION_STATIC_REFERENCE_MANIFEST_BASE64:
+  IDENTITY_VERIFICATION_STATIC_REFERENCE_MAX_BYTES: 16777216
+  IDENTITY_VERIFICATION_STATIC_REFERENCE_MAX_LINE_COUNT: 10000
+  IDENTITY_VERIFICATION_STATIC_REFERENCE_MAX_MANIFEST_BYTES: 65536
+  IDENTITY_VERIFICATION_STATIC_REFERENCE_OFFICIAL_NAME_KEY_BASE64_FILE_BASE64:
+  IDENTITY_VERIFICATION_STATIC_REFERENCE_OFFICIAL_NAME_KEY_ID_FILE_BASE64:
+  IDENTITY_VERIFICATION_STATIC_REFERENCE_PROVIDER_CODE:
+  JAVA_TOOL_OPTIONS: '-Xms128m -Xmx512m'
+  PARSTIS_ENVIRONMENT: dev
+
+services:
+  identity:
+    <<: *identity-image
+    restart: unless-stopped
+    environment:
+      <<: *identity-env
+      APP_MODE: api
+    read_only: true
+    tmpfs: *platform-tmpfs
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+
+  identity-outbox:
+    <<: *identity-image
+    restart: unless-stopped
+    environment:
+      <<: *identity-env
+      APP_MODE: worker
+      IDENTITY_WORKER_COMMAND: publish-outbox
+      IDENTITY_WORKER_REPEAT: "true"
+      PARSTIS_JOB_INTERVAL_SECONDS: "2"
+    read_only: true
+    tmpfs: *platform-tmpfs
+    depends_on:
+      - identity
+
+  identity-revocation:
+    <<: *identity-image
+    restart: unless-stopped
+    environment:
+      <<: *identity-env
+      APP_MODE: worker
+      IDENTITY_WORKER_COMMAND: project-revocations-redis
+      IDENTITY_WORKER_REPEAT: "true"
+      PARSTIS_JOB_INTERVAL_SECONDS: "2"
+    read_only: true
+    tmpfs: *platform-tmpfs
+    depends_on:
+      - identity
+
+  identity-notifications:
+    <<: *identity-image
+    restart: unless-stopped
+    environment:
+      <<: *identity-env
+      APP_MODE: worker
+      IDENTITY_WORKER_COMMAND: dispatch-authentication-notifications
+      IDENTITY_WORKER_REPEAT: "true"
+      PARSTIS_JOB_INTERVAL_SECONDS: "2"
+    read_only: true
+    tmpfs: *platform-tmpfs
+    depends_on:
+      - identity

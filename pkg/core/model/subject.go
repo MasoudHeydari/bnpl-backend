@@ -15,23 +15,27 @@ import (
 // CustomerID or ContractID.
 //
 // Mapping rules:
-//   - For customer APIs, SubjectID equals ExternalCustomerID
-//     (x-auth-subject-id → customer_profiles.external_customer_id).
+//   - For customer contracts/installments list APIs, SubjectID equals
+//     ExternalSubjectID (x-auth-subject-id → customer_profiles.external_subject_id).
+//   - Customer credit APIs resolve Customer Reference Service customer_id via
+//     mobile (x-auth-mobile-number) into ExternalCustomerID
+//     (customer_profiles.external_customer_id); that value is not SubjectID.
 //   - For merchant APIs, SubjectID equals ExternalMerchantID
 //     (x-auth-subject-id → merchant_profiles.external_merchant_id).
 //   - SubjectID is never customer_profiles.id (CustomerID) or
 //     merchant_profiles.id (MerchantProfileID).
 //
-// Convert at the use-case boundary with AsExternalCustomerID or AsExternalMerchantID
-// according to the caller's role. Do not cross-cast these types into entity
-// primary keys.
+// Convert at the use-case boundary with AsExternalSubjectID,
+// AsExternalCustomerID, or AsExternalMerchantID according to the caller's role.
+// Do not cross-cast these types into entity primary keys.
 
 // SubjectID is the Identity Service subject UUID from x-auth-subject-id.
 //
-// Its meaning is role-polymorphic: customer callers carry an ExternalCustomerID;
-// merchant callers carry a ExternalMerchantID. Use AsExternalCustomerID or AsExternalMerchantID
-// at the authenticated entrypoint; never compare SubjectID directly with
-// internal customer_id / merchant_profile_id columns.
+// Its meaning is role-polymorphic: customer callers carry an ExternalSubjectID
+// (and separately a Customer Reference ExternalCustomerID); merchant callers
+// carry an ExternalMerchantID. Use AsExternalSubjectID / AsExternalCustomerID /
+// AsExternalMerchantID at the authenticated entrypoint; never compare SubjectID
+// directly with internal customer_id / merchant_profile_id columns.
 type SubjectID uuid.UUID
 
 // ParseSubjectID parses a SubjectID from its canonical UUID string form.
@@ -53,12 +57,23 @@ func (id SubjectID) String() string { return uuid.UUID(id).String() }
 // IsZero reports whether id is the zero (nil) UUID.
 func (id SubjectID) IsZero() bool { return uuid.UUID(id) == uuid.Nil }
 
-// AsExternalCustomerID interprets the authenticated subject as an external
-// customer identity (customer_profiles.external_customer_id).
+// AsExternalSubjectID interprets the authenticated subject as the Identity
+// Service subject stored on customer_profiles.external_subject_id.
 //
-// Call this only on customer-authenticated paths. Resolve the BNPL profile
-// with GetByExternalCustomerID / LockByExternalCustomerID / EnsureExists, then
-// use profile.ID (CustomerID) for internal foreign keys.
+// Call this on customer-authenticated paths that key the BNPL profile by
+// x-auth-subject-id (for example contracts and installments list). Resolve with
+// GetByExternalSubjectID, then use profile.ID (CustomerID) for internal foreign
+// keys. Do not treat this as ExternalCustomerID or CustomerID.
+func (id SubjectID) AsExternalSubjectID() ExternalSubjectID {
+	return ExternalSubjectID(id)
+}
+
+// AsExternalCustomerID interprets the authenticated subject as an external
+// Customer Reference Service customer_id (customer_profiles.external_customer_id).
+//
+// Prefer AsExternalSubjectID for Identity-subject keyed customer APIs. Keep this
+// helper for paths that still resolve profiles by ExternalCustomerID. Use
+// profile.ID (CustomerID) for internal foreign keys after lookup.
 func (id SubjectID) AsExternalCustomerID() ExternalCustomerID {
 	return ExternalCustomerID(id)
 }

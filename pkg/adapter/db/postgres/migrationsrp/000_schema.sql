@@ -306,12 +306,16 @@ WHERE
 -- A customer profile never owns raw identity data such as national ID,
 -- phone number, or birthdate, and never performs or persists identity
 -- verification. Customer identity verification is owned by the upstream
--- Identity Service; BNPL receives an already authenticated customer identity
--- (external_customer_id) through the trusted gateway boundary.
+-- Identity Service; BNPL receives an already authenticated Identity subject
+-- (external_subject_id / x-auth-subject-id) through the trusted gateway
+-- boundary. Customer Reference Service customer_id is stored separately as
+-- external_customer_id.
 CREATE TABLE IF NOT EXISTS customer_profiles (
     -- Unique profile identifier assigned by the database.
     id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
-    -- Customer identity this BNPL profile belongs to.
+    -- Identity Service subject UUID (x-auth-subject-id).
+    external_subject_id uuid NOT NULL UNIQUE,
+    -- Customer Reference Service customer_id this BNPL profile belongs to.
     external_customer_id uuid NOT NULL UNIQUE,
     -- Regulatory jurisdiction that governs this customer's BNPL profile.
     jurisdiction text NOT NULL,
@@ -323,6 +327,8 @@ CREATE TABLE IF NOT EXISTS customer_profiles (
     CONSTRAINT chk_customer_profiles_status CHECK (status IN ('active', 'deactivated', 'terminated')),
     CONSTRAINT chk_customer_profiles_jurisdiction CHECK (jurisdiction IN ('IR'))
 );
+
+COMMENT ON COLUMN customer_profiles.external_subject_id IS 'Identity Service subject UUID from x-auth-subject-id; never NULL; distinct from Customer Reference Service customer_id (external_customer_id) and from customer_profiles.id.';
 
 -- -----------------------------------------------------------------------------
 -- Policy Assignments
@@ -2279,7 +2285,7 @@ GRANT SELECT, INSERT, UPDATE ON bnpl.decisions TO bnpl;
 
 GRANT SELECT, INSERT ON bnpl.customer_profiles TO bnpl;
 
-GRANT UPDATE (external_customer_id, jurisdiction, status, updated_at) ON bnpl.customer_profiles TO bnpl;
+GRANT UPDATE (external_subject_id, external_customer_id, jurisdiction, status, updated_at) ON bnpl.customer_profiles TO bnpl;
 
 GRANT SELECT, INSERT ON bnpl.policy_assignments TO bnpl;
 

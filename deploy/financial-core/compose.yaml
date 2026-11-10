@@ -1,0 +1,114 @@
+# Hamravesh Darkoob: independent financial-core deployment; do not merge files.
+# Internal DNS: <service>.parstis-technology-dpay-dev.svc
+name: dpay-dev-financial-core
+
+# Shared read-only runtime scratch space (local to this standalone manifest).
+x-platform-tmpfs: &platform-tmpfs /tmp:rw,noexec,nosuid,size=64m,mode=1777
+
+x-financial-image: &financial-image
+  image: registry.hamdocker.ir/parstis-technology/financial-core-service@sha256:35e05c23f394ace90229621d82dc85a0d06a9f0e7e0b82683275caa904fe753a
+
+x-financial-core-env: &financial-core-env
+  FINANCIAL_API_HTTP_PORT: 8082
+  FINANCIAL_CORE_CANONICAL_CUSTOMER_WALLET_CONTEXT_ID:
+  FINANCIAL_CORE_CANONICAL_CUSTOMER_WALLET_TENANT_ID:
+  FINANCIAL_CORE_CUSTOMER_GRPC_CLIENT_CERTIFICATE_FILE_BASE64:
+  FINANCIAL_CORE_CUSTOMER_GRPC_CLIENT_PRIVATE_KEY_FILE_BASE64:
+  FINANCIAL_CORE_CUSTOMER_GRPC_HOST: customer.parstis-technology-dpay-dev.svc
+  FINANCIAL_CORE_CUSTOMER_GRPC_PORT: 9091
+  FINANCIAL_CORE_CUSTOMER_GRPC_SERVER_CA_FILE_BASE64:
+  FINANCIAL_CORE_DB_JDBC_URL: jdbc:postgresql://postgres.parstis-technology-dpay-dev.svc:5432/financial_core
+  FINANCIAL_CORE_DB_PASSWORD:
+  FINANCIAL_CORE_DB_USERNAME: dpay
+  FINANCIAL_CORE_GRPC_TLS_ENABLED: "true"
+  FINANCIAL_CORE_GRPC_TLS_SERVER_CERTIFICATE_FILE_BASE64:
+  FINANCIAL_CORE_GRPC_TLS_SERVER_PRIVATE_KEY_FILE_BASE64:
+  FINANCIAL_CORE_GRPC_TLS_TRUSTED_CLIENT_CA_FILE_BASE64:
+  FINANCIAL_CORE_IDENTITY_JWKS_URL: http://identity.parstis-technology-dpay-dev.svc:8080/.well-known/jwks.json
+  FINANCIAL_CORE_IDENTITY_JWT_ISSUER:
+  FINANCIAL_CORE_KAFKA_BOOTSTRAP_SERVERS: kafka.parstis-technology-dpay-dev.svc:29092
+  FINANCIAL_CORE_KAFKA_BROKER_OWNED: "false"
+  FINANCIAL_CORE_KAFKA_CLIENT_ID:
+  FINANCIAL_CORE_KAFKA_CONSUMERS_ENABLED: "true"
+  FINANCIAL_CORE_KAFKA_REQUIRE_TLS: "false"
+  FINANCIAL_CORE_MERCHANT_FUNDING_ACTIVATION_PAYMENT_PROVIDER_CLEARING_ACCOUNT_CODE:
+  FINANCIAL_CORE_MERCHANT_FUNDING_CONTRACT_ACTIVATION_CLEARING_ACCOUNT_CODE:
+  FINANCIAL_CORE_MERCHANT_FUNDING_CUSTOMER_RECEIVABLE_ACCOUNT_CODE:
+  FINANCIAL_CORE_MERCHANT_FUNDING_MERCHANT_SETTLEMENT_LIABILITY_ACCOUNT_CODE:
+  FINANCIAL_CORE_PAYMENT_ACCOUNTING_KAFKA_CLIENT_ID:
+  FINANCIAL_CORE_PAYMENT_ACCOUNTING_KAFKA_GROUP_ID:
+  FINANCIAL_CORE_PAYMENT_SESSION_PUBLIC_BASE_URL: https://api.dev.dlend.ir
+  FINANCIAL_CORE_PAYOUT_INSTRUMENT_CRYPTO_ACTIVE_KEY_FILE_BASE64:
+  FINANCIAL_CORE_PAYOUT_INSTRUMENT_CRYPTO_ACTIVE_KEY_ID:
+  FINANCIAL_CORE_PROVIDER_START_KAFKA_CLIENT_ID:
+  FINANCIAL_CORE_PROVIDER_START_KAFKA_GROUP_ID:
+  FINANCIAL_CORE_SANDBOX_PAYMENT_SESSION_ENABLED: "true"
+  FINANCIAL_CORE_WORKER_MODE: loop
+  FINANCIAL_GRPC_HOST: 0.0.0.0
+  FINANCIAL_GRPC_PORT: 9093
+  FINANCIAL_PAYMENT_PROVIDERS: sandbox
+  FINANCIAL_PAYMENT_SIMULATOR_DEV_ENABLED: "true"
+  FINANCIAL_SANDBOX_PAYMENT_PROVIDER_STATE_FILE: /var/lib/parstis/payment-simulator/state.json
+  GATEWAY_TRUST_PROOF:
+  PARSTIS_ENVIRONMENT: dev
+
+services:
+  financial-core:
+    <<: *financial-image
+    restart: unless-stopped
+    environment:
+      <<: *financial-core-env
+      APP_MODE: api
+    read_only: true
+    tmpfs: *platform-tmpfs
+    volumes:
+      - dpay_payment_simulator_data:/var/lib/parstis/payment-simulator
+    ports:
+      - "8082:8082"
+      - "9093:9093"
+
+  financial-outbox:
+    <<: *financial-image
+    restart: unless-stopped
+    environment:
+      <<: *financial-core-env
+      APP_MODE: worker
+      FINANCIAL_CORE_WORKER_MODE: loop
+    read_only: true
+    tmpfs: *platform-tmpfs
+    volumes:
+      - dpay_payment_simulator_data:/var/lib/parstis/payment-simulator
+    depends_on:
+      - financial-core
+
+  financial-provider-start:
+    <<: *financial-image
+    restart: unless-stopped
+    environment:
+      <<: *financial-core-env
+      APP_MODE: provider-start-worker
+      FINANCIAL_CORE_WORKER_MODE: loop
+    read_only: true
+    tmpfs: *platform-tmpfs
+    volumes:
+      - dpay_payment_simulator_data:/var/lib/parstis/payment-simulator
+    depends_on:
+      - financial-core
+
+  financial-accounting:
+    <<: *financial-image
+    restart: unless-stopped
+    environment:
+      <<: *financial-core-env
+      APP_MODE: payment-accounting-worker
+      FINANCIAL_CORE_WORKER_MODE: loop
+    read_only: true
+    tmpfs: *platform-tmpfs
+    volumes:
+      - dpay_payment_simulator_data:/var/lib/parstis/payment-simulator
+    depends_on:
+      - financial-core
+
+volumes:
+  dpay_payment_simulator_data:
+    name: dpay_payment_simulator_data

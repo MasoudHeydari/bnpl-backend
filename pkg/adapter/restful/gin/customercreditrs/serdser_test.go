@@ -74,16 +74,19 @@ func TestToCreditSummaryResponse_Expired_StatusAndExpiresAtOnly(t *testing.T) {
 	require.NotContains(t, decoded, "updated_at")
 }
 
-func TestToCreditSummaryResponse_Active_IncludesAvailableAmount(t *testing.T) {
+func TestToCreditSummaryResponse_Active_IncludesLimitAndAvailableAmount(t *testing.T) {
 	t.Parallel()
 
 	got := toCreditSummaryResponse(customercredituc.Output{
+		LimitAmountMinor:     90_000_000,
 		AvailableAmountMinor: 4_000_000,
 		Currency:             model.IRRCurrency,
 		Status:               customercredituc.SummaryStatusActive,
 	})
 
 	require.Equal(t, customercredituc.SummaryStatusActive, got.Status)
+	require.NotNil(t, got.LimitAmountMinor)
+	require.Equal(t, uint64(90_000_000), *got.LimitAmountMinor)
 	require.NotNil(t, got.AvailableAmountMinor)
 	require.Equal(t, uint64(4_000_000), *got.AvailableAmountMinor)
 	require.Equal(t, model.IRRCurrency, got.Currency)
@@ -93,14 +96,28 @@ func TestToCreditSummaryResponse_Active_IncludesAvailableAmount(t *testing.T) {
 
 	var decoded map[string]any
 	require.NoError(t, json.Unmarshal(raw, &decoded))
+	require.Equal(t, float64(90_000_000), decoded["limit_amount_minor"])
+	require.Equal(t, float64(4_000_000), decoded["available_amount_minor"])
 	require.NotContains(t, decoded, "valid_from")
-	require.NotContains(t, decoded, "limit_amount_minor")
 	require.NotContains(t, decoded, "used_amount_minor")
 }
 
 func TestRestrictedCreditUsageHasSeparatePublicRepresentation(t *testing.T) {
-	got := toCreditSummaryResponse(customercredituc.Output{Status: customercredituc.SummaryStatusActive, Currency: model.IRRCurrency, CreditUsage: customercredituc.CreditUsage{Status: "restricted", Reason: "collections_default"}})
+	got := toCreditSummaryResponse(customercredituc.Output{
+		Status:               customercredituc.SummaryStatusActive,
+		LimitAmountMinor:     90_000_000,
+		AvailableAmountMinor: 0,
+		Currency:             model.IRRCurrency,
+		CreditUsage: customercredituc.CreditUsage{
+			Status: "restricted",
+			Reason: "collections_default",
+		},
+	})
 	raw, err := json.Marshal(got)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"status":"active","available_amount_minor":0,"currency":"IRR","credit_usage":{"status":"restricted","reason":"collections_default"}}`, string(raw))
+	require.JSONEq(
+		t,
+		`{"status":"active","limit_amount_minor":90000000,"available_amount_minor":0,"currency":"IRR","credit_usage":{"status":"restricted","reason":"collections_default"}}`,
+		string(raw),
+	)
 }

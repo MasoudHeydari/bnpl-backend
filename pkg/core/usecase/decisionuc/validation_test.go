@@ -16,7 +16,7 @@ func TestValidateCreateInput_RejectsAmountOutsideSignedBigintRange(t *testing.T)
 
 	input := CreateInput{
 		CheckoutKey:       "checkout-key",
-		ExternalCustomerID: model.ExternalCustomerID(uuid.New()),
+		ExternalSubjectID: model.ExternalSubjectID(uuid.New()),
 		PurchaseContext: PurchaseContext{
 			Channel:  model.POSPurchaseChannel,
 			ExternalPosGpsID: model.ExternalPosGpsID(uuid.New()),
@@ -33,7 +33,7 @@ func TestValidateCreateInput_RejectsMissingPOSSource(t *testing.T) {
 
 	input := CreateInput{
 		CheckoutKey:       "checkout-key",
-		ExternalCustomerID: model.ExternalCustomerID(uuid.New()),
+		ExternalSubjectID: model.ExternalSubjectID(uuid.New()),
 		PurchaseContext: PurchaseContext{
 			Channel:  model.POSPurchaseChannel,
 			ExternalPosGpsID: model.ExternalPosGpsID{},

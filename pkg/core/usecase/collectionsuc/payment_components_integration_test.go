@@ -80,12 +80,12 @@ func TestPostgreSQLRepayment_RejectsSecondPaymentAfterPaid(t *testing.T) {
 
 	f.exec(t, `UPDATE contracts SET financial_merchant_entitlement_id='entitlement-1' WHERE customer_id=$1`, customer)
 	var contract model.ContractID
-	var external model.ExternalCustomerID
+	var externalSubjectID model.ExternalSubjectID
 	require.NoError(t, f.pool.Pool.QueryRow(f.ctx, `SELECT contract_id FROM installments WHERE id=$1`, installment).Scan(&contract))
-	require.NoError(t, f.pool.Pool.QueryRow(f.ctx, `SELECT external_customer_id FROM customer_profiles WHERE id=$1`, customer).Scan(&external))
+	require.NoError(t, f.pool.Pool.QueryRow(f.ctx, `SELECT external_subject_id FROM customer_profiles WHERE id=$1`, customer).Scan(&externalSubjectID))
 	uc, e := installmentrepaymentuc.New(f.pool, customerprofilerp.New(), merchantprofilerp.New(), contractrp.New(), installmentrp.New(), installmentchargerp.New(), paymentattemptrp.New(), outboxrp.New(), aggregateCheckoutClient{t: t, now: f.now}, f.clk, lognoop.New(), "bnpl.audit.events.v1", uuidgen.New(), "https://pay.example.com/return")
 	require.NoError(t, e)
-	input := installmentrepaymentuc.CreatePaymentAttemptInput{TenantID: model.TenantID(uuid.New()), ContextID: model.ContextID(uuid.New()), ContractID: contract, InstallmentID: model.InstallmentID(installment), ExternalCustomerID: external, IdempotencyKey: uuid.NewString(), Channel: model.GatewayPaymentChannel}
+	input := installmentrepaymentuc.CreatePaymentAttemptInput{TenantID: model.TenantID(uuid.New()), ContextID: model.ContextID(uuid.New()), ContractID: contract, InstallmentID: model.InstallmentID(installment), ExternalSubjectID: externalSubjectID, IdempotencyKey: uuid.NewString(), Channel: model.GatewayPaymentChannel}
 	ctx := trace.WithTraceID(trace.WithCorrelationID(f.ctx, uuid.NewString()), uuid.NewString())
 	_, e = uc.CreatePaymentAttempt(ctx, input)
 	require.Error(t, e)
@@ -137,9 +137,9 @@ func testFullCommandSettlement(t *testing.T, restricted bool) {
 	f.settleFixture(t, first, f.now.Add(-24*time.Hour))
 	var target uuid.UUID
 	var contract model.ContractID
-	var external model.ExternalCustomerID
+	var externalSubjectID model.ExternalSubjectID
 	require.NoError(t, f.pool.Pool.QueryRow(f.ctx, `SELECT id,contract_id FROM installments WHERE customer_id=$1 AND id<>$2`, customer, first).Scan(&target, &contract))
-	require.NoError(t, f.pool.Pool.QueryRow(f.ctx, `SELECT external_customer_id FROM customer_profiles WHERE id=$1`, customer).Scan(&external))
+	require.NoError(t, f.pool.Pool.QueryRow(f.ctx, `SELECT external_subject_id FROM customer_profiles WHERE id=$1`, customer).Scan(&externalSubjectID))
 	f.exec(t, `UPDATE installments SET due_at=$2,grace_period_days=0 WHERE id=$1`, target, f.now.Add(-48*time.Hour))
 	f.exec(t, `UPDATE contracts SET requested_amount_minor=200,approved_financed_amount_minor=200,remaining_principal_amount_minor=100,financial_merchant_entitlement_id='entitlement-complete' WHERE id=$1`, contract)
 	f.exec(t, `UPDATE credit_accounts SET limit_amount_minor=1000,exposure_amount_minor=100 WHERE customer_id=$1`, customer)
@@ -150,7 +150,7 @@ func testFullCommandSettlement(t *testing.T, restricted bool) {
 	command, e := installmentrepaymentuc.New(f.pool, customerprofilerp.New(), merchantprofilerp.New(), contractrp.New(), installmentrp.New(), installmentchargerp.New(), paymentattemptrp.New(), outboxrp.New(), aggregateCheckoutClient{t: t, now: f.now, amount: 110}, f.clk, lognoop.New(), "bnpl.audit.events.v1", uuidgen.New(), "https://pay.example.com/return")
 	require.NoError(t, e)
 	ctx := trace.WithTraceID(trace.WithCorrelationID(f.ctx, uuid.NewString()), uuid.NewString())
-	request := installmentrepaymentuc.CreatePaymentAttemptInput{TenantID: model.TenantID(uuid.New()), ContextID: model.ContextID(uuid.New()), ContractID: contract, InstallmentID: model.InstallmentID(target), ExternalCustomerID: external, IdempotencyKey: uuid.NewString(), Channel: model.GatewayPaymentChannel}
+	request := installmentrepaymentuc.CreatePaymentAttemptInput{TenantID: model.TenantID(uuid.New()), ContextID: model.ContextID(uuid.New()), ContractID: contract, InstallmentID: model.InstallmentID(target), ExternalSubjectID: externalSubjectID, IdempotencyKey: uuid.NewString(), Channel: model.GatewayPaymentChannel}
 	attempt, e := command.CreatePaymentAttempt(ctx, request)
 	require.NoError(t, e)
 	require.EqualValues(t, 110, attempt.PaymentAttempt.AmountMinor)

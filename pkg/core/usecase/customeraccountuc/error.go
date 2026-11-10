@@ -28,10 +28,34 @@ func contractIDRequiredError() error {
 	)
 }
 
-// externalCustomerIDRequiredError returns a public validation error when the
-// authenticated Identity Service subject (ExternalCustomerID) is missing from
+// externalSubjectIDRequiredError returns a public validation error when the
+// authenticated Identity Service subject (ExternalSubjectID) is missing from
 // use-case input. REST maps this from x-auth-subject-id; clients must not
 // supply an internal customer_id.
+//
+// There is no underlying technical failure; the use case detected invalid
+// input, so the error intentionally has no cause.
+func externalSubjectIDRequiredError() error {
+	return cerr.NewPublic(
+		cerr.CodeInvalidArgument,
+		"error.identity_subject_id_required",
+		nil,
+		cerr.Details{
+			Fields: []string{"identity_subject_id"},
+			Violations: []cerr.Violation{
+				{
+					Code:       "REQUIRED",
+					MessageKey: "error.identity_subject_id_required",
+					Fields:     []string{"identity_subject_id"},
+				},
+			},
+		},
+	)
+}
+
+// externalCustomerIDRequiredError returns a public validation error when the
+// authenticated Customer Reference / legacy subject mapping (ExternalCustomerID)
+// is missing from use-case input.
 //
 // There is no underlying technical failure; the use case detected invalid
 // input, so the error intentionally has no cause.

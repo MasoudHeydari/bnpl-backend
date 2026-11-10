@@ -3,10 +3,11 @@
 Interactive smoke script:
 
 1. Partner create session
-2. Hosted start
-3. Hosted OTP request
-4. Wait for OTP on CLI
-5. Hosted confirm
+2. Hosted GET (`GET /api/v1/checkout-sessions/{token}` — customer lands on BNPL page)
+3. Hosted start
+4. Hosted OTP request
+5. Wait for OTP on CLI
+6. Hosted confirm
 
 ## Run
 
@@ -28,4 +29,6 @@ Partner Create body uses `external_online_store_id` (not `online_store_id`).
 
 Also loads unset keys from the repo `.env` via `setdefault`.
 
-`checkout_session_id` in the create response is the public `cs_...` token and is reused for `/start`, `/otp`, and `/confirm`.
+`checkout_session_id` in the create response is the public `cs_...` token and is reused for hosted `GET`, `/start`, `/otp`, and `/confirm`.
+
+TTY output is colorized: each call prints a **REQUEST** (headers + body) then **RESPONSE** JSON block, plus colored steps/status. Disable with `NO_COLOR=1` / `BNPL_NO_COLOR=1`; force with `FORCE_COLOR=1` / `BNPL_FORCE_COLOR=1`.

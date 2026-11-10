@@ -1,0 +1,50 @@
+# Hamravesh Darkoob: independent customer-jobs deployment; do not merge files.
+# Internal DNS: <service>.parstis-technology-dpay-dev.svc
+name: dpay-dev-customer-jobs
+
+# Shared read-only runtime scratch space (local to this standalone manifest).
+x-platform-tmpfs: &platform-tmpfs /tmp:rw,noexec,nosuid,size=64m,mode=1777
+
+x-customer-image: &customer-image
+  image: registry.hamdocker.ir/parstis-technology/customer-service@sha256:9d7402768164bde13d34d0ff41258018184c77582f3ec82edee88a7ac1b36610
+
+x-customer-env: &customer-env
+  CUSTOMER_DB_JDBC_URL: jdbc:postgresql://postgres.parstis-technology-dpay-dev.svc:5432/customer
+  CUSTOMER_DB_PASSWORD:
+  CUSTOMER_DB_USERNAME: dpay
+  CUSTOMER_HTTP_PORT: 8081
+  CUSTOMER_IDENTITY_GRPC_CLIENT_CERTIFICATE_FILE_BASE64:
+  CUSTOMER_IDENTITY_GRPC_CLIENT_PRIVATE_KEY_FILE_BASE64:
+  CUSTOMER_IDENTITY_GRPC_HOST: identity.parstis-technology-dpay-dev.svc
+  CUSTOMER_IDENTITY_GRPC_PORT: 9090
+  CUSTOMER_IDENTITY_GRPC_SERVER_CA_FILE_BASE64:
+  CUSTOMER_LOCATION_GRPC_CLIENT_CERTIFICATE_FILE_BASE64:
+  CUSTOMER_LOCATION_GRPC_CLIENT_PRIVATE_KEY_FILE_BASE64:
+  CUSTOMER_LOCATION_GRPC_HOST:
+  CUSTOMER_LOCATION_GRPC_SERVER_CA_FILE_BASE64:
+  CUSTOMER_REFERENCE_GRPC_ENABLED: "true"
+  CUSTOMER_REFERENCE_GRPC_HOST: 0.0.0.0
+  CUSTOMER_REFERENCE_GRPC_PORT: 9091
+  CUSTOMER_REFERENCE_GRPC_SERVER_CERTIFICATE_FILE_BASE64:
+  CUSTOMER_REFERENCE_GRPC_SERVER_PRIVATE_KEY_FILE_BASE64:
+  CUSTOMER_REFERENCE_GRPC_TRUSTED_CLIENT_CA_FILE_BASE64:
+  CUSTOMER_SUBJECT_EVENTS_BOOTSTRAP_SERVERS: kafka.parstis-technology-dpay-dev.svc:29092
+  CUSTOMER_SUBJECT_EVENTS_ENABLED: "true"
+  CUSTOMER_SUBJECT_EVENTS_GROUP_ID:
+  CUSTOMER_SUBJECT_EVENTS_SHARED_BROKER: "true"
+  CUSTOMER_SUBJECT_EVENTS_TOPIC: identity.outbox.v1
+  CUSTOMER_SUBJECT_LINK_GRPC_ALLOWED_CALLERS:
+  GATEWAY_TRUST_PROOF:
+  JAVA_TOOL_OPTIONS: '-Xms128m -Xmx512m'
+  PARSTIS_ENVIRONMENT: dev
+
+services:
+  customer-migrate:
+    <<: *customer-image
+    restart: "no"
+    profiles: ["migration"]
+    environment:
+      <<: *customer-env
+      APP_MODE: migrate
+    read_only: true
+    tmpfs: *platform-tmpfs

@@ -4,25 +4,85 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 )
 
-// externalCustomerIDRequiredError returns a public validation error when the
-// authenticated Identity Service subject (ExternalCustomerID) is missing from
-// use-case input. REST maps this from x-auth-subject-id; clients must not
-// supply an internal customer_id.
-//
-// There is no underlying technical failure; the use case detected invalid
-// input, so the error intentionally has no cause.
-func externalCustomerIDRequiredError() error {
+// Public field name for the gateway-injected authenticated mobile. Kept as a
+// wire-oriented string so core does not import the REST header package.
+const authMobileNumberField = "x-auth-mobile-number"
+
+// authMobileNumberRequiredError returns a public validation error when the
+// gateway-injected x-auth-mobile-number header is missing. Clients must not
+// invent this header; Envoy injects it from JWT claim auth_mobile_number.
+func authMobileNumberRequiredError() error {
 	return cerr.NewPublic(
 		cerr.CodeInvalidArgument,
-		"error.identity_subject_id_required",
+		"error.auth_mobile_number_required",
 		nil,
 		cerr.Details{
-			Fields: []string{"identity_subject_id"},
+			Fields: []string{authMobileNumberField},
 			Violations: []cerr.Violation{
 				{
 					Code:       "REQUIRED",
-					MessageKey: "error.identity_subject_id_required",
-					Fields:     []string{"identity_subject_id"},
+					MessageKey: "error.auth_mobile_number_required",
+					Fields:     []string{authMobileNumberField},
+				},
+			},
+		},
+	)
+}
+
+// authMobileNumberInvalidError returns a public validation error when the
+// gateway mobile is not canonical E.164.
+func authMobileNumberInvalidError() error {
+	return cerr.NewPublic(
+		cerr.CodeInvalidArgument,
+		"error.auth_mobile_number_invalid",
+		nil,
+		cerr.Details{
+			Fields: []string{authMobileNumberField},
+			Violations: []cerr.Violation{
+				{
+					Code:       "INVALID",
+					MessageKey: "error.auth_mobile_number_invalid",
+					Fields:     []string{authMobileNumberField},
+				},
+			},
+		},
+	)
+}
+
+// customerReferenceNotFoundError returns a public not-found when Customer
+// Reference Service has no customer for the authenticated mobile.
+func customerReferenceNotFoundError(cause error) error {
+	return cerr.NewPublic(
+		cerr.CodeResourceNotFound,
+		"error.customer_reference_not_found",
+		cause,
+		cerr.Details{
+			Fields: []string{authMobileNumberField},
+			Violations: []cerr.Violation{
+				{
+					Code:       "NOT_FOUND",
+					MessageKey: "error.customer_reference_not_found",
+					Fields:     []string{authMobileNumberField},
+				},
+			},
+		},
+	)
+}
+
+// customerReferenceNotActiveError returns a public forbidden when CRS status is
+// not ACTIVE (for example suspended).
+func customerReferenceNotActiveError(cause error) error {
+	return cerr.NewPublic(
+		cerr.CodeForbidden,
+		"error.customer_reference_not_active",
+		cause,
+		cerr.Details{
+			Fields: []string{authMobileNumberField},
+			Violations: []cerr.Violation{
+				{
+					Code:       "FORBIDDEN",
+					MessageKey: "error.customer_reference_not_active",
+					Fields:     []string{authMobileNumberField},
 				},
 			},
 		},

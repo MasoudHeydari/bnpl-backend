@@ -13,8 +13,8 @@ import (
 
 // CreateContractInput carries inputs for creating a checkout contract.
 //
-// ExternalCustomerID is the authenticated Identity Service subject ID
-// (x-auth-subject-id / customer_profiles.external_customer_id). Ownership checks use the
+// ExternalSubjectID is the authenticated Identity Service subject ID
+// (x-auth-subject-id / customer_profiles.external_subject_id). Ownership checks use the
 // resolved customer_profiles.id against checkout_decision_allocations.customer_id.
 //
 // ProviderCode is optional. When empty, Financial Core may resolve provider/payment
@@ -22,8 +22,8 @@ import (
 type CreateContractInput struct {
 	// DecisionID identifies the decision.
 	DecisionID model.DecisionID
-	// ExternalCustomerID is the Identity Service subject mapped to customer_profiles.external_customer_id.
-	ExternalCustomerID model.ExternalCustomerID
+	// ExternalSubjectID is the Identity Service subject mapped to customer_profiles.external_subject_id.
+	ExternalSubjectID model.ExternalSubjectID
 
 	// TenantID identifies the tenant.
 	TenantID model.TenantID

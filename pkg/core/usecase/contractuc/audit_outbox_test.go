@@ -24,7 +24,7 @@ func TestBuildCreatePaymentPendingAuditEvent(t *testing.T) {
 		0,
 		time.UTC,
 	)
-	externalCustomerID := model.ExternalCustomerID(uuid.New())
+	externalSubjectID := model.ExternalSubjectID(uuid.New())
 	branchID := model.MerchantBranchProfileID(uuid.New())
 	contractID := model.ContractID(uuid.New())
 	decisionID := model.DecisionID(uuid.New())
@@ -39,7 +39,7 @@ func TestBuildCreatePaymentPendingAuditEvent(t *testing.T) {
 		"correlation-1",
 		"trace-1",
 		createPaymentPendingAuditFacts{
-			ExternalCustomerID: externalCustomerID,
+			ExternalSubjectID: externalSubjectID,
 			Contract: model.Contract{
 				ID:                            contractID,
 				DecisionID:                    decisionID,
@@ -75,7 +75,7 @@ func TestBuildCreatePaymentPendingAuditEvent(t *testing.T) {
 	require.Equal(t, contractID.String(), event.Data.Resource.ID)
 	require.Equal(t, audit.CustomerActorType, event.Data.Actor.Type)
 	require.NotNil(t, event.Data.Actor.ID)
-	require.Equal(t, externalCustomerID.String(), *event.Data.Actor.ID)
+	require.Equal(t, externalSubjectID.String(), *event.Data.Actor.ID)
 	require.NotNil(t, event.Data.ReasonCode)
 	require.Equal(t, paymentPendingContractCreatedReasonCode, *event.Data.ReasonCode)
 	require.Equal(t, attemptID.String(), event.Data.Metadata["payment_attempt_id"])

@@ -500,7 +500,7 @@ func (uc *UseCase) refreshOfferForReconfirm(
 		return bumped, Offer{}, nil
 	}
 
-	evaluated, offer, err := uc.evaluateSession(ctx, bumped, externalCustomerID)
+	evaluated, offer, err := uc.evaluateSession(ctx, bumped)
 	if err != nil {
 		return model.CheckoutSession{}, Offer{}, err
 	}

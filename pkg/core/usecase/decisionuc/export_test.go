@@ -8,7 +8,7 @@ import (
 func CheckoutFingerprintForTest(
 	uc *UseCase,
 	checkoutKey string,
-	externalCustomerID model.ExternalCustomerID,
+	externalSubjectID model.ExternalSubjectID,
 	purchaseContext PurchaseContext,
 	requestedAmountMinor uint64,
 	currency string,
@@ -17,7 +17,7 @@ func CheckoutFingerprintForTest(
 ) (string, error) {
 	return uc.checkoutFingerprint(
 		checkoutKey,
-		externalCustomerID,
+		externalSubjectID,
 		purchaseContext,
 		requestedAmountMinor,
 		currency,

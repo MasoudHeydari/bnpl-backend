@@ -50,14 +50,14 @@ func checkoutKeyRequiredError() error {
 	)
 }
 
-// externalCustomerIDRequiredError returns a public validation error when the
-// authenticated Identity Service subject (ExternalCustomerID) is missing from
+// externalSubjectIDRequiredError returns a public validation error when the
+// authenticated Identity Service subject (ExternalSubjectID) is missing from
 // use-case input. REST maps this from x-auth-subject-id; clients must not
 // supply an internal customer_id.
 //
 // There is no underlying technical failure; the use case detected invalid
 // input, so the error intentionally has no cause.
-func externalCustomerIDRequiredError() error {
+func externalSubjectIDRequiredError() error {
 	return cerr.NewPublic(
 		cerr.CodeInvalidArgument,
 		"error.identity_subject_id_required",

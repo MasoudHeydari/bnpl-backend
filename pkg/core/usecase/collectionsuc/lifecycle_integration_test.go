@@ -138,7 +138,7 @@ func newCollectionsFixture(t *testing.T, locations ...*time.Location) *collectio
 	seed := func(t *testing.T) (model.CustomerID, uuid.UUID) {
 		t.Helper()
 		customer, merchant, account, decision, contract, installment := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
-		exec(t, `INSERT INTO customer_profiles(id,external_customer_id,jurisdiction,status) VALUES($1,$2,'IR','active')`, customer, uuid.New())
+		exec(t, `INSERT INTO customer_profiles(id,external_subject_id,external_customer_id,jurisdiction,status) VALUES($1,$2,$3,'IR','active')`, customer, uuid.New(), uuid.New())
 		exec(t, `INSERT INTO merchant_profiles(id,external_merchant_id,display_name,status,risk_tier,max_tenure_months,jurisdiction) VALUES($1,$2,'test','active','low',12,'IR')`, merchant, uuid.New())
 		// Installment/contract lineage must reference a Checkout Policy so
 		// repaymentreminderuc can resolve Reminder.LeadDays. Collections

@@ -73,7 +73,7 @@ func TestE2E_InstallmentRepayment_LostFCResponse_ExpiresWithoutSessionRediscover
 		ContextID:          contextID,
 		ContractID:         contractRow.ID,
 		InstallmentID:      installmentID,
-		ExternalCustomerID: externalCustomerID,
+		ExternalSubjectID: externalSubjectIDForExternalCustomer(t, externalCustomerID),
 		IdempotencyKey:     idempotencyKey,
 		Channel:            model.GatewayPaymentChannel,
 	})
@@ -98,7 +98,7 @@ func TestE2E_InstallmentRepayment_LostFCResponse_ExpiresWithoutSessionRediscover
 		ContextID:          contextID,
 		ContractID:         contractRow.ID,
 		InstallmentID:      installmentID,
-		ExternalCustomerID: externalCustomerID,
+		ExternalSubjectID: externalSubjectIDForExternalCustomer(t, externalCustomerID),
 		IdempotencyKey:     idempotencyKey,
 		Channel:            model.GatewayPaymentChannel,
 	})

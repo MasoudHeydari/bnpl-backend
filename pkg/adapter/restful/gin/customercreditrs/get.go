@@ -19,9 +19,9 @@ type GetSuccessSchema struct {
 //
 //	@Summary		Get customer credit summary
 //	@Description	Returns the authenticated customer's current BNPL credit summary.
-//	@Description	x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id), not the internal BNPL profile primary key.
+//	@Description	Resolves x-auth-mobile-number through Customer Reference Service (ACTIVE only); CRS customer_id is customer_profiles.external_customer_id.
 //	@Description	BNPL resolves or provisions the local customer profile automatically when missing. Profile provisioning is idempotent and does not assign initial credit.
-//	@Description	Requires only an authenticated customer subject; no BNPL profile eligibility or credit limit precondition applies.
+//	@Description	Requires an authenticated customer subject plus gateway-injected mobile; no BNPL profile eligibility or credit limit precondition applies.
 //	@Description	No request body.
 //	@Description	Available credit = effective current credit limit minus active committed financed exposure.
 //	@Description	Active financed exposure is persisted on the customer CreditAccount as outstanding principal from activated contracts.
@@ -29,13 +29,14 @@ type GetSuccessSchema struct {
 //	@Description	Credit is consumed only when a contract becomes active under its persisted checkout policy.
 //	@Description	When no credit limit has been assigned (customer never assessed), data contains only status not_assigned and meta.code is CUSTOMER_CREDIT_NOT_ASSIGNED — clients must initiate credit assessment, not treat this as a zero balance.
 //	@Description	When a historical limit exists but is not currently usable (including time-expired), data contains only status expired and expires_at; meta.code is CUSTOMER_CREDIT_EXPIRED — clients must trigger reassessment.
-//	@Description	For an active limit, available_amount_minor is an integer minor-unit amount in the response currency.
+//	@Description	For an active limit, limit_amount_minor is the governed total capacity and available_amount_minor is remaining usable credit; both are integer minor-unit amounts in the response currency.
 //	@Tags			Credit Limits
 //	@Produce		json
-//	@Param			x-auth-subject-id	header		string				true	"Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)"	format(uuid)
-//	@Param			x-auth-tenant-id	header		string				true	"Authenticated tenant UUID"																						format(uuid)
-//	@Param			x-auth-context-id	header		string				true	"Authenticated business-context UUID"																			format(uuid)
-//	@Param			x-auth-permissions	header		string				true	"Comma-separated gateway permissions"																			example(bnpl:credit-limits:read:self)
+//	@Param			x-auth-subject-id		header		string				true	"Authenticated Identity Service subject UUID"															format(uuid)
+//	@Param			x-auth-mobile-number	header		string				true	"Canonical E.164 mobile from JWT auth_mobile_number (gateway-injected)"								example(+989121234567)
+//	@Param			x-auth-tenant-id		header		string				true	"Authenticated tenant UUID"																				format(uuid)
+//	@Param			x-auth-context-id		header		string				true	"Authenticated business-context UUID"																	format(uuid)
+//	@Param			x-auth-permissions		header		string				true	"Comma-separated gateway permissions"																	example(bnpl:credit-limits:read:self)
 //	@Param			X-Trace-Id			header		string				false	"Optional; reused when present otherwise generated. Always returned."
 //	@Param			X-Request-Id		header		string				false	"Optional; reused when present otherwise generated. Always returned."
 //	@Param			X-Correlation-Id	header		string				false	"Optional; reused when present otherwise generated. Always returned."

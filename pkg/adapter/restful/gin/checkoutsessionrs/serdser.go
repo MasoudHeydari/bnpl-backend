@@ -208,18 +208,18 @@ func authenticatedMerchantID(c *gin.Context) (model.ExternalMerchantID, bool) {
 	return authCtx.SubjectID.AsExternalMerchantID(), true
 }
 
-func authenticatedExternalCustomerID(c *gin.Context) (model.ExternalCustomerID, bool) {
-	const op = "checkoutsessionrs.authenticatedExternalCustomerID"
+func authenticatedExternalSubjectID(c *gin.Context) (model.ExternalSubjectID, bool) {
+	const op = "checkoutsessionrs.authenticatedExternalSubjectID"
 
 	authCtx, ok := permission.FromContext(c.Request.Context())
 	if !ok {
 		serdser.SerErr(c, cerr.Unauthorized(
 			fmt.Errorf("%s: authentication context is missing", op),
 		))
-		return model.ExternalCustomerID{}, false
+		return model.ExternalSubjectID{}, false
 	}
 
-	return authCtx.SubjectID.AsExternalCustomerID(), true
+	return authCtx.SubjectID.AsExternalSubjectID(), true
 }
 
 func checkoutSessionIDParam(c *gin.Context) (model.CheckoutSessionID, bool) {
