@@ -3,10 +3,11 @@
 
 Flow:
   1. Partner create checkout session
-  2. Hosted start
-  3. Hosted request OTP
-  4. Wait for OTP typed in the CLI
-  5. Hosted confirm
+  2. Hosted GET (customer lands on BNPL page and loads the session)
+  3. Hosted start
+  4. Hosted request OTP
+  5. Wait for OTP typed in the CLI
+  6. Hosted confirm
 
 The public token returned as data.checkout_session_id (cs_...) is reused for
 all hosted steps. Partner create needs X-Terminal-Id / X-API-Key; hosted token
@@ -28,17 +29,19 @@ Config (env, optional repo .env):
 
 from __future__ import annotations
 
-import json
 import os
 import ssl
 import sys
 import time
-import uuid
-import urllib.error
-import urllib.request
 from pathlib import Path
 from typing import Any
 
+SCRIPTS_DIR = Path(__file__).resolve().parents[1]
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
+from lib import cli_style  # noqa: E402
+from lib.api_client import APIClient  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -99,57 +102,6 @@ def build_ssl_context() -> ssl.SSLContext | None:
     return None
 
 
-class APIClient:
-    def __init__(self, base_url: str, ssl_context: ssl.SSLContext | None) -> None:
-        self.base_url = base_url.rstrip("/")
-        self.ssl_context = ssl_context
-
-    def request(
-        self,
-        method: str,
-        path: str,
-        *,
-        body: dict[str, Any] | None = None,
-        headers: dict[str, str] | None = None,
-    ) -> dict[str, Any]:
-        url = f"{self.base_url}{path}"
-        payload = None if body is None else json.dumps(body).encode("utf-8")
-        req_headers = {
-            "Accept": "application/json",
-            "X-Correlation-Id": str(uuid.uuid4()),
-            "X-Request-Id": str(uuid.uuid4()),
-            "X-Trace-Id": str(uuid.uuid4()),
-        }
-        if body is not None:
-            req_headers["Content-Type"] = "application/json"
-
-        if headers:
-            req_headers.update(headers)
-
-        request = urllib.request.Request(url, data=payload, headers=req_headers, method=method)
-        try:
-            with urllib.request.urlopen(request, context=self.ssl_context, timeout=60) as resp:
-                raw = resp.read().decode("utf-8")
-                status = resp.status
-        except urllib.error.HTTPError as err:
-            raw = err.read().decode("utf-8", errors="replace")
-            print(f"\nHTTP {err.code} {method} {url}\n{raw}\n", file=sys.stderr)
-            raise SystemExit(1) from err
-        except urllib.error.URLError as err:
-            print(f"\nrequest failed: {method} {url}: {err}\n", file=sys.stderr)
-            raise SystemExit(1) from err
-
-        try:
-            parsed = json.loads(raw) if raw else {}
-        except json.JSONDecodeError:
-            print(f"\nnon-JSON response ({status}) {method} {url}\n{raw}\n", file=sys.stderr)
-            raise SystemExit(1)
-
-        print(f"\n==> {method} {url} -> {status}")
-        print(json.dumps(parsed, ensure_ascii=False, indent=2))
-        return parsed
-
-
 def data_of(response: dict[str, Any]) -> dict[str, Any]:
     data = response.get("data")
     if not isinstance(data, dict):
@@ -162,21 +114,23 @@ REQUEST_DELAY_SECONDS = 1
 
 
 def pause(seconds: float = REQUEST_DELAY_SECONDS) -> None:
-    print(f"\nwaiting {seconds:g}s before next request...")
+    print(cli_style.muted(f"\nwaiting {seconds:g}s before next request..."))
     time.sleep(seconds)
 
 
 def prompt_otp() -> str:
     while True:
         try:
-            code = input("\nEnter OTP from SMS (or Ctrl-C to abort): ").strip()
+            code = input(
+                cli_style.step("\nEnter OTP from SMS (or Ctrl-C to abort): ")
+            ).strip()
         except EOFError:
             raise SystemExit("\nno OTP entered") from None
 
         if code:
             return code
 
-        print("OTP is empty; try again.")
+        print(cli_style.warn("OTP is empty; try again."))
 
 
 def main() -> None:
@@ -222,8 +176,8 @@ def main() -> None:
     if customer_reference:
         create_body["customer_reference"] = customer_reference
 
-    print("1) Create partner checkout session")
-    create_resp = client.request(
+    print(cli_style.step("1) Create partner checkout session"))
+    _, create_resp = client.request(
         "POST",
         "/api/v1/partner/checkout-sessions",
         body=create_body,
@@ -237,12 +191,27 @@ def main() -> None:
             f"got {create_data.get('checkout_session_id')!r}"
         )
 
-    print(f"\nusing checkout_session_id/token from create: {token}")
+    print(cli_style.ok(f"\nusing checkout_session_id/token from create: {token}"))
 
     pause()
-    print("\n2) Hosted start")
+    print(cli_style.step("2) Hosted GET (customer opens BNPL page)"))
+    _, get_resp = client.request(
+        "GET",
+        f"/api/v1/checkout-sessions/{token}",
+    )
+    get_data = data_of(get_resp)
+    get_token = str(get_data.get("checkout_session_id") or "").strip()
+    if get_token and get_token != token:
+        raise SystemExit(
+            f"hosted GET returned different checkout_session_id: {get_token!r} != {token!r}"
+        )
+
+    print(cli_style.ok(f"\nhosted GET status={get_data.get('status')!r}"))
+
+    pause()
+    print(cli_style.step("3) Hosted start"))
     # First START may omit evaluation_generation when offer is deferred (on_start).
-    start_resp = client.request(
+    _, start_resp = client.request(
         "POST",
         f"/api/v1/checkout-sessions/{token}/start",
         body={},
@@ -254,10 +223,10 @@ def main() -> None:
             "start response missing evaluation_generation; cannot continue to OTP/confirm"
         )
 
-    print(f"\nusing evaluation_generation from start: {evaluation_generation}")
+    print(cli_style.ok(f"\nusing evaluation_generation from start: {evaluation_generation}"))
 
     pause()
-    print("\n3) Request OTP")
+    print(cli_style.step("4) Request OTP"))
     client.request(
         "POST",
         f"/api/v1/checkout-sessions/{token}/otp",
@@ -267,8 +236,8 @@ def main() -> None:
     otp = prompt_otp()
 
     pause()
-    print("\n4) Confirm")
-    confirm_resp = client.request(
+    print(cli_style.step("5) Confirm"))
+    _, confirm_resp = client.request(
         "POST",
         f"/api/v1/checkout-sessions/{token}/confirm",
         body={
@@ -278,20 +247,16 @@ def main() -> None:
     )
     confirm_data = data_of(confirm_resp)
 
-    print("\nDone.")
-    print(
-        json.dumps(
-            {
-                "checkout_session_id": token,
-                "status": confirm_data.get("status"),
-                "reconfirm_required": confirm_data.get("reconfirm_required"),
-                "payment_required": confirm_data.get("payment_required"),
-                "redirect_url": confirm_data.get("redirect_url"),
-                "contract": confirm_data.get("contract"),
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
+    print(cli_style.ok("\nDone."))
+    cli_style.print_json(
+        {
+            "checkout_session_id": token,
+            "status": confirm_data.get("status"),
+            "reconfirm_required": confirm_data.get("reconfirm_required"),
+            "payment_required": confirm_data.get("payment_required"),
+            "redirect_url": confirm_data.get("redirect_url"),
+            "contract": confirm_data.get("contract"),
+        }
     )
 
 
@@ -299,5 +264,5 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\naborted", file=sys.stderr)
+        print(cli_style.err("\naborted"), file=sys.stderr)
         raise SystemExit(130) from None
