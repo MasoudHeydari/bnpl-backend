@@ -21,10 +21,11 @@ const (
 	SummaryStatusExpired SummaryStatus = "expired"
 )
 
-// Input identifies the authenticated external customer (Identity Service subject).
+// Input identifies the authenticated customer via gateway mobile for credit summary.
 type Input struct {
-	// ExternalCustomerID is the Identity Service subject mapped to customer_profiles.external_customer_id.
-	ExternalCustomerID model.ExternalCustomerID
+	// MobileE164 is the gateway-injected authenticated mobile
+	// (x-auth-mobile-number ← JWT auth_mobile_number), canonical E.164.
+	MobileE164 string
 }
 
 // Output carries the customer's current BNPL credit summary.

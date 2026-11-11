@@ -28,12 +28,13 @@ type assignmentPrepareState struct {
 func (uc *UseCase) AssignInitialLimit(ctx context.Context, input AssignInitialLimitInput) (AssignInitialLimitOutput, error) {
 	const op = "customercredituc.UseCase.AssignInitialLimit"
 
-	if input.ExternalCustomerID.IsZero() {
-		return AssignInitialLimitOutput{}, externalCustomerIDRequiredError()
+	externalCustomerID, err := uc.resolveActiveExternalCustomerID(ctx, input.MobileE164)
+	if err != nil {
+		return AssignInitialLimitOutput{}, err
 	}
 
 	now := uc.clock.Now().UTC()
-	prepare, err := uc.prepareInitialLimitAssignment(ctx, input.ExternalCustomerID, now)
+	prepare, err := uc.prepareInitialLimitAssignment(ctx, externalCustomerID, now)
 	if err != nil {
 		return AssignInitialLimitOutput{}, err
 	}

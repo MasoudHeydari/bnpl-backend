@@ -7,6 +7,7 @@ import (
 
 	"github.com/parstis/bnpl-backend/pkg/core/clock"
 	extcreditassessment "github.com/parstis/bnpl-backend/pkg/core/external/creditassessment"
+	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"
 	"github.com/parstis/bnpl-backend/pkg/core/fingerprint"
 	"github.com/parstis/bnpl-backend/pkg/core/identifier"
 	"github.com/parstis/bnpl-backend/pkg/core/policy"
@@ -28,6 +29,7 @@ type UseCase struct {
 	clock                  clock.Clock
 	fingerprintHasher      fingerprint.Hasher
 	creditAssessmentClient extcreditassessment.Client
+	customerResolver       extcustomer.Resolver
 	policyAssignment       repo.PolicyAssignment
 	initialLimitPolicies   *initialcreditlimit.Registry
 	defaultInitialLimitRef policy.Ref
@@ -48,6 +50,7 @@ func New(
 	clk clock.Clock,
 	fingerprintHasher fingerprint.Hasher,
 	creditAssessmentClient extcreditassessment.Client,
+	customerResolver extcustomer.Resolver,
 	policyAssignment repo.PolicyAssignment,
 	initialLimitPolicies *initialcreditlimit.Registry,
 	defaultInitialLimitRef policy.Ref,
@@ -105,6 +108,10 @@ func New(
 		return nil, fmt.Errorf("%s: credit assessment client is required", op)
 	}
 
+	if customerResolver == nil {
+		return nil, fmt.Errorf("%s: customer resolver is required", op)
+	}
+
 	if policyAssignment == nil {
 		return nil, fmt.Errorf("%s: policy assignment repository is required", op)
 	}
@@ -138,6 +145,7 @@ func New(
 		clock:                  clk,
 		fingerprintHasher:      fingerprintHasher,
 		creditAssessmentClient: creditAssessmentClient,
+		customerResolver:       customerResolver,
 		policyAssignment:       policyAssignment,
 		initialLimitPolicies:   initialLimitPolicies,
 		defaultInitialLimitRef: defaultInitialLimitRef,

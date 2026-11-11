@@ -19,6 +19,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/event/audit"
 	"github.com/parstis/bnpl-backend/pkg/core/external/creditassessment"
+	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"
 	"github.com/parstis/bnpl-backend/pkg/core/mock"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/policy/initialcreditlimit"
@@ -27,6 +28,8 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/trace"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/customercredituc"
 )
+
+const assignTestMobileE164 = "+989121234567"
 
 func testRequestContext() context.Context {
 	ctx := context.Background()
@@ -52,6 +55,7 @@ type assignInitialLimitDeps struct {
 	policyAssignmentTx *mock.PolicyAssignmentTxQueryer
 	idGenerator        *mock.IdentifierGenerator
 	creditAssessment   *mock.CreditAssessmentClient
+	customerResolver   *mock.CustomerResolver
 	clock              adapterclock.Fixed
 	registry           *initialcreditlimit.Registry
 	defaultPolicy      initialcreditlimit.Policy
@@ -83,10 +87,26 @@ func newAssignInitialLimitDeps(t *testing.T, now time.Time) assignInitialLimitDe
 		policyAssignmentTx: mock.NewPolicyAssignmentTxQueryer(t),
 		idGenerator:        mock.NewIdentifierGenerator(t),
 		creditAssessment:   mock.NewCreditAssessmentClient(t),
+		customerResolver:   mock.NewCustomerResolver(t),
 		clock:              adapterclock.NewFixed(now, time.UTC),
 		registry:           registry,
 		defaultPolicy:      policy,
 	}
+}
+
+func (d assignInitialLimitDeps) expectResolveActive(
+	ctx context.Context,
+	externalCustomerID model.ExternalCustomerID,
+) {
+	d.t.Helper()
+
+	d.customerResolver.EXPECT().ResolveByMobile(
+		ctx,
+		extcustomer.ResolveByMobileInput{MobileE164: assignTestMobileE164},
+	).Return(extcustomer.ResolveByMobileOutput{
+		ExternalCustomerID: externalCustomerID,
+		Status:             extcustomer.ActiveStatus,
+	}, nil).Once()
 }
 
 func (d assignInitialLimitDeps) newUseCase() *customercredituc.UseCase {
@@ -102,6 +122,7 @@ func (d assignInitialLimitDeps) newUseCase() *customercredituc.UseCase {
 		d.clock,
 		sha256fingerprint.New(),
 		d.creditAssessment,
+		d.customerResolver,
 		d.policyAssignment,
 		d.registry,
 		d.defaultPolicy.Ref(),
@@ -348,8 +369,9 @@ func TestAssignInitialLimit_MissingProfile_CreatesActiveProfileAndAssigns(t *tes
 	)
 
 	deps.expectFetchSignals(ctx)
+	deps.expectResolveActive(ctx, externalCustomerID)
 	uc := deps.newUseCase()
-	output, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{ExternalCustomerID: externalCustomerID})
+	output, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{MobileE164: assignTestMobileE164})
 	require.NoError(t, err)
 	require.Equal(t, customercredituc.AssignInitialLimitResultCreated, output.Result)
 	require.NotNil(t, output.CreditLimit)
@@ -466,8 +488,9 @@ func TestAssignInitialLimit_ExistingNonActiveProfile_IsDeniedWithoutReactivation
 		audit.DeniedOutcome,
 	)
 
+	deps.expectResolveActive(ctx, externalCustomerID)
 	uc := deps.newUseCase()
-	output, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{ExternalCustomerID: externalCustomerID})
+	output, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{MobileE164: assignTestMobileE164})
 	require.NoError(t, err)
 	require.Equal(t, customercredituc.AssignInitialLimitResultDenied, output.Result)
 	require.Nil(t, output.CreditLimit)
@@ -519,8 +542,9 @@ func TestAssignInitialLimit_EnsureExistsFailure_ReturnsError(t *testing.T) {
 		now,
 	).Return(model.CustomerProfile{}, false, repoErr).Once()
 
+	deps.expectResolveActive(ctx, externalCustomerID)
 	uc := deps.newUseCase()
-	_, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{ExternalCustomerID: externalCustomerID})
+	_, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{MobileE164: assignTestMobileE164})
 	require.Error(t, err)
 	require.True(t, cerr.IsCode(err, cerr.CodeInternalError))
 }
@@ -610,8 +634,9 @@ func TestAssignInitialLimit_DenialPathStampsPolicyRef(t *testing.T) {
 		audit.DeniedOutcome,
 	)
 
+	deps.expectResolveActive(ctx, externalCustomerID)
 	uc := deps.newUseCase()
-	output, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{ExternalCustomerID: externalCustomerID})
+	output, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{MobileE164: assignTestMobileE164})
 	require.NoError(t, err)
 	require.Equal(t, customercredituc.AssignInitialLimitResultDenied, output.Result)
 }

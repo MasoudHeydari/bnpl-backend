@@ -110,7 +110,7 @@ def data_of(response: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
-REQUEST_DELAY_SECONDS = 1
+REQUEST_DELAY_SECONDS = 10000
 
 
 def pause(seconds: float = REQUEST_DELAY_SECONDS) -> None:

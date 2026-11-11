@@ -14,4 +14,11 @@ const (
 
 	// AuthPermissions carries comma-separated gateway permissions.
 	AuthPermissions = "x-auth-permissions"
+
+	// AuthMobileNumber carries the authenticated subject's canonical E.164
+	// mobile from the Identity JWT claim auth_mobile_number
+	// (x-auth-mobile-number). Gateway-injected only. Customer credit APIs use
+	// it to ResolveCustomerByMobile against Customer Reference Service; the CRS
+	// customer_id becomes customer_profiles.external_customer_id.
+	AuthMobileNumber = "x-auth-mobile-number"
 )

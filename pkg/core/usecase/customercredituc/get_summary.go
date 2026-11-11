@@ -16,20 +16,21 @@ import (
 // journal explains how that state changed; it is not recomputed as a financial
 // ledger.
 func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) {
-	if input.ExternalCustomerID.IsZero() {
-		return Output{}, externalCustomerIDRequiredError()
+	externalCustomerID, err := uc.resolveActiveExternalCustomerID(ctx, input.MobileE164)
+	if err != nil {
+		return Output{}, err
 	}
 
 	now := uc.clock.Now().UTC()
 	var output Output
 
-	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
+	err = uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
 			customerProfileQ := uc.customerProfile.Tx(tx)
 			profile, err := uc.ensureActiveCustomerProfile(
 				ctx,
 				customerProfileQ,
-				input.ExternalCustomerID,
+				externalCustomerID,
 				now,
 			)
 			if err != nil {
@@ -38,7 +39,7 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 
 			accountQ := uc.creditAccount.Tx(tx)
 			policyAssignmentQ := uc.policyAssignment.Tx(tx)
-			selectedPolicy, err := uc.resolveInitialLimitPolicy(ctx, policyAssignmentQ, input.ExternalCustomerID, now)
+			selectedPolicy, err := uc.resolveInitialLimitPolicy(ctx, policyAssignmentQ, externalCustomerID, now)
 			if err != nil {
 				return err
 			}

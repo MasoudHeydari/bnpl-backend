@@ -139,7 +139,7 @@ Accept-Language: fa-IR
 
 ### `POST /customer-credit/initiate`
 
-هیچ Body ندارد. پاسخ `data.result`، `credit_limit_decision.outcome` با `limit_set` یا `denied`، `reason_codes[]` و `credit_limit?` دارد. `credit_limit` شامل `amount_minor`، `currency`، `status`، `effective_from` و `expires_at?` است.
+هیچ Body ندارد. توکن باید claim‏ `auth_mobile_number` (E.164) داشته باشد؛ Envoy آن را به‌صورت `x-auth-mobile-number` تزریق می‌کند و BNPL فقط وقتی Customer Reference Service وضعیت `ACTIVE` برگرداند اعتبار می‌سازد (پالیسی trusted/v2 در صورت assignment روی همان CRS id). پاسخ `data.result`، `credit_limit_decision.outcome` با `limit_set` یا `denied`، `reason_codes[]` و `credit_limit?` دارد. `credit_limit` شامل `amount_minor`، `currency`، `status`، `effective_from` و `expires_at?` است.
 
 `201` یعنی Limit جدید ایجاد شده؛ `200` می‌تواند «قبلاً وجود داشته» یا «رد شده» باشد. **بر اساس `outcome` تصمیم بگیرید، نه صرف HTTP 200.** سپس Credit Summary را Refresh کنید.
 

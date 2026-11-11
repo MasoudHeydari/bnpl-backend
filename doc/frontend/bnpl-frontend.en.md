@@ -157,7 +157,7 @@ POST /api/v1/customer-credit/initiate
 Authorization: Bearer <access-token>
 ~~~
 
-No request body. Response `data` contains `result`, `credit_limit_decision.outcome` (`limit_set` | `denied`), `reason_codes[]`, and optional `credit_limit` containing `amount_minor`, `currency`, `status`, `effective_from` and `expires_at`. `201` means a newly created credit assignment; `200` also covers already-assigned or denied. The frontend must branch on `credit_limit_decision.outcome` and then refresh credit, not infer success from HTTP 200 alone.
+No request body. The access token must include Identity claim `auth_mobile_number` (canonical E.164); Envoy injects it as `x-auth-mobile-number`. BNPL resolves that mobile through Customer Reference Service and assigns credit only when CRS status is `ACTIVE` (trusted-customer policy v2 applies when that CRS customer has an assignment). Response `data` contains `result`, `credit_limit_decision.outcome` (`limit_set` | `denied`), `reason_codes[]`, and optional `credit_limit` containing `amount_minor`, `currency`, `status`, `effective_from` and `expires_at`. `201` means a newly created credit assignment; `200` also covers already-assigned or denied. The frontend must branch on `credit_limit_decision.outcome` and then refresh credit, not infer success from HTTP 200 alone.
 
 ## 6. Customer direct checkout: Decision → Offer → Contract
 

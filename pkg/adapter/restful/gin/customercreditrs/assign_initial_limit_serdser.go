@@ -2,11 +2,13 @@ package customercreditrs
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/serdser"
+	"github.com/parstis/bnpl-backend/pkg/adapter/restful/header"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/permission"
@@ -16,17 +18,75 @@ import (
 func toAssignInitialLimitInput(c *gin.Context) (customercredituc.AssignInitialLimitInput, bool) {
 	const op = "customercreditrs.toAssignInitialLimitInput"
 
-	authCtx, ok := permission.FromContext(c.Request.Context())
-	if !ok {
+	if _, ok := permission.FromContext(c.Request.Context()); !ok {
 		serdser.SerErr(c, cerr.Unauthorized(
 			fmt.Errorf("%s: authentication context is missing", op),
 		))
 		return customercredituc.AssignInitialLimitInput{}, false
 	}
 
+	mobile, ok := authMobileNumber(c, op)
+	if !ok {
+		return customercredituc.AssignInitialLimitInput{}, false
+	}
+
 	return customercredituc.AssignInitialLimitInput{
-		ExternalCustomerID: authCtx.SubjectID.AsExternalCustomerID(),
+		MobileE164: mobile,
 	}, true
+}
+
+func authMobileNumber(c *gin.Context, op string) (string, bool) {
+	values := c.Request.Header.Values(header.AuthMobileNumber)
+	if len(values) == 0 {
+		serdser.SerErr(c, cerr.NewPublic(
+			cerr.CodeInvalidArgument,
+			"error.auth_mobile_number_required",
+			fmt.Errorf("%s: %s is required", op, header.AuthMobileNumber),
+			cerr.Details{
+				Fields: []string{header.AuthMobileNumber},
+				Violations: []cerr.Violation{
+					{
+						Code:       "REQUIRED",
+						MessageKey: "error.auth_mobile_number_required",
+						Fields:     []string{header.AuthMobileNumber},
+					},
+				},
+			},
+		))
+
+		return "", false
+	}
+
+	if len(values) > 1 {
+		serdser.SerErr(c, cerr.Unauthorized(
+			fmt.Errorf("%s: %s must appear exactly once", op, header.AuthMobileNumber),
+		))
+
+		return "", false
+	}
+
+	mobile := strings.TrimSpace(values[0])
+	if mobile == "" {
+		serdser.SerErr(c, cerr.NewPublic(
+			cerr.CodeInvalidArgument,
+			"error.auth_mobile_number_required",
+			fmt.Errorf("%s: %s is empty", op, header.AuthMobileNumber),
+			cerr.Details{
+				Fields: []string{header.AuthMobileNumber},
+				Violations: []cerr.Violation{
+					{
+						Code:       "REQUIRED",
+						MessageKey: "error.auth_mobile_number_required",
+						Fields:     []string{header.AuthMobileNumber},
+					},
+				},
+			},
+		))
+
+		return "", false
+	}
+
+	return mobile, true
 }
 
 type decisionResponse struct {

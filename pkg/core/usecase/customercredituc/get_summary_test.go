@@ -14,6 +14,7 @@ import (
 
 	sha256fingerprint "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/fingerprint/sha256"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
+	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"
 	"github.com/parstis/bnpl-backend/pkg/core/mock"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/policy/initialcreditlimit"
@@ -21,6 +22,8 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/customercredituc"
 )
+
+const summaryTestMobileE164 = "+989121234567"
 
 func newSummaryUseCase(
 	t *testing.T,
@@ -33,6 +36,7 @@ func newSummaryUseCase(
 	customerRestriction *mock.CustomerRestriction,
 	installment *mock.Installment,
 	defaultEpisode *mock.DefaultEpisode,
+	customerResolver *mock.CustomerResolver,
 ) *customercredituc.UseCase {
 	t.Helper()
 
@@ -56,6 +60,10 @@ func newSummaryUseCase(
 		defaultEpisode = mock.NewDefaultEpisode(t)
 	}
 
+	if customerResolver == nil {
+		customerResolver = mock.NewCustomerResolver(t)
+	}
+
 	uc, err := customercredituc.New(
 		pool,
 		customerProfile,
@@ -68,6 +76,7 @@ func newSummaryUseCase(
 		clk,
 		sha256fingerprint.New(),
 		mock.NewCreditAssessmentClient(t),
+		customerResolver,
 		policyAssignment,
 		registry,
 		policy.Ref(),
@@ -78,6 +87,22 @@ func newSummaryUseCase(
 	require.NoError(t, err)
 
 	return uc
+}
+
+func expectSummaryResolveActive(
+	t *testing.T,
+	resolver *mock.CustomerResolver,
+	externalCustomerID model.ExternalCustomerID,
+) {
+	t.Helper()
+
+	resolver.EXPECT().ResolveByMobile(
+		testifymock.Anything,
+		extcustomer.ResolveByMobileInput{MobileE164: summaryTestMobileE164},
+	).Return(extcustomer.ResolveByMobileOutput{
+		ExternalCustomerID: externalCustomerID,
+		Status:             extcustomer.ActiveStatus,
+	}, nil).Once()
 }
 
 func expectSummaryPolicyAssignmentDefault(
@@ -209,6 +234,9 @@ func TestGetSummary_ExpiredLimit_ReturnsExpiredNotZeroAssigned(t *testing.T) {
 		Return(nil, nil).
 		Once()
 
+	customerResolver := mock.NewCustomerResolver(t)
+	expectSummaryResolveActive(t, customerResolver, externalCustomerID)
+
 	uc := newSummaryUseCase(
 		t,
 		pool,
@@ -220,10 +248,11 @@ func TestGetSummary_ExpiredLimit_ReturnsExpiredNotZeroAssigned(t *testing.T) {
 		customerRestriction,
 		installment,
 		defaultEpisode,
+		customerResolver,
 	)
 
 	out, err := uc.GetSummary(context.Background(), customercredituc.Input{
-		ExternalCustomerID: externalCustomerID,
+		MobileE164: summaryTestMobileE164,
 	})
 	require.NoError(t, err)
 	require.Equal(t, customercredituc.SummaryStatusExpired, out.Status)
@@ -329,6 +358,9 @@ func TestGetSummary_ActiveLimit_UsesInternalCustomerIDNotExternal(t *testing.T) 
 		Return(nil, nil).
 		Once()
 
+	customerResolver := mock.NewCustomerResolver(t)
+	expectSummaryResolveActive(t, customerResolver, externalCustomerID)
+
 	uc := newSummaryUseCase(
 		t,
 		pool,
@@ -340,10 +372,11 @@ func TestGetSummary_ActiveLimit_UsesInternalCustomerIDNotExternal(t *testing.T) 
 		customerRestriction,
 		installment,
 		defaultEpisode,
+		customerResolver,
 	)
 
 	out, err := uc.GetSummary(context.Background(), customercredituc.Input{
-		ExternalCustomerID: externalCustomerID,
+		MobileE164: summaryTestMobileE164,
 	})
 	require.NoError(t, err)
 	require.Equal(t, customercredituc.SummaryStatusActive, out.Status)
@@ -418,6 +451,9 @@ func TestGetSummary_NoLimit_ReturnsNotAssigned(t *testing.T) {
 		Return(model.CreditAccount{}, cerr.ResourceNotFound(errors.New("none"))).
 		Once()
 
+	customerResolver := mock.NewCustomerResolver(t)
+	expectSummaryResolveActive(t, customerResolver, externalCustomerID)
+
 	uc := newSummaryUseCase(
 		t,
 		pool,
@@ -429,10 +465,11 @@ func TestGetSummary_NoLimit_ReturnsNotAssigned(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		customerResolver,
 	)
 
 	out, err := uc.GetSummary(context.Background(), customercredituc.Input{
-		ExternalCustomerID: externalCustomerID,
+		MobileE164: summaryTestMobileE164,
 	})
 	require.NoError(t, err)
 	require.Equal(t, customercredituc.SummaryStatusNotAssigned, out.Status)

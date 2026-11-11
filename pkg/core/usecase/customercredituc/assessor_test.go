@@ -56,6 +56,7 @@ func newAssessUseCase(
 		), time.UTC),
 		sha256fingerprint.New(),
 		client,
+		mock.NewCustomerResolver(t),
 		policyAssignment,
 		registry,
 		defaultRef,

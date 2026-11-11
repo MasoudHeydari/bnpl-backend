@@ -179,7 +179,7 @@ static_resources:
                             - exact: http://localhost:5173
                             - exact: http://127.0.0.1:5173
                             - exact: http://localhost:3000
-                            - exact: http://localhost:3001
+                            - exact: http://localhost:3333
                             - exact: http://127.0.0.1:3000
                             - exact: http://localhost:8080
                             - exact: https://frontend.bnpl.test:5173
@@ -779,6 +779,18 @@ static_resources:
                               or string.match(bare, "^/api/v%d+/merchant%-guest/") ~= nil
                           end
 
+                          -- Customer credit APIs resolve the BNPL customer through
+                          -- Customer Reference Service using the authenticated mobile.
+                          -- Header name stays in the x-auth-* family (gateway-injected
+                          -- principal claim), not a client-supplied customer_* field.
+                          local function customer_credit_path(path)
+                            local bare = string.match(path or "", "^[^?]*")
+                            if bare == nil then
+                              return false
+                            end
+                            return string.match(bare, "^/api/v%d+/customer%-credit") ~= nil
+                          end
+
                           function envoy_on_request(request_handle)
                             -- Request bodies are not read or logged: they carry passwords, OTP codes
                             -- and identity numbers, and buffering them breaks document uploads.
@@ -860,11 +872,22 @@ static_resources:
                               return
                             end
                           
-                            local mobile_number = claims["auth_mobile_number"]
+                            -- auth_mobile_number is Identity's canonical E.164 mobile claim.
+                            -- Forwarded as x-auth-mobile-number for BNPL customer-credit routes
+                            -- (ResolveCustomerByMobile → CRS customer_id). Required on
+                            -- /api/vN/customer-credit/**; optional on other authenticated paths.
+                            local mobile_number = non_empty_string(claims["auth_mobile_number"])
+                            local require_mobile = customer_credit_path(headers:get(":path"))
+                            if require_mobile and mobile_number == nil then
+                              reject_invalid_principal(
+                                request_handle,
+                                "auth_mobile_number is required for customer credit"
+                              )
+                              return
+                            end
+
                             if mobile_number ~= nil then
-                              mobile_number = non_empty_string(mobile_number)
-                              if mobile_number == nil
-                                or string.match(mobile_number, "^%+[0-9]+$") == nil
+                              if string.match(mobile_number, "^%+[0-9]+$") == nil
                                 or string.len(mobile_number) < 9
                                 or string.len(mobile_number) > 16 then
                                 reject_invalid_principal(
