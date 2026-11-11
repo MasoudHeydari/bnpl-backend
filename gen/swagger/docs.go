@@ -1976,7 +1976,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Returns the order summary and ordered installment schedule for one BNPL contract owned by the authenticated customer.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Missing or foreign-owned contracts return 404.\nrequested_amount_minor is the persisted total order/purchase price. status is the contract lifecycle status.\nnext_payable_installment is the earliest unpaid schedule installment by installment_order and the only installment currently eligible for repayment; null when none remain.\nInstallments must be paid in sequence: a later installment cannot be paid while an earlier unpaid schedule installment exists.\nFinancial Core remains authoritative for monetary truth.",
+                "description": "Returns the order summary and ordered installment schedule for one BNPL contract owned by the authenticated customer.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_subject_id). Missing or foreign-owned contracts return 404.\nrequested_amount_minor is the persisted total order/purchase price. status is the contract lifecycle status.\nnext_payable_installment is the earliest unpaid schedule installment by installment_order and the only installment currently eligible for repayment; null when none remain.\nInstallments must be paid in sequence: a later installment cannot be paid while an earlier unpaid schedule installment exists.\nFinancial Core remains authoritative for monetary truth.",
                 "produces": [
                     "application/json"
                 ],
@@ -1988,7 +1988,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)",
+                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_subject_id)",
                         "name": "x-auth-subject-id",
                         "in": "header",
                         "required": true

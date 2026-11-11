@@ -478,6 +478,15 @@ static_resources:
                             cluster: "merchant_service"
                             timeout: 30s
 
+                        # ── Customer: APIs ────────────────────────────────────────────────────────
+                        # Keep the original path; existing /api/ JWT and Lua protections apply.
+                        - match:
+                            safe_regex:
+                              regex: "^/api/v[0-9]+/customers(/.*)?$"
+                          route:
+                            cluster: "customer_service"
+                            timeout: 30s
+
                         # ── Fallback ──────────────────────────────────────────────────────────────
 
                         - match:
@@ -1252,6 +1261,22 @@ static_resources:
                     socket_address:
                       address: 192.168.1.103   # host running merchant-api; change if different
                       port_value: 8085         # MERCHANT_HTTP_PORT
+
+    - name: customer_service
+      connect_timeout: 5s
+      type: STATIC
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: customer_service
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      # REQUIRED: replace this documentation-only placeholder with the Customer service IP.
+                      # The supplied config does not establish the Customer host. Do not deploy unchanged.
+                      address: 192.168.1.103
+                      port_value: 8084         # Default Customer HTTP port; confirm the deployed port.
 
     - name: identity_jwks
       connect_timeout: 5s

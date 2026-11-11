@@ -3551,14 +3551,14 @@ paths:
     get:
       description: |-
         Returns the order summary and ordered installment schedule for one BNPL contract owned by the authenticated customer.
-        x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Missing or foreign-owned contracts return 404.
+        x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_subject_id). Missing or foreign-owned contracts return 404.
         requested_amount_minor is the persisted total order/purchase price. status is the contract lifecycle status.
         next_payable_installment is the earliest unpaid schedule installment by installment_order and the only installment currently eligible for repayment; null when none remain.
         Installments must be paid in sequence: a later installment cannot be paid while an earlier unpaid schedule installment exists.
         Financial Core remains authoritative for monetary truth.
       parameters:
       - description: Stable authenticated subject identifier issued by Identity Service
-          (customer_profiles.external_customer_id)
+          (customer_profiles.external_subject_id)
         format: uuid
         in: header
         name: x-auth-subject-id

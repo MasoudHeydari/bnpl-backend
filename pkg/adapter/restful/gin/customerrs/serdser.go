@@ -30,8 +30,8 @@ func toGetContractInstallmentsInput(c *gin.Context) (customeraccountuc.GetContra
 	}
 
 	return customeraccountuc.GetContractInstallmentsInput{
-		ExternalCustomerID: authCtx.SubjectID.AsExternalCustomerID(),
-		ContractID:         contractID,
+		ExternalSubjectID: authCtx.SubjectID.AsExternalSubjectID(),
+		ContractID:        contractID,
 	}, true
 }
 
