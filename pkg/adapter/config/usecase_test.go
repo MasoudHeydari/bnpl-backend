@@ -236,6 +236,7 @@ func TestCustomerCredit_newUseCase(t *testing.T) {
 		clock,
 		sha256fingerprint.New(),
 		client,
+		mock.NewCustomerResolver(t),
 		mock.NewPolicyAssignment(t),
 		initialLimitPolicies,
 		initialcreditcatalog.DefaultRef(),

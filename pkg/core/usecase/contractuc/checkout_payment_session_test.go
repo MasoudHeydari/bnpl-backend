@@ -140,13 +140,13 @@ func TestValidatePaymentBasedCreateContractInput_AllowsMissingTenantOrContext(t 
 
 	generic := CreateContractInput{
 		DecisionID:         model.DecisionID(uuid.New()),
-		ExternalCustomerID: model.ExternalCustomerID(uuid.New()),
+		ExternalSubjectID: model.ExternalSubjectID(uuid.New()),
 	}
 	require.NoError(t, validateCreateContractInput(generic))
 
 	paymentBased := CreateContractInput{
 		DecisionID:         model.DecisionID(uuid.New()),
-		ExternalCustomerID: model.ExternalCustomerID(uuid.New()),
+		ExternalSubjectID: model.ExternalSubjectID(uuid.New()),
 		TenantID:           model.TenantID{},
 		ContextID:          model.ContextID{},
 	}

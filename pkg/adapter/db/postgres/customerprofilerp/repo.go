@@ -114,6 +114,11 @@ func (q txQueryer) LockByID(ctx context.Context, id model.CustomerID) (model.Cus
 	return LockByID(ctx, q.Tx, id)
 }
 
+// LockByExternalSubjectID returns the customer profile for an Identity subject and locks it for state changes.
+func (q txQueryer) LockByExternalSubjectID(ctx context.Context, externalSubjectID model.ExternalSubjectID) (model.CustomerProfile, error) {
+	return LockByExternalSubjectID(ctx, q.Tx, externalSubjectID)
+}
+
 // LockByExternalCustomerID returns the customer profile for externalCustomerID and locks it for state changes.
 func (q txQueryer) LockByExternalCustomerID(ctx context.Context, externalCustomerID model.ExternalCustomerID) (model.CustomerProfile, error) {
 	return LockByExternalCustomerID(ctx, q.Tx, externalCustomerID)

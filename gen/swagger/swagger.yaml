@@ -2141,7 +2141,7 @@ paths:
       - application/json
       description: |-
         Evaluates checkout feasibility for a customer/merchant pair and persists a decision.
-        x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Do not send customer_id in the body.
+        x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_subject_id). Do not send customer_id in the body.
         purchase_context.type must be "pos" or "online"; the channel is explicit and is never inferred from optional fields.
         For type=pos, purchase_context.external_pos_gps_id is required; external_online_store_id and merchant_order_id are forbidden.
         For type=online, purchase_context.external_online_store_id is required; external_pos_gps_id is forbidden; merchant_order_id is optional (max 256 characters).
@@ -2161,7 +2161,7 @@ paths:
         with the same Decision and persisted installments (no duplicates).
       parameters:
       - description: Stable authenticated subject identifier issued by Identity Service
-          (customer_profiles.external_customer_id)
+          (customer_profiles.external_subject_id)
         format: uuid
         in: header
         name: x-auth-subject-id
@@ -2348,7 +2348,7 @@ paths:
       - application/json
       description: |-
         Creates a checkout contract according to the policy snapshot stored on the Decision. When customer action is required, returns redirect_url and expires_at; merchant-funding policies return payment_required=false.
-        x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Do not send customer_id or payment provider selection in the body.
+        x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_subject_id). Do not send customer_id or payment provider selection in the body.
         Installment schedule details are not returned from this endpoint; use contract installment read APIs when needed.
         For initial-payment policies activation occurs only after an authoritative payment result. Merchant-funding policies create no PaymentAttempt and activate only after authoritative Financial Core merchant funding.
         Merchant funding records MerchantEntitlement synchronously before the contract becomes active. On recognition failure BNPL does not retry in the background; the caller may retry the same contract request.
@@ -2356,6 +2356,7 @@ paths:
         Public response never includes Financial Core payment identifiers.
       parameters:
       - description: Stable authenticated subject identifier issued by Identity Service
+          (customer_profiles.external_subject_id)
         format: uuid
         in: header
         name: x-auth-subject-id
@@ -3341,12 +3342,12 @@ paths:
       - application/json
       description: |-
         Starts cancellation of an active BNPL contract owned by the authenticated customer (active → canceling).
-        x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Do not send customer identity in path or body.
+        x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_subject_id). Do not send customer identity in path or body.
         Financial Core remains authoritative for canceling → canceled. This endpoint never marks a contract canceled.
         Requires Idempotency-Key. A new request returns 202 only after Financial Core synchronously accepts the cancellation for processing; temporary handoff failures return 503 while durable retry remains scheduled. Exact replay returns 200.
       parameters:
       - description: Stable authenticated subject identifier issued by Identity Service
-          (customer_profiles.external_customer_id)
+          (customer_profiles.external_subject_id)
         format: uuid
         in: header
         name: x-auth-subject-id
@@ -3698,14 +3699,14 @@ paths:
       - application/json
       description: |-
         Queues an installment repayment attempt. When browser action is required, the BNPL payment attempt projection includes redirect_url and expires_at.
-        x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Do not send customer_id or payment provider selection in the body.
+        x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_subject_id). Do not send customer_id or payment provider selection in the body.
         Installments must be paid in sequence: only the earliest unpaid schedule installment for the contract may be paid.
         Payment success is determined by authoritative backend processing, never by browser redirect alone. Requires Idempotency-Key.
         Returns 202 when newly queued and 200 on idempotent replay.
         Public response never includes Financial Core payment identifiers.
       parameters:
       - description: Stable authenticated subject identifier issued by Identity Service
-          (customer_profiles.external_customer_id)
+          (customer_profiles.external_subject_id)
         format: uuid
         in: header
         name: x-auth-subject-id
@@ -6186,7 +6187,7 @@ paths:
     get:
       description: |-
         Returns finalized installment payment attempts owned by the authenticated customer.
-        x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Do not send customer identity in path or query.
+        x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_subject_id). Do not send customer identity in path or query.
         Only payment attempts in states succeeded, failed, or canceled are returned.
         In-progress and operational states (created, submitted, reconciliation_required, manual_review_required) are excluded and never mapped to another public status.
         Includes purposes checkout_first_installment (first_installment) and installment_repayment (installment).
@@ -6198,7 +6199,7 @@ paths:
         Keyset pagination via limit, after_id, and after_created_at.
       parameters:
       - description: Stable authenticated subject identifier issued by Identity Service
-          (customer_profiles.external_customer_id)
+          (customer_profiles.external_subject_id)
         format: uuid
         in: header
         name: x-auth-subject-id

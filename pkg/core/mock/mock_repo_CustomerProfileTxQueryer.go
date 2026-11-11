@@ -435,6 +435,72 @@ func (_c *CustomerProfileTxQueryer_LockByExternalCustomerID_Call) RunAndReturn(r
 	return _c
 }
 
+// LockByExternalSubjectID provides a mock function for the type CustomerProfileTxQueryer
+func (_mock *CustomerProfileTxQueryer) LockByExternalSubjectID(ctx context.Context, externalSubjectID model.ExternalSubjectID) (model.CustomerProfile, error) {
+	ret := _mock.Called(ctx, externalSubjectID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for LockByExternalSubjectID")
+	}
+
+	var r0 model.CustomerProfile
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.ExternalSubjectID) (model.CustomerProfile, error)); ok {
+		return returnFunc(ctx, externalSubjectID)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.ExternalSubjectID) model.CustomerProfile); ok {
+		r0 = returnFunc(ctx, externalSubjectID)
+	} else {
+		r0 = ret.Get(0).(model.CustomerProfile)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.ExternalSubjectID) error); ok {
+		r1 = returnFunc(ctx, externalSubjectID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// CustomerProfileTxQueryer_LockByExternalSubjectID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'LockByExternalSubjectID'
+type CustomerProfileTxQueryer_LockByExternalSubjectID_Call struct {
+	*mock.Call
+}
+
+// LockByExternalSubjectID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - externalSubjectID model.ExternalSubjectID
+func (_e *CustomerProfileTxQueryer_Expecter) LockByExternalSubjectID(ctx any, externalSubjectID any) *CustomerProfileTxQueryer_LockByExternalSubjectID_Call {
+	return &CustomerProfileTxQueryer_LockByExternalSubjectID_Call{Call: _e.mock.On("LockByExternalSubjectID", ctx, externalSubjectID)}
+}
+
+func (_c *CustomerProfileTxQueryer_LockByExternalSubjectID_Call) Run(run func(ctx context.Context, externalSubjectID model.ExternalSubjectID)) *CustomerProfileTxQueryer_LockByExternalSubjectID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.ExternalSubjectID
+		if args[1] != nil {
+			arg1 = args[1].(model.ExternalSubjectID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *CustomerProfileTxQueryer_LockByExternalSubjectID_Call) Return(customerProfile model.CustomerProfile, err error) *CustomerProfileTxQueryer_LockByExternalSubjectID_Call {
+	_c.Call.Return(customerProfile, err)
+	return _c
+}
+
+func (_c *CustomerProfileTxQueryer_LockByExternalSubjectID_Call) RunAndReturn(run func(ctx context.Context, externalSubjectID model.ExternalSubjectID) (model.CustomerProfile, error)) *CustomerProfileTxQueryer_LockByExternalSubjectID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // LockByID provides a mock function for the type CustomerProfileTxQueryer
 func (_mock *CustomerProfileTxQueryer) LockByID(ctx context.Context, id model.CustomerID) (model.CustomerProfile, error) {
 	ret := _mock.Called(ctx, id)

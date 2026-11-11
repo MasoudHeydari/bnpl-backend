@@ -279,6 +279,31 @@ FOR UPDATE
 	)
 }
 
+// LockByExternalSubjectID returns a customer profile by Identity subject id and locks it for update.
+func LockByExternalSubjectID[Q postgres.Queryer](ctx context.Context, q Q, externalSubjectID model.ExternalSubjectID) (model.CustomerProfile, error) {
+	const query = `
+SELECT
+	id,
+	external_subject_id,
+	external_customer_id,
+	jurisdiction,
+	status,
+	created_at,
+	updated_at
+FROM customer_profiles
+WHERE external_subject_id = $1
+FOR UPDATE
+`
+
+	return postgres.QueryOne[model.CustomerProfile](
+		ctx,
+		q,
+		"lock customer profile by identity subject id",
+		query,
+		externalSubjectID,
+	)
+}
+
 // LockByExternalCustomerID returns a customer profile by externalCustomerID and locks it for update.
 func LockByExternalCustomerID[Q postgres.Queryer](ctx context.Context, q Q, externalCustomerID model.ExternalCustomerID) (model.CustomerProfile, error) {
 	const query = `

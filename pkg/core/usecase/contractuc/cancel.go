@@ -16,8 +16,8 @@ const maxContractCancellationIdempotencyKeyLength = 256
 
 // CancelInput carries customer-initiated contract cancellation start inputs.
 //
-// ExternalCustomerID is the authenticated Identity Service subject ID
-// (x-auth-subject-id / customer_profiles.external_customer_id). Ownership checks
+// ExternalSubjectID is the authenticated Identity Service subject ID
+// (x-auth-subject-id / customer_profiles.external_subject_id). Ownership checks
 // use the resolved customer_profiles.id against contracts.customer_id.
 type CancelInput struct {
 	// TenantID identifies the tenant.
@@ -27,8 +27,8 @@ type CancelInput struct {
 
 	// ContractID identifies the contract.
 	ContractID model.ContractID
-	// ExternalCustomerID is the Identity Service subject mapped to customer_profiles.external_customer_id.
-	ExternalCustomerID model.ExternalCustomerID
+	// ExternalSubjectID is the Identity Service subject mapped to customer_profiles.external_subject_id.
+	ExternalSubjectID model.ExternalSubjectID
 
 	// IdempotencyKey is the client idempotency key for the operation.
 	IdempotencyKey string
@@ -81,9 +81,9 @@ func (uc *UseCase) Cancel(
 					paymentAttemptQ := uc.paymentAttempt.Tx(tx)
 					outboxQ := uc.outbox.Tx(tx)
 
-					profile, profileErr := customerProfileQ.LockByExternalCustomerID(
+					profile, profileErr := customerProfileQ.LockByExternalSubjectID(
 						ctx,
-						input.ExternalCustomerID,
+						input.ExternalSubjectID,
 					)
 					if profileErr != nil {
 						if cerr.IsCode(profileErr, cerr.CodeResourceNotFound) {
@@ -187,7 +187,7 @@ func (uc *UseCase) Cancel(
 							ctx,
 							outboxQ,
 							cancelAuditFacts{
-								ExternalCustomerID: input.ExternalCustomerID,
+								ExternalSubjectID: input.ExternalSubjectID,
 								Contract:           updated,
 								PreviousStatus:     model.ActiveContractStatus,
 								Reason:             input.Reason,
@@ -358,8 +358,8 @@ func validateCancelInput(input CancelInput) error {
 		return contractIDRequiredError()
 	}
 
-	if input.ExternalCustomerID.IsZero() {
-		return externalCustomerIDRequiredError()
+	if input.ExternalSubjectID.IsZero() {
+		return externalSubjectIDRequiredError()
 	}
 
 	idempotencyKey := strings.TrimSpace(input.IdempotencyKey)

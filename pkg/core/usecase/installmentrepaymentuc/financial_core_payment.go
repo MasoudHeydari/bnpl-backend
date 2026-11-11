@@ -101,7 +101,7 @@ func (uc *UseCase) ensureFinancialCoreInstallmentPayment(
 		}
 
 		customerProfileQ := uc.customerProfile.Conn(conn)
-		customer, loadErr = customerProfileQ.GetByExternalCustomerID(ctx, input.ExternalCustomerID)
+		customer, loadErr = customerProfileQ.GetByExternalSubjectID(ctx, input.ExternalSubjectID)
 		if loadErr != nil {
 			return loadErr
 		}

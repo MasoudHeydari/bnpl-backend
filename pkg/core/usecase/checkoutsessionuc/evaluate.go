@@ -26,8 +26,9 @@ const checkoutSessionDecisionKeyPrefix = "checkout-session:"
 func (uc *UseCase) evaluateSession(
 	ctx context.Context,
 	session model.CheckoutSession,
-	externalCustomerID model.ExternalCustomerID,
 ) (model.CheckoutSession, Offer, error) {
+	const op = "checkoutsessionuc.UseCase.evaluateSession"
+
 	session, err := uc.prepareEvaluationGeneration(ctx, session)
 	if err != nil {
 		return model.CheckoutSession{}, Offer{}, err
@@ -38,16 +39,45 @@ func (uc *UseCase) evaluateSession(
 		generation = 1
 	}
 
+	if session.CustomerID == nil || session.CustomerID.IsZero() {
+		return model.CheckoutSession{}, Offer{}, cerr.InternalError(fmt.Errorf(
+			"%s: session has no bound customer",
+			op,
+		))
+	}
+
+	var externalSubjectID model.ExternalSubjectID
+	err = uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
+		customerProfileQ := uc.customerProfile.Conn(conn)
+		profile, profileErr := customerProfileQ.GetByID(ctx, *session.CustomerID)
+		if profileErr != nil {
+			return profileErr
+		}
+
+		externalSubjectID = profile.ExternalSubjectID
+		return nil
+	})
+	if err != nil {
+		return model.CheckoutSession{}, Offer{}, err
+	}
+
+	if externalSubjectID.IsZero() {
+		return model.CheckoutSession{}, Offer{}, cerr.InternalError(fmt.Errorf(
+			"%s: customer profile missing external_subject_id",
+			op,
+		))
+	}
+
 	output, err := uc.decision.Create(ctx, decisionuc.CreateInput{
 		CheckoutKey: checkoutSessionDecisionKey(
 			session.ID,
 			generation,
 		),
-		ExternalCustomerID: externalCustomerID,
+		ExternalSubjectID: externalSubjectID,
 		PurchaseContext: decisionuc.PurchaseContext{
-			Channel:         model.OnlinePurchaseChannel,
-			ExternalOnlineStoreID:   session.ExternalOnlineStoreID,
-			MerchantOrderID: session.MerchantOrderID,
+			Channel:               model.OnlinePurchaseChannel,
+			ExternalOnlineStoreID: session.ExternalOnlineStoreID,
+			MerchantOrderID:       session.MerchantOrderID,
 		},
 		RequestedAmountMinor: session.RequestedAmountMinor,
 		Currency:             session.Currency,

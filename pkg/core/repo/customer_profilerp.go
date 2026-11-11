@@ -88,6 +88,14 @@ type CustomerProfileTxQueryer interface {
 		id model.CustomerID,
 	) (model.CustomerProfile, error)
 
+	// LockByExternalSubjectID returns the customer profile for an Identity
+	// Service subject ID (customer_profiles.external_subject_id /
+	// x-auth-subject-id) and locks it for state changes.
+	LockByExternalSubjectID(
+		ctx context.Context,
+		externalSubjectID model.ExternalSubjectID,
+	) (model.CustomerProfile, error)
+
 	// LockByExternalCustomerID returns the customer profile for a Customer
 	// Reference Service customer_id (customer_profiles.external_customer_id)
 	// and locks it for state changes.

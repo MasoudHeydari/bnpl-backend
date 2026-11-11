@@ -84,14 +84,14 @@ func (e *harnessSagaExecutor) ExecuteByID(ctx context.Context, id model.SagaID) 
 		return nil
 	}
 
-	externalCustomerID, err := e.loadExternalCustomerID(ctx, session)
+	externalSubjectID, err := e.loadExternalSubjectID(ctx, session)
 	if err != nil {
 		return err
 	}
 
 	created, err := e.uc.contractUC.PrepareCheckoutContract(ctx, contractuc.CreateContractInput{
-		DecisionID:         *session.DecisionID,
-		ExternalCustomerID: externalCustomerID,
+		DecisionID:        *session.DecisionID,
+		ExternalSubjectID: externalSubjectID,
 	})
 	if err != nil {
 		if isDeterministicOfferNoLongerHonorable(err) {
@@ -147,6 +147,36 @@ func (e *harnessSagaExecutor) loadExternalCustomerID(
 	}
 
 	return profile.ExternalCustomerID, nil
+}
+
+func (e *harnessSagaExecutor) loadExternalSubjectID(
+	ctx context.Context,
+	session model.CheckoutSession,
+) (model.ExternalSubjectID, error) {
+	if session.CustomerID == nil || session.CustomerID.IsZero() {
+		return model.ExternalSubjectID{}, cerr.InternalError(nil)
+	}
+
+	var profile model.CustomerProfile
+	err := e.uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
+		customerQ := e.uc.customerProfile.Conn(conn)
+		row, getErr := customerQ.GetByID(ctx, *session.CustomerID)
+		if getErr != nil {
+			return getErr
+		}
+
+		profile = row
+		return nil
+	})
+	if err != nil {
+		return model.ExternalSubjectID{}, err
+	}
+
+	if profile.ExternalSubjectID.IsZero() {
+		return model.ExternalSubjectID{}, cerr.InternalError(nil)
+	}
+
+	return profile.ExternalSubjectID, nil
 }
 
 func (e *harnessSagaExecutor) markCompleted(id model.SagaID) {

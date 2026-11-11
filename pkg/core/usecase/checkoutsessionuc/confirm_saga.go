@@ -377,6 +377,38 @@ func (d *ConfirmationSagaDefinition) loadExternalCustomerID(
 	return profile.ExternalCustomerID, nil
 }
 
+func (d *ConfirmationSagaDefinition) loadExternalSubjectID(
+	ctx context.Context,
+	session model.CheckoutSession,
+) (model.ExternalSubjectID, error) {
+	const op = "checkoutsessionuc.ConfirmationSagaDefinition.loadExternalSubjectID"
+
+	if session.CustomerID == nil || session.CustomerID.IsZero() {
+		return model.ExternalSubjectID{}, fmt.Errorf("%s: session has no bound customer", op)
+	}
+
+	var profile model.CustomerProfile
+	err := d.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
+		customerQ := d.customerProfile.Conn(conn)
+		row, getErr := customerQ.GetByID(ctx, *session.CustomerID)
+		if getErr != nil {
+			return getErr
+		}
+
+		profile = row
+		return nil
+	})
+	if err != nil {
+		return model.ExternalSubjectID{}, err
+	}
+
+	if profile.ExternalSubjectID.IsZero() {
+		return model.ExternalSubjectID{}, fmt.Errorf("%s: customer profile missing external_subject_id", op)
+	}
+
+	return profile.ExternalSubjectID, nil
+}
+
 // assertSagaClaimCurrent rejects a worker whose Saga version is no longer the
 // version it claimed. The check runs immediately before an external mutation
 // so a stale worker does not start a second Contract or Financial Core call
@@ -635,14 +667,14 @@ func (s *confirmContractPreparedStep) Execute(
 		return s.def.externalStepError(findErr, instance)
 	}
 
-	externalCustomerID, err := s.def.loadExternalCustomerID(ctx, session)
+	externalSubjectID, err := s.def.loadExternalSubjectID(ctx, session)
 	if err != nil {
 		return s.def.externalStepError(err, instance)
 	}
 
 	_, err = s.def.contractUC.PrepareCheckoutContract(ctx, contractuc.CreateContractInput{
-		DecisionID:         *session.DecisionID,
-		ExternalCustomerID: externalCustomerID,
+		DecisionID:        *session.DecisionID,
+		ExternalSubjectID: externalSubjectID,
 	})
 	if err != nil {
 		// Prepare is convergent on DecisionID; a lost response may already have

@@ -13,8 +13,8 @@ import (
 
 // CreatePaymentAttemptInput carries installment repayment initiation inputs.
 //
-// ExternalCustomerID is the authenticated Identity Service subject ID
-// (x-auth-subject-id / customer_profiles.external_customer_id). Ownership checks use the
+// ExternalSubjectID is the authenticated Identity Service subject ID
+// (x-auth-subject-id / customer_profiles.external_subject_id). Ownership checks use the
 // resolved customer_profiles.id against contracts.customer_id.
 type CreatePaymentAttemptInput struct {
 	// TenantID identifies the tenant.
@@ -27,8 +27,8 @@ type CreatePaymentAttemptInput struct {
 	// InstallmentID identifies the installment.
 	InstallmentID model.InstallmentID
 
-	// ExternalCustomerID is the Identity Service subject mapped to customer_profiles.external_customer_id.
-	ExternalCustomerID model.ExternalCustomerID
+	// ExternalSubjectID is the Identity Service subject mapped to customer_profiles.external_subject_id.
+	ExternalSubjectID model.ExternalSubjectID
 
 	// IdempotencyKey is the client idempotency key for the operation.
 	IdempotencyKey string
@@ -77,7 +77,7 @@ func (uc *UseCase) CreatePaymentAttempt(
 					paymentAttemptQ := uc.paymentAttempt.Tx(tx)
 					outboxQ := uc.outbox.Tx(tx)
 
-					profile, profileErr := customerProfileQ.LockByExternalCustomerID(ctx, input.ExternalCustomerID)
+					profile, profileErr := customerProfileQ.LockByExternalSubjectID(ctx, input.ExternalSubjectID)
 					if profileErr != nil {
 						if cerr.IsCode(profileErr, cerr.CodeResourceNotFound) {
 							return contractDoesNotBelongToCustomerError(profileErr)
@@ -288,7 +288,7 @@ func (uc *UseCase) CreatePaymentAttempt(
 						outboxQ,
 						created,
 						installmentRepaymentAuditFacts{
-							ExternalCustomerID: input.ExternalCustomerID,
+							ExternalSubjectID: input.ExternalSubjectID,
 							CustomerID:         customerID,
 							Installment:        installmentRow,
 							Charges:            charges,
@@ -342,8 +342,8 @@ func validateCreatePaymentAttemptInput(input CreatePaymentAttemptInput) error {
 		return installmentIDRequiredError()
 	}
 
-	if input.ExternalCustomerID.IsZero() {
-		return externalCustomerIDRequiredError()
+	if input.ExternalSubjectID.IsZero() {
+		return externalSubjectIDRequiredError()
 	}
 
 	if strings.TrimSpace(input.IdempotencyKey) == "" ||

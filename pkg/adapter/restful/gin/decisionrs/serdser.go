@@ -84,8 +84,8 @@ func toCreateInput(c *gin.Context) (decisionuc.CreateInput, bool) {
 	}
 
 	return decisionuc.CreateInput{
-		CheckoutKey:        idempotencyKey,
-		ExternalCustomerID: authCtx.SubjectID.AsExternalCustomerID(),
+		CheckoutKey:       idempotencyKey,
+		ExternalSubjectID: authCtx.SubjectID.AsExternalSubjectID(),
 		PurchaseContext: decisionuc.PurchaseContext{
 			Channel:         req.PurchaseContext.Type,
 			ExternalPosGpsID:        req.PurchaseContext.ExternalPosGpsID,

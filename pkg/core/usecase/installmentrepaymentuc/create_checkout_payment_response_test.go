@@ -41,7 +41,7 @@ type installmentFCResponseHarness struct {
 
 	now                time.Time
 	attempt            model.PaymentAttempt
-	externalCustomerID model.ExternalCustomerID
+	externalSubjectID model.ExternalSubjectID
 	uc                 *UseCase
 }
 
@@ -71,7 +71,7 @@ func newInstallmentFCResponseHarness(t *testing.T) *installmentFCResponseHarness
 	}
 
 	customerInternalID := model.CustomerID(uuid.New())
-	h.externalCustomerID = model.ExternalCustomerID(uuid.New())
+	h.externalSubjectID = model.ExternalSubjectID(uuid.New())
 	merchantProfileID := model.MerchantProfileID(uuid.New())
 	contractID := model.ContractID(uuid.New())
 	installmentID := model.InstallmentID(uuid.New())
@@ -119,9 +119,9 @@ func newInstallmentFCResponseHarness(t *testing.T) *installmentFCResponseHarness
 		FinancialMerchantEntitlementID: &receivableID,
 	}, nil).Maybe()
 	h.customerProfile.EXPECT().Conn(h.conn).Return(h.customerCQ).Maybe()
-	h.customerCQ.EXPECT().GetByExternalCustomerID(testifymock.Anything, h.externalCustomerID).Return(model.CustomerProfile{
+	h.customerCQ.EXPECT().GetByExternalSubjectID(testifymock.Anything, h.externalSubjectID).Return(model.CustomerProfile{
 		ID:                 customerInternalID,
-		ExternalCustomerID: h.externalCustomerID,
+		ExternalSubjectID: h.externalSubjectID,
 	}, nil).Maybe()
 	h.merchantProfile.EXPECT().Conn(h.conn).Return(h.merchantCQ).Maybe()
 	h.merchantCQ.EXPECT().GetByID(testifymock.Anything, merchantProfileID).Return(model.MerchantProfile{
@@ -170,7 +170,7 @@ func newInstallmentFCResponseHarness(t *testing.T) *installmentFCResponseHarness
 
 func (h *installmentFCResponseHarness) input() CreatePaymentAttemptInput {
 	return CreatePaymentAttemptInput{
-		ExternalCustomerID: h.externalCustomerID,
+		ExternalSubjectID: h.externalSubjectID,
 		TenantID:           model.TenantID(uuid.MustParse("00000000-0000-4000-8000-0000000000aa")),
 		ContextID:          model.ContextID(uuid.MustParse("00000000-0000-4000-8000-0000000000bb")),
 	}

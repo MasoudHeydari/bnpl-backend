@@ -20,7 +20,7 @@ const (
 )
 
 type installmentRepaymentAuditFacts struct {
-	ExternalCustomerID model.ExternalCustomerID
+	ExternalSubjectID model.ExternalSubjectID
 	CustomerID         model.CustomerID
 	Installment        model.Installment
 	Charges            []model.InstallmentCharge
@@ -83,7 +83,7 @@ func buildCreatePaymentAttemptAuditEvent(
 ) (audit.Event, error) {
 	const op = "installmentrepaymentuc.buildCreatePaymentAttemptAuditEvent"
 
-	actorID := facts.ExternalCustomerID.String()
+	actorID := facts.ExternalSubjectID.String()
 	reasonCode := paymentAttemptCreatedReasonCode
 
 	chargeIDs := make([]string, 0, len(facts.Charges))
@@ -100,7 +100,7 @@ func buildCreatePaymentAttemptAuditEvent(
 		"contract_id":                   attempt.ContractID.String(),
 		"installment_id":                attempt.InstallmentID.String(),
 		"customer_id":                   facts.CustomerID.String(),
-		"identity_subject_id":           facts.ExternalCustomerID.String(),
+		"identity_subject_id":           facts.ExternalSubjectID.String(),
 		"decision_id":                   facts.Installment.DecisionID.String(),
 		"installment_order":             facts.Installment.InstallmentOrder,
 		"installment_status":            facts.Installment.Status,

@@ -384,6 +384,18 @@ func newHarness(t *testing.T) *harness {
 
 	installHarnessSaga(h)
 
+	// evaluateSession resolves ExternalSubjectID from the bound customer row
+	// before calling decisionuc.Create.
+	h.customerCQ.EXPECT().
+		GetByID(testifymock.Anything, testifymock.Anything).
+		RunAndReturn(func(
+			_ context.Context,
+			_ model.CustomerID,
+		) (model.CustomerProfile, error) {
+			return h.customerProfile(), nil
+		}).
+		Maybe()
+
 	return h
 }
 
@@ -607,7 +619,11 @@ func withCustomer(id *model.CustomerID) func(*model.CheckoutSession) {
 }
 
 func (h *harness) customerProfile() model.CustomerProfile {
-	return model.CustomerProfile{ID: h.customerID, ExternalCustomerID: h.profileID}
+	return model.CustomerProfile{
+		ID:                 h.customerID,
+		ExternalSubjectID:  model.ExternalSubjectID(h.profileID.UUID()),
+		ExternalCustomerID: h.profileID,
+	}
 }
 
 // expectCustomerLock expects the customer profile row lock Confirm and cancel take.

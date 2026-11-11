@@ -90,6 +90,35 @@ func insertCustomerProfile(t *testing.T, externalCustomerID model.ExternalCustom
 	return model.CustomerID(assertValidUUID(t, idStr))
 }
 
+
+func externalSubjectIDForCustomer(t *testing.T, customerID model.CustomerID) model.ExternalSubjectID {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var subjectID model.ExternalSubjectID
+	require.NoError(t, testDB.QueryRow(ctx, `
+		SELECT external_subject_id FROM bnpl.customer_profiles WHERE id = $1
+	`, customerID).Scan(&subjectID))
+
+	return subjectID
+}
+
+func externalSubjectIDForExternalCustomer(t *testing.T, externalCustomerID model.ExternalCustomerID) model.ExternalSubjectID {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var subjectID model.ExternalSubjectID
+	require.NoError(t, testDB.QueryRow(ctx, `
+		SELECT external_subject_id FROM bnpl.customer_profiles WHERE external_customer_id = $1
+	`, externalCustomerID).Scan(&subjectID))
+
+	return subjectID
+}
+
 func countAllCustomerProfiles(t *testing.T) int {
 	t.Helper()
 

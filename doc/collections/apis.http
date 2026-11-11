@@ -283,8 +283,9 @@ Accept: application/json
 # Returns the authenticated customer's credit limit / available summary.
 # Why: UI "my credit" and pre-check before checkout/decision.
 # Prerequisite: usually after Initiate; empty/denied states possible if none yet.
-# Auth: x-auth-subject-id resolves via Customer Reference Service →
-# customer_profiles.external_customer_id (not the internal customer_profiles.id).
+# Auth: credit resolves CRS customer via x-auth-mobile-number; profile is keyed by
+# external_customer_id. x-auth-subject-id is still required and stored as
+# external_subject_id (not the internal customer_profiles.id).
 GET {{base_url}}/api/v1/customer-credit
 Accept: application/json
 x-auth-subject-id: {{customer.subject_id}}

@@ -25,7 +25,7 @@ const (
 )
 
 type createPaymentPendingAuditFacts struct {
-	ExternalCustomerID model.ExternalCustomerID
+	ExternalSubjectID model.ExternalSubjectID
 	Contract           model.Contract
 	Installments       []model.Installment
 	InstallmentCharges []model.InstallmentCharge
@@ -96,7 +96,7 @@ func buildCreatePaymentPendingAuditEvent(
 ) (audit.Event, error) {
 	const op = "contractuc.buildCreatePaymentPendingAuditEvent"
 
-	actorID := facts.ExternalCustomerID.String()
+	actorID := facts.ExternalSubjectID.String()
 	reasonCode := paymentPendingContractCreatedReasonCode
 
 	installmentIDs := make([]string, 0, len(facts.Installments))
@@ -114,7 +114,7 @@ func buildCreatePaymentPendingAuditEvent(
 		"decision_id":                      facts.Contract.DecisionID.String(),
 		"checkout_key":                     facts.Contract.CheckoutKey,
 		"customer_id":                      facts.Contract.CustomerID.String(),
-		"identity_subject_id":              facts.ExternalCustomerID.String(),
+		"identity_subject_id":              facts.ExternalSubjectID.String(),
 		"merchant_profile_id":              facts.Contract.MerchantProfileID.String(),
 		"currency":                         facts.Contract.Currency,
 		"requested_amount_minor":           facts.Contract.RequestedAmountMinor,
@@ -434,7 +434,7 @@ func (uc *UseCase) insertAttachCheckoutPaymentSessionAuditOutbox(
 }
 
 type cancelAuditFacts struct {
-	ExternalCustomerID model.ExternalCustomerID
+	ExternalSubjectID model.ExternalSubjectID
 	Contract           model.Contract
 	PreviousStatus     model.ContractStatus
 	Reason             model.ContractCancellationReason
@@ -493,13 +493,13 @@ func buildCancelAuditEvent(
 ) (audit.Event, error) {
 	const op = "contractuc.buildCancelAuditEvent"
 
-	actorID := facts.ExternalCustomerID.String()
+	actorID := facts.ExternalSubjectID.String()
 	reasonCode := contractCancellationStartedReason
 
 	metadata := map[string]any{
 		"contract_id":                      facts.Contract.ID.String(),
 		"customer_id":                      facts.Contract.CustomerID.String(),
-		"identity_subject_id":              facts.ExternalCustomerID.String(),
+		"identity_subject_id":              facts.ExternalSubjectID.String(),
 		"previous_status":                  facts.PreviousStatus,
 		"new_status":                       facts.Contract.Status,
 		"reason":                           facts.Reason.String(),
@@ -550,7 +550,7 @@ const (
 func (uc *UseCase) insertCreateActiveContractAuditOutbox(
 	ctx context.Context,
 	outboxQ repo.OutboxTxQueryer,
-	externalCustomerID model.ExternalCustomerID,
+	externalSubjectID model.ExternalSubjectID,
 	contractRow model.Contract,
 	installments []model.Installment,
 	now time.Time,
@@ -567,7 +567,7 @@ func (uc *UseCase) insertCreateActiveContractAuditOutbox(
 		installmentIDs = append(installmentIDs, installment.ID.String())
 	}
 
-	actorID := externalCustomerID.String()
+	actorID := externalSubjectID.String()
 	reasonCode := activeContractCreatedReasonCode
 	event := audit.NewEvent(
 		uc.idGenerator.Generate(),
@@ -593,7 +593,7 @@ func (uc *UseCase) insertCreateActiveContractAuditOutbox(
 				"decision_id":                      contractRow.DecisionID.String(),
 				"checkout_key":                     contractRow.CheckoutKey,
 				"customer_id":                      contractRow.CustomerID.String(),
-				"identity_subject_id":              externalCustomerID.String(),
+				"identity_subject_id":              externalSubjectID.String(),
 				"merchant_profile_id":              contractRow.MerchantProfileID.String(),
 				"currency":                         contractRow.Currency,
 				"requested_amount_minor":           contractRow.RequestedAmountMinor,
