@@ -170,6 +170,72 @@ func (_c *CustomerProfileConnQueryer_GetByExternalCustomerID_Call) RunAndReturn(
 	return _c
 }
 
+// GetByExternalSubjectID provides a mock function for the type CustomerProfileConnQueryer
+func (_mock *CustomerProfileConnQueryer) GetByExternalSubjectID(ctx context.Context, externalSubjectID model.ExternalSubjectID) (model.CustomerProfile, error) {
+	ret := _mock.Called(ctx, externalSubjectID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetByExternalSubjectID")
+	}
+
+	var r0 model.CustomerProfile
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.ExternalSubjectID) (model.CustomerProfile, error)); ok {
+		return returnFunc(ctx, externalSubjectID)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.ExternalSubjectID) model.CustomerProfile); ok {
+		r0 = returnFunc(ctx, externalSubjectID)
+	} else {
+		r0 = ret.Get(0).(model.CustomerProfile)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.ExternalSubjectID) error); ok {
+		r1 = returnFunc(ctx, externalSubjectID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// CustomerProfileConnQueryer_GetByExternalSubjectID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetByExternalSubjectID'
+type CustomerProfileConnQueryer_GetByExternalSubjectID_Call struct {
+	*mock.Call
+}
+
+// GetByExternalSubjectID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - externalSubjectID model.ExternalSubjectID
+func (_e *CustomerProfileConnQueryer_Expecter) GetByExternalSubjectID(ctx any, externalSubjectID any) *CustomerProfileConnQueryer_GetByExternalSubjectID_Call {
+	return &CustomerProfileConnQueryer_GetByExternalSubjectID_Call{Call: _e.mock.On("GetByExternalSubjectID", ctx, externalSubjectID)}
+}
+
+func (_c *CustomerProfileConnQueryer_GetByExternalSubjectID_Call) Run(run func(ctx context.Context, externalSubjectID model.ExternalSubjectID)) *CustomerProfileConnQueryer_GetByExternalSubjectID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.ExternalSubjectID
+		if args[1] != nil {
+			arg1 = args[1].(model.ExternalSubjectID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *CustomerProfileConnQueryer_GetByExternalSubjectID_Call) Return(customerProfile model.CustomerProfile, err error) *CustomerProfileConnQueryer_GetByExternalSubjectID_Call {
+	_c.Call.Return(customerProfile, err)
+	return _c
+}
+
+func (_c *CustomerProfileConnQueryer_GetByExternalSubjectID_Call) RunAndReturn(run func(ctx context.Context, externalSubjectID model.ExternalSubjectID) (model.CustomerProfile, error)) *CustomerProfileConnQueryer_GetByExternalSubjectID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetByID provides a mock function for the type CustomerProfileConnQueryer
 func (_mock *CustomerProfileConnQueryer) GetByID(ctx context.Context, id model.CustomerID) (model.CustomerProfile, error) {
 	ret := _mock.Called(ctx, id)

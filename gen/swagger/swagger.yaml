@@ -3192,13 +3192,13 @@ paths:
     get:
       description: |-
         Returns active or canceling BNPL contracts (purchased orders) owned by the authenticated customer.
-        x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Contracts with status=active or canceling are returned.
+        x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_subject_id). Contracts with status=active or canceling are returned.
         Newest contracts first (created_at DESC, id DESC). Empty list is 200, not 404.
         requested_amount_minor is the persisted total order/purchase price.
         Keyset pagination via limit, after_id, and after_created_at.
       parameters:
       - description: Stable authenticated subject identifier issued by Identity Service
-          (customer_profiles.external_customer_id)
+          (customer_profiles.external_subject_id)
         format: uuid
         in: header
         name: x-auth-subject-id
@@ -4223,7 +4223,7 @@ paths:
     get:
       description: |-
         Returns unpaid BNPL installments owned by the authenticated customer across contracts.
-        x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Do not send customer identity in path or query.
+        x-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_subject_id). Do not send customer identity in path or query.
         Only installments with status scheduled, due, or overdue and an attached contract_id are returned.
         Nearest due date first (due_at ASC, id ASC). Empty list is 200, not 404.
         data.repayment is the customer-wide repayment position and is never scoped to the current page.
@@ -4232,7 +4232,7 @@ paths:
         Keyset pagination via limit, after_id, and after_due_at.
       parameters:
       - description: Stable authenticated subject identifier issued by Identity Service
-          (customer_profiles.external_customer_id)
+          (customer_profiles.external_subject_id)
         format: uuid
         in: header
         name: x-auth-subject-id

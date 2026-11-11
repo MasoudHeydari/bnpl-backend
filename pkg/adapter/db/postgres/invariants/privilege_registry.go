@@ -39,7 +39,7 @@ var privileges = []TablePrivilegePolicy{
 	{Schema: "bnpl", Table: "saga_instances", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"current_step", "finished_at", "last_error", "lease_until", "locked_by", "next_attempt_at", "phase", "status", "step_attempt_count", "updated_at", "version"}},
 	{Schema: "bnpl", Table: "saga_forward_step_completions", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"compensation_resolved_at", "compensation_state"}},
 	{Schema: "bnpl", Table: "decisions", Migration: PrivilegeMigration, Description: "Temporary table UPDATE exception for LockLiveCheckoutDecisionByID; Decisions remain immutable by business convention, not by this ACL.", Operations: []Operation{SelectOperation, InsertOperation, UpdateOperation}, UpdateColumns: []string{}},
-	{Schema: "bnpl", Table: "customer_profiles", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"external_customer_id", "jurisdiction", "status", "updated_at"}},
+	{Schema: "bnpl", Table: "customer_profiles", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"external_subject_id", "external_customer_id", "jurisdiction", "status", "updated_at"}},
 	{Schema: "bnpl", Table: "policy_assignments", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"updated_at", "valid_until"}},
 	{Schema: "bnpl", Table: "policy_assignment_imports", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"completed_at", "failure_count", "status", "success_count"}},
 	{Schema: "bnpl", Table: "policy_assignment_import_items", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"error_code", "error_message", "status", "updated_at"}},
@@ -73,7 +73,7 @@ var privileges = []TablePrivilegePolicy{
 	{Schema: "bnpl", Table: "collections_case_events", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{}},
 }
 
-const PrivilegeMigrationSHA256 = "sha256:78bafe39291917f11b38616a0a04c1b8f74645de98b522db350155445976e00e"
+const PrivilegeMigrationSHA256 = "sha256:f6a6d51321685c21c1203fc425291bd2e1e3899c1c1317ec12ef689d8ed38237"
 
 const PermissionHistoryMigration = "000_schema.sql"
 const PermissionHistoryMigrationSHA256 = "sha256:b9cc06a580a24f2173980bd1655692cfe02160e40f3863d96b39a9820fd421df"

@@ -16,6 +16,7 @@ var (
 
 	customerProfileReturningColumns = `
 	id,
+	external_subject_id,
 	external_customer_id,
 	jurisdiction,
 	status,
@@ -28,6 +29,7 @@ var (
 func Create[Q postgres.Queryer](
 	ctx context.Context,
 	q Q,
+	externalSubjectID model.ExternalSubjectID,
 	externalCustomerID model.ExternalCustomerID,
 	jurisdiction model.Jurisdiction,
 	status model.CustomerStatus,
@@ -43,15 +45,17 @@ func Create[Q postgres.Queryer](
 
 	const query = `
 INSERT INTO customer_profiles (
+	external_subject_id,
 	external_customer_id,
 	jurisdiction,
 	status,
 	created_at,
 	updated_at
 )
-VALUES ($1, $2, $3, $4, $5)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING
 	id,
+	external_subject_id,
 	external_customer_id,
 	jurisdiction,
 	status,
@@ -64,6 +68,7 @@ RETURNING
 		q,
 		"create customer profile",
 		query,
+		externalSubjectID,
 		externalCustomerID,
 		jurisdiction,
 		status,
@@ -80,6 +85,7 @@ RETURNING
 func EnsureExists[Q postgres.Queryer](
 	ctx context.Context,
 	q Q,
+	externalSubjectID model.ExternalSubjectID,
 	externalCustomerID model.ExternalCustomerID,
 	jurisdiction model.Jurisdiction,
 	status model.CustomerStatus,
@@ -88,8 +94,12 @@ func EnsureExists[Q postgres.Queryer](
 ) (model.CustomerProfile, bool, error) {
 	const op = "customerprofilerp.EnsureExists"
 
-	if externalCustomerID.IsZero() {
+	if externalSubjectID.IsZero() {
 		return model.CustomerProfile{}, false, errors.New("identity subject id is required")
+	}
+
+	if externalCustomerID.IsZero() {
+		return model.CustomerProfile{}, false, errors.New("external customer id is required")
 	}
 
 	if !jurisdiction.IsValid() {
@@ -109,19 +119,21 @@ func EnsureExists[Q postgres.Queryer](
 
 	const insertQuery = `
 INSERT INTO customer_profiles (
+	external_subject_id,
 	external_customer_id,
 	jurisdiction,
 	status,
 	created_at,
 	updated_at
 )
-VALUES ($1, $2, $3, $4, $5)
+VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (external_customer_id) DO NOTHING
 `
 
 	affected, err := q.Exec(
 		ctx,
 		insertQuery,
+		externalSubjectID,
 		externalCustomerID,
 		jurisdiction,
 		status,
@@ -147,6 +159,7 @@ func GetByID[Q postgres.Queryer](ctx context.Context, q Q, id model.CustomerID) 
 	const query = `
 		SELECT
 			id,
+			external_subject_id,
 			external_customer_id,
 			jurisdiction,
 			status,
@@ -165,11 +178,36 @@ func GetByID[Q postgres.Queryer](ctx context.Context, q Q, id model.CustomerID) 
 	)
 }
 
-// GetByExternalCustomerID returns a customer profile by Identity Service subject id.
+// GetByExternalSubjectID returns a customer profile by Identity Service subject id.
+func GetByExternalSubjectID[Q postgres.Queryer](ctx context.Context, q Q, externalSubjectID model.ExternalSubjectID) (model.CustomerProfile, error) {
+	const query = `
+		SELECT
+			id,
+			external_subject_id,
+			external_customer_id,
+			jurisdiction,
+			status,
+			created_at,
+			updated_at
+		FROM customer_profiles
+		WHERE external_subject_id = $1
+		`
+
+	return postgres.QueryOne[model.CustomerProfile](
+		ctx,
+		q,
+		"get customer profile by identity subject id",
+		query,
+		externalSubjectID,
+	)
+}
+
+// GetByExternalCustomerID returns a customer profile by Customer Reference Service customer id.
 func GetByExternalCustomerID[Q postgres.Queryer](ctx context.Context, q Q, externalCustomerID model.ExternalCustomerID) (model.CustomerProfile, error) {
 	const query = `
 		SELECT
 			id,
+			external_subject_id,
 			external_customer_id,
 			jurisdiction,
 			status,
@@ -182,7 +220,7 @@ func GetByExternalCustomerID[Q postgres.Queryer](ctx context.Context, q Q, exter
 	return postgres.QueryOne[model.CustomerProfile](
 		ctx,
 		q,
-		"get customer profile by identity subject id",
+		"get customer profile by external customer id",
 		query,
 		externalCustomerID,
 	)
@@ -205,7 +243,7 @@ SELECT EXISTS (
 	value, err := postgres.QueryOne[result](
 		ctx,
 		q,
-		"check customer profile existence by identity subject id",
+		"check customer profile existence by external customer id",
 		query,
 		externalCustomerID,
 	)
@@ -221,6 +259,7 @@ func LockByID[Q postgres.Queryer](ctx context.Context, q Q, id model.CustomerID)
 	const query = `
 SELECT
 	id,
+	external_subject_id,
 	external_customer_id,
 	jurisdiction,
 	status,
@@ -245,6 +284,7 @@ func LockByExternalCustomerID[Q postgres.Queryer](ctx context.Context, q Q, exte
 	const query = `
 SELECT
 	id,
+	external_subject_id,
 	external_customer_id,
 	jurisdiction,
 	status,
@@ -258,7 +298,7 @@ FOR UPDATE
 	return postgres.QueryOne[model.CustomerProfile](
 		ctx,
 		q,
-		"lock customer profile by identity subject id",
+		"lock customer profile by external customer id",
 		query,
 		externalCustomerID,
 	)
@@ -269,6 +309,7 @@ func Update[Q postgres.Queryer](
 	ctx context.Context,
 	q Q,
 	id model.CustomerID,
+	externalSubjectID model.ExternalSubjectID,
 	externalCustomerID model.ExternalCustomerID,
 	jurisdiction model.Jurisdiction,
 	status model.CustomerStatus,
@@ -277,10 +318,11 @@ func Update[Q postgres.Queryer](
 	query := `
 UPDATE customer_profiles
 SET
-	external_customer_id = $2,
-	jurisdiction = $3,
-	status = $4,
-	updated_at = $5
+	external_subject_id = $2,
+	external_customer_id = $3,
+	jurisdiction = $4,
+	status = $5,
+	updated_at = $6
 WHERE id = $1
 RETURNING
 ` + customerProfileReturningColumns
@@ -291,6 +333,7 @@ RETURNING
 		"update customer profile",
 		query,
 		id,
+		externalSubjectID,
 		externalCustomerID,
 		jurisdiction,
 		status,

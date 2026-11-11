@@ -262,6 +262,7 @@ func TestAssignInitialLimit_MissingProfile_CreatesActiveProfileAndAssigns(t *tes
 	deps.creditAccount.EXPECT().Tx(deps.tx).Return(deps.creditAccountTx).Once()
 	deps.customerProfileTx.EXPECT().EnsureExists(
 		ctx,
+		testifymock.Anything,
 		externalCustomerID,
 		model.IRJurisdiction,
 		model.ActiveCustomerStatus,
@@ -371,7 +372,7 @@ func TestAssignInitialLimit_MissingProfile_CreatesActiveProfileAndAssigns(t *tes
 	deps.expectFetchSignals(ctx)
 	deps.expectResolveActive(ctx, externalCustomerID)
 	uc := deps.newUseCase()
-	output, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{MobileE164: assignTestMobileE164})
+	output, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{SubjectID: model.SubjectID(uuid.New()), MobileE164: assignTestMobileE164})
 	require.NoError(t, err)
 	require.Equal(t, customercredituc.AssignInitialLimitResultCreated, output.Result)
 	require.NotNil(t, output.CreditLimit)
@@ -437,6 +438,7 @@ func TestAssignInitialLimit_ExistingNonActiveProfile_IsDeniedWithoutReactivation
 	deps.creditAccount.EXPECT().Tx(deps.tx).Return(deps.creditAccountTx).Once()
 	deps.customerProfileTx.EXPECT().EnsureExists(
 		ctx,
+		testifymock.Anything,
 		externalCustomerID,
 		model.IRJurisdiction,
 		model.ActiveCustomerStatus,
@@ -490,7 +492,7 @@ func TestAssignInitialLimit_ExistingNonActiveProfile_IsDeniedWithoutReactivation
 
 	deps.expectResolveActive(ctx, externalCustomerID)
 	uc := deps.newUseCase()
-	output, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{MobileE164: assignTestMobileE164})
+	output, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{SubjectID: model.SubjectID(uuid.New()), MobileE164: assignTestMobileE164})
 	require.NoError(t, err)
 	require.Equal(t, customercredituc.AssignInitialLimitResultDenied, output.Result)
 	require.Nil(t, output.CreditLimit)
@@ -535,6 +537,7 @@ func TestAssignInitialLimit_EnsureExistsFailure_ReturnsError(t *testing.T) {
 	deps.creditAccount.EXPECT().Tx(deps.tx).Return(deps.creditAccountTx).Once()
 	deps.customerProfileTx.EXPECT().EnsureExists(
 		ctx,
+		testifymock.Anything,
 		externalCustomerID,
 		model.IRJurisdiction,
 		model.ActiveCustomerStatus,
@@ -544,7 +547,7 @@ func TestAssignInitialLimit_EnsureExistsFailure_ReturnsError(t *testing.T) {
 
 	deps.expectResolveActive(ctx, externalCustomerID)
 	uc := deps.newUseCase()
-	_, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{MobileE164: assignTestMobileE164})
+	_, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{SubjectID: model.SubjectID(uuid.New()), MobileE164: assignTestMobileE164})
 	require.Error(t, err)
 	require.True(t, cerr.IsCode(err, cerr.CodeInternalError))
 }
@@ -581,6 +584,7 @@ func TestAssignInitialLimit_DenialPathStampsPolicyRef(t *testing.T) {
 	deps.creditAccount.EXPECT().Tx(deps.tx).Return(deps.creditAccountTx).Once()
 	deps.customerProfileTx.EXPECT().EnsureExists(
 		ctx,
+		testifymock.Anything,
 		externalCustomerID,
 		model.IRJurisdiction,
 		model.ActiveCustomerStatus,
@@ -636,7 +640,7 @@ func TestAssignInitialLimit_DenialPathStampsPolicyRef(t *testing.T) {
 
 	deps.expectResolveActive(ctx, externalCustomerID)
 	uc := deps.newUseCase()
-	output, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{MobileE164: assignTestMobileE164})
+	output, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{SubjectID: model.SubjectID(uuid.New()), MobileE164: assignTestMobileE164})
 	require.NoError(t, err)
 	require.Equal(t, customercredituc.AssignInitialLimitResultDenied, output.Result)
 }

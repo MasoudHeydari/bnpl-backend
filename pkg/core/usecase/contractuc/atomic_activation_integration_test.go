@@ -70,7 +70,7 @@ func newActivationFixture(t *testing.T, install bool) *activationFixture {
 		}
 	}
 	merchant, account := uuid.New(), uuid.New()
-	f.exec(t, `INSERT INTO customer_profiles(id,external_customer_id,jurisdiction,status) VALUES($1,$2,'IR','active')`, f.customer, uuid.New())
+	f.exec(t, `INSERT INTO customer_profiles(id,external_subject_id,external_customer_id,jurisdiction,status) VALUES($1,$2,$3,'IR','active')`, f.customer, uuid.New(), uuid.New())
 	f.exec(t, `INSERT INTO merchant_profiles(id,external_merchant_id,display_name,status,risk_tier,max_tenure_months,jurisdiction) VALUES($1,$2,'test','active','low',12,'IR')`, merchant, uuid.New())
 	// Checkout Policy identity is required: activation resolves Reminder/schedule
 	// terms through the decision policy ref.

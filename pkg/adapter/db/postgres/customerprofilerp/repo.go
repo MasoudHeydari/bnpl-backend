@@ -48,7 +48,12 @@ func (q connQueryer) ExistsByExternalCustomerID(ctx context.Context, externalCus
 	return ExistsByExternalCustomerID(ctx, q.Conn, externalCustomerID)
 }
 
-// GetByExternalCustomerID returns the BNPL profile for a customer identity.
+// GetByExternalSubjectID returns the BNPL profile for an Identity Service subject.
+func (q connQueryer) GetByExternalSubjectID(ctx context.Context, externalSubjectID model.ExternalSubjectID) (model.CustomerProfile, error) {
+	return GetByExternalSubjectID(ctx, q.Conn, externalSubjectID)
+}
+
+// GetByExternalCustomerID returns the BNPL profile for a Customer Reference customer.
 func (q connQueryer) GetByExternalCustomerID(ctx context.Context, externalCustomerID model.ExternalCustomerID) (model.CustomerProfile, error) {
 	return GetByExternalCustomerID(ctx, q.Conn, externalCustomerID)
 }
@@ -63,6 +68,7 @@ var _ repo.CustomerProfileTxQueryer = (*txQueryer)(nil)
 // Create stores a new customer profile inside the current transaction.
 func (q txQueryer) Create(
 	ctx context.Context,
+	externalSubjectID model.ExternalSubjectID,
 	externalCustomerID model.ExternalCustomerID,
 	jurisdiction model.Jurisdiction,
 	status model.CustomerStatus,
@@ -72,6 +78,7 @@ func (q txQueryer) Create(
 	return Create(
 		ctx,
 		q.Tx,
+		externalSubjectID,
 		externalCustomerID,
 		jurisdiction,
 		status,
@@ -83,6 +90,7 @@ func (q txQueryer) Create(
 // EnsureExists inserts a customer profile when missing and locks the row.
 func (q txQueryer) EnsureExists(
 	ctx context.Context,
+	externalSubjectID model.ExternalSubjectID,
 	externalCustomerID model.ExternalCustomerID,
 	jurisdiction model.Jurisdiction,
 	status model.CustomerStatus,
@@ -92,6 +100,7 @@ func (q txQueryer) EnsureExists(
 	return EnsureExists(
 		ctx,
 		q.Tx,
+		externalSubjectID,
 		externalCustomerID,
 		jurisdiction,
 		status,
@@ -114,6 +123,7 @@ func (q txQueryer) LockByExternalCustomerID(ctx context.Context, externalCustome
 func (q txQueryer) Update(
 	ctx context.Context,
 	id model.CustomerID,
+	externalSubjectID model.ExternalSubjectID,
 	externalCustomerID model.ExternalCustomerID,
 	jurisdiction model.Jurisdiction,
 	status model.CustomerStatus,
@@ -123,11 +133,17 @@ func (q txQueryer) Update(
 		ctx,
 		q.Tx,
 		id,
+		externalSubjectID,
 		externalCustomerID,
 		jurisdiction,
 		status,
 		updatedAt,
 	)
+}
+
+// GetByExternalSubjectID reads a profile in the current transaction snapshot.
+func (q txQueryer) GetByExternalSubjectID(ctx context.Context, id model.ExternalSubjectID) (model.CustomerProfile, error) {
+	return GetByExternalSubjectID(ctx, q.Tx, id)
 }
 
 // GetByExternalCustomerID reads a profile in the current transaction snapshot.

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
+
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
@@ -210,8 +212,15 @@ func (uc *UseCase) bindExternalCustomer(
 
 					now := uc.clock.Now().UTC()
 
+					// Partner Create resolves CRS customer_id by mobile and does not
+					// yet receive Identity x-auth-subject-id. A unique subject
+					// placeholder keeps external_subject_id NOT NULL until an
+					// authenticated customer path records the real Identity subject.
+					externalSubjectID := model.ExternalSubjectID(uuid.New())
+
 					profile, _, err := customerProfileQ.EnsureExists(
 						ctx,
+						externalSubjectID,
 						externalCustomerID,
 						model.IRJurisdiction,
 						model.ActiveCustomerStatus,

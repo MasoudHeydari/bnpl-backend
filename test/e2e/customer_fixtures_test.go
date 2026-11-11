@@ -72,7 +72,7 @@ func queryCustomerProfile(t *testing.T, externalCustomerID model.ExternalCustome
 
 // insertCustomerProfile creates a customer profile row directly. Initial credit
 // assignment authenticates with x-auth-subject-id set to the profile's
-// ExternalCustomerID (customer_profiles.external_customer_id). The returned
+// ExternalSubjectID (customer_profiles.external_subject_id). The returned
 // CustomerID is the internal BNPL primary key (customer_profiles.id).
 func insertCustomerProfile(t *testing.T, externalCustomerID model.ExternalCustomerID, status model.CustomerStatus) model.CustomerID {
 	t.Helper()
@@ -82,10 +82,10 @@ func insertCustomerProfile(t *testing.T, externalCustomerID model.ExternalCustom
 
 	var idStr string
 	require.NoError(t, testDB.QueryRow(ctx, `
-		INSERT INTO bnpl.customer_profiles (external_customer_id, jurisdiction, status, created_at, updated_at)
-		VALUES ($1, 'IR', $2, now(), now())
+		INSERT INTO bnpl.customer_profiles (external_subject_id, external_customer_id, jurisdiction, status, created_at, updated_at)
+		VALUES ($1, $2, 'IR', $3, now(), now())
 		RETURNING id
-	`, externalCustomerID, string(status)).Scan(&idStr))
+	`, uuid.New(), externalCustomerID, string(status)).Scan(&idStr))
 
 	return model.CustomerID(assertValidUUID(t, idStr))
 }

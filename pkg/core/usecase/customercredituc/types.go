@@ -21,8 +21,12 @@ const (
 	SummaryStatusExpired SummaryStatus = "expired"
 )
 
-// Input identifies the authenticated customer via gateway mobile for credit summary.
+// Input identifies the authenticated customer via gateway subject + mobile for credit summary.
 type Input struct {
+	// SubjectID is the Identity Service subject from x-auth-subject-id
+	// (customer_profiles.external_subject_id).
+	SubjectID model.SubjectID
+
 	// MobileE164 is the gateway-injected authenticated mobile
 	// (x-auth-mobile-number ← JWT auth_mobile_number), canonical E.164.
 	MobileE164 string

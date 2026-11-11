@@ -169,6 +169,7 @@ func TestGetSummary_ExpiredLimit_ReturnsExpiredNotZeroAssigned(t *testing.T) {
 	customerProfileTx.EXPECT().
 		EnsureExists(
 			testifymock.Anything,
+			testifymock.Anything,
 			externalCustomerID,
 			model.IRJurisdiction,
 			model.ActiveCustomerStatus,
@@ -252,6 +253,7 @@ func TestGetSummary_ExpiredLimit_ReturnsExpiredNotZeroAssigned(t *testing.T) {
 	)
 
 	out, err := uc.GetSummary(context.Background(), customercredituc.Input{
+		SubjectID:  model.SubjectID(uuid.New()),
 		MobileE164: summaryTestMobileE164,
 	})
 	require.NoError(t, err)
@@ -296,6 +298,7 @@ func TestGetSummary_ActiveLimit_UsesInternalCustomerIDNotExternal(t *testing.T) 
 	customerProfile.EXPECT().Tx(tx).Return(customerProfileTx).Once()
 	customerProfileTx.EXPECT().
 		EnsureExists(
+			testifymock.Anything,
 			testifymock.Anything,
 			externalCustomerID,
 			model.IRJurisdiction,
@@ -376,6 +379,7 @@ func TestGetSummary_ActiveLimit_UsesInternalCustomerIDNotExternal(t *testing.T) 
 	)
 
 	out, err := uc.GetSummary(context.Background(), customercredituc.Input{
+		SubjectID:  model.SubjectID(uuid.New()),
 		MobileE164: summaryTestMobileE164,
 	})
 	require.NoError(t, err)
@@ -428,6 +432,7 @@ func TestGetSummary_NoLimit_ReturnsNotAssigned(t *testing.T) {
 	customerProfileTx.EXPECT().
 		EnsureExists(
 			testifymock.Anything,
+			testifymock.Anything,
 			externalCustomerID,
 			model.IRJurisdiction,
 			model.ActiveCustomerStatus,
@@ -470,6 +475,7 @@ func TestGetSummary_NoLimit_ReturnsNotAssigned(t *testing.T) {
 	)
 
 	out, err := uc.GetSummary(context.Background(), customercredituc.Input{
+		SubjectID:  model.SubjectID(uuid.New()),
 		MobileE164: summaryTestMobileE164,
 	})
 	require.NoError(t, err)

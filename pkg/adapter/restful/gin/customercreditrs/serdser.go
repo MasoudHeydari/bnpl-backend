@@ -62,7 +62,8 @@ func toCreditSummaryResponse(output customercredituc.Output) creditSummaryRespon
 func toGetInput(c *gin.Context) (customercredituc.Input, bool) {
 	const op = "customercreditrs.toGetInput"
 
-	if _, ok := permission.FromContext(c.Request.Context()); !ok {
+	authCtx, ok := permission.FromContext(c.Request.Context())
+	if !ok {
 		serdser.SerErr(c, cerr.Unauthorized(
 			fmt.Errorf("%s: authentication context is missing", op),
 		))
@@ -75,6 +76,7 @@ func toGetInput(c *gin.Context) (customercredituc.Input, bool) {
 	}
 
 	return customercredituc.Input{
+		SubjectID:  authCtx.SubjectID,
 		MobileE164: mobile,
 	}, true
 }

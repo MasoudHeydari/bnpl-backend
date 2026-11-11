@@ -34,7 +34,12 @@ func (uc *UseCase) AssignInitialLimit(ctx context.Context, input AssignInitialLi
 	}
 
 	now := uc.clock.Now().UTC()
-	prepare, err := uc.prepareInitialLimitAssignment(ctx, externalCustomerID, now)
+	prepare, err := uc.prepareInitialLimitAssignment(
+		ctx,
+		input.SubjectID.AsExternalSubjectID(),
+		externalCustomerID,
+		now,
+	)
 	if err != nil {
 		return AssignInitialLimitOutput{}, err
 	}
@@ -86,6 +91,7 @@ func (uc *UseCase) AssignInitialLimit(ctx context.Context, input AssignInitialLi
 
 func (uc *UseCase) prepareInitialLimitAssignment(
 	ctx context.Context,
+	externalSubjectID model.ExternalSubjectID,
 	externalCustomerID model.ExternalCustomerID,
 	now time.Time,
 ) (assignmentPrepareState, error) {
@@ -97,7 +103,13 @@ func (uc *UseCase) prepareInitialLimitAssignment(
 			profileQ := uc.customerProfile.Tx(tx)
 			accountQ := uc.creditAccount.Tx(tx)
 
-			profile, err := uc.ensureCustomerProfileForInitialCredit(ctx, profileQ, externalCustomerID, now)
+			profile, err := uc.ensureCustomerProfileForInitialCredit(
+				ctx,
+				profileQ,
+				externalSubjectID,
+				externalCustomerID,
+				now,
+			)
 			if err != nil {
 				return err
 			}
@@ -381,11 +393,13 @@ func blockedCustomerProfileStatus(profile model.CustomerProfile) (string, bool) 
 func (uc *UseCase) ensureCustomerProfileForInitialCredit(
 	ctx context.Context,
 	profileQ repo.CustomerProfileTxQueryer,
+	externalSubjectID model.ExternalSubjectID,
 	externalCustomerID model.ExternalCustomerID,
 	now time.Time,
 ) (model.CustomerProfile, error) {
 	profile, _, err := profileQ.EnsureExists(
 		ctx,
+		externalSubjectID,
 		externalCustomerID,
 		model.IRJurisdiction,
 		model.ActiveCustomerStatus,

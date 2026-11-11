@@ -18,7 +18,8 @@ import (
 func toAssignInitialLimitInput(c *gin.Context) (customercredituc.AssignInitialLimitInput, bool) {
 	const op = "customercreditrs.toAssignInitialLimitInput"
 
-	if _, ok := permission.FromContext(c.Request.Context()); !ok {
+	authCtx, ok := permission.FromContext(c.Request.Context())
+	if !ok {
 		serdser.SerErr(c, cerr.Unauthorized(
 			fmt.Errorf("%s: authentication context is missing", op),
 		))
@@ -31,6 +32,7 @@ func toAssignInitialLimitInput(c *gin.Context) (customercredituc.AssignInitialLi
 	}
 
 	return customercredituc.AssignInitialLimitInput{
+		SubjectID:  authCtx.SubjectID,
 		MobileE164: mobile,
 	}, true
 }

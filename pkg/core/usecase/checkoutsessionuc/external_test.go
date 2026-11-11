@@ -97,6 +97,7 @@ func (h *harness) expectExternalBind(locked model.CheckoutSession, bound model.C
 	h.customerTx.EXPECT().
 		EnsureExists(
 			h.ctx,
+			testifymock.Anything,
 			h.profileID,
 			model.IRJurisdiction,
 			model.ActiveCustomerStatus,

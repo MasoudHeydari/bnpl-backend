@@ -30,6 +30,7 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 			profile, err := uc.ensureActiveCustomerProfile(
 				ctx,
 				customerProfileQ,
+				input.SubjectID.AsExternalSubjectID(),
 				externalCustomerID,
 				now,
 			)
@@ -141,11 +142,13 @@ func zeroSummary(customerID model.CustomerID, currency model.Currency) Output {
 func (uc *UseCase) ensureActiveCustomerProfile(
 	ctx context.Context,
 	profileQ repo.CustomerProfileTxQueryer,
+	externalSubjectID model.ExternalSubjectID,
 	externalCustomerID model.ExternalCustomerID,
 	now time.Time,
 ) (model.CustomerProfile, error) {
 	profile, _, err := profileQ.EnsureExists(
 		ctx,
+		externalSubjectID,
 		externalCustomerID,
 		model.IRJurisdiction,
 		model.ActiveCustomerStatus,

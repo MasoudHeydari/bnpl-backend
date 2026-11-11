@@ -1476,7 +1476,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Returns active or canceling BNPL contracts (purchased orders) owned by the authenticated customer.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Contracts with status=active or canceling are returned.\nNewest contracts first (created_at DESC, id DESC). Empty list is 200, not 404.\nrequested_amount_minor is the persisted total order/purchase price.\nKeyset pagination via limit, after_id, and after_created_at.",
+                "description": "Returns active or canceling BNPL contracts (purchased orders) owned by the authenticated customer.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_subject_id). Contracts with status=active or canceling are returned.\nNewest contracts first (created_at DESC, id DESC). Empty list is 200, not 404.\nrequested_amount_minor is the persisted total order/purchase price.\nKeyset pagination via limit, after_id, and after_created_at.",
                 "produces": [
                     "application/json"
                 ],
@@ -1488,7 +1488,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)",
+                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_subject_id)",
                         "name": "x-auth-subject-id",
                         "in": "header",
                         "required": true
@@ -2899,7 +2899,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Returns unpaid BNPL installments owned by the authenticated customer across contracts.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Do not send customer identity in path or query.\nOnly installments with status scheduled, due, or overdue and an attached contract_id are returned.\nNearest due date first (due_at ASC, id ASC). Empty list is 200, not 404.\ndata.repayment is the customer-wide repayment position and is never scoped to the current page.\ndata.repayment.next_payable is the server-selected single installment the customer may pay next.\ntotal_amount_minor is an integer minor-unit monetary value in the response currency.\nKeyset pagination via limit, after_id, and after_due_at.",
+                "description": "Returns unpaid BNPL installments owned by the authenticated customer across contracts.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_subject_id). Do not send customer identity in path or query.\nOnly installments with status scheduled, due, or overdue and an attached contract_id are returned.\nNearest due date first (due_at ASC, id ASC). Empty list is 200, not 404.\ndata.repayment is the customer-wide repayment position and is never scoped to the current page.\ndata.repayment.next_payable is the server-selected single installment the customer may pay next.\ntotal_amount_minor is an integer minor-unit monetary value in the response currency.\nKeyset pagination via limit, after_id, and after_due_at.",
                 "produces": [
                     "application/json"
                 ],
@@ -2911,7 +2911,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)",
+                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_subject_id)",
                         "name": "x-auth-subject-id",
                         "in": "header",
                         "required": true

@@ -16,15 +16,23 @@ type CustomerProfileQueryer interface {
 		id model.CustomerID,
 	) (model.CustomerProfile, error)
 
-	// GetByExternalCustomerID returns the BNPL profile for an external Identity Service
-	// subject ID (customer_profiles.external_customer_id / x-auth-subject-id).
+	// GetByExternalSubjectID returns the BNPL profile for an Identity Service
+	// subject ID (customer_profiles.external_subject_id / x-auth-subject-id).
+	GetByExternalSubjectID(
+		ctx context.Context,
+		externalSubjectID model.ExternalSubjectID,
+	) (model.CustomerProfile, error)
+
+	// GetByExternalCustomerID returns the BNPL profile for a Customer Reference
+	// Service customer_id (customer_profiles.external_customer_id).
 	GetByExternalCustomerID(
 		ctx context.Context,
 		externalCustomerID model.ExternalCustomerID,
 	) (model.CustomerProfile, error)
 
-	// ExistsByExternalCustomerID reports whether an external Identity Service subject
-	// already has a BNPL profile (lookup by customer_profiles.external_customer_id).
+	// ExistsByExternalCustomerID reports whether a Customer Reference Service
+	// customer already has a BNPL profile (lookup by
+	// customer_profiles.external_customer_id).
 	ExistsByExternalCustomerID(
 		ctx context.Context,
 		externalCustomerID model.ExternalCustomerID,
@@ -39,12 +47,16 @@ type CustomerProfileConnQueryer interface {
 
 // CustomerProfileTxQueryer exposes transaction-scoped customer profile operations.
 type CustomerProfileTxQueryer interface {
+	// GetByExternalSubjectID reads the profile without locking in the current snapshot.
+	GetByExternalSubjectID(ctx context.Context, externalSubjectID model.ExternalSubjectID) (model.CustomerProfile, error)
+
 	// GetByExternalCustomerID reads the profile without locking in the current snapshot.
 	GetByExternalCustomerID(ctx context.Context, externalCustomerID model.ExternalCustomerID) (model.CustomerProfile, error)
 
 	// Create stores a new customer profile inside the current transaction.
 	Create(
 		ctx context.Context,
+		externalSubjectID model.ExternalSubjectID,
 		externalCustomerID model.ExternalCustomerID,
 		jurisdiction model.Jurisdiction,
 		status model.CustomerStatus,
@@ -52,14 +64,16 @@ type CustomerProfileTxQueryer interface {
 		updatedAt time.Time,
 	) (model.CustomerProfile, error)
 
-	// EnsureExists inserts a customer profile when missing for the external
-	// Identity Service subject ID (external_customer_id) and locks the row.
+	// EnsureExists inserts a customer profile when missing for the Customer
+	// Reference Service customer_id (external_customer_id) and locks the row.
 	//
+	// external_subject_id is the Identity Service subject UUID and is required.
 	// The profile primary key (id) is assigned by the database. Existing
 	// profiles are left unchanged. The boolean is true when this call inserted
 	// the row.
 	EnsureExists(
 		ctx context.Context,
+		externalSubjectID model.ExternalSubjectID,
 		externalCustomerID model.ExternalCustomerID,
 		jurisdiction model.Jurisdiction,
 		status model.CustomerStatus,
@@ -74,9 +88,9 @@ type CustomerProfileTxQueryer interface {
 		id model.CustomerID,
 	) (model.CustomerProfile, error)
 
-	// LockByExternalCustomerID returns the customer profile for an external Identity
-	// Service subject ID (customer_profiles.external_customer_id) and locks it for
-	// state changes.
+	// LockByExternalCustomerID returns the customer profile for a Customer
+	// Reference Service customer_id (customer_profiles.external_customer_id)
+	// and locks it for state changes.
 	LockByExternalCustomerID(
 		ctx context.Context,
 		externalCustomerID model.ExternalCustomerID,
@@ -86,6 +100,7 @@ type CustomerProfileTxQueryer interface {
 	Update(
 		ctx context.Context,
 		id model.CustomerID,
+		externalSubjectID model.ExternalSubjectID,
 		externalCustomerID model.ExternalCustomerID,
 		jurisdiction model.Jurisdiction,
 		status model.CustomerStatus,

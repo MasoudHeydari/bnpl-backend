@@ -64,7 +64,7 @@ func newFixture(t *testing.T, install bool) *fixture {
 		}
 	}
 	merchant, account, decision := uuid.New(), uuid.New(), uuid.New()
-	f.exec(t, `INSERT INTO customer_profiles(id,external_customer_id,jurisdiction,status) VALUES($1,$2,'IR','active')`, f.customer, uuid.New())
+	f.exec(t, `INSERT INTO customer_profiles(id,external_subject_id,external_customer_id,jurisdiction,status) VALUES($1,$2,$3,'IR','active')`, f.customer, uuid.New(), uuid.New())
 	f.exec(t, `INSERT INTO merchant_profiles(id,external_merchant_id,display_name,status,risk_tier,max_tenure_months,jurisdiction) VALUES($1,$2,'test','active','low',12,'IR')`, merchant, uuid.New())
 	f.exec(t, `INSERT INTO decisions(id,type,target_type,target_id,outcome,reason_codes,policy_id,policy_version,jurisdiction,actor_type,decided_at,idempotency_key,idempotency_fingerprint) VALUES($1,'restriction','customer_profile',$2,'restricted',ARRAY['COLLECTIONS_GRACE_PERIOD_EXCEEDED'],'collections_default','v2','IR','system',now(),$3,$4)`, decision, f.customer, uuid.NewString(), "sha256:"+strings.Repeat("0", 64))
 	f.exec(t, `INSERT INTO credit_accounts(id,customer_id,currency,status,effective_from) VALUES($1,$2,'IRR','active',now())`, account, f.customer)
