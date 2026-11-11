@@ -16,11 +16,12 @@ import (
 // creditSummaryResponse is the customer-facing credit inquiry payload.
 //
 // Field presence depends on status:
-//   - active: available_amount_minor, currency, and expires_at when set
+//   - active: limit_amount_minor, available_amount_minor, currency, and expires_at when set
 //   - not_assigned: status only (assessment has not occurred)
 //   - expired: status and expires_at only (reassessment required)
 type creditSummaryResponse struct {
 	CreditUsage          customercredituc.CreditUsage   `json:"credit_usage"`
+	LimitAmountMinor     *uint64                        `json:"limit_amount_minor,omitempty" example:"90000000"`
 	AvailableAmountMinor *uint64                        `json:"available_amount_minor,omitempty" example:"4000000"`
 	Currency             model.Currency                 `json:"currency,omitempty" example:"IRR"`
 	Status               customercredituc.SummaryStatus `json:"status" example:"active"`
@@ -48,7 +49,9 @@ func toCreditSummaryResponse(output customercredituc.Output) creditSummaryRespon
 		return resp
 
 	default:
+		limit := output.LimitAmountMinor
 		available := output.AvailableAmountMinor
+		resp.LimitAmountMinor = &limit
 		resp.AvailableAmountMinor = &available
 		resp.Currency = output.Currency
 		resp.ExpiresAt = output.ExpiresAt

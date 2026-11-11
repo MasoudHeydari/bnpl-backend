@@ -40,8 +40,13 @@ type Output struct {
 	// CustomerID is the internal customer_profiles.id primary key.
 	CustomerID model.CustomerID
 
-	// AvailableAmountMinor is the available credit amount in minor currency units.
+	// LimitAmountMinor is the governed total credit capacity in minor units.
+	LimitAmountMinor uint64
+
+	// AvailableAmountMinor is remaining usable credit in minor currency units
+	// (limit minus committed financed exposure; zero while new-credit use is blocked).
 	AvailableAmountMinor uint64
+
 	// Currency is the ISO currency for monetary amounts.
 	Currency model.Currency
 

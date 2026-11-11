@@ -29,7 +29,7 @@ type GetSuccessSchema struct {
 //	@Description	Credit is consumed only when a contract becomes active under its persisted checkout policy.
 //	@Description	When no credit limit has been assigned (customer never assessed), data contains only status not_assigned and meta.code is CUSTOMER_CREDIT_NOT_ASSIGNED — clients must initiate credit assessment, not treat this as a zero balance.
 //	@Description	When a historical limit exists but is not currently usable (including time-expired), data contains only status expired and expires_at; meta.code is CUSTOMER_CREDIT_EXPIRED — clients must trigger reassessment.
-//	@Description	For an active limit, available_amount_minor is an integer minor-unit amount in the response currency.
+//	@Description	For an active limit, limit_amount_minor is the governed total capacity and available_amount_minor is remaining usable credit; both are integer minor-unit amounts in the response currency.
 //	@Tags			Credit Limits
 //	@Produce		json
 //	@Param			x-auth-subject-id		header		string				true	"Authenticated Identity Service subject UUID"															format(uuid)

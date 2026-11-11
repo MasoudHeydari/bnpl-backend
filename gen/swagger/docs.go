@@ -22,7 +22,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Evaluates checkout feasibility for a customer/merchant pair and persists a decision.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Do not send customer_id in the body.\npurchase_context.type must be \"pos\" or \"online\"; the channel is explicit and is never inferred from optional fields.\nFor type=pos, purchase_context.pos_gps_id is required; online_store_id and merchant_order_id are forbidden.\nFor type=online, purchase_context.online_store_id is required; pos_gps_id is forbidden; merchant_order_id is optional (max 256 characters).\nMalformed purchase_context combinations are rejected with HTTP 400 before the use case runs.\nBNPL resolves the selling point and merchant from the supplied source identifier; do not send merchant_profile_id or branch_id.\nRequires an authenticated customer subject, an eligible customer profile, and an active credit limit.\nAn approved (including domain conditional / partial financing) checkout Decision atomically creates and returns the persisted installment offer\n(installment IDs, status, order, due date, principal, upfront, fees, totals, payable-now, and total payable).\nFor policies anchored to contract_activation, offered due dates are provisional; installment economics stay fixed and due dates are finalized from the successful activation instant.\ncheckout_action tells the client how to confirm the offer: confirm_and_pay requires the returned initial payment; confirm_purchase creates the contract without an initial payment.\nFrontend clients should drive the checkout button from checkout_action, not from policy version or purchase channel.\nThe HTTP response outcome is always \"approved\" or \"denied\"; persisted conditional outcomes are mapped to \"approved\".\nDenied decisions return reason codes and omit installment_offer; no installment records are created.\nApproval means the customer had enough available credit at evaluation time (limit minus active exposure).\nDoes not reserve or reduce available credit; final capacity is checked again at contract activation.\nIdempotent via Idempotency-Key (checkout_intent_id / checkout key). Returns 201 on create and 200 on idempotent replay\nwith the same Decision and persisted installments (no duplicates).",
+                "description": "Evaluates checkout feasibility for a customer/merchant pair and persists a decision.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id). Do not send customer_id in the body.\npurchase_context.type must be \"pos\" or \"online\"; the channel is explicit and is never inferred from optional fields.\nFor type=pos, purchase_context.external_pos_gps_id is required; external_online_store_id and merchant_order_id are forbidden.\nFor type=online, purchase_context.external_online_store_id is required; external_pos_gps_id is forbidden; merchant_order_id is optional (max 256 characters).\nMalformed purchase_context combinations are rejected with HTTP 400 before the use case runs.\nBNPL resolves the selling point and merchant from the supplied source identifier; do not send merchant_profile_id or external_branch_id.\nRequires an authenticated customer subject, an eligible customer profile, and an active credit limit.\nAn approved (including domain conditional / partial financing) checkout Decision atomically creates and returns the persisted installment offer\n(installment IDs, status, order, due date, principal, upfront, fees, totals, payable-now, and total payable).\nFor policies anchored to contract_activation, offered due dates are provisional; installment economics stay fixed and due dates are finalized from the successful activation instant.\ncheckout_action tells the client how to confirm the offer: confirm_and_pay requires the returned initial payment; confirm_purchase creates the contract without an initial payment.\nFrontend clients should drive the checkout button from checkout_action, not from policy version or purchase channel.\nThe HTTP response outcome is always \"approved\" or \"denied\"; persisted conditional outcomes are mapped to \"approved\".\nDenied decisions return reason codes and omit installment_offer; no installment records are created.\nApproval means the customer had enough available credit at evaluation time (limit minus active exposure).\nDoes not reserve or reduce available credit; final capacity is checked again at contract activation.\nIdempotent via Idempotency-Key (checkout_intent_id / checkout key). Returns 201 on create and 200 on idempotent replay\nwith the same Decision and persisted installments (no duplicates).",
                 "consumes": [
                     "application/json"
                 ],
@@ -2461,7 +2461,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Returns the authenticated customer's current BNPL credit summary.\nx-auth-subject-id is the stable Identity Service subject ID (customer_profiles.external_customer_id), not the internal BNPL profile primary key.\nBNPL resolves or provisions the local customer profile automatically when missing. Profile provisioning is idempotent and does not assign initial credit.\nRequires only an authenticated customer subject; no BNPL profile eligibility or credit limit precondition applies.\nNo request body.\nAvailable credit = effective current credit limit minus active committed financed exposure.\nActive financed exposure is persisted on the customer CreditAccount as outstanding principal from activated contracts.\nCheckout decisions, installment offers, and pre-activation contracts (payment_pending) do not reduce available credit.\nCredit is consumed only when a contract becomes active under its persisted checkout policy.\nWhen no credit limit has been assigned (customer never assessed), data contains only status not_assigned and meta.code is CUSTOMER_CREDIT_NOT_ASSIGNED — clients must initiate credit assessment, not treat this as a zero balance.\nWhen a historical limit exists but is not currently usable (including time-expired), data contains only status expired and expires_at; meta.code is CUSTOMER_CREDIT_EXPIRED — clients must trigger reassessment.\nFor an active limit, available_amount_minor is an integer minor-unit amount in the response currency.",
+                "description": "Returns the authenticated customer's current BNPL credit summary.\nResolves x-auth-mobile-number through Customer Reference Service (ACTIVE only); CRS customer_id is customer_profiles.external_customer_id.\nBNPL resolves or provisions the local customer profile automatically when missing. Profile provisioning is idempotent and does not assign initial credit.\nRequires an authenticated customer subject plus gateway-injected mobile; no BNPL profile eligibility or credit limit precondition applies.\nNo request body.\nAvailable credit = effective current credit limit minus active committed financed exposure.\nActive financed exposure is persisted on the customer CreditAccount as outstanding principal from activated contracts.\nCheckout decisions, installment offers, and pre-activation contracts (payment_pending) do not reduce available credit.\nCredit is consumed only when a contract becomes active under its persisted checkout policy.\nWhen no credit limit has been assigned (customer never assessed), data contains only status not_assigned and meta.code is CUSTOMER_CREDIT_NOT_ASSIGNED — clients must initiate credit assessment, not treat this as a zero balance.\nWhen a historical limit exists but is not currently usable (including time-expired), data contains only status expired and expires_at; meta.code is CUSTOMER_CREDIT_EXPIRED — clients must trigger reassessment.\nFor an active limit, limit_amount_minor is the governed total capacity and available_amount_minor is remaining usable credit; both are integer minor-unit amounts in the response currency.",
                 "produces": [
                     "application/json"
                 ],
@@ -2473,8 +2473,16 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)",
+                        "description": "Authenticated Identity Service subject UUID",
                         "name": "x-auth-subject-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "+989121234567",
+                        "description": "Canonical E.164 mobile from JWT auth_mobile_number (gateway-injected)",
+                        "name": "x-auth-mobile-number",
                         "in": "header",
                         "required": true
                     },
@@ -2632,7 +2640,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Assigns the configured initial credit limit to an eligible customer profile identified by x-auth-subject-id.\nSubject is the customer identity ID (customer_profiles.external_customer_id).\nThe customer profile is created automatically when it does not exist; the profile primary key is assigned by the database.\nRequires only an authenticated customer subject. No request body.\nReturns 201 when a new limit is created, and 200 for already-assigned or denied outcomes.",
+                "description": "Assigns the configured initial credit limit after resolving x-auth-mobile-number through Customer Reference Service (ACTIVE only).\nCRS customer_id becomes customer_profiles.external_customer_id. Trusted-customer policy assignments (v2) key off that same id.\nThe customer profile is created automatically when it does not exist; the profile primary key is assigned by the database.\nRequires an authenticated customer subject plus gateway-injected mobile. No request body.\nReturns 201 when a new limit is created, and 200 for already-assigned or denied outcomes.",
                 "produces": [
                     "application/json"
                 ],
@@ -2644,8 +2652,16 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Stable authenticated subject identifier issued by Identity Service (customer_profiles.external_customer_id)",
+                        "description": "Authenticated Identity Service subject UUID",
                         "name": "x-auth-subject-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "+989121234567",
+                        "description": "Canonical E.164 mobile from JWT auth_mobile_number (gateway-injected)",
+                        "name": "x-auth-mobile-number",
                         "in": "header",
                         "required": true
                     },
@@ -3085,7 +3101,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Returns display attributes and BNPL participation settings for the authenticated merchant.\nx-auth-subject-id is the stable Identity Service subject ID (merchant_profiles.merchant_id).\nDisplay fields (name, logo, contacts) are stored in BNPL for now and will later move to Merchant Service.\nRisk tier is omitted from this merchant-facing response.",
+                "description": "Returns display attributes and BNPL participation settings for the authenticated merchant.\nx-auth-subject-id is the stable Identity Service subject ID (merchant_profiles.external_merchant_id).\nDisplay fields (name, logo, contacts) are stored in BNPL for now and will later move to Merchant Service.\nRisk tier is omitted from this merchant-facing response.",
                 "produces": [
                     "application/json"
                 ],
@@ -3097,7 +3113,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Stable authenticated subject identifier issued by Identity Service (merchant_profiles.merchant_id)",
+                        "description": "Stable authenticated subject identifier issued by Identity Service (merchant_profiles.external_merchant_id)",
                         "name": "x-auth-subject-id",
                         "in": "header",
                         "required": true
@@ -3276,7 +3292,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Returns BNPL merchant selling points (merchant_branch_profiles) for the authenticated merchant. A selling point may be physical or online.\nx-auth-subject-id is the stable Identity Service subject ID (merchant_profiles.merchant_id).\nThe response type field is physical or online. POS terminals and online-store identifiers are separate source mappings, not branch attributes.\nAll branch statuses are returned. Newest branches first (created_at DESC, id DESC). Empty list is 200, not 404.\nSupports both keyset and page-number pagination via pagination=keyset|page (default keyset).\nKeyset mode uses limit, after_id, and after_created_at.\nPage mode uses page and limit and returns total counts in meta.pagination.",
+                "description": "Returns BNPL merchant selling points (merchant_branch_profiles) for the authenticated merchant. A selling point may be physical or online.\nx-auth-subject-id is the stable Identity Service subject ID (merchant_profiles.external_merchant_id).\nThe response type field is physical or online. POS terminals and online-store identifiers are separate source mappings, not branch attributes.\nAll branch statuses are returned. Newest branches first (created_at DESC, id DESC). Empty list is 200, not 404.\nSupports both keyset and page-number pagination via pagination=keyset|page (default keyset).\nKeyset mode uses limit, after_id, and after_created_at.\nPage mode uses page and limit and returns total counts in meta.pagination.",
                 "produces": [
                     "application/json"
                 ],
@@ -3288,7 +3304,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Stable authenticated subject identifier issued by Identity Service (merchant_profiles.merchant_id)",
+                        "description": "Stable authenticated subject identifier issued by Identity Service (merchant_profiles.external_merchant_id)",
                         "name": "x-auth-subject-id",
                         "in": "header",
                         "required": true
@@ -3496,7 +3512,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Returns active BNPL sales (contracts with status=active) for the authenticated merchant.\nx-auth-subject-id is the stable Identity Service subject ID (merchant_profiles.merchant_id).\nNewest sales first (created_at DESC, id DESC). Empty list is 200, not 404.\nSupports both keyset and page-number pagination via pagination=keyset|page (default keyset).\nKeyset mode uses limit, after_id, and after_created_at.\nPage mode uses page and limit and returns total counts in meta.pagination.",
+                "description": "Returns active BNPL sales (contracts with status=active) for the authenticated merchant.\nx-auth-subject-id is the stable Identity Service subject ID (merchant_profiles.external_merchant_id).\nNewest sales first (created_at DESC, id DESC). Empty list is 200, not 404.\nSupports both keyset and page-number pagination via pagination=keyset|page (default keyset).\nKeyset mode uses limit, after_id, and after_created_at.\nPage mode uses page and limit and returns total counts in meta.pagination.",
                 "produces": [
                     "application/json"
                 ],
@@ -3508,7 +3524,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Stable authenticated subject identifier issued by Identity Service (merchant_profiles.merchant_id)",
+                        "description": "Stable authenticated subject identifier issued by Identity Service (merchant_profiles.external_merchant_id)",
                         "name": "x-auth-subject-id",
                         "in": "header",
                         "required": true
@@ -3716,7 +3732,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Returns the authenticated merchant's partner terminals and current credential metadata.\nA merchant currently owns at most one terminal. When none has been provisioned yet, the response is HTTP 200 with an empty data array (not 404).\nx-auth-subject-id is the stable Identity Service subject ID (merchant_profiles.merchant_id).\nRequires bnpl:merchant-terminals:manage:merchant together with the standard gateway tenant and context headers.\nShow-once policy: plaintext api_key is never returned by this read API.\nThe key is returned only by the initial issuance response (Provision/Rotate) and by an idempotent replay of that same issuance request within the configured replay window.\nOutside that window a lost key requires Rotate.",
+                "description": "Returns the authenticated merchant's partner terminals and current credential metadata.\nA merchant currently owns at most one terminal. When none has been provisioned yet, the response is HTTP 200 with an empty data array (not 404).\nx-auth-subject-id is the stable Identity Service subject ID (merchant_profiles.external_merchant_id).\nRequires bnpl:merchant-terminals:manage:merchant together with the standard gateway tenant and context headers.\nShow-once policy: plaintext api_key is never returned by this read API.\nThe key is returned only by the initial issuance response (Provision/Rotate) and by an idempotent replay of that same issuance request within the configured replay window.\nOutside that window a lost key requires Rotate.",
                 "produces": [
                     "application/json"
                 ],
@@ -3728,7 +3744,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Stable authenticated subject identifier issued by Identity Service (merchant_profiles.merchant_id)",
+                        "description": "Stable authenticated subject identifier issued by Identity Service (merchant_profiles.external_merchant_id)",
                         "name": "x-auth-subject-id",
                         "in": "header",
                         "required": true
@@ -3885,7 +3901,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Creates the single partner terminal of the authenticated merchant together with its first API key.\nx-auth-subject-id is the stable Identity Service subject ID (merchant_profiles.merchant_id).\nRequires bnpl:merchant-terminals:manage:merchant together with the standard gateway tenant and context headers.\nShow-once: the plaintext api_key is returned only by this issuance response and by an idempotent replay of the same Idempotency-Key within the configured replay window.\nIt is never exposed by read APIs (GET) because BNPL persists only a keyed hash. Store it securely immediately.\nIdempotent per merchant and Idempotency-Key: a retry within the issuance replay window returns the same terminal and API key with replayed=true.\nThis endpoint issues credentials to the merchant; it does not accept a partner API key and does not take merchant_id from the path.",
+                "description": "Creates the single partner terminal of the authenticated merchant together with its first API key.\nx-auth-subject-id is the stable Identity Service subject ID (merchant_profiles.external_merchant_id).\nRequires bnpl:merchant-terminals:manage:merchant together with the standard gateway tenant and context headers.\nShow-once: the plaintext api_key is returned only by this issuance response and by an idempotent replay of the same Idempotency-Key within the configured replay window.\nIt is never exposed by read APIs (GET) because BNPL persists only a keyed hash. Store it securely immediately.\nIdempotent per merchant and Idempotency-Key: a retry within the issuance replay window returns the same terminal and API key with replayed=true.\nThis endpoint issues credentials to the merchant; it does not accept a partner API key and does not take external_merchant_id from the path.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3900,7 +3916,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Stable authenticated subject identifier issued by Identity Service (merchant_profiles.merchant_id)",
+                        "description": "Stable authenticated subject identifier issued by Identity Service (merchant_profiles.external_merchant_id)",
                         "name": "x-auth-subject-id",
                         "in": "header",
                         "required": true
@@ -4146,7 +4162,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Issues a new API key for the authenticated merchant's terminal. The previous key stays accepted for the grace period.\nx-auth-subject-id is the stable Identity Service subject ID (merchant_profiles.merchant_id).\nRequires bnpl:merchant-terminals:manage:merchant together with the standard gateway tenant and context headers.\nShow-once: the plaintext api_key is returned only by this issuance response and by an idempotent replay of the same Idempotency-Key within the configured replay window.\nIt is never exposed by read APIs (GET). Store it securely immediately. A lost key requires rotating again.\ngrace_period_seconds is optional: omit it for the server default; 0 retires the previous key immediately.\nIdempotent per Idempotency-Key: a retry within the issuance replay window returns the same new API key with replayed=true.\nA rotation is refused with 409 while a previous rotation is still inside its grace period.",
+                "description": "Issues a new API key for the authenticated merchant's terminal. The previous key stays accepted for the grace period.\nx-auth-subject-id is the stable Identity Service subject ID (merchant_profiles.external_merchant_id).\nRequires bnpl:merchant-terminals:manage:merchant together with the standard gateway tenant and context headers.\nShow-once: the plaintext api_key is returned only by this issuance response and by an idempotent replay of the same Idempotency-Key within the configured replay window.\nIt is never exposed by read APIs (GET). Store it securely immediately. A lost key requires rotating again.\ngrace_period_seconds is optional: omit it for the server default; 0 retires the previous key immediately.\nIdempotent per Idempotency-Key: a retry within the issuance replay window returns the same new API key with replayed=true.\nA rotation is refused with 409 while a previous rotation is still inside its grace period.",
                 "consumes": [
                     "application/json"
                 ],
@@ -4161,7 +4177,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Stable authenticated subject identifier issued by Identity Service (merchant_profiles.merchant_id)",
+                        "description": "Stable authenticated subject identifier issued by Identity Service (merchant_profiles.external_merchant_id)",
                         "name": "x-auth-subject-id",
                         "in": "header",
                         "required": true
@@ -4415,7 +4431,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Ends the grace period of a retiring credential of the authenticated merchant's terminal at once.\nx-auth-subject-id is the stable Identity Service subject ID (merchant_profiles.merchant_id).\nRequires bnpl:merchant-terminals:manage:merchant together with the standard gateway tenant and context headers.\nOnly a retiring credential can be retired; retiring an already retired credential succeeds without change.\nThe active credential cannot be retired; replace it through rotation. A credential of another terminal is reported as not found.",
+                "description": "Ends the grace period of a retiring credential of the authenticated merchant's terminal at once.\nx-auth-subject-id is the stable Identity Service subject ID (merchant_profiles.external_merchant_id).\nRequires bnpl:merchant-terminals:manage:merchant together with the standard gateway tenant and context headers.\nOnly a retiring credential can be retired; retiring an already retired credential succeeds without change.\nThe active credential cannot be retired; replace it through rotation. A credential of another terminal is reported as not found.",
                 "produces": [
                     "application/json"
                 ],
@@ -4435,7 +4451,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Stable authenticated subject identifier issued by Identity Service (merchant_profiles.merchant_id)",
+                        "description": "Stable authenticated subject identifier issued by Identity Service (merchant_profiles.external_merchant_id)",
                         "name": "x-auth-subject-id",
                         "in": "header",
                         "required": true
@@ -4655,7 +4671,7 @@ const docTemplate = `{
                         "TerminalID": []
                     }
                 ],
-                "description": "Creates an idempotent merchant checkout handoff authenticated by terminal credentials (X-Terminal-Id, X-API-Key). Requires customer_phone. JWT and gateway Subject/Tenant/Context headers are not required.\nOffer preparation timing follows the trusted merchant_branch_profiles.offer_preparation_mode for the selected online_store_id (on_create returns the Offer; on_start returns handoff metadata only). The mode is snapshotted onto the CheckoutSession. Every customer must complete BNPL SMS OTP on the unified token Confirm path.",
+                "description": "Creates an idempotent merchant checkout handoff authenticated by terminal credentials (X-Terminal-Id, X-API-Key). Requires customer_phone. JWT and gateway Subject/Tenant/Context headers are not required.\nOffer preparation timing follows the trusted merchant_branch_profiles.offer_preparation_mode for the selected external_online_store_id (on_create returns the Offer; on_start returns handoff metadata only). The mode is snapshotted onto the CheckoutSession. Every customer must complete BNPL SMS OTP on the unified token Confirm path.",
                 "consumes": [
                     "application/json"
                 ],
@@ -6008,8 +6024,8 @@ const docTemplate = `{
             "required": [
                 "currency",
                 "customer_phone",
+                "external_online_store_id",
                 "merchant_order_id",
-                "online_store_id",
                 "requested_amount_minor",
                 "return_destination"
             ],
@@ -6027,6 +6043,10 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 256
                 },
+                "external_online_store_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "idempotency_key": {
                     "description": "Distinct idempotency keys allow a new attempt after a terminal checkout.",
                     "type": "string",
@@ -6040,10 +6060,6 @@ const docTemplate = `{
                     "description": "MerchantState is optional opaque correlation; empty is valid.",
                     "type": "string",
                     "maxLength": 256
-                },
-                "online_store_id": {
-                    "type": "string",
-                    "format": "uuid"
                 },
                 "requested_amount_minor": {
                     "type": "integer",
@@ -6970,6 +6986,10 @@ const docTemplate = `{
                     "type": "string",
                     "example": "2027-08-09T12:00:00Z"
                 },
+                "limit_amount_minor": {
+                    "type": "integer",
+                    "example": 90000000
+                },
                 "status": {
                     "allOf": [
                         {
@@ -7761,18 +7781,18 @@ const docTemplate = `{
                 "type"
             ],
             "properties": {
-                "merchant_order_id": {
-                    "type": "string",
-                    "maxLength": 256
-                },
-                "online_store_id": {
+                "external_online_store_id": {
                     "type": "string",
                     "format": "uuid"
                 },
-                "pos_gps_id": {
+                "external_pos_gps_id": {
                     "type": "string",
                     "format": "uuid",
                     "example": "6ba7b811-9dad-11d1-80b4-00c04fd430c8"
+                },
+                "merchant_order_id": {
+                    "type": "string",
+                    "maxLength": 256
                 },
                 "type": {
                     "enum": [
@@ -7791,17 +7811,17 @@ const docTemplate = `{
         "decisionrs.purchaseContextResponse": {
             "type": "object",
             "properties": {
-                "merchant_order_id": {
-                    "type": "string"
-                },
-                "online_store_id": {
+                "external_online_store_id": {
                     "type": "string",
                     "format": "uuid"
                 },
-                "pos_gps_id": {
+                "external_pos_gps_id": {
                     "type": "string",
                     "format": "uuid",
                     "example": "6ba7b811-9dad-11d1-80b4-00c04fd430c8"
+                },
+                "merchant_order_id": {
+                    "type": "string"
                 },
                 "type": {
                     "enum": [
@@ -7960,11 +7980,6 @@ const docTemplate = `{
         "merchantrs.BranchSchema": {
             "type": "object",
             "properties": {
-                "branch_id": {
-                    "type": "string",
-                    "format": "uuid",
-                    "example": "6ba7b811-9dad-11d1-80b4-00c04fd430c8"
-                },
                 "created_at": {
                     "type": "string",
                     "example": "2026-01-01T00:00:00Z"
@@ -7974,6 +7989,11 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/model.Currency"
                     }
+                },
+                "external_branch_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "6ba7b811-9dad-11d1-80b4-00c04fd430c8"
                 },
                 "funding_models": {
                     "type": "array",
@@ -8080,6 +8100,11 @@ const docTemplate = `{
                     "type": "string",
                     "example": "Sample Merchant"
                 },
+                "external_merchant_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c"
+                },
                 "funding_models": {
                     "type": "array",
                     "items": {
@@ -8117,11 +8142,6 @@ const docTemplate = `{
                 "max_tenure_months": {
                     "type": "integer",
                     "example": 12
-                },
-                "merchant_id": {
-                    "type": "string",
-                    "format": "uuid",
-                    "example": "8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c"
                 },
                 "requires_branch_mode": {
                     "type": "boolean",
@@ -8237,7 +8257,7 @@ const docTemplate = `{
                     "type": "string",
                     "example": "2026-08-09T12:00:00Z"
                 },
-                "merchant_id": {
+                "external_merchant_id": {
                     "type": "string",
                     "format": "uuid",
                     "example": "8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c"
@@ -8301,7 +8321,7 @@ const docTemplate = `{
                     "type": "integer",
                     "example": 1
                 },
-                "merchant_id": {
+                "external_merchant_id": {
                     "type": "string",
                     "format": "uuid",
                     "example": "8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c"
@@ -8391,7 +8411,7 @@ const docTemplate = `{
                     "type": "integer",
                     "example": 2
                 },
-                "merchant_id": {
+                "external_merchant_id": {
                     "type": "string",
                     "format": "uuid",
                     "example": "8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c"
@@ -8634,7 +8654,8 @@ const docTemplate = `{
                 "failed",
                 "canceled",
                 "reconciliation_required",
-                "manual_review_required"
+                "manual_review_required",
+                "expired"
             ],
             "x-enum-varnames": [
                 "CreatedPaymentAttemptState",
@@ -8643,7 +8664,8 @@ const docTemplate = `{
                 "FailedPaymentAttemptState",
                 "CanceledPaymentAttemptState",
                 "ReconciliationRequiredPaymentAttemptState",
-                "ManualReviewRequiredPaymentAttemptState"
+                "ManualReviewRequiredPaymentAttemptState",
+                "ExpiredPaymentAttemptState"
             ]
         },
         "model.PaymentChannel": {

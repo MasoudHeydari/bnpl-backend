@@ -133,7 +133,7 @@ Accept-Language: fa-IR
 
 `data.status` یکی از `active`، `not_assigned` و `expired` است. `credit_usage` یک Object با `status` و `reason?` است و با وضعیت Credit Limit فرق دارد.
 
-- `active`: `available_amount_minor`، `currency` و در صورت وجود `expires_at` را نمایش دهید. ممکن است Credit Usage استفاده از اعتبار را منع کند.
+- `active`: `limit_amount_minor` (سقف کل)، `available_amount_minor` (باقی‌مانده قابل‌استفاده)، `currency` و در صورت وجود `expires_at` را نمایش دهید. ممکن است Credit Usage استفاده از اعتبار را منع کند.
 - `not_assigned`: مشتری هنوز Limit ندارد؛ آن را موجودی صفر نشان ندهید. `meta.code=CUSTOMER_CREDIT_NOT_ASSIGNED` و CTA شروع ارزیابی مناسب است.
 - `expired`: Limit قبلی قابل‌استفاده نیست؛ `meta.code=CUSTOMER_CREDIT_EXPIRED`، `expires_at` اختیاری و CTA بررسی مجدد.
 

@@ -144,7 +144,7 @@ No customer ID or tenant ID is accepted from the browser for these operations. T
 
 - `status`: `active` | `not_assigned` | `expired`
 - `credit_usage`: `{status, reason?}`; this is distinct from credit limit lifecycle.
-- When active: `available_amount_minor` and `currency`, plus optional `expires_at`.
+- When active: `limit_amount_minor` (total governed capacity), `available_amount_minor` (remaining usable), and `currency`, plus optional `expires_at`.
 - When not assigned: **do not** interpret missing amount as zero; invite the user to initiate assessment.
 - When expired: `expires_at` may be present; explain that reassessment is needed.
 

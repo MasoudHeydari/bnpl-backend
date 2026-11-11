@@ -114,6 +114,7 @@ func summaryFromAccount(account model.CreditAccount, newCreditBlocked bool) Outp
 	return Output{
 		CreditUsage:          usage,
 		CustomerID:           account.CustomerID,
+		LimitAmountMinor:     account.LimitAmountMinor,
 		AvailableAmountMinor: available,
 		Currency:             account.Currency,
 		Status:               status,
@@ -126,6 +127,7 @@ func zeroSummary(customerID model.CustomerID, currency model.Currency) Output {
 	return Output{
 		CreditUsage:          CreditUsage{Status: "unavailable"},
 		CustomerID:           customerID,
+		LimitAmountMinor:     0,
 		AvailableAmountMinor: 0,
 		Currency:             currency,
 		Status:               SummaryStatusNotAssigned,
