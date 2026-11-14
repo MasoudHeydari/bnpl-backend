@@ -1,7 +1,7 @@
 # dpay — unified Hamravesh / self-hosted Compose for the full platform + BNPL.
 #
 # Project name: dpay
-# Public host:  dev.dlend.ir  (TLS SAN must include this name; own Envoy gateway)
+# Public host:  dev.dlend.ir  (TLS-only Envoy :443; SAN must include this name)
 #
 # Hamravesh note:
 #   Do NOT use env_file with host paths — Hamravesh rejects them.
@@ -260,8 +260,7 @@ services:
     volumes:
       - dpay_postgres_data:/var/lib/postgresql
       - ./assets/dev/postgres/init-databases.sh:/docker-entrypoint-initdb.d/10-init-databases.sh:ro
-    ports:
-      - "${DPAY_PUBLISH_BIND:-127.0.0.1}:5432:5432"
+    # No host ports — Hamravesh rejects bind/range-like port specs; reach via dpay-net DNS.
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dpay} -d ${POSTGRES_DB:-bnpl}"]
       interval: 10s
@@ -279,8 +278,6 @@ services:
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - dpay_redis_data:/data
-    ports:
-      - "${DPAY_PUBLISH_BIND:-127.0.0.1}:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -364,8 +361,6 @@ services:
     container_name: dpay-temporal
     restart: unless-stopped
     command: ["server", "start-dev", "--ip", "0.0.0.0", "--headless"]
-    ports:
-      - "${DPAY_PUBLISH_BIND:-127.0.0.1}:7233:7233"
     healthcheck:
       test:
         [
@@ -385,17 +380,16 @@ services:
     restart: unless-stopped
     environment:
       TEMPORAL_ADDRESS: dpay-temporal:7233
-    ports:
-      - "${DPAY_PUBLISH_BIND:-127.0.0.1}:${TEMPORAL_UI_PORT:-8233}:8080"
     depends_on:
       temporal:
         condition: service_healthy
     networks:
       - dpay-net
 
-  # ── Envoy (own gateway — public 80/443) ─────────────────────────────────────
+  # ── Envoy (own gateway — TLS-only :443) ─────────────────────────────────────
+  # Own image with baked envoy.yaml + TLS (build/push via assets/dev/envoy Makefile first).
   envoy:
-    image: ${ENVOY_IMAGE:-envoyproxy/envoy:v1.39.0}
+    image: ${ENVOY_IMAGE:-registry.hamdocker.ir/parstis-technology/dpay-envoy:v0.1.0}
     container_name: dpay-envoy
     restart: unless-stopped
     depends_on:
@@ -403,14 +397,9 @@ services:
       - identity
       - customer
       - financial-core
-    volumes:
-      - ./assets/dev/envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
-      - ./assets/dev/certs:/etc/envoy/certs:ro
+    # TLS only (even in development). Hamravesh: single host:container port mapping.
     ports:
-      - "80:80"
       - "443:443"
-      - "${DPAY_PUBLISH_BIND:-127.0.0.1}:9901:9901"
-    command: ["envoy", "-c", "/etc/envoy/envoy.yaml", "--log-level", "info"]
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/9901'"]
       interval: 15s

@@ -2,7 +2,7 @@
 
 Unified stack defined by `docker-compose.dev.yml` (Compose project name **`dpay`**).
 
-Public edge is **our Envoy** on ports **80/443** — not the Hamravesh product gateway.
+Public edge is **our Envoy** on **443 (TLS only)** — not the Hamravesh product gateway. No plaintext :80.
 
 ## What runs
 
@@ -40,12 +40,10 @@ Optional Compose-level vars: copy `.env.dev.example` → `.env` (or export).
 
 ## One-time prep
 
-1. TLS for Envoy (SAN must include `dev.dlend.ir` / `api.dev.dlend.ir` / `s.dev.dlend.ir`):
+1. Build/push Envoy image first (Compose has no `build:`; place `assets/dev/envoy/certs/tls.{crt,key}` first):
 
    ```bash
-   # place:
-   #   assets/dev/certs/tls.crt
-   #   assets/dev/certs/tls.key
+   cd assets/dev/envoy && make push-to-hamravesh   # default TAG=v0.1.0
    ```
 
 2. In Hamravesh (or local `.env`), fill secrets from the handoff JSON templates:
@@ -76,12 +74,15 @@ docker compose -f docker-compose.dev.yml up -d \
   bnpl temporal-ui envoy
 ```
 
-DNS for the host should point `dev.dlend.ir` (and ideally `api.dev.dlend.ir`, `s.dev.dlend.ir`) at the machine/LB that publishes Envoy 80/443.
+DNS for the host should point `dev.dlend.ir` (and ideally `api.dev.dlend.ir`, `s.dev.dlend.ir`) at the machine/LB that publishes Envoy **443**.
 
 ## Notes / limits (from handoff)
 
 - Image digests for platform services are pinned in Compose; override with `*_IMAGE` if needed.
 - Payment simulator needs the shared volume `dpay_payment_simulator_data` (already mounted on FC roles). Keep a single provider-start writer.
 - Location service is **not** in this Compose; Customer paths that need Location stay unverified until it exists.
-- Envoy config under `assets/dev/envoy/envoy.yaml` is a routing skeleton (path prefixes). Platform JWT/Lua filters from local Envoy are not fully reproduced — harden before real traffic.
-- Do not open Postgres/Redis/Kafka/gRPC publicly; only Envoy 80/443 should face the internet.
+- Envoy config is the full platform gateway (JWT/Lua/`x-auth-*`/CORS) adapted from
+  `assets/local-development/envoy/development/config.yaml` for Compose DNS + TLS-only :443.
+  Rebuild/push `dpay-envoy:v0.1.0` after editing `envoy.yaml` or rotating certs.
+- Do not open Postgres/Redis/Kafka/gRPC publicly; only Envoy `443:443` is published (TLS-only).
+- Hamravesh rejects port ranges and Compose `${VAR:-default}` / `IP:port:port` forms in `ports:` — keep single mappings only.
