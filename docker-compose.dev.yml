@@ -1,139 +1,138 @@
-# Local development Docker Compose (includes Loki / Promtail / Grafana).
+# dpay — unified Hamravesh / self-hosted Compose for the full platform + BNPL.
 #
-# Usage:
-#   cp .env.example .env
-#   make up
-#   make build && make init-dev && ./build/bin/bnpl
+# Project name: dpay
+# Public host:  dev.dlend.ir  (TLS SAN must include this name; own Envoy gateway)
 #
-# `make up` creates the Grafana password secret and log dirs when missing.
+# This file is the single Compose unit for:
+#   - infrastructure (Postgres, Redis, Kafka, Temporal)
+#   - platform services from the ENV-only handoff digests
+#     (Identity / Customer / Financial Core / Notification + workers)
+#   - BNPL API
+#   - self-hosted Envoy gateway (not Hamravesh edge gateway)
 #
-# Publish host for all Compose-mapped ports comes from COMPOSE_PUBLISH_HOST
-# (see .env.example). Envoy uses host networking and is unchanged here.
+# Prerequisites:
+#   1. Fill private/*.env from the handoff JSON templates (prepare-env.py).
+#   2. Place TLS material at assets/dev/certs/tls.crt and tls.key for *.dev.dlend.ir.
+#   3. docker compose -p dpay -f docker-compose.dev.yml --profile migration run --rm …
+#   4. Then up the long-running roles (see assets/dev/README.md).
 #
-# Local endpoints (host = COMPOSE_PUBLISH_HOST):
-#   BNPL (host process): http://127.0.0.1:8080  (or GIN_HOST)
-#   Envoy Gateway:       http://${COMPOSE_PUBLISH_HOST}:8088  (host net / envoy config)
-#   Redpanda Console:    http://${COMPOSE_PUBLISH_HOST}:8081
-#   Temporal UI:         http://${COMPOSE_PUBLISH_HOST}:${TEMPORAL_UI_PORT:-8233}
-#   Loki:                http://${COMPOSE_PUBLISH_HOST}:3100
-#   Promtail:            http://${COMPOSE_PUBLISH_HOST}:3101
-#   Grafana:             http://${COMPOSE_PUBLISH_HOST}:${GRAFANA_PORT:-3001}
+# Kafka/Redis/DB addresses inside containers must use Compose DNS names
+# (dpay-postgres, dpay-kafka:29092, dpay-redis) — never localhost of the host.
 #
-# Loki configs live under assets/local-development/{loki,promtail,grafana,secrets,logs}.
-# Test/local only; do not expose these ports beyond a trusted network.
-#
-# Credentials come from .env (gitignored). Grafana admin password is the Docker
-# secret file assets/local-development/secrets/bnpl_loki_grafana_password.
-# The BNPL application runs on the host, not inside Compose.
+# Compose 2.30+ recommended (env_file format: raw for private env files).
+
+name: dpay
+
+x-platform-tmpfs: &platform-tmpfs
+  - /tmp:rw,noexec,nosuid,size=64m,mode=1777
+
+x-identity-image: &identity-image
+  image: ${IDENTITY_IMAGE:-registry.hamdocker.ir/parstis-technology/identity-service@sha256:408910ebecad5a3f0b592f229c3bc4ec8adee0dd24f5b0d0269e525708d1be46}
+
+x-customer-image: &customer-image
+  image: ${CUSTOMER_IMAGE:-registry.hamdocker.ir/parstis-technology/customer-service@sha256:9d7402768164bde13d34d0ff41258018184c77582f3ec82edee88a7ac1b36610}
+
+x-financial-image: &financial-image
+  image: ${FINANCIAL_CORE_IMAGE:-registry.hamdocker.ir/parstis-technology/financial-core-service@sha256:35e05c23f394ace90229621d82dc85a0d06a9f0e7e0b82683275caa904fe753a}
+
+x-notification-image: &notification-image
+  image: ${NOTIFICATION_IMAGE:-registry.hamdocker.ir/parstis-technology/notification-service@sha256:d008d62018efc1aecfcf190a9f6a4ae0f35182a9d81a7ed5da34488d63ad98be}
+
+x-bnpl-image: &bnpl-image
+  image: ${BNPL_IMAGE:-registry.hamdocker.ir/parstis-technology/bnpl-backend:v0.1.0-development}
 
 services:
-  # ── PostgreSQL ─────────────────────────────────────────────────────────────
-  db:
-    image: docker.arvancloud.ir/postgres:18
-    container_name: bnpl-db
+  # ── PostgreSQL (one instance, five databases) ───────────────────────────────
+  postgres:
+    image: ${POSTGRES_IMAGE:-docker.arvancloud.ir/postgres:18}
+    container_name: dpay-postgres
     restart: unless-stopped
-
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-
+      POSTGRES_DB: ${POSTGRES_DB:-bnpl}
+      POSTGRES_USER: ${POSTGRES_USER:-dpay}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
     volumes:
-      - postgres_data_bnpl:/var/lib/postgresql
-
+      - dpay_postgres_data:/var/lib/postgresql
+      - ./assets/dev/postgres/init-databases.sh:/docker-entrypoint-initdb.d/10-init-databases.sh:ro
+    # Not published publicly; apps reach it on dpay-net. Optional host debug bind:
     ports:
-      - "127.0.0.1:5432:5432"
-
+      - "${DPAY_PUBLISH_BIND:-127.0.0.1}:5432:5432"
     healthcheck:
-      test: [
-        "CMD-SHELL",
-        "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
-      ]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dpay} -d ${POSTGRES_DB:-bnpl}"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 15s
-
+      retries: 10
+      start_period: 20s
     networks:
-      - bnpl-net
+      - dpay-net
 
-  # ── Kafka ──────────────────────────────────────────────────────────────────
-  #
-  # Official apache/kafka image (KRaft). Env vars must use the KAFKA_* form.
-  kafka:
-    image: docker.arvancloud.ir/apache/kafka:4.4.0
-    hostname: kafka
-    container_name: bnpl-kafka
+  # ── Redis (Identity revocation projection) ──────────────────────────────────
+  redis:
+    image: ${REDIS_IMAGE:-docker.arvancloud.ir/redis:7-alpine}
+    container_name: dpay-redis
     restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - dpay_redis_data:/data
+    ports:
+      - "${DPAY_PUBLISH_BIND:-127.0.0.1}:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    networks:
+      - dpay-net
 
+  # ── Kafka (KRaft single-node; internal listener for Compose DNS) ─────────────
+  kafka:
+    image: ${KAFKA_IMAGE:-docker.arvancloud.ir/apache/kafka:4.3.1}
+    hostname: dpay-kafka
+    container_name: dpay-kafka
+    restart: unless-stopped
     environment:
-      # Run a single-node Kafka cluster in KRaft combined mode.
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
-
-      # EXTERNAL is used by applications running on the host.
-      # INTERNAL is used by containers on bnpl-net, such as Redpanda Console.
-      # CONTROLLER is used only by Kafka's KRaft controller.
-      KAFKA_LISTENERS: EXTERNAL://:9092,INTERNAL://:29092,CONTROLLER://:9093
-
-      # Host-side clients connect through ${COMPOSE_PUBLISH_HOST}:9092.
-      # Docker services connect through kafka:29092.
-      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://${COMPOSE_PUBLISH_HOST}:9092,INTERNAL://kafka:29092
-
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
-
-      # Broker-to-broker communication uses the internal Docker listener.
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-MkU3OEVBNTcwNTJENDM2Qk}
+      KAFKA_LISTENERS: INTERNAL://:29092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://dpay-kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
-
-      # Single-node KRaft controller configuration.
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@dpay-kafka:9093
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-
-      # Internal Kafka topics cannot use the production default replication
-      # factor because this local environment has only one broker.
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_LOG_DIRS: /var/lib/kafka/data
-
     volumes:
-      - kafka_data_bnpl:/var/lib/kafka/data
-
-    ports:
-      # Only the external listener needs to be accessible from the host.
-      - "${COMPOSE_PUBLISH_HOST}:9092:9092"
-
+      - dpay_kafka_data:/var/lib/kafka/data
     healthcheck:
-      test: [
-        "CMD-SHELL",
-        "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1 || exit 1"
-      ]
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:29092 --list >/dev/null 2>&1 || exit 1",
+        ]
       interval: 30s
       timeout: 10s
-      retries: 5
-      start_period: 40s
-
+      retries: 10
+      start_period: 45s
     networks:
-      - bnpl-net
+      dpay-net:
+        aliases:
+          - dpay-kafka
+          - kafka
 
-  # ── Local Kafka topic initialization ───────────────────────────────────────
-  #
-  # One-shot, idempotent provisioning for the single-broker development setup.
-  # Requires ./scripts/kafka/init-topics.sh on the host (not shipped here).
   kafka-init:
-    image: docker.arvancloud.ir/apache/kafka:4.3.1
-    container_name: bnpl-kafka-init
+    image: ${KAFKA_IMAGE:-docker.arvancloud.ir/apache/kafka:4.3.1}
+    container_name: dpay-kafka-init
     restart: "no"
-
     depends_on:
       kafka:
         condition: service_healthy
-
     environment:
-      # Include both producer destinations and consumer subscriptions. The
-      # script deduplicates names when the consumer and producer topics match.
+      # init-topics.sh hardcodes bootstrap kafka:29092; compose gives kafka an alias.
       KAFKA_TOPICS: >-
         ${KAFKA_TOPIC_MERCHANT_CHECKOUT_EVENTS:-bnpl.merchant.checkout.events}
         ${KAFKA_TOPIC_PAYMENT_RESULTS:-financial-core.payment-results}
@@ -144,304 +143,499 @@ services:
         ${KAFKA_TOPIC_INSTALLMENT_PAYMENT_RECONCILIATION_RESULTS:-financial_core.installment_payment_reconciliation_results}
         ${KAFKA_TOPIC_INSTALLMENT_PAYMENT_RECONCILIATION_ACKNOWLEDGEMENTS:-bnpl.installment_payment_reconciliation_acknowledgements}
         ${KAFKA_TOPIC_NOTIFICATION_SMS_REQUESTS:-notification.sms.requests}
-        ${KAFKA_TOPIC_DOCUMENT_LIFECYCLE:-document.lifecycle}
-        ${KAFKA_TOPIC_DOCUMENT_OWNER_LIFECYCLE:-document.owner.lifecycle}
-        ${KAFKA_TOPIC_FINANCIAL_EVENTS:-financial.events}
-        ${KAFKA_TOPIC_FINANCIAL_PROVIDER_COMMANDS:-financial.provider.commands}
         ${KAFKA_TOPIC_IDENTITY_AUTH_REVOCATIONS:-identity.auth.revocations.v1}
         ${KAFKA_TOPIC_IDENTITY_OUTBOX:-identity.outbox.v1}
         ${KAFKA_TOPIC_NOTIFICATION_COMMANDS:-notification.commands.v1}
         ${KAFKA_TOPIC_NOTIFICATION_LIFECYCLE:-parstis.notification.lifecycle.v1}
         ${KAFKA_CONSUMER_QUARANTINE_TOPIC:-bnpl.consumer.quarantine.v1}
-        ${KAFKA_CONSUMER_TOPIC_PAYMENT_RESULTS:-financial-core.payment-results}
-        ${KAFKA_CONSUMER_TOPIC_INSTALLMENT_PAYMENT_RECONCILIATION_RESULTS:-financial_core.installment_payment_reconciliation_results}
-
     volumes:
       - ./scripts/kafka/init-topics.sh:/opt/kafka/init-topics.sh:ro
-
-    entrypoint:
-      - /bin/bash
-      - /opt/kafka/init-topics.sh
-
+    entrypoint: ["/bin/bash", "/opt/kafka/init-topics.sh"]
     networks:
-      - bnpl-net
+      - dpay-net
 
-  # ── Redpanda Console ───────────────────────────────────────────────────────
-  #
-  # Redpanda Console is only a Kafka UI in this setup.
-  # Open: http://${COMPOSE_PUBLISH_HOST}:8081
-  redpanda-console:
-    image: docker.redpanda.com/redpandadata/console:v3.9.0
-    container_name: bnpl-redpanda-console
-    restart: unless-stopped
-
-    environment:
-      # Use Kafka's internal Docker listener.
-      KAFKA_BROKERS: kafka:29092
-
-    ports:
-      # Port 8080 is reserved for the host-side BNPL application.
-      - "${COMPOSE_PUBLISH_HOST}:8081:8080"
-
-    depends_on:
-      kafka:
-        condition: service_healthy
-
-    healthcheck:
-      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-
-    networks:
-      - bnpl-net
-
-  # ── Temporal development server ────────────────────────────────────────────
-  #
-  # Single-process development server for test only.
+  # ── Temporal (BNPL jobs) ────────────────────────────────────────────────────
   temporal:
-    image: temporalio/temporal:1.8.3
-    container_name: bnpl-temporal
+    image: ${TEMPORAL_IMAGE:-temporalio/temporal:1.8.3}
+    container_name: dpay-temporal
     restart: unless-stopped
-
-    command:
-      - server
-      - start-dev
-      - --ip
-      - 0.0.0.0
-      # The standalone temporal-ui service below owns the local Web UI.
-      - --headless
-
+    command: ["server", "start-dev", "--ip", "0.0.0.0", "--headless"]
     ports:
-      - "${COMPOSE_PUBLISH_HOST}:7233:7233"
-
+      - "${DPAY_PUBLISH_BIND:-127.0.0.1}:7233:7233"
     healthcheck:
-      test: [
-        "CMD-SHELL",
-        "temporal operator cluster health --address 127.0.0.1:7233 >/dev/null 2>&1 || exit 1"
-      ]
+      test:
+        [
+          "CMD-SHELL",
+          "temporal operator cluster health --address 127.0.0.1:7233 >/dev/null 2>&1 || exit 1",
+        ]
       interval: 15s
       timeout: 10s
       retries: 10
       start_period: 30s
-
     networks:
-      - bnpl-net
+      - dpay-net
 
-  # ── Temporal Web UI ───────────────────────────────────────────────────────
-  #
-  # Open: http://${COMPOSE_PUBLISH_HOST}:${TEMPORAL_UI_PORT}
   temporal-ui:
-    image: temporalio/ui:2.54.1
-    container_name: bnpl-temporal-ui
+    image: ${TEMPORAL_UI_IMAGE:-temporalio/ui:2.54.1}
+    container_name: dpay-temporal-ui
     restart: unless-stopped
-
     environment:
-      TEMPORAL_ADDRESS: temporal:7233
-
+      TEMPORAL_ADDRESS: dpay-temporal:7233
     ports:
-      - "${COMPOSE_PUBLISH_HOST}:${TEMPORAL_UI_PORT}:8080"
-
+      - "${DPAY_PUBLISH_BIND:-127.0.0.1}:${TEMPORAL_UI_PORT:-8233}:8080"
     depends_on:
       temporal:
         condition: service_healthy
-
-    healthcheck:
-      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-
     networks:
-      - bnpl-net
+      - dpay-net
 
-  # ── Envoy Gateway ──────────────────────────────────────────────────────────
-  #
-  # Envoy runs in the host network namespace because BNPL itself runs
-  # directly on the host and listens only on 127.0.0.1:8080.
-  #
-  # Requires local Envoy config + certs (not shipped in this pack).
+  # ── Envoy (own gateway — public 80/443) ─────────────────────────────────────
   envoy:
-    image: envoyproxy/envoy:v1.39.0
-    container_name: bnpl-envoy
+    image: ${ENVOY_IMAGE:-envoyproxy/envoy:v1.39.0}
+    container_name: dpay-envoy
     restart: unless-stopped
-
-    network_mode: host
-
+    depends_on:
+      - bnpl
+      - identity
+      - customer
+      - financial-core
     volumes:
-      - ./assets/local-development/envoy/development/config.yaml:/etc/envoy/envoy.yaml:ro
-      # Replace this host path on the target machine with the real certs directory.
-      - /home/masoud-dev/Documents/projects/golang/platform-infra/envoy/certs:/etc/envoy/certs:ro
-
-    command:
-      - envoy
-      - -c
-      - /etc/envoy/envoy.yaml
-      - --log-level
-      - info
-
-    # Envoy image has no wget; TCP to admin port is the portable ready signal.
+      - ./assets/dev/envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
+      - ./assets/dev/certs:/etc/envoy/certs:ro
+    ports:
+      - "80:80"
+      - "443:443"
+      - "${DPAY_PUBLISH_BIND:-127.0.0.1}:9901:9901"
+    command: ["envoy", "-c", "/etc/envoy/envoy.yaml", "--log-level", "info"]
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/9901'"]
       interval: 15s
       timeout: 5s
       retries: 10
       start_period: 20s
-
-  # ── Loki (log store) ───────────────────────────────────────────────────────
-  #
-  # Test single-binary Loki with filesystem TSDB. Retention TTL 744h.
-  # No auth. Loopback bind only. Not HA / not production.
-  loki:
-    image: docker.arvancloud.ir/grafana/loki:3.6.8
-    container_name: bnpl-loki
-    restart: unless-stopped
-
-    command:
-      - -config.file=/etc/loki/local-config.yaml
-
-    volumes:
-      - ./assets/local-development/loki/local-config.yaml:/etc/loki/local-config.yaml:ro
-      - loki_data:/loki
-
-    ports:
-      - "${COMPOSE_PUBLISH_HOST}:3100:3100"
-
-    # Distroless image: no shell/wget. Binary check + start_period covers boot.
-    # Orchestrators with HTTP probes should hit GET /ready on :3100 instead.
-    healthcheck:
-      test: ["CMD", "/usr/bin/loki", "-version"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-
     networks:
-      - bnpl-net
+      - dpay-net
 
-  # ── Promtail (collector) ───────────────────────────────────────────────────
-  #
-  # Pushes to http://loki:3100/loki/api/v1/push
-  # Host app logs: per-service *_LOG_DIR -> /host-logs/<service> (read-only)
-  # Docker logs: explicit opt-in and per-service *_LOG_SOURCE=docker
-  # HTTP listen 3101 reserved for ready/metrics (optional future receiver not activated)
-  promtail:
-    image: docker.arvancloud.ir/grafana/promtail:3.6.8
-    container_name: bnpl-promtail
+  # ── BNPL ────────────────────────────────────────────────────────────────────
+  bnpl:
+    <<: *bnpl-image
+    container_name: dpay-bnpl
     restart: unless-stopped
-
-    command:
-      - -config.file=/etc/promtail/config.yml
-      - -config.expand-env=true
-
+    env_file:
+      - path: ./private/bnpl.env
+        format: raw
     environment:
-      IDENTITY_LOG_SOURCE: ${IDENTITY_LOG_SOURCE:-host}
-      MERCHANT_LOG_SOURCE: ${MERCHANT_LOG_SOURCE:-host}
-      LOCATION_LOG_SOURCE: ${LOCATION_LOG_SOURCE:-host}
-      BNPL_LOG_SOURCE: ${BNPL_LOG_SOURCE:-host}
-      DOCUMENT_LOG_SOURCE: ${DOCUMENT_LOG_SOURCE:-host}
-      FINANCIAL_CORE_LOG_SOURCE: ${FINANCIAL_CORE_LOG_SOURCE:-host}
-      CUSTOMER_LOG_SOURCE: ${CUSTOMER_LOG_SOURCE:-host}
-      NOTIFICATION_LOG_SOURCE: ${NOTIFICATION_LOG_SOURCE:-host}
-
-    volumes:
-      - ./assets/local-development/promtail/config.yml:/etc/promtail/config.yml:ro
-      - bnpl_loki_positions:/var/lib/promtail
-      - ${IDENTITY_LOG_DIR:-./assets/local-development/logs/identity-service}:/host-logs/identity-service:ro
-      - ${MERCHANT_LOG_DIR:-./assets/local-development/logs/merchant-service}:/host-logs/merchant-service:ro
-      - ${LOCATION_LOG_DIR:-./assets/local-development/logs/location-service}:/host-logs/location-service:ro
-      - ${BNPL_LOG_DIR:-./assets/local-development/logs/bnpl-service}:/host-logs/bnpl-service:ro
-      - ${DOCUMENT_LOG_DIR:-./assets/local-development/logs/document-service}:/host-logs/document-service:ro
-      - ${FINANCIAL_CORE_LOG_DIR:-./assets/local-development/logs/financial-core-service}:/host-logs/financial-core-service:ro
-      - ${CUSTOMER_LOG_DIR:-./assets/local-development/logs/customer-service}:/host-logs/customer-service:ro
-      - ${NOTIFICATION_LOG_DIR:-./assets/local-development/logs/notification-service}:/host-logs/notification-service:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-
-    ports:
-      - "${COMPOSE_PUBLISH_HOST}:3101:3101"
-
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
+      GIN_HOST: 0.0.0.0
+      GIN_PORT: "8080"
+      POSTGRES_HOST: dpay-postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-bnpl}
+      KAFKA_BROKER_1: dpay-kafka:29092
+      TASK_TEMPORAL_ADDRESS: dpay-temporal:7233
+      CHECKOUT_SESSION_PUBLIC_ORIGIN: ${CHECKOUT_SESSION_PUBLIC_ORIGIN:-https://api.dev.dlend.ir}
+      CHECKOUT_SESSION_PUBLIC_ORIGIN_ALLOWED_HOST: ${CHECKOUT_SESSION_PUBLIC_ORIGIN_ALLOWED_HOST:-api.dev.dlend.ir}
+      SHORT_LINK_PUBLIC_HOST: ${SHORT_LINK_PUBLIC_HOST:-s.dev.dlend.ir}
     depends_on:
-      loki:
+      postgres:
         condition: service_healthy
-
-    # Ubuntu base: no wget packaged. TCP open on HTTP listen port ≈ ready.
-    healthcheck:
-      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/3101'"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
-
+      kafka:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+    expose:
+      - "8080"
     networks:
-      - bnpl-net
+      - dpay-net
 
-  # ── Grafana (Explore Loki) ─────────────────────────────────────────────────
-  #
-  # Open: http://${COMPOSE_PUBLISH_HOST}:${GRAFANA_PORT:-3001}
-  # Admin password from Docker secret file secrets/bnpl_loki_grafana_password
-  grafana:
-    image: docker.arvancloud.ir/grafana/grafana:12.3.0
-    container_name: bnpl-grafana
-    restart: unless-stopped
-
+  bnpl-migrate:
+    image: ${BNPL_DBADMIN_IMAGE:-registry.hamdocker.ir/parstis-technology/bnpl-backend-dbadmin:v0.1.0-development}
+    container_name: dpay-bnpl-migrate
+    restart: "no"
+    profiles: ["migration"]
+    env_file:
+      - path: ./private/bnpl.env
+        format: raw
     environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/bnpl_loki_grafana_password
-      GF_AUTH_ANONYMOUS_ENABLED: "false"
-      GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_SERVER_HTTP_ADDR: 0.0.0.0
-      GF_SERVER_ROOT_URL: http://${COMPOSE_PUBLISH_HOST}:${GRAFANA_PORT:-3001}
-      GF_ANALYTICS_REPORTING_ENABLED: "false"
-      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
-
-    volumes:
-      - ./assets/local-development/grafana/provisioning:/etc/grafana/provisioning:ro
-      - grafana_data:/var/lib/grafana
-
-    # Grafana runs as UID 472. Compose file-backed secrets inherit host mode
-    # bits (uid/gid/mode are ignored on this engine), so `make up` keeps the
-    # secret file mode 0644 for the grafana user to read.
-    secrets:
-      - bnpl_loki_grafana_password
-
-    ports:
-      - "${COMPOSE_PUBLISH_HOST}:${GRAFANA_PORT:-3001}:3000"
-
+      POSTGRES_HOST: dpay-postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-bnpl}
     depends_on:
-      loki:
+      postgres:
         condition: service_healthy
-
-    healthcheck:
-      test: [
-        "CMD-SHELL",
-        "wget -qO- http://127.0.0.1:3000/api/health >/dev/null 2>&1 || curl -fsS http://127.0.0.1:3000/api/health >/dev/null 2>&1 || exit 1",
-      ]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-
+    entrypoint: ["./bnpl-dbadmin"]
+    command: ["migrate", "up"]
     networks:
-      - bnpl-net
+      - dpay-net
+
+  # ── Identity ────────────────────────────────────────────────────────────────
+  identity:
+    <<: *identity-image
+    container_name: dpay-identity
+    restart: unless-stopped
+    env_file:
+      - path: ./private/identity.env
+        format: raw
+    environment:
+      APP_MODE: api
+      PARSTIS_ENVIRONMENT: dev
+    read_only: true
+    tmpfs: *platform-tmpfs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    expose:
+      - "8080"
+      - "9090"
+    networks:
+      - dpay-net
+
+  identity-migrate:
+    <<: *identity-image
+    container_name: dpay-identity-migrate
+    restart: "no"
+    profiles: ["migration"]
+    env_file:
+      - path: ./private/identity.env
+        format: raw
+    environment:
+      APP_MODE: migrate
+      PARSTIS_ENVIRONMENT: dev
+    read_only: true
+    tmpfs: *platform-tmpfs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dpay-net
+
+  identity-seed:
+    <<: *identity-image
+    container_name: dpay-identity-seed
+    restart: "no"
+    profiles: ["seed"]
+    env_file:
+      - path: ./private/identity.env
+        format: raw
+    environment:
+      APP_MODE: seed
+      PARSTIS_ENVIRONMENT: dev
+      IDENTITY_SEED_ENABLED: "true"
+      IDENTITY_SEED_BOOTSTRAP_ADMIN_ENABLED: "false"
+      IDENTITY_SEED_RELEASE_ID: ${IDENTITY_SEED_RELEASE_ID:-dpay-dev}
+      IDENTITY_SEED_RUN_ID: ${IDENTITY_SEED_RUN_ID:-dpay-dev-initial}
+    read_only: true
+    tmpfs: *platform-tmpfs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dpay-net
+
+  identity-outbox:
+    <<: *identity-image
+    container_name: dpay-identity-outbox
+    restart: unless-stopped
+    env_file:
+      - path: ./private/identity.env
+        format: raw
+    environment:
+      APP_MODE: worker
+      PARSTIS_ENVIRONMENT: dev
+      IDENTITY_WORKER_COMMAND: publish-outbox
+      IDENTITY_WORKER_REPEAT: "true"
+      PARSTIS_JOB_INTERVAL_SECONDS: "2"
+    read_only: true
+    tmpfs: *platform-tmpfs
+    depends_on:
+      - identity
+      - kafka
+    networks:
+      - dpay-net
+
+  identity-revocation:
+    <<: *identity-image
+    container_name: dpay-identity-revocation
+    restart: unless-stopped
+    env_file:
+      - path: ./private/identity.env
+        format: raw
+    environment:
+      APP_MODE: worker
+      PARSTIS_ENVIRONMENT: dev
+      IDENTITY_WORKER_COMMAND: project-revocations-redis
+      IDENTITY_WORKER_REPEAT: "true"
+      PARSTIS_JOB_INTERVAL_SECONDS: "2"
+    read_only: true
+    tmpfs: *platform-tmpfs
+    depends_on:
+      - identity
+      - redis
+      - kafka
+    networks:
+      - dpay-net
+
+  identity-notifications:
+    <<: *identity-image
+    container_name: dpay-identity-notifications
+    restart: unless-stopped
+    env_file:
+      - path: ./private/identity.env
+        format: raw
+    environment:
+      APP_MODE: worker
+      PARSTIS_ENVIRONMENT: dev
+      IDENTITY_WORKER_COMMAND: dispatch-authentication-notifications
+      IDENTITY_WORKER_REPEAT: "true"
+      PARSTIS_JOB_INTERVAL_SECONDS: "2"
+    read_only: true
+    tmpfs: *platform-tmpfs
+    depends_on:
+      - identity
+      - notification
+    networks:
+      - dpay-net
+
+  # ── Customer ────────────────────────────────────────────────────────────────
+  customer:
+    <<: *customer-image
+    container_name: dpay-customer
+    restart: unless-stopped
+    env_file:
+      - path: ./private/customer.env
+        format: raw
+    environment:
+      APP_MODE: api
+      PARSTIS_ENVIRONMENT: dev
+    read_only: true
+    tmpfs: *platform-tmpfs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      identity:
+        condition: service_started
+    expose:
+      - "8081"
+      - "9091"
+    networks:
+      - dpay-net
+
+  customer-migrate:
+    <<: *customer-image
+    container_name: dpay-customer-migrate
+    restart: "no"
+    profiles: ["migration"]
+    env_file:
+      - path: ./private/customer.env
+        format: raw
+    environment:
+      APP_MODE: migrate
+      PARSTIS_ENVIRONMENT: dev
+    read_only: true
+    tmpfs: *platform-tmpfs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dpay-net
+
+  # ── Financial Core ──────────────────────────────────────────────────────────
+  financial-core:
+    <<: *financial-image
+    container_name: dpay-financial-core
+    restart: unless-stopped
+    env_file:
+      - path: ./private/financial-core.env
+        format: raw
+    environment:
+      APP_MODE: api
+      PARSTIS_ENVIRONMENT: dev
+    read_only: true
+    tmpfs: *platform-tmpfs
+    volumes:
+      - dpay_payment_simulator_data:/var/lib/parstis/payment-simulator
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      customer:
+        condition: service_started
+    expose:
+      - "8082"
+      - "9093"
+    networks:
+      - dpay-net
+
+  financial-core-migrate:
+    <<: *financial-image
+    container_name: dpay-financial-core-migrate
+    restart: "no"
+    profiles: ["migration"]
+    env_file:
+      - path: ./private/financial-core.env
+        format: raw
+    environment:
+      APP_MODE: migrate
+      PARSTIS_ENVIRONMENT: dev
+    read_only: true
+    tmpfs: *platform-tmpfs
+    volumes:
+      - dpay_payment_simulator_data:/var/lib/parstis/payment-simulator
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dpay-net
+
+  financial-outbox:
+    <<: *financial-image
+    container_name: dpay-financial-outbox
+    restart: unless-stopped
+    env_file:
+      - path: ./private/financial-core.env
+        format: raw
+    environment:
+      APP_MODE: worker
+      PARSTIS_ENVIRONMENT: dev
+      FINANCIAL_CORE_WORKER_MODE: loop
+    read_only: true
+    tmpfs: *platform-tmpfs
+    volumes:
+      - dpay_payment_simulator_data:/var/lib/parstis/payment-simulator
+    depends_on:
+      - financial-core
+    networks:
+      - dpay-net
+
+  financial-provider-start:
+    <<: *financial-image
+    container_name: dpay-financial-provider-start
+    restart: unless-stopped
+    env_file:
+      - path: ./private/financial-core.env
+        format: raw
+    environment:
+      APP_MODE: provider-start-worker
+      PARSTIS_ENVIRONMENT: dev
+      FINANCIAL_CORE_WORKER_MODE: loop
+    read_only: true
+    tmpfs: *platform-tmpfs
+    volumes:
+      - dpay_payment_simulator_data:/var/lib/parstis/payment-simulator
+    depends_on:
+      - financial-core
+    networks:
+      - dpay-net
+
+  financial-accounting:
+    <<: *financial-image
+    container_name: dpay-financial-accounting
+    restart: unless-stopped
+    env_file:
+      - path: ./private/financial-core.env
+        format: raw
+    environment:
+      APP_MODE: payment-accounting-worker
+      PARSTIS_ENVIRONMENT: dev
+      FINANCIAL_CORE_WORKER_MODE: loop
+    read_only: true
+    tmpfs: *platform-tmpfs
+    volumes:
+      - dpay_payment_simulator_data:/var/lib/parstis/payment-simulator
+    depends_on:
+      - financial-core
+    networks:
+      - dpay-net
+
+  # ── Notification ────────────────────────────────────────────────────────────
+  notification:
+    <<: *notification-image
+    container_name: dpay-notification
+    restart: unless-stopped
+    env_file:
+      - path: ./private/notification.env
+        format: raw
+    environment:
+      APP_MODE: api
+      PARSTIS_ENVIRONMENT: dev
+    read_only: true
+    tmpfs: *platform-tmpfs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    expose:
+      - "9092"
+    networks:
+      - dpay-net
+
+  notification-migrate:
+    <<: *notification-image
+    container_name: dpay-notification-migrate
+    restart: "no"
+    profiles: ["migration"]
+    env_file:
+      - path: ./private/notification.env
+        format: raw
+    environment:
+      APP_MODE: migrate
+      PARSTIS_ENVIRONMENT: dev
+    read_only: true
+    tmpfs: *platform-tmpfs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dpay-net
+
+  notification-dispatch:
+    <<: *notification-image
+    container_name: dpay-notification-dispatch
+    restart: unless-stopped
+    env_file:
+      - path: ./private/notification.env
+        format: raw
+    environment:
+      APP_MODE: worker
+      PARSTIS_ENVIRONMENT: dev
+    read_only: true
+    tmpfs: *platform-tmpfs
+    depends_on:
+      - notification
+    networks:
+      - dpay-net
+
+  notification-outbox:
+    <<: *notification-image
+    container_name: dpay-notification-outbox
+    restart: unless-stopped
+    profiles: ["notification-events"]
+    env_file:
+      - path: ./private/notification.env
+        format: raw
+    environment:
+      APP_MODE: outbox
+      PARSTIS_ENVIRONMENT: dev
+    read_only: true
+    tmpfs: *platform-tmpfs
+    depends_on:
+      - notification
+      - kafka
+    networks:
+      - dpay-net
 
 networks:
-  bnpl-net:
+  dpay-net:
     driver: bridge
+    name: dpay-net
 
 volumes:
-  postgres_data_bnpl:
-  kafka_data_bnpl:
-  loki_data:
-  bnpl_loki_positions:
-  grafana_data:
-
-secrets:
-  bnpl_loki_grafana_password:
-    file: ./assets/local-development/secrets/bnpl_loki_grafana_password
-
-# COMMENT
+  dpay_postgres_data:
+  dpay_redis_data:
+  dpay_kafka_data:
+  dpay_payment_simulator_data:
