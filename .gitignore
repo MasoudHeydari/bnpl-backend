@@ -69,8 +69,8 @@ dist
 doc/collections/http-client.env.json
 
 # Dev TLS material for Envoy image build (keep README tracked).
-assets/dev/envoy/certs/*
-!assets/dev/envoy/certs/README.md
+deploy/gateway/envoy/certs/*
+!deploy/gateway/envoy/certs/README.md
 
 ### AI / editor local state ###
 # Ignore Cursor local state, but keep the always-on test-verification rule.

@@ -7,9 +7,11 @@ so first boot creates empty DBs `identity`, `customer`, `financial_core`, and
 `notification` alongside `POSTGRES_DB` (`bnpl`). No host bind mount (Hamravesh).
 
 ```bash
-cd assets/dev/postgres
+cd deploy/infrastructure/postgres
 make image
 make push-to-hamravesh
 ```
 
 Init scripts run only when the data volume is empty (first Postgres boot).
+
+The init script only creates databases, not individual application roles.

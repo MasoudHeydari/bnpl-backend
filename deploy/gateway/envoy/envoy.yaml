@@ -6,12 +6,12 @@
 #   - TLS-only listener on 0.0.0.0:443 (no plaintext :80)
 #   - Upstream STRICT_DNS → dpay-* Compose service names
 #   - Public hosts: dev.dlend.ir / api.dev.dlend.ir / s.dev.dlend.ir
-#   - TLS material baked into dpay-envoy:v0.1.0 at /etc/envoy/certs/tls.{crt,key}
+#   - TLS material baked into envoy.parstis-technology-dpay-dev.svc:v0.1.0 at /etc/envoy/certs/tls.{crt,key}
 #
 # JWT issuer/audiences must match Identity ENV (IDENTITY_ACCESS_JWT_*). Rebuild the
 # image when envoy.yaml or certs change.
 #
-# Merchant upstream (dpay-merchant:8085) is declared for route parity; that service is
+# Merchant upstream (merchant.parstis-technology-dpay-dev.svc:8085) is declared for route parity; that service is
 # not in docker-compose.dev.yml yet — those routes stay dark until it joins the net.
 #
 # Authoritative renderer remains platform-infra scripts/render-envoy.py; keep this
@@ -62,7 +62,6 @@ static_resources:
                           method: "%REQ(:METHOD)%"
                           path: "%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%"
                           full_url: "%REQ(:SCHEME)%://%REQ(:AUTHORITY)%%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%"
-                          request_body: "%DYNAMIC_METADATA(envoy.filters.http.lua:request_body)%"
                           protocol: "%PROTOCOL%"
                           authority: "%REQ(:AUTHORITY)%"
                           scheme: "%REQ(:SCHEME)%"
@@ -116,7 +115,6 @@ static_resources:
                           # Response
                           response_code: "%RESPONSE_CODE%"
                           response_status_text: "%DYNAMIC_METADATA(envoy.filters.http.lua:response_status_text)%"
-                          response_body: "%DYNAMIC_METADATA(envoy.filters.http.lua:response_body)%"
                           response_body_capture_state: "%DYNAMIC_METADATA(envoy.filters.http.lua:response_body_capture_state)%"
                           response_body_truncated: "%DYNAMIC_METADATA(envoy.filters.http.lua:response_body_truncated)%"
                           response_code_details: "%RESPONSE_CODE_DETAILS%"
@@ -469,7 +467,7 @@ static_resources:
                               append_action: OVERWRITE_IF_EXISTS_OR_ADD
                             - header:
                                 key: "x-internal-signup-proxy-proof"
-                                value: "mttQzxL-oP-ArArs_GKqtp5rX7E_7n8wawBMixLmru454AGQ2zGSmb0z6NlFlb80"
+                                value: "__DPAY_GATEWAY_TRUST_PROOF__"
                               append_action: OVERWRITE_IF_EXISTS_OR_ADD
 
                         - match:
@@ -517,16 +515,16 @@ static_resources:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
                       providers:
                         identity_access_token:
-                          issuer: "parstis-identity-local"
+                          issuer: "__DPAY_JWT_ISSUER__"
                           audiences:
-                            - parstis-services-local
+                            - "__DPAY_JWT_AUDIENCE__"
                           from_headers:
                             - name: Authorization
                               value_prefix: 'Bearer '
                           forward: false
                           remote_jwks:
                             http_uri:
-                              uri: http://192.168.1.103:8080/.well-known/jwks.json
+                              uri: http://identity.parstis-technology-dpay-dev.svc:8080/.well-known/jwks.json
                               cluster: identity_jwks
                               timeout: 5s
                             cache_duration:
@@ -919,7 +917,7 @@ static_resources:
                             -- satisfies the canonical Identity principal contract.
                             headers:replace(
                               "x-internal-auth-gateway-proof",
-                              "mttQzxL-oP-ArArs_GKqtp5rX7E_7n8wawBMixLmru454AGQ2zGSmb0z6NlFlb80"
+                              "__DPAY_GATEWAY_TRUST_PROOF__"
                             )
                           
                             headers:replace(
@@ -1226,7 +1224,7 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: dpay-bnpl
+                      address: bnpl.parstis-technology-dpay-dev.svc
                       port_value: 8080
 
     - name: identity_service
@@ -1241,7 +1239,7 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: dpay-identity
+                      address: identity.parstis-technology-dpay-dev.svc
                       port_value: 8080
 
     - name: financial_service
@@ -1256,7 +1254,7 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: dpay-financial-core
+                      address: financial-core.parstis-technology-dpay-dev.svc
                       port_value: 8082
 
     - name: merchant_service
@@ -1272,7 +1270,7 @@ static_resources:
                   address:
                     socket_address:
                       # Not in docker-compose.dev.yml yet — placeholder for when Merchant joins.
-                      address: dpay-merchant
+                      address: merchant.parstis-technology-dpay-dev.svc
                       port_value: 8085
 
     - name: customer_service
@@ -1287,7 +1285,7 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: dpay-customer
+                      address: customer.parstis-technology-dpay-dev.svc
                       port_value: 8081
 
     - name: identity_jwks
@@ -1302,5 +1300,5 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: dpay-identity
+                      address: identity.parstis-technology-dpay-dev.svc
                       port_value: 8080

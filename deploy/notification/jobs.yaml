@@ -1,0 +1,54 @@
+# Hamravesh Darkoob: independent notification-jobs deployment; do not merge files.
+# Internal DNS: <service>.parstis-technology-dpay-dev.svc
+name: dpay-dev-notification-jobs
+
+# Shared read-only runtime scratch space (local to this standalone manifest).
+x-platform-tmpfs: &platform-tmpfs /tmp:rw,noexec,nosuid,size=64m,mode=1777
+
+x-notification-image: &notification-image
+  image: registry.hamdocker.ir/parstis-technology/notification-service@sha256:d008d62018efc1aecfcf190a9f6a4ae0f35182a9d81a7ed5da34488d63ad98be
+
+x-notification-env: &notification-env
+  JAVA_TOOL_OPTIONS: '-Xms128m -Xmx512m'
+  NOTIFICATION_API_GRPC_ENABLED: "true"
+  NOTIFICATION_API_GRPC_HOST: 0.0.0.0
+  NOTIFICATION_API_GRPC_PORT: 9092
+  NOTIFICATION_API_SPIFFE_TRUST_DOMAIN:
+  NOTIFICATION_API_TLS_CERTIFICATE_FILE_BASE64:
+  NOTIFICATION_API_TLS_CLIENT_CA_FILE_BASE64:
+  NOTIFICATION_API_TLS_PRIVATE_KEY_FILE_BASE64:
+  NOTIFICATION_COMMAND_KAFKA_BOOTSTRAP_SERVERS: kafka.parstis-technology-dpay-dev.svc:29092
+  NOTIFICATION_COMMAND_KAFKA_ENABLED: "false"
+  NOTIFICATION_KAFKA_GROUPS_ISOLATED: "true"
+  NOTIFICATION_KAFKA_OWNS_BROKER: "false"
+  NOTIFICATION_KAFKA_REQUIRE_TLS: "false"
+  NOTIFICATION_KAFKA_SHARED_BROKER: "true"
+  NOTIFICATION_KAVENEGAR_API_KEY:
+  NOTIFICATION_KAVENEGAR_AUTH_OTP_OPERATION: sms_send
+  NOTIFICATION_KAVENEGAR_DEFAULT_SENDER:
+  NOTIFICATION_KAVENEGAR_ENABLED: "true"
+  NOTIFICATION_LOCAL_DISPATCH_MODE: identity_otp_fresh
+  NOTIFICATION_POSTGRES_JDBC_URL: jdbc:postgresql://postgres.parstis-technology-dpay-dev.svc:5432/notification
+  NOTIFICATION_POSTGRES_PASSWORD:
+  NOTIFICATION_POSTGRES_USERNAME: dpay
+  NOTIFICATION_RECIPIENT_HASH_KEY_ID:
+  NOTIFICATION_REQUIRE_FRESH_OTP_SCOPE: "true"
+  NOTIFICATION_SEMANTIC_HMAC_ACTIVE_KEY_ID:
+  NOTIFICATION_SEMANTIC_HMAC_KEYS:
+  NOTIFICATION_SENSITIVE_PAYLOAD_ENCRYPTION_KEY_MATERIAL:
+  NOTIFICATION_SENSITIVE_PAYLOAD_RESOLVER: identity_aes_gcm
+  NOTIFICATION_SENSITIVE_VARIABLE_ACTIVE_KEY_ID:
+  NOTIFICATION_SENSITIVE_VARIABLE_KEYS:
+  NOTIFICATION_WORKER_ENABLED: "true"
+  PARSTIS_ENVIRONMENT: dev
+
+services:
+  notification-migrate:
+    <<: *notification-image
+    restart: "no"
+    profiles: ["migration"]
+    environment:
+      <<: *notification-env
+      APP_MODE: migrate
+    read_only: true
+    tmpfs: *platform-tmpfs

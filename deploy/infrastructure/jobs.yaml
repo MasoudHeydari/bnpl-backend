@@ -1,0 +1,26 @@
+# Hamravesh Darkoob: independent infrastructure-jobs deployment; do not merge files.
+# Internal DNS: <service>.parstis-technology-dpay-dev.svc
+name: dpay-dev-infrastructure-jobs
+
+
+services:
+  kafka-init:
+    image: registry.hamdocker.ir/parstis-technology/dpay-kafka-init:v0.1.0
+    restart: "no"
+    profiles: ["bootstrap"]
+    environment:
+      KAFKA_TOPICS: >-
+        bnpl.merchant.checkout.events
+        financial-core.payment-results
+        bnpl.audit.events.v1
+        financial_core.payment_application_results
+        financial_core.installment_payment_requests
+        bnpl.installment_payment_reconciliation_requests
+        financial_core.installment_payment_reconciliation_results
+        bnpl.installment_payment_reconciliation_acknowledgements
+        notification.sms.requests
+        identity.auth.revocations.v1
+        identity.outbox.v1
+        notification.commands.v1
+        parstis.notification.lifecycle.v1
+        bnpl.consumer.quarantine.v1
