@@ -2,9 +2,6 @@
 # Edit at https://www.toptal.com/developers/gitignore?templates=goland,go
 
 ### Go ###
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
 # Binaries for programs and plugins
 *.exe
 *.exe~
@@ -24,8 +21,12 @@
 # Go workspace file
 go.work
 
-### GoLand ###
-# Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm, CLion, Android Studio, WebStorm and Rider
+# Local Go build / module cache used by scripts and tooling
+.gocache
+
+### GoLand / JetBrains ###
+# Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm, CLion,
+# Android Studio, WebStorm and Rider.
 # Reference: https://intellij-support.jetbrains.com/hc/en-us/articles/206544839
 
 # User-specific stuff
@@ -37,7 +38,7 @@ cmake-build-*/
 # File-based project format
 *.iws
 
-# IntelliJ
+# IntelliJ / local build outputs
 out/
 build/bin/*
 
@@ -50,31 +51,46 @@ crashlytics.properties
 crashlytics-build.properties
 fabric.properties
 
-# .pgpass file directory
+### Python ###
+# Bytecode caches created by running scripts under scripts/ (and any other Python).
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local virtualenv for script tooling (never commit).
+.venv/
+venv/
+
+### Secrets / local env ###
 dist
 *.env
 doc/collections/http-client.env.json
 
+### AI / editor local state ###
 # Ignore Cursor local state, but keep the always-on test-verification rule.
 .cursor/
-
 .codex/
 .claude/
 graphify-out/
 AGENTS.md
+
+### Project assets (local-only) ###
 # Retain the legacy ignore rule to avoid accidentally committing local historical CSV files.
 assets/csv/trusted-subjects/*.csv
 assets/csv/trusted-customers/*.csv
+
 # Development-only TLS keys and local overrides.
 assets/local-development/**/*.key
 assets/local-development/**/*-key.pem
 assets/local-development/**/.env
+
 # Outbound mTLS PEMs for FC/customer/notification (keep README tracked).
 assets/local-development/certs/*
 !assets/local-development/certs/README.md
+
 # Grafana admin Docker secret for local Loki stack.
 assets/local-development/secrets/bnpl_loki_grafana_password
+
 # Local host log files collected by Promtail (keep directory .gitkeep files).
 assets/local-development/logs/**/*.log
 assets/local-development/logs/**/*.json
-.gocache
