@@ -15,32 +15,32 @@ Public edge is **our Envoy** on ports **80/443** — not the Hamravesh product g
 
 Postgres creates five DBs on first boot: `bnpl`, `identity`, `customer`, `financial_core`, `notification`.
 
+## ENV model (Hamravesh)
+
+Hamravesh does **not** accept host `env_file` paths.
+
+All runtime keys are declared inline under each service `environment:` as `${VAR}` /
+`${VAR:-default}`. Set values in the Hamravesh panel (or a local Compose `.env` on a VM).
+
+Examples:
+
+| Key | Typical value |
+| --- | --- |
+| `CONFIG_FILE` | `configs/runtime.yaml` (BNPL); dbadmin migrate uses `configs/dbadmin.yaml` |
+| `POSTGRES_PASSWORD` | shared Postgres password |
+| `GATEWAY_TRUST_PROOF` | shared gateway trust proof |
+| `IDENTITY_DB_JDBC_URL` | default `jdbc:postgresql://dpay-postgres:5432/identity` |
+| `KAFKA_BROKER_1` / `*_KAFKA_BOOTSTRAP_SERVERS` | default `dpay-kafka:29092` |
+
+Use the handoff `*.env.example.json` as the checklist of required secret keys
+(`REPLACE_*`). Connectivity defaults for this Compose network are already baked into
+`docker-compose.dev.yml`.
+
+Optional Compose-level vars: copy `.env.dev.example` → `.env` (or export).
+
 ## One-time prep
 
-1. Copy handoff env JSON → private env files (never commit):
-
-   ```bash
-   mkdir -p private
-   # From parstis-devops-handoff-20261112:
-   # fill identity/customer/financial-core/notification env JSON, then:
-   python3 /path/to/handoff/prepare-env.py
-   # Ensure these exist (Compose requires them):
-   #   private/identity.env
-   #   private/customer.env
-   #   private/financial-core.env
-   #   private/notification.env
-   #   private/bnpl.env
-   ```
-
-2. Inside those private env files, point dependencies at Compose DNS, for example:
-
-   - JDBC / DB host: `dpay-postgres`
-   - Kafka bootstrap: `dpay-kafka:29092`
-   - Redis: `redis://dpay-redis:6379`
-   - Identity gRPC host (from Customer/FC): `dpay-identity`
-   - Customer gRPC host (from FC): `dpay-customer`
-
-3. TLS for Envoy (SAN must include `dev.dlend.ir` / `api.dev.dlend.ir` / `s.dev.dlend.ir`):
+1. TLS for Envoy (SAN must include `dev.dlend.ir` / `api.dev.dlend.ir` / `s.dev.dlend.ir`):
 
    ```bash
    # place:
@@ -48,7 +48,8 @@ Postgres creates five DBs on first boot: `bnpl`, `identity`, `customer`, `financ
    #   assets/dev/certs/tls.key
    ```
 
-4. Optional Compose-level vars: copy `.env.dev.example` → `.env` (or export).
+2. In Hamravesh (or local `.env`), fill secrets from the handoff JSON templates:
+   JWT keys, mTLS `*_FILE_BASE64`, DB passwords, `GATEWAY_TRUST_PROOF`, Kavenegar, etc.
 
 ## Boot order
 

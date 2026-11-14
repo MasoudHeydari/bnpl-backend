@@ -68,9 +68,7 @@ dist
 !.env.dev.example
 doc/collections/http-client.env.json
 
-# Hamravesh / Compose private runtime ENV and TLS keys (keep README tracked).
-private/*
-!private/README.md
+# Dev TLS material for Envoy (keep README tracked).
 assets/dev/certs/*
 !assets/dev/certs/README.md
 
