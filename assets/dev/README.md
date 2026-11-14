@@ -19,8 +19,9 @@ Postgres creates five DBs on first boot: `bnpl`, `identity`, `customer`, `financ
 
 Hamravesh does **not** accept host `env_file` paths.
 
-All runtime keys are declared inline under each service `environment:` as `${VAR}` /
-`${VAR:-default}`. Set values in the Hamravesh panel (or a local Compose `.env` on a VM).
+All runtime keys are declared inline under each service `environment:` as plain
+literals (e.g. `GIN_HOST: 0.0.0.0`) — no `${VAR:-default}` and no quoting.
+Edit values in the compose file or in the Hamravesh panel.
 
 Examples:
 
@@ -40,10 +41,11 @@ Optional Compose-level vars: copy `.env.dev.example` → `.env` (or export).
 
 ## One-time prep
 
-1. Build/push Envoy image first (Compose has no `build:`; place `assets/dev/envoy/certs/tls.{crt,key}` first):
+1. Build/push own images first (Compose has no `build:` / host bind mounts):
 
    ```bash
-   cd assets/dev/envoy && make push-to-hamravesh   # default TAG=v0.1.0
+   cd assets/dev/postgres && make push-to-hamravesh   # multi-DB init baked in
+   cd ../envoy && make push-to-hamravesh              # needs certs/tls.{crt,key}
    ```
 
 2. In Hamravesh (or local `.env`), fill secrets from the handoff JSON templates:
@@ -78,11 +80,14 @@ DNS for the host should point `dev.dlend.ir` (and ideally `api.dev.dlend.ir`, `s
 
 ## Notes / limits (from handoff)
 
-- Image digests for platform services are pinned in Compose; override with `*_IMAGE` if needed.
+- Image names/digests are hardcoded in Compose (Hamravesh does not interpolate `${…}` on `image:`).
 - Payment simulator needs the shared volume `dpay_payment_simulator_data` (already mounted on FC roles). Keep a single provider-start writer.
 - Location service is **not** in this Compose; Customer paths that need Location stay unverified until it exists.
 - Envoy config is the full platform gateway (JWT/Lua/`x-auth-*`/CORS) adapted from
   `assets/local-development/envoy/development/config.yaml` for Compose DNS + TLS-only :443.
   Rebuild/push `dpay-envoy:v0.1.0` after editing `envoy.yaml` or rotating certs.
-- Do not open Postgres/Redis/Kafka/gRPC publicly; only Envoy `443:443` is published (TLS-only).
-- Hamravesh rejects port ranges and Compose `${VAR:-default}` / `IP:port:port` forms in `ports:` — keep single mappings only.
+- Public edge remains Envoy `443:443` (TLS-only). Other services declare single
+  `ports:` mappings for Hamravesh (e.g. `5432:5432`, `8080:8080`); keep them off
+  the public internet and reach them via the private network when possible.
+- Hamravesh rejects port ranges and `IP:port:port` / `${VAR:-default}` in `ports:` —
+  use only `"host:container"` singles.
