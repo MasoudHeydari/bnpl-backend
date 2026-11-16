@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/observer"
+	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/policy/collections"
 	collectionsv1 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v1"
 	collectionsv2 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v2"
@@ -112,6 +114,11 @@ type UseCases struct {
 func (a *App) NewUseCases() (UseCases, error) {
 	const op = "bootstrap.App.NewUseCases"
 
+	outboxPublisherObserver, err := observer.NewOutboxPublisher(a.Infrastructure.Logger)
+	if err != nil {
+		return UseCases{}, fmt.Errorf("%s: initialize outbox publisher observer: %w", op, err)
+	}
+
 	// Webhook routing publisher is owned by External; OutboxPublisher only
 	// consumes the already-constructed messaging.Publisher.
 	outboxPublisherUseCase := a.Config.NewOutboxPublisherUseCase(
@@ -120,6 +127,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.External.WebhookPublisher,
 		a.Infrastructure.Clock,
 		a.Infrastructure.Logger,
+		outboxPublisherObserver,
 	)
 	if err := outboxPublisherUseCase.Validate(); err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize outbox publisher use case: %w", op, err)
@@ -172,8 +180,13 @@ func (a *App) NewUseCases() (UseCases, error) {
 		return UseCases{}, fmt.Errorf("%s: initialize collections use case: %w", op, err)
 	}
 	collectionsUseCase.WithAssessmentFailureObserver(func(ctx context.Context, customerID model.CustomerID, err error) {
-		a.Infrastructure.Logger.With("customer_id", customerID.String(), "error", err.Error()).Error("collections customer assessment failed")
+		a.Infrastructure.Logger.With("customer_id", customerID.String(), "error", err.Error()).Error(corelog.Msg("collections customer assessment failed"))
 	})
+
+	decisionObserver, err := observer.NewDecision(a.Infrastructure.Logger)
+	if err != nil {
+		return UseCases{}, fmt.Errorf("%s: initialize decision observer: %w", op, err)
+	}
 
 	decisionUseCase, err := a.Config.NewDecisionUseCase(
 		a.Pool,
@@ -195,9 +208,15 @@ func (a *App) NewUseCases() (UseCases, error) {
 		jurisdictions,
 		a.Infrastructure.Metrics,
 		collectionsUseCase,
+		decisionObserver,
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize decision use case: %w", op, err)
+	}
+
+	installmentLifecycleObserver, err := observer.NewInstallmentLifecycle(a.Infrastructure.Logger)
+	if err != nil {
+		return UseCases{}, fmt.Errorf("%s: initialize installment lifecycle observer: %w", op, err)
 	}
 
 	installmentLifecycleUseCase, err := a.Config.NewInstallmentLifecycleUseCase(
@@ -208,9 +227,15 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Infrastructure.Clock,
 		a.Infrastructure.IdentifierGenerator,
 		a.Infrastructure.Metrics,
+		installmentLifecycleObserver,
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize installment lifecycle use case: %w", op, err)
+	}
+
+	installmentRepaymentObserver, err := observer.NewInstallmentRepayment(a.Infrastructure.Logger)
+	if err != nil {
+		return UseCases{}, fmt.Errorf("%s: initialize installment repayment observer: %w", op, err)
 	}
 
 	installmentRepaymentUseCase, err := a.Config.NewInstallmentRepaymentUseCase(
@@ -226,6 +251,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Infrastructure.Clock,
 		a.Infrastructure.Logger,
 		a.Infrastructure.IdentifierGenerator,
+		installmentRepaymentObserver,
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize installment repayment use case: %w", op, err)
@@ -253,7 +279,8 @@ func (a *App) NewUseCases() (UseCases, error) {
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize contract cancellation saga definition: %w", op, err)
 	}
-	cancellationSagaDefinition.(*contractuc.CancellationSagaDefinition).WithCustomerSynchronization(a.Repos.CustomerProfile)
+	cancellationSagaDefinition = cancellationSagaDefinition.(*contractuc.CancellationSagaDefinition).
+		WithCustomerSynchronization(a.Repos.CustomerProfile)
 
 	// Temporary executor covers cancellation until the confirmation definition
 	// is constructed (it depends on contractUC). Both definitions share the
@@ -266,6 +293,11 @@ func (a *App) NewUseCases() (UseCases, error) {
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize cancellation saga executor: %w", op, err)
+	}
+
+	contractObserver, err := observer.NewContract(a.Infrastructure.Logger)
+	if err != nil {
+		return UseCases{}, fmt.Errorf("%s: initialize contract observer: %w", op, err)
 	}
 
 	contractUseCase, err := a.Config.NewContractUseCase(
@@ -292,6 +324,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Infrastructure.Logger,
 		a.Infrastructure.Metrics,
 		collectionsUseCase,
+		contractObserver,
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize contract use case: %w", op, err)
@@ -335,14 +368,25 @@ func (a *App) NewUseCases() (UseCases, error) {
 		return UseCases{}, fmt.Errorf("%s: initialize saga executor use case: %w", op, err)
 	}
 
+	otpObserver, err := observer.NewOTP(a.Infrastructure.Logger)
+	if err != nil {
+		return UseCases{}, fmt.Errorf("%s: initialize otp observer: %w", op, err)
+	}
+
 	otpUseCase, err := a.Config.NewOTPUseCase(
 		a.Pool,
 		a.Repos.OTP,
 		a.External.NotificationSubmitter,
 		a.Infrastructure.Clock,
+		otpObserver,
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize otp use case: %w", op, err)
+	}
+
+	checkoutSessionObserver, err := observer.NewCheckoutSession(a.Infrastructure.Logger)
+	if err != nil {
+		return UseCases{}, fmt.Errorf("%s: initialize checkout session observer: %w", op, err)
 	}
 
 	checkoutSessionUseCase, err := a.Config.NewCheckoutSessionUseCase(
@@ -371,9 +415,15 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Repos.Saga,
 		sagaExecutorUseCase,
 		confirmationSagaDefinition,
+		checkoutSessionObserver,
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize checkout session use case: %w", op, err)
+	}
+
+	paymentResultObserver, err := observer.NewFinancialCorePaymentResult(a.Infrastructure.Logger)
+	if err != nil {
+		return UseCases{}, fmt.Errorf("%s: initialize financial core payment result observer: %w", op, err)
 	}
 
 	financialCorePaymentResultUseCase, err := a.Config.NewFinancialCorePaymentResultUseCase(
@@ -392,6 +442,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Infrastructure.FingerprintHasher,
 		a.Infrastructure.Clock,
 		a.Infrastructure.Metrics,
+		paymentResultObserver,
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize financial core payment result use case: %w", op, err)
@@ -400,6 +451,11 @@ func (a *App) NewUseCases() (UseCases, error) {
 		_, err := collectionsUseCase.AssessCustomer(ctx, id)
 		return err
 	})
+
+	paymentReconciliationObserver, err := observer.NewFinancialCorePaymentReconciliation(a.Infrastructure.Logger)
+	if err != nil {
+		return UseCases{}, fmt.Errorf("%s: initialize financial core payment reconciliation observer: %w", op, err)
+	}
 
 	financialCorePaymentReconciliationUseCase, err := a.Config.NewFinancialCorePaymentReconciliationUseCase(
 		a.Pool,
@@ -415,9 +471,15 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Infrastructure.IdentifierGenerator,
 		a.Infrastructure.Clock,
 		a.Infrastructure.Logger,
+		paymentReconciliationObserver,
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize financial core payment reconciliation use case: %w", op, err)
+	}
+
+	paymentAttemptReconciliationObserver, err := observer.NewPaymentAttemptReconciliation(a.Infrastructure.Logger)
+	if err != nil {
+		return UseCases{}, fmt.Errorf("%s: initialize payment attempt reconciliation observer: %w", op, err)
 	}
 
 	paymentAttemptReconciliationUseCase, err := a.Config.NewPaymentAttemptReconciliationUseCase(
@@ -427,9 +489,15 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Repos.Outbox,
 		a.Infrastructure.IdentifierGenerator,
 		a.Infrastructure.Clock,
+		paymentAttemptReconciliationObserver,
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize payment attempt reconciliation use case: %w", op, err)
+	}
+
+	paymentAttemptExpirationObserver, err := observer.NewPaymentAttemptExpiration(a.Infrastructure.Logger)
+	if err != nil {
+		return UseCases{}, fmt.Errorf("%s: initialize payment attempt expiration observer: %w", op, err)
 	}
 
 	paymentAttemptExpirationUseCase, err := a.Config.NewPaymentAttemptExpirationUseCase(
@@ -438,7 +506,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Repos.Outbox,
 		a.Infrastructure.IdentifierGenerator,
 		a.Infrastructure.Clock,
-		a.Infrastructure.Logger,
+		paymentAttemptExpirationObserver,
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize payment attempt expiration use case: %w", op, err)
@@ -447,6 +515,11 @@ func (a *App) NewUseCases() (UseCases, error) {
 	initialCreditLimitPolicies, err := initialcreditcatalog.NewRegistry()
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize initial credit limit policy registry: %w", op, err)
+	}
+
+	customerCreditObserver, err := observer.NewCustomerCredit(a.Infrastructure.Logger)
+	if err != nil {
+		return UseCases{}, fmt.Errorf("%s: initialize customer credit observer: %w", op, err)
 	}
 
 	customerCreditUseCase, err := a.Config.NewCustomerCreditUseCase(
@@ -467,6 +540,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		initialcreditcatalog.DefaultRef(),
 		a.Infrastructure.IdentifierGenerator,
 		collectionsPolicies.Current,
+		customerCreditObserver,
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize customer credit use case: %w", op, err)

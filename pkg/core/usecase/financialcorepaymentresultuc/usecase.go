@@ -37,6 +37,7 @@ type UseCase struct {
 	clock                                clock.Clock
 	paymentResultProcessingGracePeriod   time.Duration
 	businessMetrics                      coremetrics.BusinessMetrics
+	observer                             Observer
 }
 
 // New constructs a Financial Core payment-result use case.
@@ -59,6 +60,7 @@ func New(
 	clk clock.Clock,
 	paymentResultProcessingGracePeriod time.Duration,
 	businessMetrics coremetrics.BusinessMetrics,
+	observer Observer,
 ) (*UseCase, error) {
 	const op = "financialcorepaymentresultuc.New"
 
@@ -104,6 +106,10 @@ func New(
 		return nil, fmt.Errorf("%s: business metrics is required", op)
 	}
 
+	if observer == nil {
+		return nil, fmt.Errorf("%s: observer is required", op)
+	}
+
 	return &UseCase{
 		pool:                                 pool,
 		contractUC:                           contractUC,
@@ -123,5 +129,6 @@ func New(
 		clock:                                clk,
 		paymentResultProcessingGracePeriod:   paymentResultProcessingGracePeriod,
 		businessMetrics:                      businessMetrics,
+		observer:                             observer,
 	}, nil
 }

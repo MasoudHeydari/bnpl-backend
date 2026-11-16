@@ -140,6 +140,7 @@ func (f *collectionsFixture) newPaymentResultUC(
 		f.clk,
 		0,
 		metricsnoop.New(),
+		mustPaymentResultObserver(t),
 	)
 	require.NoError(t, err)
 

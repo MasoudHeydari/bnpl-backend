@@ -128,7 +128,11 @@ func (uc *UseCase) processClaimedAttempt(
 ) error {
 	const op = "paymentattemptreconciliationuc.UseCase.processClaimedAttempt"
 
-	return uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
+	var observed func()
+
+	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
+		observed = nil
+
 		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
 			paymentAttemptQ := uc.paymentAttempt.Tx(tx)
 			outboxQ := uc.outbox.Tx(tx)
@@ -166,6 +170,10 @@ func (uc *UseCase) processClaimedAttempt(
 					}
 
 					event := uc.newSessionCreationRetryExhaustedCancelAuditEvent(attempt, canceled, now)
+					observed = func() {
+						uc.observer.AttemptClosedLocally(ctx, attempt.ID, attemptOutcomeCanceledRetryExhausted)
+					}
+
 					return uc.insertAuditOutbox(ctx, outboxQ, event, now)
 				}
 
@@ -185,6 +193,10 @@ func (uc *UseCase) processClaimedAttempt(
 				}
 
 				event := uc.newLocalExpirationAuditEvent(attempt, expired, now)
+				observed = func() {
+					uc.observer.AttemptClosedLocally(ctx, attempt.ID, attemptOutcomeExpired)
+				}
+
 				return uc.insertAuditOutbox(ctx, outboxQ, event, now)
 			}
 
@@ -215,6 +227,10 @@ func (uc *UseCase) processClaimedAttempt(
 				}
 
 				event := uc.newManualReviewAuditEvent(attempt, updated, manualReviewRetryBudgetExhausted, now)
+				observed = func() {
+					uc.observer.ManualReviewRequired(ctx, attempt.ID, manualReviewReasonRetryBudgetExhausted)
+				}
+
 				return uc.insertAuditOutbox(ctx, outboxQ, event, now)
 			}
 
@@ -244,6 +260,10 @@ func (uc *UseCase) processClaimedAttempt(
 				event := uc.newManualReviewAuditEvent(attempt, updated, manualReviewRequestBuildFailed, now)
 				if auditErr := uc.insertAuditOutbox(ctx, outboxQ, event, now); auditErr != nil {
 					return errors.Join(buildErr, auditErr)
+				}
+
+				observed = func() {
+					uc.observer.ManualReviewRequired(ctx, attempt.ID, manualReviewReasonRequestBuildFailed)
 				}
 
 				return nil
@@ -276,9 +296,24 @@ func (uc *UseCase) processClaimedAttempt(
 			}
 
 			event := uc.newRequestReconciliationAuditEvent(attempt, updated, requestEventID, now)
+			observed = func() {
+				uc.observer.ReconciliationRequested(ctx, attempt.ID, generation)
+			}
+
 			return uc.insertAuditOutbox(ctx, outboxQ, event, now)
 		})
 	})
+	if err != nil {
+		return err
+	}
+
+	// The transaction committed; observe outside it so checkpoints never
+	// describe uncommitted work.
+	if observed != nil {
+		observed()
+	}
+
+	return nil
 }
 
 func (uc *UseCase) buildReconciliationRequest(

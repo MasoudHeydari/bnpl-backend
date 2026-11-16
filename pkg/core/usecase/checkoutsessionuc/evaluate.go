@@ -108,6 +108,15 @@ func (uc *UseCase) evaluateSession(
 		return model.CheckoutSession{}, Offer{}, err
 	}
 
+	// Missing credit assessment is a public verification prompt, not a generic
+	// denied offer. Reason codes stay internal; only the message key is exposed.
+	if offer.Outcome == DeniedOfferOutcome &&
+		decisionRequiresIdentityVerification(output.Decision.ReasonCodes) {
+		return updated, Offer{}, checkoutCustomerIdentityVerificationRequiredError(
+			fmt.Errorf("%s: credit assessment is missing", op),
+		)
+	}
+
 	// Durable CheckoutSession state wins over this caller's local Decision
 	// projection. A concurrent denied evaluation may already have terminalized
 	// the session while this caller still holds an approved CreateOutput.

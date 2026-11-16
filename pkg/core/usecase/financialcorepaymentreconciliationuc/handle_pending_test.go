@@ -41,21 +41,41 @@ func (l *pendingRecordingLogger) With(args ...any) corelog.Logger {
 	return &pendingRecordingLogger{records: l.records, attrs: attrs}
 }
 
-func (l *pendingRecordingLogger) Debug(msg string, args ...any) {
-	*l.records = append(*l.records, pendingLogRecord{level: "debug", msg: msg, args: append(append([]any{}, l.attrs...), args...)})
+func (l *pendingRecordingLogger) WithContext(context.Context) corelog.Logger {
+	return l
 }
 
-func (l *pendingRecordingLogger) Info(msg string, args ...any) {
-	*l.records = append(*l.records, pendingLogRecord{level: "info", msg: msg, args: append(append([]any{}, l.attrs...), args...)})
+func (l *pendingRecordingLogger) Debug(event corelog.Event, fields ...corelog.Field) {
+	l.recordLog("debug", event, fields...)
 }
 
-func (l *pendingRecordingLogger) Warn(msg string, args ...any) {
-	*l.records = append(*l.records, pendingLogRecord{level: "warn", msg: msg, args: append(append([]any{}, l.attrs...), args...)})
+func (l *pendingRecordingLogger) Info(event corelog.Event, fields ...corelog.Field) {
+	l.recordLog("info", event, fields...)
 }
 
-func (l *pendingRecordingLogger) Error(msg string, args ...any) {
-	*l.records = append(*l.records, pendingLogRecord{level: "error", msg: msg, args: append(append([]any{}, l.attrs...), args...)})
+func (l *pendingRecordingLogger) Warn(event corelog.Event, fields ...corelog.Field) {
+	l.recordLog("warn", event, fields...)
 }
+
+func (l *pendingRecordingLogger) Error(event corelog.Event, fields ...corelog.Field) {
+	l.recordLog("error", event, fields...)
+}
+
+func (l *pendingRecordingLogger) recordLog(level string, event corelog.Event, fields ...corelog.Field) {
+	msg := ""
+	attrs := append([]any{}, l.attrs...)
+	if event != nil {
+		msg = event.Message()
+	}
+	for _, f := range fields {
+		if f == nil {
+			continue
+		}
+		attrs = append(attrs, f.Key(), f.Value())
+	}
+	*l.records = append(*l.records, pendingLogRecord{level: level, msg: msg, args: attrs})
+}
+
 
 func (l *pendingRecordingLogger) warnCount(msg string) int {
 	count := 0

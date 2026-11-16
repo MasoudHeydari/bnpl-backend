@@ -51,7 +51,7 @@ func recoverCommandPanic(
 		logger.With(
 			"command", command,
 			"panic", fmt.Sprint(recovered),
-		).Error("cli command panic recovered")
+		).Error(corelog.Msg("cli command panic recovered"))
 	}
 
 	if err != nil {

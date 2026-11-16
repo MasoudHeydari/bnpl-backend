@@ -31,6 +31,7 @@ type UseCase struct {
 	checkoutPaymentClient extcheckoutpayment.Client
 	clock                 clock.Clock
 	logger                log.Logger
+	observer              Observer
 	auditDestination      string
 	idGenerator           identifier.Generator
 	paymentReturnURL      string
@@ -53,6 +54,7 @@ func New(
 	auditDestination string,
 	idGenerator identifier.Generator,
 	paymentReturnURL string,
+	observer Observer,
 ) (*UseCase, error) {
 	const op = "installmentrepaymentuc.New"
 
@@ -112,6 +114,10 @@ func New(
 		return nil, fmt.Errorf("%s: logger is required", op)
 	}
 
+	if observer == nil {
+		return nil, fmt.Errorf("%s: observer is required", op)
+	}
+
 	return &UseCase{
 		pool:                  pool,
 		customerProfile:       customerProfile,
@@ -124,6 +130,7 @@ func New(
 		checkoutPaymentClient: checkoutPaymentClient,
 		clock:                 clk,
 		logger:                logger,
+		observer:              observer,
 		auditDestination:      auditDestination,
 		idGenerator:           idGenerator,
 		paymentReturnURL:      strings.TrimSpace(paymentReturnURL),

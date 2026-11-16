@@ -63,6 +63,7 @@ func newAssessUseCase(
 		"bnpl.audit.events.v1",
 		mock.NewIdentifierGenerator(t),
 		collectionsv2.New(time.UTC),
+		newTestObserver(t),
 	)
 	require.NoError(t, err)
 

@@ -87,7 +87,7 @@ func (h *Handler) Handle(ctx context.Context, msg messaging.Message) error {
 		input.PaymentPurpose,
 		"result",
 		output.Result,
-	).Info("processed financial core payment result")
+	).Info(log.Msg("processed financial core payment result"))
 
 	return nil
 }

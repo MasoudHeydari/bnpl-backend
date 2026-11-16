@@ -95,6 +95,8 @@ func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput,
 		return CreateOutput{}, err
 	}
 
+	uc.observer.EvaluationStarted(ctx, input.ExternalSubjectID)
+
 	now := uc.clock.Now().UTC()
 	var output CreateOutput
 	var fingerprint string
@@ -371,7 +373,14 @@ func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput,
 	)
 	if err != nil {
 		if isPlausibleIdempotencyCreateConflict(err) {
-			return uc.resolveCheckoutDecisionAfterConflict(ctx, input, fingerprint)
+			replayed, resolveErr := uc.resolveCheckoutDecisionAfterConflict(ctx, input, fingerprint)
+			if resolveErr != nil {
+				return CreateOutput{}, resolveErr
+			}
+
+			uc.observer.DecisionReplayed(ctx, replayed.Decision.ID, replayed.Decision.Outcome)
+
+			return replayed, nil
 		}
 
 		return CreateOutput{}, err
@@ -381,9 +390,39 @@ func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput,
 	// non-Created result and must not double-count.
 	if output.Result == CreateResultCreated {
 		uc.businessMetrics.CheckoutDecisionCreated(ctx, string(output.Decision.Outcome))
+		uc.observeCreated(ctx, output)
+
+		return output, nil
 	}
 
+	uc.observer.DecisionReplayed(ctx, output.Decision.ID, output.Decision.Outcome)
+
 	return output, nil
+}
+
+// observeCreated reports a newly committed decision.
+func (uc *UseCase) observeCreated(ctx context.Context, output CreateOutput) {
+	decision := output.Decision
+
+	uc.observer.AvailableCreditChecked(ctx, decision.ID, output.AvailableCreditMinor, output.Currency)
+
+	switch decision.Outcome {
+	case model.ApprovedDecisionOutcome:
+		uc.observer.DecisionApproved(ctx, decision.ID)
+
+	case model.ConditionalDecisionOutcome:
+		uc.observer.DecisionPartiallyApproved(ctx, decision.ID)
+
+	case model.DeniedDecisionOutcome:
+		reasonCode := ""
+		if len(decision.ReasonCodes) > 0 {
+			reasonCode = decision.ReasonCodes[0]
+		}
+
+		uc.observer.DecisionDenied(ctx, decision.ID, reasonCode)
+	}
+
+	uc.observer.DecisionPersisted(ctx, decision.ID, decision.Outcome)
 }
 
 func validateCreateInput(input CreateInput) error {

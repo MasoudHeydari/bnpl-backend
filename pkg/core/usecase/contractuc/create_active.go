@@ -158,6 +158,10 @@ func (uc *UseCase) submitPreparedMerchantFunding(
 
 	if activatedNow {
 		uc.businessMetrics.ContractCreated(ctx, string(output.Contract.Status))
+
+		// Financial Core merchant entitlement was recorded and the local
+		// activation transaction committed.
+		uc.observer.ContractActivated(ctx, output.Contract.ID, contractActivationSourceMerchantFunding)
 	}
 
 	return output, nil
@@ -400,6 +404,8 @@ func (uc *UseCase) prepareMerchantFunding(
 	if err != nil {
 		return merchantFundingPreparation{}, err
 	}
+
+	uc.observePreparedContract(ctx, prepared.Contract, prepared.Result)
 
 	return prepared, nil
 }

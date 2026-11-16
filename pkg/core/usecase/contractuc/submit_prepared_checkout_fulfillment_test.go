@@ -96,6 +96,7 @@ func (d submitPreparedFulfillmentDeps) useCase(t *testing.T) *UseCase {
 		lognoop.New(),
 		metricsnoop.New(),
 		AllowAllNewCreditUsage{},
+		newTestObserver(t),
 	)
 	require.NoError(t, err)
 

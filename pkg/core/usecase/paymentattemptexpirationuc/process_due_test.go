@@ -31,7 +31,7 @@ func TestProcessDue_ExpiresFullyStaleCreatedAttempt(t *testing.T) {
 	outbox := mock.NewOutbox(t)
 	outboxTx := mock.NewOutboxTxQueryer(t)
 	idGenerator := mock.NewIdentifierGenerator(t)
-	logger := mock.NewLogger(t)
+	observer := mock.NewPaymentAttemptExpirationObserver(t)
 	clk := adapterclock.NewFixed(now, time.UTC)
 
 	attemptID := model.PaymentAttemptID(uuid.New())
@@ -91,8 +91,8 @@ func TestProcessDue_ExpiresFullyStaleCreatedAttempt(t *testing.T) {
 	idGenerator.EXPECT().Generate().Return(uuid.NewString()).Once()
 	outboxTx.EXPECT().Create(ctx, testifymock.Anything).Return(model.OutboxMessage{}, nil).Once()
 
-	logger.EXPECT().With(testifymock.Anything, testifymock.Anything, testifymock.Anything, testifymock.Anything, testifymock.Anything, testifymock.Anything, testifymock.Anything, testifymock.Anything, testifymock.Anything, testifymock.Anything, testifymock.Anything, testifymock.Anything, testifymock.Anything, testifymock.Anything).Return(logger).Once()
-	logger.EXPECT().Info("payment attempt session creation expiration cycle completed").Once()
+	observer.EXPECT().AttemptExpired(ctx, attemptID).Once()
+	observer.EXPECT().ExpirationCycleCompleted(ctx, 1, 0, time.Duration(0)).Once()
 
 	uc, err := New(
 		pool,
@@ -103,7 +103,7 @@ func TestProcessDue_ExpiresFullyStaleCreatedAttempt(t *testing.T) {
 		10,
 		0,
 		clk,
-		logger,
+		observer,
 	)
 	require.NoError(t, err)
 	require.NoError(t, uc.ProcessDue(ctx))
@@ -124,7 +124,7 @@ func TestProcessDue_SkipsActiveLease(t *testing.T) {
 	paymentAttemptTx := mock.NewPaymentAttemptTxQueryer(t)
 	outbox := mock.NewOutbox(t)
 	idGenerator := mock.NewIdentifierGenerator(t)
-	logger := mock.NewLogger(t)
+	observer := mock.NewPaymentAttemptExpirationObserver(t)
 	clk := adapterclock.NewFixed(now, time.UTC)
 
 	attemptID := model.PaymentAttemptID(uuid.New())
@@ -169,8 +169,7 @@ func TestProcessDue_SkipsActiveLease(t *testing.T) {
 
 	paymentAttemptTx.EXPECT().LockByID(ctx, attemptID).Return(candidate, nil).Once()
 
-	logger.EXPECT().With(testifymock.Anything, testifymock.Anything, testifymock.Anything, testifymock.Anything, testifymock.Anything, testifymock.Anything, testifymock.Anything, testifymock.Anything, testifymock.Anything, testifymock.Anything, testifymock.Anything, testifymock.Anything, testifymock.Anything, testifymock.Anything).Return(logger).Once()
-	logger.EXPECT().Info("payment attempt session creation expiration cycle completed").Once()
+	observer.EXPECT().ExpirationCycleCompleted(ctx, 0, 0, time.Duration(0)).Once()
 
 	uc, err := New(
 		pool,
@@ -181,7 +180,7 @@ func TestProcessDue_SkipsActiveLease(t *testing.T) {
 		10,
 		0,
 		clk,
-		logger,
+		observer,
 	)
 	require.NoError(t, err)
 	require.NoError(t, uc.ProcessDue(ctx))

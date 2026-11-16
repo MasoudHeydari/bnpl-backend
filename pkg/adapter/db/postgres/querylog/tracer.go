@@ -56,15 +56,16 @@ func (t *Tracer) TraceQueryStart(
 		if err != nil {
 			// Fall back to the parameterized statement so a rendering bug never
 			// hides the fact that a query ran.
-			t.logger.Warn(
-				"database query argument rendering failed",
-				"sql",
-				data.SQL,
-				"argument_count",
-				len(data.Args),
-				"error",
-				err,
-			)
+			t.logger.With(
+		"sql",
+		data.SQL,
+		"argument_count",
+		len(data.Args),
+		"error",
+		err,
+	).Warn(
+		corelog.Msg("database query argument rendering failed"),
+	)
 		} else {
 			sqlText = rendered
 		}
@@ -72,7 +73,7 @@ func (t *Tracer) TraceQueryStart(
 
 	// INFO (not DEBUG): query logging is an explicit operator opt-in. Using INFO
 	// keeps enabled traces visible even when the process-wide log level is INFO.
-	t.logger.Info("database query", "sql", sqlText)
+	t.logger.With("sql", sqlText).Info(corelog.Msg("database query"))
 
 	return ctx
 }

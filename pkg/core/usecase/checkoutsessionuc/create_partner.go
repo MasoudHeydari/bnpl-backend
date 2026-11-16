@@ -22,16 +22,22 @@ import (
 // calls Financial Core for money movement. OTP remains mandatory on Confirm for
 // every merchant type.
 //
-// Denied/unavailable outcomes use existing unavailable semantics without OTP.
-// Transient dependency failures return semantic errors; an idempotent retry
-// resumes preparation on the same session when mode is on_create.
+// Phone financing rejections (CRS miss/suspend or missing BNPL profile) and
+// missing credit assessment return public Forbidden errors after the session is
+// terminalized. Other denied Decisions keep unavailable + denied Offer
+// semantics. Transient dependency failures return semantic errors; an
+// idempotent retry resumes preparation on the same session when mode is
+// on_create.
 func (uc *UseCase) CreatePartner(
 	ctx context.Context,
 	input CreatePartnerInput,
 ) (CreatePartnerOutput, error) {
 	if err := input.validate(); err != nil {
+		uc.observer.SessionInputRejected(ctx, "invalid_input")
 		return CreatePartnerOutput{}, err
 	}
+
+	uc.observer.SessionCreateRequested(ctx, input.ExternalMerchantID)
 
 	session, result, err := uc.createOrReplaySession(
 		ctx,
@@ -43,6 +49,16 @@ func (uc *UseCase) CreatePartner(
 		return CreatePartnerOutput{}, err
 	}
 
+	switch result {
+	case CreateResultAlreadyExists:
+		uc.observer.SessionReplayed(ctx, session.ID)
+
+	default:
+		uc.observer.SessionCreated(ctx, session.ID)
+	}
+
+	uc.observer.HostedHandoffPrepared(ctx, session.ID)
+
 	output := CreatePartnerOutput{
 		Result:      result,
 		Session:     session,
@@ -53,8 +69,11 @@ func (uc *UseCase) CreatePartner(
 		return output, nil
 	}
 
+	uc.observer.OfferPreparationStarted(ctx, session.ID)
+
 	prepared, offer, prepErr := uc.prepareExternalOffer(ctx, session)
 	if prepErr != nil {
+		uc.observer.OfferPreparationFailed(ctx, session.ID, "offer_preparation_failed")
 		return CreatePartnerOutput{}, prepErr
 	}
 
@@ -62,6 +81,13 @@ func (uc *UseCase) CreatePartner(
 
 	if offer.Outcome != "" {
 		output.Offer = &offer
+
+		var decisionID model.DecisionID
+		if prepared.DecisionID != nil {
+			decisionID = *prepared.DecisionID
+		}
+
+		uc.observer.OfferPrepared(ctx, prepared.ID, decisionID)
 	}
 
 	return output, nil

@@ -26,6 +26,7 @@ type UseCase struct {
 	retryMaxDelay                     time.Duration
 	maxAttempts                       int
 	clock                             clock.Clock
+	observer                          Observer
 }
 
 // New constructs a payment attempt reconciliation use case with transactional Audit emission.
@@ -43,6 +44,7 @@ func New(
 	retryMaxDelay time.Duration,
 	maxAttempts int,
 	clk clock.Clock,
+	observer Observer,
 ) (*UseCase, error) {
 	return newUseCase(
 		pool,
@@ -58,6 +60,7 @@ func New(
 		retryMaxDelay,
 		maxAttempts,
 		clk,
+		observer,
 	)
 }
 
@@ -72,6 +75,7 @@ func newUseCase(
 	submittedExpiryGrace, retryBaseDelay, retryMaxDelay time.Duration,
 	maxAttempts int,
 	clk clock.Clock,
+	observer Observer,
 ) (*UseCase, error) {
 	const op = "paymentattemptreconciliationuc.newUseCase"
 
@@ -111,6 +115,10 @@ func newUseCase(
 		return nil, fmt.Errorf("%s: max reconciliation attempts must be positive", op)
 	}
 
+	if observer == nil {
+		return nil, fmt.Errorf("%s: observer is required", op)
+	}
+
 	return &UseCase{
 		pool:                              pool,
 		paymentAttempt:                    paymentAttempt,
@@ -125,5 +133,6 @@ func newUseCase(
 		retryMaxDelay:                     retryMaxDelay,
 		maxAttempts:                       maxAttempts,
 		clock:                             clk,
+		observer:                          observer,
 	}, nil
 }

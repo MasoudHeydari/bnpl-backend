@@ -161,6 +161,7 @@ func newInstallmentFCResponseHarness(t *testing.T) *installmentFCResponseHarness
 		"bnpl.audit.events.v1",
 		h.idGenerator,
 		returnURL,
+		newTestObserver(t),
 	)
 	require.NoError(t, err)
 	h.uc = uc
@@ -583,6 +584,7 @@ func TestEnsureFinancialCoreInstallmentPayment_RequestedExpiryElapsedDoesNotCall
 		"bnpl.audit.events.v1",
 		mock.NewIdentifierGenerator(t),
 		"https://bnpl.example/return",
+		newTestObserver(t),
 	)
 	require.NoError(t, err)
 

@@ -4,9 +4,9 @@ import (
 	"crypto/rand"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/oklog/ulid/v2"
 
+	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/identifier/uuidgen"
 	"github.com/parstis/bnpl-backend/pkg/core/identifier"
 	coretrace "github.com/parstis/bnpl-backend/pkg/core/trace"
 )
@@ -25,11 +25,13 @@ var _ identifier.Generator = (*Provider)(nil)
 // Trace and request IDs use ULID (compact, sortable, log-friendly). Correlation
 // IDs use UUID so minted X-Correlation-Id values match common cross-service
 // expectations. The core layer treats all of them as opaque strings.
-type Provider struct{}
+type Provider struct {
+	correlationIDGenerator identifier.Generator
+}
 
 // NewULIDProvider returns the default transport trace provider.
 func NewULIDProvider() *Provider {
-	return &Provider{}
+	return &Provider{correlationIDGenerator: uuidgen.New()}
 }
 
 // NewTraceID returns a new trace ID.
@@ -42,9 +44,9 @@ func (p *Provider) NewRequestID() string {
 	return newULID()
 }
 
-// NewCorrelationID returns a new correlation ID.
+// NewCorrelationID returns a new UUID using the shared UUID generator.
 func (p *Provider) NewCorrelationID() string {
-	return uuid.NewString()
+	return p.correlationIDGenerator.Generate()
 }
 
 // Generate returns a new opaque identifier for use-case level event generation.

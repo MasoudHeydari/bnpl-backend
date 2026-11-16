@@ -59,6 +59,7 @@ func (uc *UseCase) RevalidateCheckoutOffer(
 
 	now := uc.clock.Now().UTC()
 	var output RevalidateCheckoutOfferOutput
+	var invalidReason string
 
 	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
@@ -76,12 +77,14 @@ func (uc *UseCase) RevalidateCheckoutOffer(
 
 			if decision.ExpiresAt != nil && !decision.ExpiresAt.After(now) {
 				output.StillHonorable = false
+				invalidReason = offerInvalidReasonExpired
 
 				return nil
 			}
 
 			if !outcomeCreatesInstallmentOffer(decision.Outcome) {
 				output.StillHonorable = false
+				invalidReason = offerInvalidReasonNoOffer
 
 				return nil
 			}
@@ -112,6 +115,7 @@ func (uc *UseCase) RevalidateCheckoutOffer(
 			); guardErr != nil {
 				if cerr.IsCode(guardErr, cerr.CodeConflict) {
 					output.StillHonorable = false
+					invalidReason = offerInvalidReasonNewCreditRestricted
 
 					return nil
 				}
@@ -158,6 +162,9 @@ func (uc *UseCase) RevalidateCheckoutOffer(
 			)
 
 			output.StillHonorable = materialOfferTermsMatch(allocation, financing)
+			if !output.StillHonorable {
+				invalidReason = offerInvalidReasonTermsChanged
+			}
 
 			return nil
 		})
@@ -166,5 +173,21 @@ func (uc *UseCase) RevalidateCheckoutOffer(
 		return RevalidateCheckoutOfferOutput{}, err
 	}
 
+	if !output.StillHonorable {
+		if invalidReason == offerInvalidReasonExpired {
+			uc.observer.OfferExpired(ctx, input.DecisionID)
+		} else {
+			uc.observer.OfferInvalidated(ctx, input.DecisionID, invalidReason)
+		}
+	}
+
 	return output, nil
 }
+
+// Stable reason codes reported to Observer.OfferInvalidated.
+const (
+	offerInvalidReasonExpired             = "offer_expired"
+	offerInvalidReasonNoOffer             = "no_installment_offer"
+	offerInvalidReasonNewCreditRestricted = "new_credit_restricted"
+	offerInvalidReasonTermsChanged        = "material_terms_changed"
+)

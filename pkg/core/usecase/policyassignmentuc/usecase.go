@@ -482,16 +482,24 @@ func (uc *UseCase) processTrustedRow(
 	}
 
 	if resolved.Status != extcustomer.ActiveStatus {
-		uc.logger.Info(
-			"event=trusted_customer_skipped",
-			"reason", "invalid_customer_status",
-			"expected_status", string(extcustomer.ActiveStatus),
-			"actual_status", string(resolved.Status),
-			"row_number", customer.RowNumber,
-			"mobile_hash", mobileHash,
-			"external_customer_id", subjectID,
-			"outcome", outcomeInvalidStatus,
-		)
+		uc.logger.With(
+		"reason",
+		"invalid_customer_status",
+		"expected_status",
+		string(extcustomer.ActiveStatus),
+		"actual_status",
+		string(resolved.Status),
+		"row_number",
+		customer.RowNumber,
+		"mobile_hash",
+		mobileHash,
+		"external_customer_id",
+		subjectID,
+		"outcome",
+		outcomeInvalidStatus,
+	).Info(
+		log.Msg("event=trusted_customer_skipped"),
+	)
 		_ = uc.recordFailedItem(
 			ctx,
 			importID,
@@ -586,11 +594,11 @@ func (uc *UseCase) logRow(
 
 	if err != nil {
 		args = append(args, "error", err.Error())
-		uc.logger.Warn(event, args...)
+		uc.logger.With(args...).Warn(log.Msg(event))
 		return
 	}
 
-	uc.logger.Info(event, args...)
+	uc.logger.With(args...).Info(log.Msg(event))
 }
 
 // assignTrustedCustomer applies every target in TrustedCustomerBundle inside one

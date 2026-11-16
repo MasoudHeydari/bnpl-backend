@@ -208,6 +208,7 @@ func (uc *UseCase) persistCheckoutPaymentReconciliation(
 	}
 
 	output.Result = ProcessResultReconciliationRequired
+	output.outcomeReasonCode = string(reason)
 
 	return nil
 }
@@ -302,6 +303,7 @@ func (uc *UseCase) persistInstallmentPaymentReconciliation(
 	}
 
 	output.Result = ProcessResultReconciliationRequired
+	output.outcomeReasonCode = string(reason)
 
 	return nil
 }

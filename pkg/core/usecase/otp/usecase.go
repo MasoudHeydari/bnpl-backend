@@ -31,6 +31,7 @@ type UseCase struct {
 	clock               clock.Clock
 	random              io.Reader
 	notificationTimeout time.Duration
+	observer            Observer
 
 	// beforeIssueCommit is an optional test barrier invoked inside the Issue
 	// transaction after eligibility and rate-limit consumption and before the
@@ -60,6 +61,7 @@ func New(
 	policy otppolicy.Policy,
 	clk clock.Clock,
 	random io.Reader,
+	observer Observer,
 ) (*UseCase, error) {
 	return NewWithNotificationTimeout(
 		pool,
@@ -70,6 +72,7 @@ func New(
 		clk,
 		random,
 		defaultNotificationDeliveryTimeout,
+		observer,
 	)
 }
 
@@ -85,6 +88,7 @@ func NewWithNotificationTimeout(
 	clk clock.Clock,
 	random io.Reader,
 	notificationTimeout time.Duration,
+	observer Observer,
 ) (*UseCase, error) {
 	const op = "otp.New"
 
@@ -124,6 +128,10 @@ func NewWithNotificationTimeout(
 		notificationTimeout = defaultNotificationDeliveryTimeout
 	}
 
+	if observer == nil {
+		return nil, fmt.Errorf("%s: observer is required", op)
+	}
+
 	return &UseCase{
 		pool:                pool,
 		challenges:          challenges,
@@ -133,6 +141,7 @@ func NewWithNotificationTimeout(
 		clock:               clk,
 		random:              random,
 		notificationTimeout: notificationTimeout,
+		observer:            observer,
 	}, nil
 }
 

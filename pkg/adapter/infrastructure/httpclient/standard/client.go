@@ -154,7 +154,7 @@ func New(
 		cfg.Timeout.String(),
 		"max_conns_per_host",
 		cfg.MaxConnsPerHost,
-	).Info("outbound http client initialized")
+	).Info(corelog.Msg("outbound http client initialized"))
 
 	return c, nil
 }
@@ -195,7 +195,7 @@ func (c *Client) do(
 
 	if queued {
 		logger = logger.With("queue_wait", queueWait.String())
-		logger.Debug("outbound http request acquired execution slot after queueing")
+		logger.Debug(corelog.Msg("outbound http request acquired execution slot after queueing"))
 	}
 
 	requestStartedAt := c.clock.Now()
@@ -241,7 +241,7 @@ func (c *Client) Close() error {
 	c.closeOnce.Do(func() {
 		c.client.CloseIdleConnections()
 		c.closeSecureProfiles()
-		c.logger.Info("outbound http client closed idle connections")
+		c.logger.Info(corelog.Msg("outbound http client closed idle connections"))
 	})
 	return nil
 }
@@ -343,19 +343,19 @@ func (c *Client) logAcquireFailure(logger corelog.Logger, err error, queued bool
 
 	switch {
 	case errors.Is(err, context.Canceled):
-		entry.Debug("outbound http request canceled while waiting for execution slot")
+		entry.Debug(corelog.Msg("outbound http request canceled while waiting for execution slot"))
 
 	case errors.Is(err, context.DeadlineExceeded):
-		entry.Warn("outbound http request deadline exceeded while waiting for execution slot")
+		entry.Warn(corelog.Msg("outbound http request deadline exceeded while waiting for execution slot"))
 
 	case errors.Is(err, corehttpclient.ErrSaturated):
-		entry.Warn("outbound http request rejected because client capacity is saturated")
+		entry.Warn(corelog.Msg("outbound http request rejected because client capacity is saturated"))
 
 	case errors.Is(err, corehttpclient.ErrQueueWaitTimeout):
-		entry.Warn("outbound http request timed out while waiting in bounded queue")
+		entry.Warn(corelog.Msg("outbound http request timed out while waiting in bounded queue"))
 
 	default:
-		entry.Warn("outbound http request failed before execution")
+		entry.Warn(corelog.Msg("outbound http request failed before execution"))
 	}
 }
 
@@ -365,13 +365,13 @@ func (c *Client) logRequestError(logger corelog.Logger, err error, duration time
 	entry := logger.With("duration", duration.String(), "error", safeErrorMessage(err))
 	switch {
 	case errors.Is(err, context.Canceled):
-		entry.Debug("outbound http request canceled")
+		entry.Debug(corelog.Msg("outbound http request canceled"))
 
 	case errors.Is(err, context.DeadlineExceeded), isTimeoutError(err):
-		entry.Warn("outbound http request timed out")
+		entry.Warn(corelog.Msg("outbound http request timed out"))
 
 	default:
-		entry.Warn("outbound http request failed")
+		entry.Warn(corelog.Msg("outbound http request failed"))
 	}
 }
 
@@ -383,11 +383,11 @@ func (c *Client) logResponse(logger corelog.Logger, statusCode int, duration tim
 		"duration", duration.String(),
 	)
 	if statusCode >= http.StatusInternalServerError {
-		entry.Warn("outbound http response received with server error status")
+		entry.Warn(corelog.Msg("outbound http response received with server error status"))
 		return
 	}
 
-	entry.Debug("outbound http response headers received")
+	entry.Debug(corelog.Msg("outbound http response headers received"))
 }
 
 // observeCompletion records one request completion using only normalized bounded

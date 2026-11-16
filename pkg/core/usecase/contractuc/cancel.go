@@ -229,7 +229,10 @@ func (uc *UseCase) Cancel(
 	// The local active -> canceling transition and Saga state are already
 	// committed. ExecuteByID is only a low-latency first attempt; retry or
 	// compensation remains durable and will be resumed by the background job.
+	uc.observer.CancellationSagaStarted(ctx, output.Contract.ID, startedSagaID)
+
 	if err := uc.cancellationSagaExecutor.ExecuteByID(ctx, startedSagaID); err != nil {
+		uc.observer.CancellationSagaFailed(ctx, output.Contract.ID, startedSagaID, err)
 		return CancelOutput{}, contractCancellationFinancialCoreUnavailableError(err)
 	}
 
@@ -238,7 +241,13 @@ func (uc *UseCase) Cancel(
 	// local transactional finalizer. Run that finalizer immediately so the API
 	// can return the terminal canceled contract without waiting for the job.
 	if err := uc.finalizeSuccessfulCancellationSaga(ctx, startedSagaID, &output); err != nil {
+		uc.observer.CancellationSagaFailed(ctx, output.Contract.ID, startedSagaID, err)
 		return CancelOutput{}, err
+	}
+
+	if output.Result == CancelResultCompleted {
+		uc.observer.CancellationSagaCompleted(ctx, output.Contract.ID, startedSagaID)
+		uc.observer.ContractCanceled(ctx, output.Contract.ID)
 	}
 
 	return output, nil

@@ -15,6 +15,7 @@ import (
 	"github.com/parstis/bnpl-backend/cmd/bnpl/bootstrap"
 	"github.com/parstis/bnpl-backend/pkg/adapter/config"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
+	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/observer"
 	extcontractcancellationnoop "github.com/parstis/bnpl-backend/pkg/adapter/external/contractcancellation/noop"
 	extnotificationnoop "github.com/parstis/bnpl-backend/pkg/adapter/external/notification/noop"
 	adapterclock "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/clock"
@@ -124,6 +125,9 @@ func newConfirmSagaHarness(t *testing.T, opts confirmSagaHarnessOptions) *confir
 
 	businessMetrics := metricsnoop.New()
 
+	decisionObserver, err := observer.NewDecision(infra.Logger)
+	require.NoError(t, err)
+
 	decisionUC, err := cfg.NewDecisionUseCase(
 		pool,
 		repos.Decision,
@@ -144,6 +148,7 @@ func newConfirmSagaHarness(t *testing.T, opts confirmSagaHarnessOptions) *confir
 		jurisdictions,
 		businessMetrics,
 		decisionuc.AllowAllNewCreditUsage{},
+		decisionObserver,
 	)
 	require.NoError(t, err)
 
@@ -163,6 +168,9 @@ func newConfirmSagaHarness(t *testing.T, opts confirmSagaHarnessOptions) *confir
 		fixedClock,
 		cancellationSagaDefinition,
 	)
+	require.NoError(t, err)
+
+	contractObserver, err := observer.NewContract(infra.Logger)
 	require.NoError(t, err)
 
 	contractUC, err := cfg.NewContractUseCase(
@@ -189,6 +197,7 @@ func newConfirmSagaHarness(t *testing.T, opts confirmSagaHarnessOptions) *confir
 		infra.Logger,
 		businessMetrics,
 		contractuc.AllowAllNewCreditUsage{},
+		contractObserver,
 	)
 	require.NoError(t, err)
 
@@ -246,12 +255,19 @@ func newConfirmSagaHarness(t *testing.T, opts confirmSagaHarnessOptions) *confir
 		notificationSubmitter = extnotificationnoop.New()
 	}
 
+	otpObserver, err := observer.NewOTP(infra.Logger)
+	require.NoError(t, err)
+
 	otpUC, err := cfg.NewOTPUseCase(
 		pool,
 		repos.OTP,
 		notificationSubmitter,
 		fixedClock,
+		otpObserver,
 	)
+	require.NoError(t, err)
+
+	checkoutSessionObserver, err := observer.NewCheckoutSession(infra.Logger)
 	require.NoError(t, err)
 
 	checkoutUC, err := cfg.NewCheckoutSessionUseCase(
@@ -280,7 +296,11 @@ func newConfirmSagaHarness(t *testing.T, opts confirmSagaHarnessOptions) *confir
 		repos.Saga,
 		sagaExecutor,
 		confirmationSagaDefinition,
+		checkoutSessionObserver,
 	)
+	require.NoError(t, err)
+
+	paymentResultObserver, err := observer.NewFinancialCorePaymentResult(infra.Logger)
 	require.NoError(t, err)
 
 	paymentResultUC, err := cfg.NewFinancialCorePaymentResultUseCase(
@@ -299,6 +319,7 @@ func newConfirmSagaHarness(t *testing.T, opts confirmSagaHarnessOptions) *confir
 		infra.FingerprintHasher,
 		fixedClock,
 		businessMetrics,
+		paymentResultObserver,
 	)
 	require.NoError(t, err)
 

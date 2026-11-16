@@ -1,6 +1,7 @@
 package contractuc
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -37,29 +38,44 @@ func (l *checkoutExpiryRecordingLogger) With(args ...any) corelog.Logger {
 	return &checkoutExpiryRecordingLogger{mu: l.mu, records: l.records, attrs: attrs}
 }
 
-func (l *checkoutExpiryRecordingLogger) Debug(msg string, args ...any) {
-	l.append("debug", msg, args...)
+func (l *checkoutExpiryRecordingLogger) WithContext(context.Context) corelog.Logger {
+	return l
 }
 
-func (l *checkoutExpiryRecordingLogger) Info(msg string, args ...any) {
-	l.append("info", msg, args...)
+func (l *checkoutExpiryRecordingLogger) Debug(event corelog.Event, fields ...corelog.Field) {
+	l.recordLog("debug", event, fields...)
 }
 
-func (l *checkoutExpiryRecordingLogger) Warn(msg string, args ...any) {
-	l.append("warn", msg, args...)
+func (l *checkoutExpiryRecordingLogger) Info(event corelog.Event, fields ...corelog.Field) {
+	l.recordLog("info", event, fields...)
 }
 
-func (l *checkoutExpiryRecordingLogger) Error(msg string, args ...any) {
-	l.append("error", msg, args...)
+func (l *checkoutExpiryRecordingLogger) Warn(event corelog.Event, fields ...corelog.Field) {
+	l.recordLog("warn", event, fields...)
 }
 
-func (l *checkoutExpiryRecordingLogger) append(level, msg string, args ...any) {
+func (l *checkoutExpiryRecordingLogger) Error(event corelog.Event, fields ...corelog.Field) {
+	l.recordLog("error", event, fields...)
+}
+
+func (l *checkoutExpiryRecordingLogger) recordLog(level string, event corelog.Event, fields ...corelog.Field) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	combined := append(append([]any{}, l.attrs...), args...)
-	*l.records = append(*l.records, checkoutExpiryLogRecord{level: level, msg: msg, args: combined})
+	msg := ""
+	attrs := append([]any{}, l.attrs...)
+	if event != nil {
+		msg = event.Message()
+	}
+	for _, f := range fields {
+		if f == nil {
+			continue
+		}
+		attrs = append(attrs, f.Key(), f.Value())
+	}
+	*l.records = append(*l.records, checkoutExpiryLogRecord{level: level, msg: msg, args: attrs})
 }
+
 
 func (l *checkoutExpiryRecordingLogger) warnCount(msg string) int {
 	l.mu.Lock()

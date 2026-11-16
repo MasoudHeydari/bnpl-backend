@@ -33,5 +33,5 @@ func WarnIfExpiresAtLaterThanRequested(
 		"fc_expires_at", actual.Format(time.RFC3339Nano),
 		"expiry_deviation_seconds", actual.Sub(requested).Seconds(),
 	)
-	logger.Warn(LatePaymentSessionExpiryWarning, args...)
+	logger.With(args...).Warn(log.Msg(LatePaymentSessionExpiryWarning))
 }

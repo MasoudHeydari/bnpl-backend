@@ -43,29 +43,44 @@ func (l *installmentExpiryRecordingLogger) With(args ...any) corelog.Logger {
 	return &installmentExpiryRecordingLogger{mu: l.mu, records: l.records, attrs: attrs}
 }
 
-func (l *installmentExpiryRecordingLogger) Debug(msg string, args ...any) {
-	l.append("debug", msg, args...)
+func (l *installmentExpiryRecordingLogger) WithContext(context.Context) corelog.Logger {
+	return l
 }
 
-func (l *installmentExpiryRecordingLogger) Info(msg string, args ...any) {
-	l.append("info", msg, args...)
+func (l *installmentExpiryRecordingLogger) Debug(event corelog.Event, fields ...corelog.Field) {
+	l.recordLog("debug", event, fields...)
 }
 
-func (l *installmentExpiryRecordingLogger) Warn(msg string, args ...any) {
-	l.append("warn", msg, args...)
+func (l *installmentExpiryRecordingLogger) Info(event corelog.Event, fields ...corelog.Field) {
+	l.recordLog("info", event, fields...)
 }
 
-func (l *installmentExpiryRecordingLogger) Error(msg string, args ...any) {
-	l.append("error", msg, args...)
+func (l *installmentExpiryRecordingLogger) Warn(event corelog.Event, fields ...corelog.Field) {
+	l.recordLog("warn", event, fields...)
 }
 
-func (l *installmentExpiryRecordingLogger) append(level, msg string, args ...any) {
+func (l *installmentExpiryRecordingLogger) Error(event corelog.Event, fields ...corelog.Field) {
+	l.recordLog("error", event, fields...)
+}
+
+func (l *installmentExpiryRecordingLogger) recordLog(level string, event corelog.Event, fields ...corelog.Field) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	combined := append(append([]any{}, l.attrs...), args...)
-	*l.records = append(*l.records, installmentExpiryLogRecord{level: level, msg: msg, args: combined})
+	msg := ""
+	attrs := append([]any{}, l.attrs...)
+	if event != nil {
+		msg = event.Message()
+	}
+	for _, f := range fields {
+		if f == nil {
+			continue
+		}
+		attrs = append(attrs, f.Key(), f.Value())
+	}
+	*l.records = append(*l.records, installmentExpiryLogRecord{level: level, msg: msg, args: attrs})
 }
+
 
 func (l *installmentExpiryRecordingLogger) warnCount(msg string) int {
 	l.mu.Lock()
@@ -309,6 +324,7 @@ func TestEnsureFinancialCoreInstallmentPayment_SendsAggregateUsingExistingReceiv
 		"bnpl.audit.events.v1",
 		idGenerator,
 		returnURL,
+		newTestObserver(t),
 	)
 	require.NoError(t, err)
 
@@ -370,6 +386,7 @@ func TestEnsureFinancialCoreInstallmentPayment_RejectsMissingReceivable(t *testi
 		"bnpl.audit.events.v1",
 		mock.NewIdentifierGenerator(t),
 		"https://bnpl.example/return",
+		newTestObserver(t),
 	)
 	require.NoError(t, err)
 
@@ -477,6 +494,7 @@ func TestEnsureFinancialCoreInstallmentPayment_RejectsChargesAgainstPrincipalRec
 		"bnpl.audit.events.v1",
 		mock.NewIdentifierGenerator(t),
 		returnURL,
+		newTestObserver(t),
 	)
 	require.NoError(t, err)
 

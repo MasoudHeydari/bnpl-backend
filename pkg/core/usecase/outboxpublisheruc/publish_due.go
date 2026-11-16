@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
+	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/messaging"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
@@ -122,7 +123,7 @@ func (uc *UseCase) persistPublishOutcome(
 			publishedAt,
 		); markErr != nil {
 			if cerr.IsCode(markErr, cerr.CodeConflict) {
-				logger.Warn("outbox lease lost while marking published", "error", markErr.Error())
+				uc.observer.LeaseLost(ctx, msg.ID, msg.Destination)
 				return fmt.Errorf(
 					"%s: %w: outbox message %s: %w",
 					op,
@@ -132,11 +133,11 @@ func (uc *UseCase) persistPublishOutcome(
 				)
 			}
 
-			logger.Error("failed to mark outbox message published", "error", markErr.Error())
+			logger.With("error", markErr.Error()).Error(corelog.Msg("failed to mark outbox message published"))
 			return fmt.Errorf("%s: mark outbox message %s published: %w", op, msg.ID, markErr)
 		}
 
-		logger.Info("outbox message published")
+		uc.observer.MessagePublished(ctx, msg.ID, msg.Destination)
 		return nil
 	}
 
@@ -152,15 +153,15 @@ func (uc *UseCase) persistPublishOutcome(
 			reason,
 		); markErr != nil {
 			if cerr.IsCode(markErr, cerr.CodeConflict) {
-				logger.Warn("outbox lease lost while marking skipped", "error", markErr.Error())
+				uc.observer.LeaseLost(ctx, msg.ID, msg.Destination)
 				return fmt.Errorf("%s: skip outbox message %s: %w", op, msg.ID, publishErr)
 			}
 
-			logger.Error("failed to mark outbox message skipped", "error", markErr.Error())
+			logger.With("error", markErr.Error()).Error(corelog.Msg("failed to mark outbox message skipped"))
 			return fmt.Errorf("%s: mark outbox message %s skipped: %w", op, msg.ID, markErr)
 		}
 
-		logger.Info("outbox message skipped", "reason", reason)
+		uc.observer.MessageSkipped(ctx, msg.ID, msg.Destination, reason)
 		return nil
 	}
 
@@ -181,24 +182,26 @@ func (uc *UseCase) persistPublishOutcome(
 			lastError,
 		); markErr != nil {
 			if cerr.IsCode(markErr, cerr.CodeConflict) {
-				logger.Warn("outbox lease lost while marking failed", "error", markErr.Error())
+				uc.observer.LeaseLost(ctx, msg.ID, msg.Destination)
 				return fmt.Errorf("%s: publish outbox message %s: %w", op, msg.ID, publishErr)
 			}
 
-			logger.Error(
-				"failed to mark outbox message permanently failed",
+			logger.With(
 				"publish_error",
 				lastError,
 				"error",
 				markErr.Error(),
+			).Error(
+				corelog.Msg("failed to mark outbox message permanently failed"),
 			)
+
 			return errors.Join(
 				fmt.Errorf("%s: publish outbox message %s: %w", op, msg.ID, publishErr),
 				fmt.Errorf("%s: mark outbox message %s failed: %w", op, msg.ID, markErr),
 			)
 		}
 
-		logger.Error("outbox message permanently failed", "error", lastError)
+		uc.observer.MessageFailed(ctx, msg.ID, msg.Destination, msg.AttemptCount, lastError)
 		return fmt.Errorf("%s: publish outbox message %s: %w", op, msg.ID, publishErr)
 	}
 
@@ -213,30 +216,26 @@ func (uc *UseCase) persistPublishOutcome(
 		lastError,
 	); markErr != nil {
 		if cerr.IsCode(markErr, cerr.CodeConflict) {
-			logger.Warn("outbox lease lost while scheduling retry", "error", markErr.Error())
+			uc.observer.LeaseLost(ctx, msg.ID, msg.Destination)
 			return fmt.Errorf("%s: publish outbox message %s: %w", op, msg.ID, publishErr)
 		}
 
-		logger.Error(
-			"failed to schedule outbox message retry",
+		logger.With(
 			"publish_error",
 			lastError,
 			"error",
 			markErr.Error(),
+		).Error(
+			corelog.Msg("failed to schedule outbox message retry"),
 		)
+
 		return errors.Join(
 			fmt.Errorf("%s: publish outbox message %s: %w", op, msg.ID, publishErr),
 			fmt.Errorf("%s: schedule outbox message %s retry: %w", op, msg.ID, markErr),
 		)
 	}
 
-	logger.Warn(
-		"outbox message publish failed; retry scheduled",
-		"error",
-		lastError,
-		"next_attempt_at",
-		nextAttemptAt,
-	)
+	uc.observer.MessageRetryScheduled(ctx, msg.ID, msg.Destination, msg.AttemptCount, lastError)
 
 	return fmt.Errorf("%s: publish outbox message %s: %w", op, msg.ID, publishErr)
 }

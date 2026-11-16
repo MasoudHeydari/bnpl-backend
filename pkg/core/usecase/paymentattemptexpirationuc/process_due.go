@@ -49,15 +49,7 @@ func (uc *UseCase) ProcessDue(ctx context.Context) error {
 	}
 
 	result.Duration = uc.clock.Now().UTC().Sub(started)
-	uc.logger.With(
-		"claimed", result.Claimed,
-		"expired", result.Expired,
-		"skipped_changed_state", result.SkippedChangedState,
-		"skipped_active_lease", result.SkippedActiveLease,
-		"skipped_not_eligible", result.SkippedNotEligible,
-		"failures", result.Failures,
-		"duration_ms", result.Duration.Milliseconds(),
-	).Info("payment attempt session creation expiration cycle completed")
+	uc.observer.ExpirationCycleCompleted(ctx, result.Expired, result.Failures, result.Duration)
 
 	if batchErr != nil {
 		return fmt.Errorf("%s: %w", op, batchErr)
@@ -73,9 +65,13 @@ func (uc *UseCase) expireNextCandidate(
 ) (bool, error) {
 	const op = "paymentattemptexpirationuc.UseCase.expireNextCandidate"
 
-	var processed bool
+	var (
+		processed bool
+		observed  func()
+	)
 	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
+			observed = nil
 			paymentAttemptQ := uc.paymentAttempt.Tx(tx)
 
 			candidates, claimErr := paymentAttemptQ.ClaimCandidatesForSessionCreationExpiration(
@@ -154,6 +150,8 @@ func (uc *UseCase) expireNextCandidate(
 				}
 
 				result.Expired++
+				observed = func() { uc.observer.AttemptCanceled(ctx, locked.ID) }
+
 				return nil
 			}
 
@@ -184,11 +182,19 @@ func (uc *UseCase) expireNextCandidate(
 			}
 
 			result.Expired++
+			observed = func() { uc.observer.AttemptExpired(ctx, locked.ID) }
+
 			return nil
 		})
 	})
 	if err != nil {
 		return processed, err
+	}
+
+	// The transaction committed; observe outside it so checkpoints never
+	// describe uncommitted work.
+	if observed != nil {
+		observed()
 	}
 
 	return processed, nil

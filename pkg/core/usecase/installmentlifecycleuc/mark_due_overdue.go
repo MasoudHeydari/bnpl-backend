@@ -80,6 +80,10 @@ func (uc *UseCase) MarkDueScheduledInstallments(
 		uc.businessMetrics.InstallmentStateChanged(ctx, string(model.ScheduledInstallmentStatus), string(model.DueInstallmentStatus))
 	}
 
+	if output.MarkedDueInstallmentCount > 0 {
+		uc.observer.SweepCompleted(ctx, SweepMarkDue, output.MarkedDueInstallmentCount)
+	}
+
 	return output, nil
 }
 
@@ -157,6 +161,10 @@ func (uc *UseCase) MarkOverdueDueInstallments(
 	// Post-commit: count only transitions that survived the transaction.
 	for range output.MarkedOverdueInstallmentCount {
 		uc.businessMetrics.InstallmentStateChanged(ctx, string(model.DueInstallmentStatus), string(model.OverdueInstallmentStatus))
+	}
+
+	if output.MarkedOverdueInstallmentCount > 0 {
+		uc.observer.SweepCompleted(ctx, SweepMarkOverdue, output.MarkedOverdueInstallmentCount)
 	}
 
 	return output, nil

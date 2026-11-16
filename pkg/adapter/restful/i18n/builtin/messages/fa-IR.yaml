@@ -262,6 +262,8 @@ error.checkout_otp_issuance_not_allowed: "در وضعیت فعلی این پرد
 error.otp_issuance_not_allowed: "در وضعیت فعلی این پرداخت امکان درخواست کد تأیید وجود ندارد."
 error.otp_context_invalidated: "بافت تأیید تغییر کرده است. پیشنهاد را تازه‌سازی کنید و در زمان مجاز کد جدید درخواست کنید."
 error.checkout_customer_is_not_eligible: "این مشتری واجد شرایط دریافت تسهیلات خرید اعتباری نیست."
+error.checkout_credit_purchase_unavailable_for_phone: "خرید اعتباری برای این شماره تلفن در دسترس نیست."
+error.checkout_customer_identity_verification_required: "این مشتری برای استفاده از خرید اعتباری نیاز به احراز هویت دارد."
 error.customer_reference_invalid: "شناسه مشتری پذیرنده نامعتبر است."
 error.webhook_signing_secret_required: "رمز امضای وب‌هوک الزامی است."
 error.webhook_signing_secret_too_short: "رمز امضای وب‌هوک بیش از حد کوتاه است."

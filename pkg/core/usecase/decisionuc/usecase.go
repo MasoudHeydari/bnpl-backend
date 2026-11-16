@@ -40,6 +40,8 @@ type UseCase struct {
 	// newCreditUsageGuard fail-closes new Decision origination when collections
 	// default (or other) restrictions prohibit new credit usage.
 	newCreditUsageGuard NewCreditUsageGuard
+
+	observer Observer
 }
 
 // New constructs a decision use case. The registry contains every compiled-in
@@ -66,6 +68,7 @@ func New(
 	jurisdictions domaincapability.OriginationJurisdictions,
 	businessMetrics coremetrics.BusinessMetrics,
 	newCreditUsageGuard NewCreditUsageGuard,
+	observer Observer,
 ) (*UseCase, error) {
 	const op = "decisionuc.New"
 
@@ -91,6 +94,10 @@ func New(
 		return nil, fmt.Errorf("%s: new credit usage guard is required", op)
 	}
 
+	if observer == nil {
+		return nil, fmt.Errorf("%s: observer is required", op)
+	}
+
 	return &UseCase{
 		pool:                       pool,
 		decision:                   decision,
@@ -112,5 +119,6 @@ func New(
 		jurisdictions:              jurisdictions,
 		businessMetrics:            businessMetrics,
 		newCreditUsageGuard:        newCreditUsageGuard,
+		observer:                   observer,
 	}, nil
 }

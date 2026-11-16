@@ -185,6 +185,8 @@ func (uc *UseCase) createContract(ctx context.Context, input CreateContractInput
 		return CreateContractOutput{}, err
 	}
 
+	uc.observer.PreparationStarted(ctx, input.DecisionID)
+
 	var selected checkout.Policy
 	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 		decisionQ := uc.decision.Conn(conn)

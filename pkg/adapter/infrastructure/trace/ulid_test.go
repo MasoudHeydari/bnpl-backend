@@ -25,3 +25,18 @@ func TestProvider_IDFormats(t *testing.T) {
 	_, err = uuid.Parse(provider.NewCorrelationID())
 	require.NoError(t, err)
 }
+
+type fixedCorrelationIDGenerator string
+
+func (g fixedCorrelationIDGenerator) Generate() string {
+	return string(g)
+}
+
+func TestProvider_NewCorrelationIDUsesUUIDGenerator(t *testing.T) {
+	t.Parallel()
+
+	provider := NewULIDProvider()
+	provider.correlationIDGenerator = fixedCorrelationIDGenerator("delegated-correlation-id")
+
+	require.Equal(t, "delegated-correlation-id", provider.NewCorrelationID())
+}

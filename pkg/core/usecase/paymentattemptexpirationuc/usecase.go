@@ -6,7 +6,6 @@ import (
 
 	"github.com/parstis/bnpl-backend/pkg/core/clock"
 	"github.com/parstis/bnpl-backend/pkg/core/identifier"
-	"github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
@@ -21,7 +20,7 @@ type UseCase struct {
 	batchSize        int
 	safetyAfterLease time.Duration
 	clock            clock.Clock
-	logger           log.Logger
+	observer         Observer
 }
 
 // New constructs the local session-creation expiration use case.
@@ -34,7 +33,7 @@ func New(
 	batchSize int,
 	safetyAfterLease time.Duration,
 	clk clock.Clock,
-	logger log.Logger,
+	observer Observer,
 ) (*UseCase, error) {
 	const op = "paymentattemptexpirationuc.New"
 
@@ -74,8 +73,8 @@ func New(
 		return nil, fmt.Errorf("%s: clock is required", op)
 	}
 
-	if logger == nil {
-		return nil, fmt.Errorf("%s: logger is required", op)
+	if observer == nil {
+		return nil, fmt.Errorf("%s: observer is required", op)
 	}
 
 	return &UseCase{
@@ -87,6 +86,6 @@ func New(
 		batchSize:        batchSize,
 		safetyAfterLease: safetyAfterLease,
 		clock:            clk,
-		logger:           logger,
+		observer:         observer,
 	}, nil
 }

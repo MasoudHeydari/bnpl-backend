@@ -171,14 +171,17 @@ func mapInboxAcquireResult(result model.InboxAcquireResult, output *ProcessOutpu
 	switch result {
 	case model.InboxAcquireAlreadyProcessed:
 		output.Result = ProcessResultAlreadyProcessed
+		output.inboxDuplicate = true
 		return true
 
 	case model.InboxAcquireReconciliationRequired:
 		output.Result = ProcessResultStillReconciliationRequired
+		output.inboxDuplicate = true
 		return true
 
 	case model.InboxAcquirePermanentlyFailed:
 		output.Result = ProcessResultPermanentlyRejected
+		output.inboxDuplicate = true
 		return true
 
 	default:

@@ -65,7 +65,10 @@ func (uc *UseCase) ExpireDuePaymentPendingContracts(
 		return ExpireDuePaymentPendingContractsOutput{}, err
 	}
 
-	var batchErr error
+	var (
+		batchErr    error
+		failedCount int
+	)
 	for _, contractID := range contractIDs {
 		if err := ctx.Err(); err != nil {
 			batchErr = errors.Join(batchErr, err)
@@ -74,6 +77,7 @@ func (uc *UseCase) ExpireDuePaymentPendingContracts(
 
 		counts, expired, expireErr := uc.expirePaymentPendingContractByID(ctx, contractID, now)
 		if expireErr != nil {
+			failedCount++
 			batchErr = errors.Join(
 				batchErr,
 				fmt.Errorf("%s: expire payment pending contract %s: %w", op, contractID, expireErr),
@@ -85,11 +89,15 @@ func (uc *UseCase) ExpireDuePaymentPendingContracts(
 			continue
 		}
 
+		uc.observer.ContractExpired(ctx, contractID)
+
 		output.ExpiredContractCount++
 		output.ExpiredInstallmentCount += counts.expiredInstallments
 		output.CanceledChargeCount += counts.canceledCharges
 		output.FinalizedPaymentAttemptCount += counts.finalizedPaymentAttempts
 	}
+
+	uc.observer.PaymentPendingExpiryCompleted(ctx, int(output.ExpiredContractCount), failedCount)
 
 	return output, batchErr
 }

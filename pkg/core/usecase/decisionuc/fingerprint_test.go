@@ -41,6 +41,7 @@ func TestCheckoutFingerprint_DeterministicAndSensitiveToInputs(t *testing.T) {
 		mustTestJurisdictions(t),
 		metricsnoop.New(),
 		AllowAllNewCreditUsage{},
+		newInternalTestObserver(t),
 	)
 	require.NoError(t, err)
 

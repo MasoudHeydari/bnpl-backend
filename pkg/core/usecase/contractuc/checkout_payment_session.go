@@ -658,21 +658,25 @@ func (uc *UseCase) ensureCheckoutPaymentSession(
 		return model.Contract{}, attempt, CheckoutPaymentOutput{}, checkoutPaymentSessionCreateRetryBudgetExhaustedError()
 	}
 
-	fmt.Printf("\n\n\n %+v \n\n\n", request)
-
 	// CreateCheckoutPayment is idempotent. Retries reuse the attempt idempotency
 	// key and return the same immutable PaymentIntent/PaymentSession/PaymentLink.
 	// GetPaymentStatus cannot recover a missing PaymentURL after a timeout.
 	// The counter above is not reset when this HTTP call is retried by the client.
+	uc.observer.FinancialCoreRequestStarted(ctx, contractRow.ID, attempt.ID)
+
 	paymentResult, err := uc.checkoutPaymentClient.CreateCheckoutPayment(ctx, request)
 	if err != nil {
+		uc.observer.FinancialCoreFailed(ctx, contractRow.ID, attempt.ID, err)
 		return model.Contract{}, model.PaymentAttempt{}, CheckoutPaymentOutput{}, err
 	}
 
 	requestNow := uc.clock.Now().UTC()
 	if err := uc.validateCheckoutPaymentResult(paymentResult, contractRow, requestNow); err != nil {
+		uc.observer.FinancialCoreFailed(ctx, contractRow.ID, attempt.ID, err)
 		return model.Contract{}, model.PaymentAttempt{}, CheckoutPaymentOutput{}, err
 	}
+
+	uc.observer.FinancialCoreResponseReceived(ctx, contractRow.ID, attempt.ID)
 
 	paymentIntentID := strings.TrimSpace(paymentResult.PaymentIntentID)
 	paymentSessionID := strings.TrimSpace(paymentResult.PaymentSessionID)
@@ -902,6 +906,12 @@ func (uc *UseCase) ensureCheckoutPaymentSession(
 	paymentOutput := checkoutPaymentOutputFromContract(savedContract)
 	if paymentOutput.PaymentSessionID == "" {
 		paymentOutput = checkoutPaymentOutputFromResult(paymentResult, expiresAt, savedContract.ExpiresAt)
+	}
+
+	// The payment session is committed. The customer may now pay; this is
+	// payment submission, not payment success.
+	if paymentOutput.PaymentLink != "" {
+		uc.observer.PaymentURLObtained(ctx, contractRow.ID, savedAttempt.ID)
 	}
 
 	return savedContract, savedAttempt, paymentOutput, nil

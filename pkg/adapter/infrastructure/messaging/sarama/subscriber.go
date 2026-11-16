@@ -180,7 +180,7 @@ func (c *Consumer) Subscribe(ctx context.Context, handler messaging.Handler) err
 			retries,
 			"backoff",
 			backoff.String(),
-		).Warn("kafka consumer session failed; retrying")
+		).Warn(log.Msg("kafka consumer session failed; retrying"))
 
 		if waitErr := waitWithContext(ctx, jitteredBackoff(backoff)); waitErr != nil {
 			c.setConsumerState(corehealth.ConsumerStopped)
@@ -380,8 +380,7 @@ func (h *consumerGroupHandler) ConsumeClaim(
 }
 
 func (h *consumerGroupHandler) logError(event string, msg *sarama.ConsumerMessage, err error) {
-	h.logger.Error(
-		event,
+	h.logger.With(
 		"topic",
 		msg.Topic,
 		"partition",
@@ -390,7 +389,7 @@ func (h *consumerGroupHandler) logError(event string, msg *sarama.ConsumerMessag
 		msg.Offset,
 		"error",
 		err.Error(),
-	)
+	).Error(log.Msg(event))
 }
 
 func toMessage(msg *sarama.ConsumerMessage) messaging.Message {

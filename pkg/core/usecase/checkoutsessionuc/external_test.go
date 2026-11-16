@@ -89,22 +89,14 @@ func (h *harness) approvedDecision() {
 	h.setApprovedDecisionCreateOutput()
 }
 
-// expectExternalBind expects the bind transaction for an unbound session.
+// expectExternalBind expects the lookup-only bind transaction for an unbound session.
 func (h *harness) expectExternalBind(locked model.CheckoutSession, bound model.CheckoutSession) {
 	h.t.Helper()
 
 	h.sessionTx.EXPECT().LockByPublicToken(h.ctx, h.publicToken).Return(locked, nil).Once()
 	h.customerTx.EXPECT().
-		EnsureExists(
-			h.ctx,
-			testifymock.Anything,
-			h.profileID,
-			model.IRJurisdiction,
-			model.ActiveCustomerStatus,
-			h.now,
-			h.now,
-		).
-		Return(h.customerProfile(), false, nil).Once()
+		GetByExternalCustomerID(h.ctx, h.profileID).
+		Return(h.customerProfile(), nil).Once()
 	h.sessionTx.EXPECT().BindCustomer(h.ctx, locked.ID, h.customerID, h.now).Return(bound, nil).Once()
 }
 

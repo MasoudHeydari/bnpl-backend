@@ -169,6 +169,7 @@ func TestNew_RequiredDependencies(t *testing.T) {
 			mock.NewClock(t),
 			0,
 			metricsnoop.New(),
+			newTestObserver(t),
 		)
 	}
 

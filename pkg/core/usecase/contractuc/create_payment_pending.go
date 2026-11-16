@@ -315,6 +315,12 @@ func (uc *UseCase) createPaymentPending(
 
 	output.PaymentRequired = true
 
+	uc.observePreparedContract(ctx, output.Contract, output.Result)
+
+	if output.Result == CreateContractResultCreated {
+		uc.observer.PaymentAttemptCreated(ctx, output.Contract.ID, output.PaymentAttempt.ID)
+	}
+
 	if !submitPayment {
 		// Local preparation is committed. CheckoutSession will link the Contract
 		// before any external payment submission is allowed.
@@ -322,6 +328,20 @@ func (uc *UseCase) createPaymentPending(
 	}
 
 	return uc.SubmitPreparedCheckoutFulfillment(ctx, output)
+}
+
+// observePreparedContract records a committed contract preparation outcome.
+func (uc *UseCase) observePreparedContract(
+	ctx context.Context,
+	contractRow model.Contract,
+	result CreateContractResult,
+) {
+	if result == CreateContractResultCreated {
+		uc.observer.PaymentPendingCreated(ctx, contractRow.ID, contractRow.DecisionID)
+		return
+	}
+
+	uc.observer.ContractReplayed(ctx, contractRow.ID, contractRow.Status)
 }
 
 const (

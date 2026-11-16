@@ -44,6 +44,7 @@ func TestOutboxPublisher_newUseCase(t *testing.T) {
 		publisher,
 		clock,
 		logger,
+		newTestOutboxPublisherObserver(t),
 	)
 	require.NotNil(t, uc)
 	assert.Equal(t, "worker-1", uc.WorkerID)
@@ -90,6 +91,7 @@ func TestConfig_NewOutboxPublisherUseCase(t *testing.T) {
 		publisher,
 		clock,
 		logger,
+		newTestOutboxPublisherObserver(t),
 	)
 	require.NotNil(t, uc)
 	assert.Equal(t, "bootstrap-worker", uc.WorkerID)
@@ -153,6 +155,7 @@ func TestContract_newUseCase_Validation(t *testing.T) {
 			metricsnoop.New(),
 			ContractCancellationSaga{},
 			contractuc.AllowAllNewCreditUsage{},
+			newTestContractObserver(t),
 		)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "must not exceed")
@@ -205,6 +208,7 @@ func TestContract_newUseCase_Validation(t *testing.T) {
 			metricsnoop.New(),
 			ContractCancellationSaga{},
 			contractuc.AllowAllNewCreditUsage{},
+			newTestContractObserver(t),
 		)
 		require.NoError(t, err)
 		require.NotNil(t, uc)
@@ -243,6 +247,7 @@ func TestCustomerCredit_newUseCase(t *testing.T) {
 		"bnpl.audit.events.v1",
 		mock.NewIdentifierGenerator(t),
 		collectionsv2.New(time.UTC),
+		newTestCustomerCreditObserver(t),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, uc)
@@ -321,6 +326,7 @@ func TestDecision_newUseCase_WiresCheckoutPolicy(t *testing.T) {
 		mustTestJurisdictions(t),
 		metricsnoop.New(),
 		decisionuc.AllowAllNewCreditUsage{},
+		newTestDecisionObserver(t),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, uc)

@@ -609,7 +609,7 @@ func (f *collectionsFixture) settlement(t *testing.T, customer model.CustomerID,
 	require.NoError(t, tx.Commit(f.ctx))
 
 	client := authoritativePaymentClient{status: fc.GetPaymentStatusResult{PaymentIntentID: intent, Status: fc.SucceededPaymentStatus, AmountMinor: amount, Currency: "IRR", CompletedAt: paidAt}}
-	result, e := financialcorepaymentresultuc.New(f.pool, &contractuc.UseCase{}, &checkoutsessionuc.UseCase{}, client, inboxrp.New(), outboxrp.New(), paymentattemptrp.New(), contractrp.New(), installmentrp.New(), installmentchargerp.New(), creditaccountrp.New(), uuidgen.New(), sha256fingerprint.New(), "fc.payment.applications", "bnpl.audit.events.v1", f.clk, 0, metricsnoop.New())
+	result, e := financialcorepaymentresultuc.New(f.pool, &contractuc.UseCase{}, &checkoutsessionuc.UseCase{}, client, inboxrp.New(), outboxrp.New(), paymentattemptrp.New(), contractrp.New(), installmentrp.New(), installmentchargerp.New(), creditaccountrp.New(), uuidgen.New(), sha256fingerprint.New(), "fc.payment.applications", "bnpl.audit.events.v1", f.clk, 0, metricsnoop.New(), mustPaymentResultObserver(t))
 	require.NoError(t, e)
 	result.WithCollectionsCoordination(customerprofilerp.New(), func(ctx context.Context, id model.CustomerID) error { _, e := f.uc.AssessCustomer(ctx, id); return e })
 	input := financialcorepaymentresultuc.ProcessInput{EventID: uuid.NewString(), EventType: "financial_core.payment_result.v1", EventVersion: "1", SourceService: "financial-core", RawPayload: json.RawMessage(`{"wake_up":true}`), PaymentPurpose: model.InstallmentRepaymentFinancialCorePaymentPurpose, ContractID: contract, InstallmentID: model.InstallmentID(installment), PaymentIntentID: intent, PaymentStatus: model.SucceededFinancialPaymentResultStatus, EventOccurredAt: f.now}

@@ -5,6 +5,8 @@
 package mock
 
 import (
+	"context"
+
 	"github.com/parstis/bnpl-backend/pkg/core/log"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -37,11 +39,11 @@ func (_m *Logger) EXPECT() *Logger_Expecter {
 }
 
 // Debug provides a mock function for the type Logger
-func (_mock *Logger) Debug(msg string, args ...any) {
-	if len(args) > 0 {
-		_mock.Called(msg, args)
+func (_mock *Logger) Debug(event log.Event, fields ...log.Field) {
+	if len(fields) > 0 {
+		_mock.Called(event, fields)
 	} else {
-		_mock.Called(msg)
+		_mock.Called(event)
 	}
 
 	return
@@ -53,23 +55,23 @@ type Logger_Debug_Call struct {
 }
 
 // Debug is a helper method to define mock.On call
-//   - msg string
-//   - args ...any
-func (_e *Logger_Expecter) Debug(msg any, args ...any) *Logger_Debug_Call {
+//   - event log.Event
+//   - fields ...log.Field
+func (_e *Logger_Expecter) Debug(event any, fields ...any) *Logger_Debug_Call {
 	return &Logger_Debug_Call{Call: _e.mock.On("Debug",
-		append([]any{msg}, args...)...)}
+		append([]any{event}, fields...)...)}
 }
 
-func (_c *Logger_Debug_Call) Run(run func(msg string, args ...any)) *Logger_Debug_Call {
+func (_c *Logger_Debug_Call) Run(run func(event log.Event, fields ...log.Field)) *Logger_Debug_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 string
+		var arg0 log.Event
 		if args[0] != nil {
-			arg0 = args[0].(string)
+			arg0 = args[0].(log.Event)
 		}
-		var arg1 []any
-		var variadicArgs []any
+		var arg1 []log.Field
+		var variadicArgs []log.Field
 		if len(args) > 1 {
-			variadicArgs = args[1].([]any)
+			variadicArgs = args[1].([]log.Field)
 		}
 		arg1 = variadicArgs
 		run(
@@ -85,17 +87,17 @@ func (_c *Logger_Debug_Call) Return() *Logger_Debug_Call {
 	return _c
 }
 
-func (_c *Logger_Debug_Call) RunAndReturn(run func(msg string, args ...any)) *Logger_Debug_Call {
+func (_c *Logger_Debug_Call) RunAndReturn(run func(event log.Event, fields ...log.Field)) *Logger_Debug_Call {
 	_c.Run(run)
 	return _c
 }
 
 // Error provides a mock function for the type Logger
-func (_mock *Logger) Error(msg string, args ...any) {
-	if len(args) > 0 {
-		_mock.Called(msg, args)
+func (_mock *Logger) Error(event log.Event, fields ...log.Field) {
+	if len(fields) > 0 {
+		_mock.Called(event, fields)
 	} else {
-		_mock.Called(msg)
+		_mock.Called(event)
 	}
 
 	return
@@ -107,23 +109,23 @@ type Logger_Error_Call struct {
 }
 
 // Error is a helper method to define mock.On call
-//   - msg string
-//   - args ...any
-func (_e *Logger_Expecter) Error(msg any, args ...any) *Logger_Error_Call {
+//   - event log.Event
+//   - fields ...log.Field
+func (_e *Logger_Expecter) Error(event any, fields ...any) *Logger_Error_Call {
 	return &Logger_Error_Call{Call: _e.mock.On("Error",
-		append([]any{msg}, args...)...)}
+		append([]any{event}, fields...)...)}
 }
 
-func (_c *Logger_Error_Call) Run(run func(msg string, args ...any)) *Logger_Error_Call {
+func (_c *Logger_Error_Call) Run(run func(event log.Event, fields ...log.Field)) *Logger_Error_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 string
+		var arg0 log.Event
 		if args[0] != nil {
-			arg0 = args[0].(string)
+			arg0 = args[0].(log.Event)
 		}
-		var arg1 []any
-		var variadicArgs []any
+		var arg1 []log.Field
+		var variadicArgs []log.Field
 		if len(args) > 1 {
-			variadicArgs = args[1].([]any)
+			variadicArgs = args[1].([]log.Field)
 		}
 		arg1 = variadicArgs
 		run(
@@ -139,17 +141,17 @@ func (_c *Logger_Error_Call) Return() *Logger_Error_Call {
 	return _c
 }
 
-func (_c *Logger_Error_Call) RunAndReturn(run func(msg string, args ...any)) *Logger_Error_Call {
+func (_c *Logger_Error_Call) RunAndReturn(run func(event log.Event, fields ...log.Field)) *Logger_Error_Call {
 	_c.Run(run)
 	return _c
 }
 
 // Info provides a mock function for the type Logger
-func (_mock *Logger) Info(msg string, args ...any) {
-	if len(args) > 0 {
-		_mock.Called(msg, args)
+func (_mock *Logger) Info(event log.Event, fields ...log.Field) {
+	if len(fields) > 0 {
+		_mock.Called(event, fields)
 	} else {
-		_mock.Called(msg)
+		_mock.Called(event)
 	}
 
 	return
@@ -161,23 +163,23 @@ type Logger_Info_Call struct {
 }
 
 // Info is a helper method to define mock.On call
-//   - msg string
-//   - args ...any
-func (_e *Logger_Expecter) Info(msg any, args ...any) *Logger_Info_Call {
+//   - event log.Event
+//   - fields ...log.Field
+func (_e *Logger_Expecter) Info(event any, fields ...any) *Logger_Info_Call {
 	return &Logger_Info_Call{Call: _e.mock.On("Info",
-		append([]any{msg}, args...)...)}
+		append([]any{event}, fields...)...)}
 }
 
-func (_c *Logger_Info_Call) Run(run func(msg string, args ...any)) *Logger_Info_Call {
+func (_c *Logger_Info_Call) Run(run func(event log.Event, fields ...log.Field)) *Logger_Info_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 string
+		var arg0 log.Event
 		if args[0] != nil {
-			arg0 = args[0].(string)
+			arg0 = args[0].(log.Event)
 		}
-		var arg1 []any
-		var variadicArgs []any
+		var arg1 []log.Field
+		var variadicArgs []log.Field
 		if len(args) > 1 {
-			variadicArgs = args[1].([]any)
+			variadicArgs = args[1].([]log.Field)
 		}
 		arg1 = variadicArgs
 		run(
@@ -193,17 +195,17 @@ func (_c *Logger_Info_Call) Return() *Logger_Info_Call {
 	return _c
 }
 
-func (_c *Logger_Info_Call) RunAndReturn(run func(msg string, args ...any)) *Logger_Info_Call {
+func (_c *Logger_Info_Call) RunAndReturn(run func(event log.Event, fields ...log.Field)) *Logger_Info_Call {
 	_c.Run(run)
 	return _c
 }
 
 // Warn provides a mock function for the type Logger
-func (_mock *Logger) Warn(msg string, args ...any) {
-	if len(args) > 0 {
-		_mock.Called(msg, args)
+func (_mock *Logger) Warn(event log.Event, fields ...log.Field) {
+	if len(fields) > 0 {
+		_mock.Called(event, fields)
 	} else {
-		_mock.Called(msg)
+		_mock.Called(event)
 	}
 
 	return
@@ -215,23 +217,23 @@ type Logger_Warn_Call struct {
 }
 
 // Warn is a helper method to define mock.On call
-//   - msg string
-//   - args ...any
-func (_e *Logger_Expecter) Warn(msg any, args ...any) *Logger_Warn_Call {
+//   - event log.Event
+//   - fields ...log.Field
+func (_e *Logger_Expecter) Warn(event any, fields ...any) *Logger_Warn_Call {
 	return &Logger_Warn_Call{Call: _e.mock.On("Warn",
-		append([]any{msg}, args...)...)}
+		append([]any{event}, fields...)...)}
 }
 
-func (_c *Logger_Warn_Call) Run(run func(msg string, args ...any)) *Logger_Warn_Call {
+func (_c *Logger_Warn_Call) Run(run func(event log.Event, fields ...log.Field)) *Logger_Warn_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 string
+		var arg0 log.Event
 		if args[0] != nil {
-			arg0 = args[0].(string)
+			arg0 = args[0].(log.Event)
 		}
-		var arg1 []any
-		var variadicArgs []any
+		var arg1 []log.Field
+		var variadicArgs []log.Field
 		if len(args) > 1 {
-			variadicArgs = args[1].([]any)
+			variadicArgs = args[1].([]log.Field)
 		}
 		arg1 = variadicArgs
 		run(
@@ -247,7 +249,7 @@ func (_c *Logger_Warn_Call) Return() *Logger_Warn_Call {
 	return _c
 }
 
-func (_c *Logger_Warn_Call) RunAndReturn(run func(msg string, args ...any)) *Logger_Warn_Call {
+func (_c *Logger_Warn_Call) RunAndReturn(run func(event log.Event, fields ...log.Field)) *Logger_Warn_Call {
 	_c.Run(run)
 	return _c
 }
@@ -310,6 +312,59 @@ func (_c *Logger_With_Call) Return(logger log.Logger) *Logger_With_Call {
 }
 
 func (_c *Logger_With_Call) RunAndReturn(run func(args ...any) log.Logger) *Logger_With_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// WithContext provides a mock function for the type Logger
+func (_mock *Logger) WithContext(ctx context.Context) log.Logger {
+	ret := _mock.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for WithContext")
+	}
+
+	var r0 log.Logger
+	if returnFunc, ok := ret.Get(0).(func(context.Context) log.Logger); ok {
+		r0 = returnFunc(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(log.Logger)
+		}
+	}
+	return r0
+}
+
+// Logger_WithContext_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'WithContext'
+type Logger_WithContext_Call struct {
+	*mock.Call
+}
+
+// WithContext is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *Logger_Expecter) WithContext(ctx any) *Logger_WithContext_Call {
+	return &Logger_WithContext_Call{Call: _e.mock.On("WithContext", ctx)}
+}
+
+func (_c *Logger_WithContext_Call) Run(run func(ctx context.Context)) *Logger_WithContext_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *Logger_WithContext_Call) Return(logger log.Logger) *Logger_WithContext_Call {
+	_c.Call.Return(logger)
+	return _c
+}
+
+func (_c *Logger_WithContext_Call) RunAndReturn(run func(ctx context.Context) log.Logger) *Logger_WithContext_Call {
 	_c.Call.Return(run)
 	return _c
 }

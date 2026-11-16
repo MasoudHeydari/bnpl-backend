@@ -125,7 +125,7 @@ func AccessLogger(logger corelog.Logger, opts AccessLoggerOptions) gin.HandlerFu
 			}
 		}
 
-		logger.Info("http request completed", attrs...)
+		logger.With(attrs...).Info(corelog.Msg("http request completed"))
 	}
 }
 

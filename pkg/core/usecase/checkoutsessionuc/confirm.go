@@ -43,6 +43,8 @@ func (uc *UseCase) Confirm(ctx context.Context, input ConfirmInput) (ConfirmOutp
 		return ConfirmOutput{}, err
 	}
 
+	uc.observer.ConfirmRequested(ctx, prepared.Session.ID)
+
 	if prepared.ReconfirmRequired {
 		return ConfirmOutput{
 			ReconfirmRequired: true,
@@ -65,7 +67,10 @@ func (uc *UseCase) Confirm(ctx context.Context, input ConfirmInput) (ConfirmOutp
 		)
 	}
 
+	uc.observer.ConfirmSagaStarted(ctx, prepared.Session.ID, prepared.SagaID.String())
+
 	if err := uc.driveConfirmSaga(ctx, prepared.SagaID); err != nil {
+		uc.observer.ConfirmSagaFailed(ctx, prepared.Session.ID, "confirm_saga_drive_failed")
 		return ConfirmOutput{}, err
 	}
 

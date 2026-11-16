@@ -171,6 +171,7 @@ func newRevalidateHarness(t *testing.T) *revalidateHarness {
 		mustTestJurisdictions(t),
 		metricsnoop.New(),
 		decisionuc.AllowAllNewCreditUsage{},
+		newTestObserver(t),
 	)
 	require.NoError(t, err)
 	h.uc = uc

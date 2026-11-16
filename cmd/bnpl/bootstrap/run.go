@@ -274,7 +274,7 @@ func serveWithPanicRecovery(
 			logger.With(
 				"component", component,
 				"panic", fmt.Sprint(recovered),
-			).Error("listener panic recovered")
+			).Error(corelog.Msg("listener panic recovered"))
 		}
 
 		// The panic itself is contained, but a listener whose Serve loop has
@@ -326,7 +326,7 @@ func panicSafeHTTPHandler(
 				logger.With(
 					"component", component,
 					"panic", fmt.Sprint(recovered),
-				).Error("http handler panic recovered")
+				).Error(corelog.Msg("http handler panic recovered"))
 			}
 
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)

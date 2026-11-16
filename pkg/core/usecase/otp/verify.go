@@ -2,9 +2,11 @@ package otp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
+	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/otpcode"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
@@ -46,13 +48,40 @@ func (uc *UseCase) VerifyAndConsume(
 		return VerifyOutput{}, err
 	}
 
+	uc.observer.VerificationAttempted(ctx, output.Challenge.ID)
+
 	if rejection != nil {
+		uc.observeVerificationFailure(ctx, output.Challenge.ID, rejection)
+
 		// Wrong-code / lockout rejections are committed outcomes when RecordFailure
 		// succeeded inside the transaction. Surface them as the return error.
 		return output, rejection
 	}
 
+	uc.observer.VerificationSucceeded(ctx, output.Challenge.ID)
+
 	return output, nil
+}
+
+func (uc *UseCase) observeVerificationFailure(
+	ctx context.Context,
+	challengeID model.OTPChallengeID,
+	err error,
+) {
+	var public *cerr.Error
+	if errors.As(err, &public) {
+		switch public.MessageKey {
+		case "error.otp_expired":
+			uc.observer.ChallengeExpired(ctx, challengeID)
+			return
+
+		case "error.otp_locked":
+			uc.observer.ChallengeLocked(ctx, challengeID)
+			return
+		}
+	}
+
+	uc.observer.VerificationFailed(ctx, challengeID, "verification_failed")
 }
 
 // VerifyAndConsumeInTx verifies and consumes an OTP inside an existing

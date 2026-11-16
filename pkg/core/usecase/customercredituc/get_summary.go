@@ -86,6 +86,12 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 		return Output{}, err
 	}
 
+	uc.observer.AvailabilityRetrieved(ctx, output.CustomerID, string(output.Status))
+
+	if output.CreditUsage.Status == "restricted" {
+		uc.observer.UsageRestricted(ctx, output.CustomerID, output.CreditUsage.Reason)
+	}
+
 	return output, nil
 }
 

@@ -335,7 +335,7 @@ func (c *Client) sendReplies(ctx context.Context, incoming corebotmessage.Incomi
 				incoming.ExternalEventID,
 				"error",
 				err.Error(),
-			).Error("bot message reply delivery failed")
+			).Error(corelog.Msg("bot message reply delivery failed"))
 		}
 	}
 }
@@ -507,7 +507,7 @@ func (c *Client) logHandlerFailure(
 		backoff.String(),
 		"error",
 		err.Error(),
-	).Error("bot message application handler failed; retrying update")
+	).Error(corelog.Msg("bot message application handler failed; retrying update"))
 }
 
 func (c *Client) logPollingFailure(err error, backoff time.Duration) {
@@ -518,7 +518,7 @@ func (c *Client) logPollingFailure(err error, backoff time.Duration) {
 		backoff.String(),
 		"error",
 		err.Error(),
-	).Warn("bot message polling failed; retrying")
+	).Warn(corelog.Msg("bot message polling failed; retrying"))
 }
 
 func (c *Client) logSkippedUpdate(updateID int64, err error) {
@@ -529,5 +529,5 @@ func (c *Client) logSkippedUpdate(updateID int64, err error) {
 		strconv.FormatInt(updateID, 10),
 		"error",
 		err.Error(),
-	).Error("bot message update could not be decoded and was skipped")
+	).Error(corelog.Msg("bot message update could not be decoded and was skipped"))
 }

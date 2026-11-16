@@ -120,6 +120,7 @@ func (d cancelDeps) newUseCase(t *testing.T) *UseCase {
 		lognoop.New(),
 		metricsnoop.New(),
 		AllowAllNewCreditUsage{},
+		newTestObserver(t),
 	)
 	if err != nil {
 		panic(err)

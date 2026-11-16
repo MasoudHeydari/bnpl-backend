@@ -103,7 +103,7 @@ func (r *Registry) Handle(ctx context.Context, msg messaging.Message) (err error
 			msg.Offset,
 			"panic",
 			fmt.Sprint(recovered),
-		).Error("message consumer panic recovered")
+		).Error(log.Msg("message consumer panic recovered"))
 
 		err = fmt.Errorf("%s: %w: %v", op, ErrHandlerPanicked, recovered)
 	}()
@@ -121,7 +121,7 @@ func (r *Registry) Handle(ctx context.Context, msg messaging.Message) (err error
 			msg.Partition,
 			"offset",
 			msg.Offset,
-		).Warn("received message without registered handler")
+		).Warn(log.Msg("received message without registered handler"))
 
 		return messaging.NonRetryable(fmt.Errorf("%s: unsupported message topic %q", op, msg.Topic))
 	}

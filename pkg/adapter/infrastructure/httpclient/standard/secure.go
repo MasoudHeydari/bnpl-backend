@@ -1,6 +1,7 @@
 package standard
 
 import (
+	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
 	"context"
 	"errors"
 	"fmt"
@@ -127,7 +128,7 @@ func (c *Client) NewSecureProfile(cfg corehttpclient.SecureProfileConfig) (coreh
 		cfg.Timeout.String(),
 		"dial_timeout",
 		cfg.DialTimeout.String(),
-	).Info("outbound http secure profile initialized")
+	).Info(corelog.Msg("outbound http secure profile initialized"))
 
 	return profile, nil
 }

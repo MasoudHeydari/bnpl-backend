@@ -1,6 +1,7 @@
 package inprocess_test
 
 import (
+	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
 	"context"
 	"errors"
 	"fmt"
@@ -124,7 +125,7 @@ func TestRegister_DisabledTaskIsSkipped(t *testing.T) {
 	).
 		Return(logger).
 		Once()
-	logger.EXPECT().Info("task registration skipped because task is disabled").Once()
+	logger.EXPECT().Info(corelog.Msg("task registration skipped because task is disabled")).Once()
 
 	runtime := mustNewRuntime(t, taskinprocess.Config{}, logger)
 
@@ -588,9 +589,11 @@ func TestExecute_JobErrorDoesNotStopRuntime(t *testing.T) {
 
 func allowLifecycleLogs(logger *mock.Logger) {
 	logger.EXPECT().With(testifymock.Anything).Return(logger).Maybe()
+	logger.EXPECT().WithContext(testifymock.Anything).Return(logger).Maybe()
 	logger.EXPECT().Info(testifymock.Anything).Maybe()
 	logger.EXPECT().Warn(testifymock.Anything).Maybe()
 	logger.EXPECT().Error(testifymock.Anything).Maybe()
+	logger.EXPECT().Debug(testifymock.Anything).Maybe()
 }
 
 func expectWith(logger *mock.Logger, fields ...any) *mock.Logger_With_Call {

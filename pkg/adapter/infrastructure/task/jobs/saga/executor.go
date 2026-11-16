@@ -18,7 +18,7 @@ func Executor(
 			return err
 		}
 
-		logger.Info("processed due saga instances")
+		logger.Info(corelog.Msg("processed due saga instances"))
 		return nil
 	}
 }

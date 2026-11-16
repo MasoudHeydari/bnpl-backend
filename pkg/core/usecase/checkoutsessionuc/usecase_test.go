@@ -148,6 +148,7 @@ func newTestDeps(t *testing.T) newDeps {
 			time.UTC,
 		), time.UTC),
 		nil,
+		newTestOTPObserver(t),
 	)
 	require.NoError(t, err)
 
@@ -221,6 +222,7 @@ func (d newDeps) newUseCase(t *testing.T) (*UseCase, error) {
 		sagaRepo,
 		sagaExec,
 		sagaDef,
+		newAllowAllCheckoutObserver(t),
 	)
 }
 

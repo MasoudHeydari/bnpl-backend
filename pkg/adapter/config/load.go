@@ -229,6 +229,7 @@ func (c *Config) NewOutboxPublisherUseCase(
 	publisher messaging.Publisher,
 	clock clock.Clock,
 	logger corelog.Logger,
+	observer outboxpublisheruc.Observer,
 ) *outboxpublisheruc.UseCase {
 	return c.Usecases.OutboxPublisher.newUseCase(
 		pool,
@@ -236,6 +237,7 @@ func (c *Config) NewOutboxPublisherUseCase(
 		publisher,
 		clock,
 		logger,
+		observer,
 	)
 }
 
@@ -249,12 +251,14 @@ func (c *Config) NewOTPUseCase(
 	challenges repo.OTP,
 	notificationSubmitter extnotification.Submitter,
 	clk clock.Clock,
+	observer otpusecase.Observer,
 ) (*otpusecase.UseCase, error) {
 	return c.Usecases.CheckoutSession.newOTPUseCase(
 		pool,
 		challenges,
 		notificationSubmitter,
 		clk,
+		observer,
 	)
 }
 
@@ -284,6 +288,7 @@ func (c *Config) NewCheckoutSessionUseCase(
 	confirmationSagaRepo repo.Saga,
 	confirmationSagaExecutor saga.Executor,
 	confirmationSagaDefinition *checkoutsessionuc.ConfirmationSagaDefinition,
+	observer checkoutsessionuc.Observer,
 ) (*checkoutsessionuc.UseCase, error) {
 	env, err := c.Runtime.ParsedEnvironment()
 	if err != nil {
@@ -324,6 +329,7 @@ func (c *Config) NewCheckoutSessionUseCase(
 		confirmationSagaRepo,
 		confirmationSagaExecutor,
 		confirmationSagaDefinition,
+		observer,
 	)
 }
 
@@ -412,6 +418,7 @@ func (c *Config) NewDecisionUseCase(
 	jurisdictions domaincapability.OriginationJurisdictions,
 	businessMetrics coremetrics.BusinessMetrics,
 	newCreditUsageGuard decisionuc.NewCreditUsageGuard,
+	observer decisionuc.Observer,
 ) (*decisionuc.UseCase, error) {
 	return c.Usecases.Decision.newUseCase(
 		pool,
@@ -434,6 +441,7 @@ func (c *Config) NewDecisionUseCase(
 		jurisdictions,
 		businessMetrics,
 		newCreditUsageGuard,
+		observer,
 	)
 }
 
@@ -446,6 +454,7 @@ func (c *Config) NewInstallmentLifecycleUseCase(
 	clk clock.Clock,
 	idGenerator identifier.Generator,
 	businessMetrics coremetrics.BusinessMetrics,
+	observer installmentlifecycleuc.Observer,
 ) (*installmentlifecycleuc.UseCase, error) {
 	return c.Usecases.Installment.newLifecycleUseCase(
 		pool,
@@ -456,6 +465,7 @@ func (c *Config) NewInstallmentLifecycleUseCase(
 		c.AuditEventsTopic(),
 		idGenerator,
 		businessMetrics,
+		observer,
 	)
 }
 
@@ -473,6 +483,7 @@ func (c *Config) NewInstallmentRepaymentUseCase(
 	clk clock.Clock,
 	logger corelog.Logger,
 	idGenerator identifier.Generator,
+	observer installmentrepaymentuc.Observer,
 ) (*installmentrepaymentuc.UseCase, error) {
 	return c.Usecases.Installment.newRepaymentUseCase(
 		pool,
@@ -489,6 +500,7 @@ func (c *Config) NewInstallmentRepaymentUseCase(
 		c.AuditEventsTopic(),
 		idGenerator,
 		c.External.FinancialCore.PaymentReturnURL,
+		observer,
 	)
 }
 
@@ -569,6 +581,7 @@ func (c *Config) NewContractUseCase(
 	logger corelog.Logger,
 	businessMetrics coremetrics.BusinessMetrics,
 	newCreditUsageGuard contractuc.NewCreditUsageGuard,
+	observer contractuc.Observer,
 ) (*contractuc.UseCase, error) {
 	return c.Usecases.Contract.newUseCase(
 		pool,
@@ -597,6 +610,7 @@ func (c *Config) NewContractUseCase(
 		businessMetrics,
 		c.Usecases.Sagas.ContractCancellation,
 		newCreditUsageGuard,
+		observer,
 	)
 }
 
@@ -617,6 +631,7 @@ func (c *Config) NewFinancialCorePaymentResultUseCase(
 	fingerprintHasher fingerprint.Hasher,
 	clk clock.Clock,
 	businessMetrics coremetrics.BusinessMetrics,
+	observer financialcorepaymentresultuc.Observer,
 ) (*financialcorepaymentresultuc.UseCase, error) {
 	return c.Usecases.Contract.newFinancialCorePaymentResultUseCase(
 		pool,
@@ -636,6 +651,7 @@ func (c *Config) NewFinancialCorePaymentResultUseCase(
 		c.AuditEventsTopic(),
 		clk,
 		businessMetrics,
+		observer,
 	)
 }
 
@@ -647,6 +663,7 @@ func (c *Config) NewPaymentAttemptReconciliationUseCase(
 	outbox repo.Outbox,
 	idGenerator identifier.Generator,
 	clk clock.Clock,
+	observer paymentattemptreconciliationuc.Observer,
 ) (*paymentattemptreconciliationuc.UseCase, error) {
 	return c.Usecases.PaymentAttemptReconciliation.newUseCase(
 		pool,
@@ -657,6 +674,7 @@ func (c *Config) NewPaymentAttemptReconciliationUseCase(
 		c.InstallmentPaymentReconciliationRequestsTopic(),
 		c.AuditEventsTopic(),
 		clk,
+		observer,
 	)
 }
 
@@ -667,7 +685,7 @@ func (c *Config) NewPaymentAttemptExpirationUseCase(
 	outbox repo.Outbox,
 	idGenerator identifier.Generator,
 	clk clock.Clock,
-	logger corelog.Logger,
+	observer paymentattemptexpirationuc.Observer,
 ) (*paymentattemptexpirationuc.UseCase, error) {
 	return c.Usecases.PaymentAttemptExpiration.newUseCase(
 		pool,
@@ -676,7 +694,7 @@ func (c *Config) NewPaymentAttemptExpirationUseCase(
 		idGenerator,
 		c.AuditEventsTopic(),
 		clk,
-		logger,
+		observer,
 	)
 }
 
@@ -695,6 +713,7 @@ func (c *Config) NewFinancialCorePaymentReconciliationUseCase(
 	idGenerator identifier.Generator,
 	clk clock.Clock,
 	logger corelog.Logger,
+	observer financialcorepaymentreconciliationuc.Observer,
 ) (*financialcorepaymentreconciliationuc.UseCase, error) {
 	retryBaseDelay, retryMaxDelay := c.Usecases.FinancialCorePaymentReconciliation.effectiveRetryDelays(
 		c.Usecases.PaymentAttemptReconciliation,
@@ -718,6 +737,7 @@ func (c *Config) NewFinancialCorePaymentReconciliationUseCase(
 		retryMaxDelay,
 		clk,
 		logger,
+		observer,
 	)
 }
 
@@ -740,6 +760,7 @@ func (c *Config) NewCustomerCreditUseCase(
 	defaultInitialLimitRef policy.Ref,
 	idGenerator identifier.Generator,
 	collectionsPolicy collections.Policy,
+	observer customercredituc.Observer,
 ) (*customercredituc.UseCase, error) {
 	return c.Usecases.CustomerCredit.newUseCase(
 		pool,
@@ -760,6 +781,7 @@ func (c *Config) NewCustomerCreditUseCase(
 		c.AuditEventsTopic(),
 		idGenerator,
 		collectionsPolicy,
+		observer,
 	)
 }
 

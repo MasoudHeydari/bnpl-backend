@@ -19,6 +19,7 @@ type UseCase struct {
 	publisher messaging.Publisher
 	clock     clock.Clock
 	logger    log.Logger
+	observer  Observer
 	// WorkerID uniquely identifies the worker instance claiming messages.
 	WorkerID string
 
@@ -49,6 +50,7 @@ func New(
 	publisher messaging.Publisher,
 	clock clock.Clock,
 	logger log.Logger,
+	observer Observer,
 	workerID string,
 	batchSize int,
 	retryBaseDelay time.Duration,
@@ -73,6 +75,7 @@ func New(
 		publisher:              publisher,
 		clock:                  clock,
 		logger:                 logger,
+		observer:               observer,
 		WorkerID:               workerID,
 		BatchSize:              batchSize,
 		RetryBaseDelay:         retryBaseDelay,
@@ -89,7 +92,7 @@ func (uc *UseCase) Validate() error {
 		return errors.New("outbox publisher use case is nil")
 	}
 
-	if uc.pool == nil || uc.outbox == nil || uc.publisher == nil || uc.clock == nil || uc.logger == nil {
+	if uc.pool == nil || uc.outbox == nil || uc.publisher == nil || uc.clock == nil || uc.logger == nil || uc.observer == nil {
 		return errors.New("outbox publisher dependencies must not be nil")
 	}
 

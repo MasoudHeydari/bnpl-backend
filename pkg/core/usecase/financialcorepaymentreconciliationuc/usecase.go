@@ -31,6 +31,7 @@ type UseCase struct {
 	retryMaxDelay                             time.Duration
 	clock                                     clock.Clock
 	logger                                    log.Logger
+	observer                                  Observer
 }
 
 // New constructs a Financial Core payment reconciliation result use case.
@@ -52,6 +53,7 @@ func New(
 	retryMaxDelay time.Duration,
 	clk clock.Clock,
 	logger log.Logger,
+	observer Observer,
 ) (*UseCase, error) {
 	const op = "financialcorepaymentreconciliationuc.New"
 
@@ -87,6 +89,10 @@ func New(
 		return nil, fmt.Errorf("%s: logger is required", op)
 	}
 
+	if observer == nil {
+		return nil, fmt.Errorf("%s: observer is required", op)
+	}
+
 	return &UseCase{
 		pool:              pool,
 		paymentResult:     paymentResult,
@@ -105,5 +111,6 @@ func New(
 		retryMaxDelay:    retryMaxDelay,
 		clock:            clk,
 		logger:           logger,
+		observer:         observer,
 	}, nil
 }

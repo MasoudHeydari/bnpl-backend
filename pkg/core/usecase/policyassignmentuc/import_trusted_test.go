@@ -340,10 +340,11 @@ func newImportHarness(t *testing.T) *importHarness {
 	}
 
 	logger := mock.NewLogger(t)
-	logger.EXPECT().Info(testifymock.Anything, testifymock.Anything).Maybe()
-	logger.EXPECT().Warn(testifymock.Anything, testifymock.Anything).Maybe()
-	logger.EXPECT().Error(testifymock.Anything, testifymock.Anything).Maybe()
+	logger.EXPECT().Info(testifymock.Anything).Maybe()
+	logger.EXPECT().Warn(testifymock.Anything).Maybe()
+	logger.EXPECT().Error(testifymock.Anything).Maybe()
 	logger.EXPECT().With(testifymock.Anything).Return(logger).Maybe()
+	logger.EXPECT().WithContext(testifymock.Anything).Return(logger).Maybe()
 
 	uc, err := policyassignmentuc.New(
 		h.pool,

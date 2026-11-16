@@ -19,10 +19,12 @@ func Expiry(
 			return err
 		}
 
-		logger.Info(
-			"expired due open checkout sessions",
-			"expired_count", output.ExpiredCount,
-		)
+		logger.With(
+		"expired_count",
+		output.ExpiredCount,
+	).Info(
+		corelog.Msg("expired due open checkout sessions"),
+	)
 
 		return nil
 	}

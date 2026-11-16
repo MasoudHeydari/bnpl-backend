@@ -336,6 +336,21 @@ func newHarness(t *testing.T) *harness {
 	}
 
 	otpHasher := newTestOTPHasher(t)
+	otpObserver := mock.NewOTPObserver(t)
+	otpObserver.EXPECT().IssueRequested(testifymock.Anything, testifymock.Anything).Maybe()
+	otpObserver.EXPECT().IssueRateLimited(testifymock.Anything, testifymock.Anything, testifymock.Anything).Maybe()
+	otpObserver.EXPECT().ChallengeReused(testifymock.Anything, testifymock.Anything).Maybe()
+	otpObserver.EXPECT().ChallengeIssued(testifymock.Anything, testifymock.Anything).Maybe()
+	otpObserver.EXPECT().NotificationSubmitStarted(testifymock.Anything, testifymock.Anything, testifymock.Anything).Maybe()
+	otpObserver.EXPECT().ProviderAccepted(testifymock.Anything, testifymock.Anything, testifymock.Anything).Maybe()
+	otpObserver.EXPECT().ProviderRejected(testifymock.Anything, testifymock.Anything, testifymock.Anything).Maybe()
+	otpObserver.EXPECT().ProviderTimedOut(testifymock.Anything, testifymock.Anything).Maybe()
+	otpObserver.EXPECT().VerificationAttempted(testifymock.Anything, testifymock.Anything).Maybe()
+	otpObserver.EXPECT().VerificationSucceeded(testifymock.Anything, testifymock.Anything).Maybe()
+	otpObserver.EXPECT().VerificationFailed(testifymock.Anything, testifymock.Anything, testifymock.Anything).Maybe()
+	otpObserver.EXPECT().ChallengeExpired(testifymock.Anything, testifymock.Anything).Maybe()
+	otpObserver.EXPECT().ChallengeLocked(testifymock.Anything, testifymock.Anything).Maybe()
+
 	h.otpUC, err = otpusecase.New(
 		h.pool,
 		h.otpChallenges,
@@ -344,10 +359,13 @@ func newHarness(t *testing.T) *harness {
 		otppolicy.V1(),
 		adapterclock.NewFixed(now, time.UTC),
 		h.otpRandom,
+		otpObserver,
 	)
 	if err != nil {
 		t.Fatalf("new otp use case: %v", err)
 	}
+
+	checkoutObserver := newAllowAllCheckoutObserver(t)
 
 	h.uc = &UseCase{
 		pool:                       h.pool,
@@ -380,6 +398,7 @@ func newHarness(t *testing.T) *harness {
 		otp:                        h.otpUC,
 		otpTemplateID:              testOTPTemplateID,
 		idGenerator:                h.idGenerator,
+		observer:                   checkoutObserver,
 	}
 
 	installHarnessSaga(h)

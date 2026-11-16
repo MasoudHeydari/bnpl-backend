@@ -42,6 +42,11 @@ type ProcessInput struct {
 type ProcessOutput struct {
 	// Result reports the use-case outcome classification.
 	Result ProcessResult
+
+	// inboxDuplicate reports that the inbox row already existed, so Result
+	// describes a prior outcome rather than a new resolution. It is
+	// observability-only and never part of the public contract.
+	inboxDuplicate bool
 }
 
 // ProcessResult identifies durable reconciliation processing outcomes.
@@ -324,11 +329,22 @@ func (uc *UseCase) Process(ctx context.Context, input ProcessInput) (ProcessOutp
 	})
 	if err != nil {
 		if applicationErr, ok := financialcorepaymentresultuc.AsReconciliationApplicationError(err); ok {
-			return uc.persistReconciliationApplicationConflict(ctx, input, applicationErr, now)
+			conflictOutput, conflictErr := uc.persistReconciliationApplicationConflict(ctx, input, applicationErr, now)
+			if conflictErr != nil {
+				return conflictOutput, conflictErr
+			}
+
+			uc.observeApplicationConflict(ctx, input, conflictOutput, applicationErr)
+
+			return conflictOutput, nil
 		}
 
 		return ProcessOutput{}, err
 	}
+
+	// The reconciliation transaction committed. Observe before post-commit
+	// reassessment so a later failure cannot hide a durable outcome.
+	uc.observeCommitted(ctx, input, output)
 
 	if uc.paymentResult != nil {
 		if err := uc.paymentResult.ReassessSettledAttempt(ctx, input.Data.BNPLPaymentAttemptID); err != nil {

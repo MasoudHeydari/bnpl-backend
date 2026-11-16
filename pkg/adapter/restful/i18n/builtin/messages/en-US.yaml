@@ -262,6 +262,8 @@ error.checkout_otp_issuance_not_allowed: "A verification code cannot be requeste
 error.otp_issuance_not_allowed: "A verification code cannot be requested for this checkout right now."
 error.otp_context_invalidated: "The verification context changed. Refresh the offer and request a new code when available."
 error.checkout_customer_is_not_eligible: "This customer is not eligible for BNPL financing."
+error.checkout_credit_purchase_unavailable_for_phone: "Credit purchase is not available for this phone number."
+error.checkout_customer_identity_verification_required: "This customer needs identity verification before using credit purchase."
 error.customer_reference_invalid: "Customer reference is invalid."
 error.webhook_signing_secret_required: "Webhook signing secret is required."
 error.webhook_signing_secret_too_short: "Webhook signing secret is too short."

@@ -302,6 +302,8 @@ func (uc *UseCase) ensureFinancialCoreInstallmentPayment(
 	// that BNPL never observed returns the same immutable PaymentIntent,
 	// PaymentSession, and PaymentLink. Do not mint a new key to rediscover URL.
 	// GetPaymentStatus cannot supply PaymentURL.
+	uc.observer.FinancialCoreRequestStarted(ctx, attempt.ContractID, attempt.ID)
+
 	created, err := uc.checkoutPaymentClient.CreateCheckoutPayment(ctx, extcheckoutpayment.CreateCheckoutPaymentInput{
 		IdempotencyKey:         attempt.IdempotencyKey,
 		SourceType:             financialCorePaymentAttemptSourceType,
@@ -322,6 +324,8 @@ func (uc *UseCase) ensureFinancialCoreInstallmentPayment(
 		ExpiresAt:              requestedExpiresAt,
 	})
 	if err != nil {
+		uc.observer.FinancialCoreFailed(ctx, attempt.ContractID, attempt.ID, err)
+
 		locallyCanceled, markErr := uc.finalizeFailedSessionCreateAttempt(ctx, attempt, now)
 		if markErr != nil {
 			return model.PaymentAttempt{}, errors.Join(err, markErr)
@@ -347,6 +351,8 @@ func (uc *UseCase) ensureFinancialCoreInstallmentPayment(
 		},
 	); err != nil {
 		mapped := mapInstallmentCheckoutPaymentValidationError(err)
+		uc.observer.FinancialCoreFailed(ctx, attempt.ContractID, attempt.ID, err)
+
 		locallyCanceled, markErr := uc.finalizeFailedSessionCreateAttempt(ctx, attempt, validationNow)
 		if markErr != nil {
 			return model.PaymentAttempt{}, errors.Join(mapped, markErr)
@@ -357,6 +363,8 @@ func (uc *UseCase) ensureFinancialCoreInstallmentPayment(
 
 		return model.PaymentAttempt{}, mapped
 	}
+
+	uc.observer.FinancialCoreResponseReceived(ctx, attempt.ContractID, attempt.ID)
 
 	intentID := strings.TrimSpace(created.PaymentIntentID)
 	sessionID := strings.TrimSpace(created.PaymentSessionID)
@@ -484,6 +492,11 @@ func (uc *UseCase) ensureFinancialCoreInstallmentPayment(
 	}
 
 	submitted.Items = attempt.Items
+
+	// The payment session is committed. The customer may now pay; this is
+	// payment submission, not payment success.
+	uc.observer.PaymentURLObtained(ctx, attempt.ContractID, attempt.ID)
+
 	return submitted, nil
 }
 

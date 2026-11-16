@@ -56,7 +56,7 @@ func PanicRecovery(
 				metadata.Tags["http.method"],
 				"http_route",
 				metadata.Tags["http.route"],
-			).Error("http panic recovered")
+			).Error(log.Msg("http panic recovered"))
 		}
 
 		c.AbortWithStatus(http.StatusInternalServerError)

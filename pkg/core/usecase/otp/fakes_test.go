@@ -47,6 +47,7 @@ type harness struct {
 	notification *fakeNotification
 	authorizer   *fakeAuthorizer
 	random       *sequentialReader
+	observer     otp.Observer
 }
 
 func newHarness(t *testing.T) *harness {
@@ -89,6 +90,21 @@ func newHarness(t *testing.T) *harness {
 			return handler(ctx, h.tx)
 		}).Maybe()
 
+	observer := mock.NewOTPObserver(t)
+	observer.EXPECT().IssueRequested(testifymock.Anything, testifymock.Anything).Maybe()
+	observer.EXPECT().IssueRateLimited(testifymock.Anything, testifymock.Anything, testifymock.Anything).Maybe()
+	observer.EXPECT().ChallengeReused(testifymock.Anything, testifymock.Anything).Maybe()
+	observer.EXPECT().ChallengeIssued(testifymock.Anything, testifymock.Anything).Maybe()
+	observer.EXPECT().NotificationSubmitStarted(testifymock.Anything, testifymock.Anything, testifymock.Anything).Maybe()
+	observer.EXPECT().ProviderAccepted(testifymock.Anything, testifymock.Anything, testifymock.Anything).Maybe()
+	observer.EXPECT().ProviderRejected(testifymock.Anything, testifymock.Anything, testifymock.Anything).Maybe()
+	observer.EXPECT().ProviderTimedOut(testifymock.Anything, testifymock.Anything).Maybe()
+	observer.EXPECT().VerificationAttempted(testifymock.Anything, testifymock.Anything).Maybe()
+	observer.EXPECT().VerificationSucceeded(testifymock.Anything, testifymock.Anything).Maybe()
+	observer.EXPECT().VerificationFailed(testifymock.Anything, testifymock.Anything, testifymock.Anything).Maybe()
+	observer.EXPECT().ChallengeExpired(testifymock.Anything, testifymock.Anything).Maybe()
+	observer.EXPECT().ChallengeLocked(testifymock.Anything, testifymock.Anything).Maybe()
+	h.observer = observer
 	h.uc, err = otp.New(
 		h.pool,
 		h.challenges,
@@ -97,6 +113,7 @@ func newHarness(t *testing.T) *harness {
 		otppolicy.V1(),
 		adapterclock.NewFixed(now, time.UTC),
 		h.random,
+		h.observer,
 	)
 	require.NoError(t, err)
 
@@ -115,6 +132,7 @@ func (h *harness) advance(d time.Duration) {
 		otppolicy.V1(),
 		adapterclock.NewFixed(h.now, time.UTC),
 		h.random,
+		h.observer,
 	)
 }
 

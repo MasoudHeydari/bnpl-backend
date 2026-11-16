@@ -26,6 +26,7 @@ type processDueDeps struct {
 	outbox           *mock.Outbox
 	outboxTx         *mock.OutboxTxQueryer
 	idGenerator      *mock.IdentifierGenerator
+	observer         *mock.PaymentAttemptReconciliationObserver
 	clock            adapterclock.Fixed
 }
 
@@ -43,6 +44,7 @@ func newProcessDueDeps(t *testing.T, now time.Time) processDueDeps {
 		outbox:           mock.NewOutbox(t),
 		outboxTx:         mock.NewOutboxTxQueryer(t),
 		idGenerator:      mock.NewIdentifierGenerator(t),
+		observer:         mock.NewPaymentAttemptReconciliationObserver(t),
 		clock:            adapterclock.NewFixed(now, time.UTC),
 	}
 }
@@ -62,6 +64,7 @@ func (d processDueDeps) newUseCase() *UseCase {
 		time.Minute,
 		5,
 		d.clock,
+		d.observer,
 	)
 	if err != nil {
 		panic(err)
@@ -295,6 +298,7 @@ func TestProcessDue_SubmittedPaymentUncertaintyStillReconciles(t *testing.T) {
 	).Return(claimed, nil).Once()
 	deps.idGenerator.EXPECT().Generate().Return("request-audit-event-id").Once()
 	deps.outboxTx.EXPECT().Create(ctx, testifymock.Anything).Return(model.OutboxMessage{}, nil).Once()
+	deps.observer.EXPECT().ReconciliationRequested(ctx, attemptID, 1).Once()
 
 	require.NoError(t, uc.ProcessDue(ctx))
 }
@@ -360,6 +364,8 @@ func TestProcessDue_ExpiresEligibleSessionCreationCancelsWhenBudgetExhausted(t *
 	).Return(canceled, nil).Once()
 	deps.idGenerator.EXPECT().Generate().Return("expire-audit-event-id").Once()
 	deps.outboxTx.EXPECT().Create(ctx, testifymock.Anything).Return(model.OutboxMessage{}, nil).Once()
+
+	deps.observer.EXPECT().AttemptClosedLocally(ctx, attemptID, attemptOutcomeCanceledRetryExhausted).Once()
 
 	require.NoError(t, uc.ProcessDue(ctx))
 }

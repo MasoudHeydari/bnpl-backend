@@ -20,4 +20,13 @@ const (
 type ProcessOutput struct {
 	// Result reports the use-case outcome classification.
 	Result ProcessResult
+
+	// inboxDuplicate reports that the inbox row already existed, so Result
+	// describes a prior outcome rather than a new application. It is
+	// observability-only and never part of the public contract.
+	inboxDuplicate bool
+
+	// outcomeReasonCode carries the stable reconciliation or rejection reason
+	// for non-success outcomes. It is observability-only.
+	outcomeReasonCode string
 }

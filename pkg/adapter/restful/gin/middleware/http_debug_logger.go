@@ -283,13 +283,13 @@ func HTTPDebugLogger(
 		// and server failures surface at Warn/Error even when this logger is on.
 		switch status := c.Writer.Status(); {
 		case status >= http.StatusInternalServerError:
-			entry.Error("http request debug exchange")
+			entry.Error(corelog.Msg("http request debug exchange"))
 
 		case status >= http.StatusBadRequest:
-			entry.Warn("http request debug exchange")
+			entry.Warn(corelog.Msg("http request debug exchange"))
 
 		default:
-			entry.Debug("http request debug exchange")
+			entry.Debug(corelog.Msg("http request debug exchange"))
 		}
 	}
 }

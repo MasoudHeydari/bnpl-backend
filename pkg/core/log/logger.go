@@ -1,5 +1,7 @@
 package log
 
+import "context"
+
 // Level identifies the severity of a log record.
 type Level string
 
@@ -30,34 +32,34 @@ const (
 
 // Logger defines the minimum logging capabilities required by the application.
 //
-// Implementations are expected to enrich log records with contextual metadata
-// such as trace identifiers, request identifiers, service name, and timestamps.
+// Implementations enrich log records with contextual metadata such as trace
+// identifiers, request identifiers, service name, and timestamps.
+//
+// Preferred business usage:
+//
+//	logger.WithContext(ctx).Info(event.CheckoutSessionCreated, field.SessionID(id))
 type Logger interface {
 	// With returns a child logger enriched with structured attributes.
 	//
-	// The returned logger should inherit all existing attributes and append the
-	// provided key-value pairs.
-	//
-	// Example:
-	//
-	//	logger := logger.With(
-	//		"trace_id", trace.ID(ctx),
-	//		"request_id", trace.RequestID(ctx),
-	//	)
+	// Prefer typed Field constructors for business attributes. With remains
+	// for infrastructure enrichment that already uses slog-style pairs.
 	With(args ...any) Logger
 
-	// Debug records diagnostic information intended for development and
-	// troubleshooting.
-	Debug(msg string, args ...any)
+	// WithContext returns a child logger enriched with request-scoped
+	// identifiers from ctx (trace_id, request_id, correlation_id) when present.
+	//
+	// The receiver is never mutated. Missing identifiers are skipped.
+	WithContext(ctx context.Context) Logger
 
-	// Info records normal operational events.
-	Info(msg string, args ...any)
+	// Debug records a diagnostic Event.
+	Debug(event Event, fields ...Field)
 
-	// Warn records unexpected situations that do not prevent the application
-	// from continuing operation.
-	Warn(msg string, args ...any)
+	// Info records a normal operational Event.
+	Info(event Event, fields ...Field)
 
-	// Error records failures that require attention or indicate that an
-	// operation could not be completed successfully.
-	Error(msg string, args ...any)
+	// Warn records an unexpected but non-fatal Event.
+	Warn(event Event, fields ...Field)
+
+	// Error records a failed operation Event.
+	Error(event Event, fields ...Field)
 }

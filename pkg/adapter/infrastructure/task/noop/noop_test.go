@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	tasknoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task/noop"
+	"github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/mock"
 	"github.com/parstis/bnpl-backend/pkg/core/task"
 )
@@ -26,7 +27,7 @@ func TestRegister(t *testing.T) {
 
 	logger.
 		EXPECT().
-		Info("task registration ignored by noop runtime").
+		Info(log.Msg("task registration ignored by noop runtime")).
 		Once()
 
 	runtime := tasknoop.New(logger)
@@ -52,7 +53,7 @@ func TestDispatch(t *testing.T) {
 
 	logger.
 		EXPECT().
-		Info("task dispatch ignored by noop runtime").
+		Info(log.Msg("task dispatch ignored by noop runtime")).
 		Once()
 
 	runtime := tasknoop.New(logger)
@@ -73,12 +74,12 @@ func TestStartReturnsOnContextCancellation(t *testing.T) {
 
 	logger.
 		EXPECT().
-		Info("starting noop task runtime").
+		Info(log.Msg("starting noop task runtime")).
 		Once()
 
 	logger.
 		EXPECT().
-		Info("stopping noop task runtime").
+		Info(log.Msg("stopping noop task runtime")).
 		Once()
 
 	runtime := tasknoop.New(logger)

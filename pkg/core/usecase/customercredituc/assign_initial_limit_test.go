@@ -129,6 +129,7 @@ func (d assignInitialLimitDeps) newUseCase() *customercredituc.UseCase {
 		"bnpl.audit.events.v1",
 		d.idGenerator,
 		collectionsv2.New(time.UTC),
+		newTestObserver(d.t),
 	)
 	if err != nil {
 		panic(err)

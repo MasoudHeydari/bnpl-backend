@@ -20,15 +20,16 @@ func RecoverConfirming(
 			return err
 		}
 
-		logger.Info(
-			"reconciled interrupted checkout sessions",
-			"relinked_count",
-			output.RelinkedCount,
-			"resumed_count",
-			output.ResumedCount,
-			"unresolved_count",
-			output.UnresolvedCount,
-		)
+		logger.With(
+		"relinked_count",
+		output.RelinkedCount,
+		"resumed_count",
+		output.ResumedCount,
+		"unresolved_count",
+		output.UnresolvedCount,
+	).Info(
+		corelog.Msg("reconciled interrupted checkout sessions"),
+	)
 
 		return nil
 	}

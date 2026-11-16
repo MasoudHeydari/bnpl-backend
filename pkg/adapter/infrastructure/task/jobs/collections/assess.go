@@ -24,14 +24,14 @@ func Assess(
 			"recovered", output.RecoveredCount,
 			"skipped", output.SkippedCount,
 			"failed", output.FailedCount,
-		).Info("collections assessment completed")
+		).Info(log.Msg("collections assessment completed"))
 
 		if err != nil {
 			logger.With(
 				"error", err.Error(),
 				"assessed", output.AssessedCount,
 				"failed", output.FailedCount,
-			).Error("collections assessment had customer failures")
+			).Error(log.Msg("collections assessment had customer failures"))
 			return fmt.Errorf("%s: %w", op, err)
 		}
 

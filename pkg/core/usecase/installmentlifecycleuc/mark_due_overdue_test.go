@@ -34,6 +34,7 @@ type markDueOverdueDeps struct {
 	outboxTx                   *mock.OutboxTxQueryer
 	installmentTx              *mock.InstallmentTxQueryer
 	idGenerator                *mock.IDGenerator
+	observer                   *mock.InstallmentLifecycleObserver
 	clock                      adapterclock.Fixed
 }
 
@@ -55,8 +56,10 @@ func newMarkDueOverdueDeps(t *testing.T, now time.Time) markDueOverdueDeps {
 		outboxTx:                   mock.NewOutboxTxQueryer(t),
 		installmentTx:              mock.NewInstallmentTxQueryer(t),
 		idGenerator:                mock.NewIDGenerator(t),
+		observer:                   mock.NewInstallmentLifecycleObserver(t),
 		clock:                      adapterclock.NewFixed(now, time.UTC),
 	}
+	deps.observer.EXPECT().SweepCompleted(testifymock.Anything, testifymock.Anything, testifymock.Anything).Maybe()
 	deps.idGenerator.EXPECT().Generate().Return("installment-lifecycle-audit-event").Maybe()
 	deps.outboxTx.EXPECT().Create(testifymock.Anything, testifymock.Anything).Return(model.OutboxMessage{}, nil).Maybe()
 
@@ -75,6 +78,7 @@ func (d markDueOverdueDeps) newUseCase(batchDue, batchOverdue int) *UseCase {
 		batchDue,
 		batchOverdue,
 		metricsnoop.New(),
+		d.observer,
 	)
 	if err != nil {
 		panic(err)
@@ -348,6 +352,7 @@ func TestNew_BatchSizeValidation(t *testing.T) {
 			markDueBatchSize,
 			markOverdueBatchSize,
 			metricsnoop.New(),
+			mock.NewInstallmentLifecycleObserver(t),
 		)
 	}
 

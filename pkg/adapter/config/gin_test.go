@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -195,16 +196,41 @@ func (l *configRecordingLogger) With(args ...any) corelog.Logger {
 	return &configRecordingLogger{mu: l.mu, records: l.records, attrs: attrs}
 }
 
-func (l *configRecordingLogger) Debug(msg string, args ...any) { l.append(msg, args...) }
-func (l *configRecordingLogger) Info(msg string, args ...any)  { l.append(msg, args...) }
-func (l *configRecordingLogger) Warn(msg string, args ...any)  { l.append(msg, args...) }
-func (l *configRecordingLogger) Error(msg string, args ...any) { l.append(msg, args...) }
+func (l *configRecordingLogger) WithContext(context.Context) corelog.Logger {
+	return l
+}
 
-func (l *configRecordingLogger) append(msg string, args ...any) {
+func (l *configRecordingLogger) Debug(event corelog.Event, fields ...corelog.Field) {
+	l.recordLog(event, fields...)
+}
+
+func (l *configRecordingLogger) Info(event corelog.Event, fields ...corelog.Field) {
+	l.recordLog(event, fields...)
+}
+
+func (l *configRecordingLogger) Warn(event corelog.Event, fields ...corelog.Field) {
+	l.recordLog(event, fields...)
+}
+
+func (l *configRecordingLogger) Error(event corelog.Event, fields ...corelog.Field) {
+	l.recordLog(event, fields...)
+}
+
+func (l *configRecordingLogger) recordLog(event corelog.Event, fields ...corelog.Field) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	attrs := append(append([]any{}, l.attrs...), args...)
+	msg := ""
+	attrs := append([]any{}, l.attrs...)
+	if event != nil {
+		msg = event.Message()
+	}
+	for _, f := range fields {
+		if f == nil {
+			continue
+		}
+		attrs = append(attrs, f.Key(), f.Value())
+	}
 	*l.records = append(*l.records, configLogRecord{msg: msg, attrs: attrs})
 }
 

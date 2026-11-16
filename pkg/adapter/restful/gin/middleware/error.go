@@ -158,8 +158,7 @@ func logServerError(
 ) {
 	ctx := c.Request.Context()
 
-	logger.Error(
-		"http request failed with server error",
+	logger.With(
 		"error_code",
 		code,
 		"trace_id",
@@ -178,6 +177,8 @@ func logServerError(
 		statusCode,
 		"error",
 		err,
+	).Error(
+		corelog.Msg("http request failed with server error"),
 	)
 }
 

@@ -250,7 +250,7 @@ func (c *Client) sendReplies(
 				incoming.ExternalEventID,
 				"error",
 				err.Error(),
-			).Error("bot message reply delivery failed")
+			).Error(corelog.Msg("bot message reply delivery failed"))
 		}
 	}
 }
@@ -551,7 +551,7 @@ func (c *Client) logHandlerFailure(
 		backoff.String(),
 		"error",
 		err.Error(),
-	).Error("bot message application handler failed; retrying update")
+	).Error(corelog.Msg("bot message application handler failed; retrying update"))
 }
 
 func (c *Client) logPollingFailure(err error, backoff time.Duration) {
@@ -562,5 +562,5 @@ func (c *Client) logPollingFailure(err error, backoff time.Duration) {
 		backoff.String(),
 		"error",
 		err.Error(),
-	).Warn("bot message polling failed; retrying")
+	).Warn(corelog.Msg("bot message polling failed; retrying"))
 }

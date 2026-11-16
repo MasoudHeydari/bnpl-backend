@@ -81,7 +81,7 @@ func New(cfg Config, logger log.Logger) (*Runtime, error) {
 	clientOptions := client.Options{
 		HostPort:  cfg.Address,
 		Namespace: cfg.Namespace,
-		Logger:    logger,
+		Logger:    newSDKLogger(logger),
 	}
 
 	if cfg.TLS.Enabled {
@@ -174,7 +174,7 @@ func (r *Runtime) Register(t task.Task) error {
 		t.Handler,
 		"trigger_type",
 		string(t.Trigger.Type),
-	).Info("temporal task registered")
+	).Info(log.Msg("temporal task registered"))
 
 	return nil
 }
@@ -255,13 +255,13 @@ func (r *Runtime) Start(ctx context.Context) error {
 		r.cfg.TaskQueue,
 		"namespace",
 		r.cfg.Namespace,
-	).Info("starting temporal task runtime")
+	).Info(log.Msg("starting temporal task runtime"))
 
 	select {
 	case <-ctx.Done():
-		r.logger.Info("stopping temporal task runtime")
+		r.logger.Info(log.Msg("stopping temporal task runtime"))
 		r.worker.Stop()
-		r.logger.Info("temporal task runtime stopped")
+		r.logger.Info(log.Msg("temporal task runtime stopped"))
 		return nil
 
 	case err := <-r.fatalErr:
@@ -310,7 +310,7 @@ func (r *Runtime) reconcileSchedule(ctx context.Context, t task.Task) error {
 
 	createdHandle, err := r.client.ScheduleClient().Create(ctx, options)
 	if err == nil {
-		r.logger.With("task_name", t.Name, "schedule_id", createdHandle.GetID()).Info("temporal schedule created")
+		r.logger.With("task_name", t.Name, "schedule_id", createdHandle.GetID()).Info(log.Msg("temporal schedule created"))
 		return nil
 	}
 
@@ -330,7 +330,7 @@ func (r *Runtime) reconcileSchedule(ctx context.Context, t task.Task) error {
 		return fmt.Errorf("%s: update temporal schedule %q: %w", op, scheduleID, err)
 	}
 
-	r.logger.With("task_name", t.Name, "schedule_id", scheduleID).Info("temporal schedule updated")
+	r.logger.With("task_name", t.Name, "schedule_id", scheduleID).Info(log.Msg("temporal schedule updated"))
 	return nil
 }
 

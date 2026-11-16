@@ -293,10 +293,40 @@ func (l *recordingLogger) With(args ...any) corelog.Logger {
 	return &recordingLogger{state: l.state, base: base}
 }
 
-func (l *recordingLogger) Debug(msg string, args ...any) { l.record(msg, args...) }
-func (l *recordingLogger) Info(msg string, args ...any)  { l.record(msg, args...) }
-func (l *recordingLogger) Warn(msg string, args ...any)  { l.record(msg, args...) }
-func (l *recordingLogger) Error(msg string, args ...any) { l.record(msg, args...) }
+func (l *recordingLogger) WithContext(context.Context) corelog.Logger {
+	return l
+}
+
+func (l *recordingLogger) Debug(event corelog.Event, fields ...corelog.Field) {
+	l.recordEvent(event, fields...)
+}
+
+func (l *recordingLogger) Info(event corelog.Event, fields ...corelog.Field) {
+	l.recordEvent(event, fields...)
+}
+
+func (l *recordingLogger) Warn(event corelog.Event, fields ...corelog.Field) {
+	l.recordEvent(event, fields...)
+}
+
+func (l *recordingLogger) Error(event corelog.Event, fields ...corelog.Field) {
+	l.recordEvent(event, fields...)
+}
+
+func (l *recordingLogger) recordEvent(event corelog.Event, fields ...corelog.Field) {
+	msg := ""
+	if event != nil {
+		msg = event.Message()
+	}
+	args := make([]any, 0, len(fields)*2)
+	for _, f := range fields {
+		if f == nil {
+			continue
+		}
+		args = append(args, f.Key(), f.Value())
+	}
+	l.record(msg, args...)
+}
 
 func (l *recordingLogger) record(msg string, args ...any) {
 	all := append([]any{}, l.base...)

@@ -141,6 +141,78 @@ packages:
     interfaces:
       Logger:
 
+  github.com/parstis/bnpl-backend/pkg/core/usecase/otp:
+    interfaces:
+      Observer:
+        config:
+          structname: OTPObserver
+
+  github.com/parstis/bnpl-backend/pkg/core/usecase/checkoutsessionuc:
+    interfaces:
+      Observer:
+        config:
+          structname: CheckoutSessionObserver
+
+  github.com/parstis/bnpl-backend/pkg/core/usecase/customercredituc:
+    interfaces:
+      Observer:
+        config:
+          structname: CustomerCreditObserver
+
+  github.com/parstis/bnpl-backend/pkg/core/usecase/decisionuc:
+    interfaces:
+      Observer:
+        config:
+          structname: DecisionObserver
+
+  github.com/parstis/bnpl-backend/pkg/core/usecase/installmentlifecycleuc:
+    interfaces:
+      Observer:
+        config:
+          structname: InstallmentLifecycleObserver
+
+  github.com/parstis/bnpl-backend/pkg/core/usecase/contractuc:
+    interfaces:
+      Observer:
+        config:
+          structname: ContractObserver
+
+  github.com/parstis/bnpl-backend/pkg/core/usecase/financialcorepaymentresultuc:
+    interfaces:
+      Observer:
+        config:
+          structname: FinancialCorePaymentResultObserver
+
+  github.com/parstis/bnpl-backend/pkg/core/usecase/installmentrepaymentuc:
+    interfaces:
+      Observer:
+        config:
+          structname: InstallmentRepaymentObserver
+
+  github.com/parstis/bnpl-backend/pkg/core/usecase/financialcorepaymentreconciliationuc:
+    interfaces:
+      Observer:
+        config:
+          structname: FinancialCorePaymentReconciliationObserver
+
+  github.com/parstis/bnpl-backend/pkg/core/usecase/paymentattemptreconciliationuc:
+    interfaces:
+      Observer:
+        config:
+          structname: PaymentAttemptReconciliationObserver
+
+  github.com/parstis/bnpl-backend/pkg/core/usecase/paymentattemptexpirationuc:
+    interfaces:
+      Observer:
+        config:
+          structname: PaymentAttemptExpirationObserver
+
+  github.com/parstis/bnpl-backend/pkg/core/usecase/outboxpublisheruc:
+    interfaces:
+      Observer:
+        config:
+          structname: OutboxPublisherObserver
+
   github.com/parstis/bnpl-backend/pkg/core/cache:
     interfaces:
       Cache:

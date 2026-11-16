@@ -137,6 +137,7 @@ func (d originationDeps) newUseCase(t *testing.T) *UseCase {
 		lognoop.New(),
 		metricsnoop.New(),
 		AllowAllNewCreditUsage{},
+		newTestObserver(t),
 	)
 	require.NoError(t, err)
 

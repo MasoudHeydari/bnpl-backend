@@ -323,6 +323,7 @@ func (uc *UseCase) persistUnmatchedTerminalInstallmentResult(
 	}
 
 	output.Result = ProcessResultTerminalResultUnmatched
+	output.outcomeReasonCode = failureCode
 
 	return nil
 }

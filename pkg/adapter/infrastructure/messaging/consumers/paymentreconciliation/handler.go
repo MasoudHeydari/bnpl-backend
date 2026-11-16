@@ -82,7 +82,7 @@ func (h *Handler) Handle(ctx context.Context, msg messaging.Message) error {
 		result.Data.BNPLPaymentAttemptID,
 		"result",
 		output.Result,
-	).Info("processed financial core installment payment reconciliation result")
+	).Info(log.Msg("processed financial core installment payment reconciliation result"))
 
 	return nil
 }

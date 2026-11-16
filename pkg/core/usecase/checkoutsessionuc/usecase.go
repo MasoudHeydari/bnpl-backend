@@ -90,6 +90,7 @@ type UseCase struct {
 	confirmationSagaExecutor   saga.Executor
 	confirmationSagaDefinition *ConfirmationSagaDefinition
 	idGenerator                identifier.Generator
+	observer                   Observer
 }
 
 // New constructs a checkout session use case.
@@ -143,6 +144,7 @@ func New(
 	confirmationSagaRepo repo.Saga,
 	confirmationSagaExecutor saga.Executor,
 	confirmationSagaDefinition *ConfirmationSagaDefinition,
+	observer Observer,
 ) (*UseCase, error) {
 	const op = "checkoutsessionuc.New"
 
@@ -281,6 +283,10 @@ func New(
 		return nil, fmt.Errorf("%s: confirmation saga definition is required", op)
 	}
 
+	if observer == nil {
+		return nil, fmt.Errorf("%s: observer is required", op)
+	}
+
 	return &UseCase{
 		pool:                       pool,
 		checkoutSession:            checkoutSession,
@@ -315,5 +321,6 @@ func New(
 		confirmationSagaExecutor:   confirmationSagaExecutor,
 		confirmationSagaDefinition: confirmationSagaDefinition,
 		idGenerator:                idGenerator,
+		observer:                   observer,
 	}, nil
 }

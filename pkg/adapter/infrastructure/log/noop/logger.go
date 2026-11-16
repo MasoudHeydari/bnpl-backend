@@ -1,6 +1,10 @@
 package noop
 
-import corelog "github.com/parstis/bnpl-backend/pkg/core/log"
+import (
+	"context"
+
+	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
+)
 
 // Verify Logger implements the core logging contract.
 var _ corelog.Logger = (*Logger)(nil)
@@ -18,14 +22,19 @@ func (l *Logger) With(_ ...any) corelog.Logger {
 	return l
 }
 
+// WithContext returns the same logger instance.
+func (l *Logger) WithContext(context.Context) corelog.Logger {
+	return l
+}
+
 // Debug discards the log record.
-func (l *Logger) Debug(string, ...any) {}
+func (l *Logger) Debug(corelog.Event, ...corelog.Field) {}
 
 // Info discards the log record.
-func (l *Logger) Info(string, ...any) {}
+func (l *Logger) Info(corelog.Event, ...corelog.Field) {}
 
 // Warn discards the log record.
-func (l *Logger) Warn(string, ...any) {}
+func (l *Logger) Warn(corelog.Event, ...corelog.Field) {}
 
 // Error discards the log record.
-func (l *Logger) Error(string, ...any) {}
+func (l *Logger) Error(corelog.Event, ...corelog.Field) {}

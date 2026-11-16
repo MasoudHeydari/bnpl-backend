@@ -279,6 +279,10 @@ func (uc *UseCase) replaceTerminalCheckoutPaymentAttempt(
 		return model.PaymentAttempt{}, err
 	}
 
+	if replaced.ID != attempt.ID {
+		uc.observer.PaymentAttemptCreated(ctx, contractRow.ID, replaced.ID)
+	}
+
 	return replaced, nil
 }
 

@@ -186,7 +186,7 @@ func (d *Dispatcher) Publish(ctx context.Context, destination string, msg messag
 	if err != nil {
 		// Key material is operator-managed; a missing key may be restored while the
 		// row still has retry budget, so this stays retryable.
-		logger.Error("webhook signing secret could not be decrypted", "key_id", dest.SigningSecretKeyID)
+		logger.With("key_id", dest.SigningSecretKeyID).Error(log.Msg("webhook signing secret could not be decrypted"))
 		d.businessMetrics.WebhookDeliveryCompleted(ctx, outcomeSigningUnavailable)
 
 		return fmt.Errorf("%s: decrypt signing secret: %w", op, err)
@@ -213,13 +213,13 @@ func (d *Dispatcher) Publish(ctx context.Context, destination string, msg messag
 		}
 
 		d.businessMetrics.WebhookDeliveryCompleted(ctx, outcomeRetryableFailure)
-		logger.Warn("webhook delivery failed; will retry if budget remains", "error", err.Error())
+		logger.With("error", err.Error()).Warn(log.Msg("webhook delivery failed; will retry if budget remains"))
 
 		return fmt.Errorf("%s: deliver webhook: %w", op, err)
 	}
 
 	d.businessMetrics.WebhookDeliveryCompleted(ctx, outcomeDelivered)
-	logger.Info("webhook delivered")
+	logger.Info(log.Msg("webhook delivered"))
 
 	return nil
 }
@@ -228,12 +228,13 @@ func (d *Dispatcher) Publish(ctx context.Context, destination string, msg messag
 // marked non-retryable.
 func (d *Dispatcher) permanent(ctx context.Context, logger log.Logger, outcome string, err error) error {
 	d.businessMetrics.WebhookDeliveryCompleted(ctx, outcome)
-	logger.Warn(
-		"webhook undeliverable; no further attempts",
+	logger.With(
 		"outcome",
 		outcome,
 		"error",
 		err.Error(),
+	).Warn(
+		log.Msg("webhook undeliverable; no further attempts"),
 	)
 
 	return messaging.NonRetryable(err)
@@ -242,7 +243,7 @@ func (d *Dispatcher) permanent(ctx context.Context, logger log.Logger, outcome s
 // retryable records the failure and returns err unchanged so the outbox retries.
 func (d *Dispatcher) retryable(ctx context.Context, logger log.Logger, err error) error {
 	d.businessMetrics.WebhookDeliveryCompleted(ctx, outcomeRetryableFailure)
-	logger.Warn("webhook delivery failed; will retry if budget remains", "error", err.Error())
+	logger.With("error", err.Error()).Warn(log.Msg("webhook delivery failed; will retry if budget remains"))
 
 	return err
 }

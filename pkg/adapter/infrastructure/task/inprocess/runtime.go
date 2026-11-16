@@ -96,7 +96,7 @@ func (r *Runtime) Register(t task.Task) error {
 
 	if !t.Enabled {
 		r.logger.With("task_name", t.Name, "task_handler", t.Handler).
-			Info("task registration skipped because task is disabled")
+			Info(log.Msg("task registration skipped because task is disabled"))
 		return nil
 	}
 
@@ -129,7 +129,7 @@ func (r *Runtime) Register(t task.Task) error {
 		t.Handler,
 		"trigger_type",
 		string(t.Trigger.Type),
-	).Info("task registered")
+	).Info(log.Msg("task registered"))
 	return nil
 }
 
@@ -164,7 +164,7 @@ func (r *Runtime) Dispatch(ctx context.Context, cmd task.Command) error {
 	r.mu.Unlock()
 
 	r.logger.With("command_id", cmd.ID, "task_handler", cmd.Handler).
-		Info("task dispatch accepted")
+		Info(log.Msg("task dispatch accepted"))
 
 	go func() {
 		defer r.recoverTaskPanic(ctx, task.Task{
@@ -206,7 +206,7 @@ func (r *Runtime) Start(ctx context.Context) error {
 	tasks := append([]task.Task(nil), r.tasks...)
 	r.mu.Unlock()
 
-	r.logger.With("task_count", len(tasks)).Info("starting in-process task runtime")
+	r.logger.With("task_count", len(tasks)).Info(log.Msg("starting in-process task runtime"))
 
 	var wg sync.WaitGroup
 	cronRunner := cron.New(cron.WithParser(cron.NewParser(
@@ -253,12 +253,12 @@ func (r *Runtime) Start(ctx context.Context) error {
 	r.stopping = true
 	r.mu.Unlock()
 
-	r.logger.Info("stopping in-process task runtime")
+	r.logger.Info(log.Msg("stopping in-process task runtime"))
 	stopCtx := cronRunner.Stop()
 	<-stopCtx.Done()
 	wg.Wait()
 	r.dispatchWG.Wait()
-	r.logger.Info("in-process task runtime stopped")
+	r.logger.Info(log.Msg("in-process task runtime stopped"))
 	return nil
 }
 
@@ -341,7 +341,7 @@ func (r *Runtime) executeScheduled(ctx context.Context, t task.Task) {
 
 	if !r.tryAcquireScheduled(t.Handler) {
 		r.logger.With("task_name", t.Name, "task_handler", t.Handler).
-			Warn("task execution skipped because a previous run is still active")
+			Warn(log.Msg("task execution skipped because a previous run is still active"))
 		return
 	}
 
@@ -406,9 +406,9 @@ func (r *Runtime) execute(ctx context.Context, t task.Task) {
 		"trigger_type",
 		string(t.Trigger.Type),
 	)
-	logger.Info("task execution started")
+	logger.Info(log.Msg("task execution started"))
 	if err := t.Job(ctx); err != nil {
-		logger.With("error", err.Error()).Error("task execution failed")
+		logger.With("error", err.Error()).Error(log.Msg("task execution failed"))
 
 		// Context cancellation during normal shutdown is expected and should not
 		// become an external error event.
@@ -419,7 +419,7 @@ func (r *Runtime) execute(ctx context.Context, t task.Task) {
 		return
 	}
 
-	logger.Info("task execution completed")
+	logger.Info(log.Msg("task execution completed"))
 }
 
 func (r *Runtime) recoverTaskPanic(ctx context.Context, t task.Task, scope string) {
@@ -448,7 +448,7 @@ func (r *Runtime) recoverTaskPanic(ctx context.Context, t task.Task, scope strin
 		scope,
 		"panic",
 		fmt.Sprint(recovered),
-	).Error("task panic recovered")
+	).Error(log.Msg("task panic recovered"))
 }
 
 func isExpectedContextTermination(ctx context.Context, err error) bool {

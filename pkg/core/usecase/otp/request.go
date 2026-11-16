@@ -41,12 +41,20 @@ func (uc *UseCase) Request(ctx context.Context, input RequestInput) (RequestOutp
 		return RequestOutput{}, err
 	}
 
+	uc.observer.IssueRequested(ctx, input.Purpose)
+
 	issued, err := uc.issue(ctx, input)
 	if err != nil {
+		if cerr.IsCode(err, cerr.CodeTooManyRequests) {
+			uc.observer.IssueRateLimited(ctx, input.Purpose, issued.challenge.ID)
+		}
+
 		return RequestOutput{}, err
 	}
 
 	if !issued.issued {
+		uc.observer.ChallengeReused(ctx, issued.challenge.ID)
+
 		now := uc.clock.Now().UTC()
 		terms := uc.policy.Terms()
 
@@ -66,8 +74,12 @@ func (uc *UseCase) Request(ctx context.Context, input RequestInput) (RequestOutp
 		}, nil
 	}
 
+	uc.observer.ChallengeIssued(ctx, issued.challenge.ID)
+
 	deliveryCtx, cancelDelivery := notificationDeliveryContext(ctx, uc.notificationTimeout)
 	defer cancelDelivery()
+
+	uc.observer.NotificationSubmitStarted(ctx, issued.challenge.ID, issued.auth.TemplateID)
 
 	// CRITICAL: submit Notification before any availability projection work.
 	requestID, err := uc.submitNotification(
@@ -78,6 +90,8 @@ func (uc *UseCase) Request(ctx context.Context, input RequestInput) (RequestOutp
 		issued.expiresAt,
 	)
 	if err != nil {
+		uc.observeNotificationFailure(ctx, issued.challenge.ID, err)
+
 		return RequestOutput{}, uc.handleNotificationFailure(
 			deliveryCtx,
 			issued.challenge.ID,
@@ -95,6 +109,8 @@ func (uc *UseCase) Request(ctx context.Context, input RequestInput) (RequestOutp
 	if err != nil {
 		return RequestOutput{}, err
 	}
+
+	uc.observer.ProviderAccepted(ctx, issued.challenge.ID, issued.auth.TemplateID)
 
 	acceptedNow := uc.clock.Now().UTC()
 	terms := uc.policy.Terms()

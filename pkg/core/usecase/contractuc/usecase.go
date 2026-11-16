@@ -47,6 +47,7 @@ type UseCase struct {
 	outbox                     repo.Outbox
 	clock                      clock.Clock
 	logger                     log.Logger
+	observer                   Observer
 	auditDestination           string
 	idGenerator                identifier.Generator
 	businessMetrics            coremetrics.BusinessMetrics
@@ -119,6 +120,7 @@ func New(
 	logger log.Logger,
 	businessMetrics coremetrics.BusinessMetrics,
 	newCreditUsageGuard NewCreditUsageGuard,
+	observer Observer,
 ) (*UseCase, error) {
 	const op = "contractuc.New"
 
@@ -256,6 +258,10 @@ func New(
 		return nil, fmt.Errorf("%s: new credit usage guard is required", op)
 	}
 
+	if observer == nil {
+		return nil, fmt.Errorf("%s: observer is required", op)
+	}
+
 	return &UseCase{
 		pool:                               pool,
 		customerProfile:                    customerProfile,
@@ -273,6 +279,7 @@ func New(
 		outbox:                             outbox,
 		clock:                              clk,
 		logger:                             logger,
+		observer:                           observer,
 		auditDestination:                   auditDestination,
 		idGenerator:                        idGenerator,
 		paymentReturnURL:                   strings.TrimSpace(paymentReturnURL),

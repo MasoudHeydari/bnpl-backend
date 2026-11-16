@@ -57,6 +57,8 @@ func (uc *UseCase) CreatePaymentAttempt(
 		return CreatePaymentAttemptOutput{}, err
 	}
 
+	uc.observer.RepaymentRequested(ctx, input.ContractID, input.InstallmentID)
+
 	now := uc.clock.Now().UTC()
 
 	var (
@@ -308,6 +310,14 @@ func (uc *UseCase) CreatePaymentAttempt(
 	)
 	if err != nil {
 		return CreatePaymentAttemptOutput{}, err
+	}
+
+	switch result {
+	case CreatePaymentAttemptResultQueued:
+		uc.observer.PaymentAttemptCreated(ctx, paymentAttempt.ContractID, paymentAttempt.ID)
+
+	case CreatePaymentAttemptResultAlreadyExists:
+		uc.observer.PaymentAttemptReplayed(ctx, paymentAttempt.ContractID, paymentAttempt.ID)
 	}
 
 	paymentAttempt, err = uc.ensureFinancialCoreInstallmentPayment(ctx, paymentAttempt, input)

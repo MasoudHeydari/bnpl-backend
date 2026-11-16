@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	adapterclock "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/clock"
+	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/messaging"
 	"github.com/parstis/bnpl-backend/pkg/core/mock"
@@ -50,17 +51,42 @@ func (l *recordingLogger) With(args ...any) corelog.Logger {
 	return &recordingLogger{mu: l.mu, records: l.records, attrs: attrs}
 }
 
-func (l *recordingLogger) Debug(msg string, args ...any) { l.append("debug", msg, args...) }
-func (l *recordingLogger) Info(msg string, args ...any)  { l.append("info", msg, args...) }
-func (l *recordingLogger) Warn(msg string, args ...any)  { l.append("warn", msg, args...) }
-func (l *recordingLogger) Error(msg string, args ...any) { l.append("error", msg, args...) }
+func (l *recordingLogger) WithContext(context.Context) corelog.Logger {
+	return l
+}
 
-func (l *recordingLogger) append(level, msg string, args ...any) {
+func (l *recordingLogger) Debug(event corelog.Event, fields ...corelog.Field) {
+	l.recordLog("debug", event, fields...)
+}
+
+func (l *recordingLogger) Info(event corelog.Event, fields ...corelog.Field) {
+	l.recordLog("info", event, fields...)
+}
+
+func (l *recordingLogger) Warn(event corelog.Event, fields ...corelog.Field) {
+	l.recordLog("warn", event, fields...)
+}
+
+func (l *recordingLogger) Error(event corelog.Event, fields ...corelog.Field) {
+	l.recordLog("error", event, fields...)
+}
+
+func (l *recordingLogger) recordLog(level string, event corelog.Event, fields ...corelog.Field) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	combined := append(append([]any{}, l.attrs...), args...)
-	*l.records = append(*l.records, logRecord{level: level, msg: msg, args: combined})
+	msg := ""
+	attrs := append([]any{}, l.attrs...)
+	if event != nil {
+		msg = event.Message()
+	}
+	for _, f := range fields {
+		if f == nil {
+			continue
+		}
+		attrs = append(attrs, f.Key(), f.Value())
+	}
+	*l.records = append(*l.records, logRecord{level: level, msg: msg, args: attrs})
 }
 
 func (l *recordingLogger) snapshot() []logRecord {
@@ -142,6 +168,15 @@ func TestPublishDue_TwoMessagesBatch_PartialFailure(t *testing.T) {
 	deps.pool.EXPECT().Conn(ctx, testifymock.Anything).RunAndReturn(func(ctx context.Context, handler repo.ConnHandler) error {
 		return handler(ctx, deps.conn)
 	}).Times(3)
+
+	deps.observer.EXPECT().MessageRetryScheduled(
+		ctx,
+		msg1.ID,
+		msg1.Destination,
+		msg1.AttemptCount,
+		publishErr.Error(),
+	).Once()
+	deps.observer.EXPECT().MessagePublished(ctx, msg2.ID, msg2.Destination).Once()
 
 	uc := deps.newUseCase(testWorkerID, testBatchSize)
 
@@ -235,6 +270,8 @@ func TestPublishDue_SuccessfulPublish_MarksPublished(t *testing.T) {
 		return handler(ctx, deps.conn)
 	}).Twice()
 
+	deps.observer.EXPECT().MessagePublished(ctx, msg.ID, msg.Destination).Once()
+
 	uc := deps.newUseCase(testWorkerID, testBatchSize)
 
 	err := uc.PublishDue(ctx)
@@ -281,6 +318,14 @@ func TestPublishDue_PublishFails_SchedulesRetry(t *testing.T) {
 		return handler(ctx, deps.conn)
 	}).Twice()
 
+	deps.observer.EXPECT().MessageRetryScheduled(
+		ctx,
+		msg.ID,
+		msg.Destination,
+		msg.AttemptCount,
+		publishErr.Error(),
+	).Once()
+
 	uc := deps.newUseCase(testWorkerID, testBatchSize)
 
 	err := uc.PublishDue(ctx)
@@ -325,6 +370,14 @@ func TestPublishDue_PublishFails_ExhaustedRetries_MarksFailed(t *testing.T) {
 	deps.pool.EXPECT().Conn(ctx, testifymock.Anything).RunAndReturn(func(ctx context.Context, handler repo.ConnHandler) error {
 		return handler(ctx, deps.conn)
 	}).Twice()
+
+	deps.observer.EXPECT().MessageFailed(
+		ctx,
+		msg.ID,
+		msg.Destination,
+		msg.AttemptCount,
+		publishErr.Error(),
+	).Once()
 
 	uc := deps.newUseCase(testWorkerID, testBatchSize)
 
@@ -371,6 +424,14 @@ func TestPublishDue_NonRetryablePublishFailure_MarksFailedWithRetryBudgetRemaini
 	deps.pool.EXPECT().Conn(ctx, testifymock.Anything).RunAndReturn(func(ctx context.Context, handler repo.ConnHandler) error {
 		return handler(ctx, deps.conn)
 	}).Twice()
+
+	deps.observer.EXPECT().MessageFailed(
+		ctx,
+		msg.ID,
+		msg.Destination,
+		msg.AttemptCount,
+		publishErr.Error(),
+	).Once()
 
 	uc := deps.newUseCase(testWorkerID, testBatchSize)
 
@@ -426,6 +487,8 @@ func TestPublishDue_MarkPublishedFails_Logs_ContinuesProcessing(t *testing.T) {
 		return handler(ctx, deps.conn)
 	}).Times(3)
 
+	deps.observer.EXPECT().MessagePublished(ctx, msg2.ID, msg2.Destination).Once()
+
 	uc := deps.newUseCase(testWorkerID, testBatchSize)
 
 	err := uc.PublishDue(ctx)
@@ -433,10 +496,81 @@ func TestPublishDue_MarkPublishedFails_Logs_ContinuesProcessing(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorContains(t, err, markErr.Error())
 
+	// Only the operational mark failure is logged; msg1 was not committed as
+	// published, so it is never observed as published.
 	records := deps.logger.snapshot()
-	require.Len(t, records, 2)
+	require.Len(t, records, 1)
 	assert.Equal(t, "error", records[0].level)
 	assert.Equal(t, "failed to mark outbox message published", records[0].msg)
+}
+
+func TestPublishDue_SkippedPublish_ObservesSkipped(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+	deps := newOutboxPublisherDeps(t, now)
+	msg := sampleOutboxMessage()
+	publishErr := messaging.Skipped(errors.New("destination not configured"))
+
+	deps.outbox.EXPECT().Conn(deps.conn).Return(deps.outboxQueryer).Twice()
+	deps.outboxQueryer.EXPECT().ClaimPending(
+		ctx,
+		testWorkerID,
+		testBatchSize,
+		now,
+		testProcessingLeaseTimeout,
+	).Return([]model.OutboxMessage{msg}, nil).Once()
+	deps.publisher.EXPECT().Publish(ctx, msg.Destination, expectedMessage(msg)).Return(publishErr).Once()
+	deps.outboxQueryer.EXPECT().MarkSkipped(
+		ctx,
+		msg.ID,
+		testWorkerID,
+		msg.LockVersion,
+		now,
+		publishErr.Error(),
+	).Return(nil).Once()
+	deps.pool.EXPECT().Conn(ctx, testifymock.Anything).RunAndReturn(func(ctx context.Context, handler repo.ConnHandler) error {
+		return handler(ctx, deps.conn)
+	}).Twice()
+	deps.observer.EXPECT().MessageSkipped(ctx, msg.ID, msg.Destination, publishErr.Error()).Once()
+
+	uc := deps.newUseCase(testWorkerID, testBatchSize)
+
+	require.NoError(t, uc.PublishDue(ctx))
+}
+
+func TestPublishDue_LeaseLostWhileMarkingPublished_DoesNotObservePublished(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+	deps := newOutboxPublisherDeps(t, now)
+	msg := sampleOutboxMessage()
+	conflict := cerr.Conflict(errors.New("lease lost"))
+
+	deps.outbox.EXPECT().Conn(deps.conn).Return(deps.outboxQueryer).Twice()
+	deps.outboxQueryer.EXPECT().ClaimPending(
+		ctx,
+		testWorkerID,
+		testBatchSize,
+		now,
+		testProcessingLeaseTimeout,
+	).Return([]model.OutboxMessage{msg}, nil).Once()
+	deps.publisher.EXPECT().Publish(ctx, msg.Destination, expectedMessage(msg)).Return(nil).Once()
+	deps.outboxQueryer.EXPECT().MarkPublished(
+		ctx,
+		msg.ID,
+		testWorkerID,
+		msg.LockVersion,
+		now,
+	).Return(conflict).Once()
+	deps.pool.EXPECT().Conn(ctx, testifymock.Anything).RunAndReturn(func(ctx context.Context, handler repo.ConnHandler) error {
+		return handler(ctx, deps.conn)
+	}).Twice()
+	deps.observer.EXPECT().LeaseLost(ctx, msg.ID, msg.Destination).Once()
+
+	uc := deps.newUseCase(testWorkerID, testBatchSize)
+
+	err := uc.PublishDue(ctx)
+
+	require.ErrorIs(t, err, ErrPublishedButNotCommitted)
 }
 
 func TestPublishDue_ClaimPendingFails_ReturnsError(t *testing.T) {
@@ -503,6 +637,7 @@ type outboxPublisherDeps struct {
 	publisher     *mock.Publisher
 	clock         adapterclock.Fixed
 	logger        *recordingLogger
+	observer      *mock.OutboxPublisherObserver
 }
 
 func newOutboxPublisherDeps(t *testing.T, now time.Time) outboxPublisherDeps {
@@ -516,6 +651,7 @@ func newOutboxPublisherDeps(t *testing.T, now time.Time) outboxPublisherDeps {
 		publisher:     mock.NewPublisher(t),
 		clock:         adapterclock.NewFixed(now, loc),
 		logger:        newRecordingLogger(),
+		observer:      newTestObserver(t),
 	}
 }
 
@@ -526,6 +662,7 @@ func (d outboxPublisherDeps) newUseCase(workerID string, batchSize int) *UseCase
 		d.publisher,
 		d.clock,
 		d.logger,
+		d.observer,
 		workerID,
 		batchSize,
 		time.Second,

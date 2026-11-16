@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
+	"github.com/parstis/bnpl-backend/pkg/core/model"
 )
 
 // validationError builds a single-field public validation error. Every checkout
@@ -569,16 +570,56 @@ func checkoutOTPRateLimitedError(cause error) error {
 	)
 }
 
-// checkoutCustomerNotEligibleError reports a verified phone the Identity
-// Service does not know, so BNPL cannot finance this customer.
-func checkoutCustomerNotEligibleError(cause error) error {
+// checkoutCreditPurchaseUnavailableForPhoneError reports that BNPL cannot
+// finance the merchant-asserted phone. The public message stays phone-scoped
+// so callers cannot distinguish CRS miss, BNPL profile miss, or suspension.
+func checkoutCreditPurchaseUnavailableForPhoneError(cause error) error {
 	return cerr.NewPublic(
 		cerr.CodeForbidden,
-		"error.checkout_customer_is_not_eligible",
+		"error.checkout_credit_purchase_unavailable_for_phone",
 		cause,
 		cerr.Details{
 			Fields:     []string{},
 			Violations: []cerr.Violation{},
 		},
 	)
+}
+
+// checkoutCustomerIdentityVerificationRequiredError reports that the BNPL
+// customer exists but has no credit assessment yet. The public message asks
+// for identity verification and never exposes credit balances or reason codes.
+func checkoutCustomerIdentityVerificationRequiredError(cause error) error {
+	return cerr.NewPublic(
+		cerr.CodeForbidden,
+		"error.checkout_customer_identity_verification_required",
+		cause,
+		cerr.Details{
+			Fields:     []string{},
+			Violations: []cerr.Violation{},
+		},
+	)
+}
+
+// isCreditPurchaseUnavailableForPhone reports whether err is the merchant-safe
+// phone financing rejection.
+func isCreditPurchaseUnavailableForPhone(err error) bool {
+	var appErr *cerr.Error
+	if !errors.As(err, &appErr) {
+		return false
+	}
+
+	return appErr.MessageKey == "error.checkout_credit_purchase_unavailable_for_phone"
+}
+
+// decisionRequiresIdentityVerification reports whether a denied Decision is
+// specifically "no credit assessment / no credit account" rather than another
+// financing denial that stays as a generic denied offer.
+func decisionRequiresIdentityVerification(reasonCodes []string) bool {
+	for _, code := range reasonCodes {
+		if code == model.CreditLimitMissingDecisionReason {
+			return true
+		}
+	}
+
+	return false
 }

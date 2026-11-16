@@ -117,6 +117,7 @@ func (d expirePaymentPendingDeps) newUseCase(t *testing.T, grace time.Duration, 
 		lognoop.New(),
 		metricsnoop.New(),
 		AllowAllNewCreditUsage{},
+		newTestObserver(t),
 	)
 	if err != nil {
 		panic(err)

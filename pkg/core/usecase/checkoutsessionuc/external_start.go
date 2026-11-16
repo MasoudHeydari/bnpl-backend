@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/uuid"
-
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
@@ -172,12 +170,14 @@ func (uc *UseCase) StartExternal(
 	}, nil
 }
 
-// bindExternalCustomer attaches the customer resolved by the Identity Service
-// to the session, creating the BNPL profile when this is its first checkout.
+// bindExternalCustomer attaches an already-registered BNPL customer (resolved
+// via CRS phone → external_customer_id) to the session.
 //
-// This runs during Partner Create offer preparation. Binding records Identity
-// resolution (phone → customer), not OTP possession proof or purchase
-// authorization. A session already bound to a different customer fails closed.
+// This runs during Partner Create / deferred START offer preparation. Binding
+// records Customer Reference resolution, not OTP possession proof or purchase
+// authorization. Profiles are never created here: a CRS customer without a
+// BNPL profile is a deterministic financing rejection. A session already bound
+// to a different customer fails closed.
 func (uc *UseCase) bindExternalCustomer(
 	ctx context.Context,
 	token model.CheckoutSessionToken,
@@ -210,24 +210,14 @@ func (uc *UseCase) bindExternalCustomer(
 						return nil
 					}
 
-					now := uc.clock.Now().UTC()
-
-					// Partner Create resolves CRS customer_id by mobile and does not
-					// yet receive Identity x-auth-subject-id. A unique subject
-					// placeholder keeps external_subject_id NOT NULL until an
-					// authenticated customer path records the real Identity subject.
-					externalSubjectID := model.ExternalSubjectID(uuid.New())
-
-					profile, _, err := customerProfileQ.EnsureExists(
-						ctx,
-						externalSubjectID,
-						externalCustomerID,
-						model.IRJurisdiction,
-						model.ActiveCustomerStatus,
-						now,
-						now,
-					)
+					profile, err := customerProfileQ.GetByExternalCustomerID(ctx, externalCustomerID)
 					if err != nil {
+						if cerr.IsCode(err, cerr.CodeResourceNotFound) {
+							return checkoutCreditPurchaseUnavailableForPhoneError(
+								fmt.Errorf("%s: bnpl customer profile not found", op),
+							)
+						}
+
 						return err
 					}
 
@@ -236,6 +226,8 @@ func (uc *UseCase) bindExternalCustomer(
 							fmt.Errorf("%s: session belongs to another customer", op),
 						)
 					}
+
+					now := uc.clock.Now().UTC()
 
 					bound, err := sessionQ.BindCustomer(ctx, locked.ID, profile.ID, now)
 					if err != nil {

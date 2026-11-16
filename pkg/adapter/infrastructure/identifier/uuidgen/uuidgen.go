@@ -1,7 +1,7 @@
 // Package uuidgen provides a UUID-backed implementation of the core identifier
 // Generator port for domain entities that require UUID-formatted primary keys.
 //
-// Trace correlation identifiers continue to use the separate ULID Trace
-// provider. Do not wire this adapter into Trace or other opaque-string
-// consumers that intentionally accept ULID values.
+// The tracing provider delegates correlation ID generation to this adapter
+// because X-Correlation-Id requires a UUID. Trace and request IDs remain ULIDs
+// and must not be switched to UUID generation.
 package uuidgen

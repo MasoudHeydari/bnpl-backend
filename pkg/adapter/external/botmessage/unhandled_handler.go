@@ -55,7 +55,7 @@ func (h *UnhandledIncomingMessageHandler) Handle(
 		message.ExternalEventID,
 		"conversation_kind",
 		string(message.Conversation.Kind),
-	).Info("bot message received without registered application command handler")
+	).Info(corelog.Msg("bot message received without registered application command handler"))
 
 	return corebotmessage.HandleResult{}, nil
 }

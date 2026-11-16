@@ -32,6 +32,7 @@ func newInstallmentRepaymentUCForExpiryTests(t *testing.T, now time.Time) *UseCa
 		"bnpl.audit.events.v1",
 		mock.NewIdentifierGenerator(t),
 		"https://bnpl.example/return",
+		newTestObserver(t),
 	)
 	require.NoError(t, err)
 

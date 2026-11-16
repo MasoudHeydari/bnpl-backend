@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"strings"
 	"sync"
 	"testing"
@@ -34,16 +35,47 @@ func (l *recordingLogger) With(args ...any) corelog.Logger {
 	return &recordingLogger{mu: l.mu, records: l.records, attrs: attrs}
 }
 
-func (l *recordingLogger) Debug(msg string, args ...any) { l.append("debug", msg, args...) }
-func (l *recordingLogger) Info(msg string, args ...any)  { l.append("info", msg, args...) }
-func (l *recordingLogger) Warn(msg string, args ...any)  { l.append("warn", msg, args...) }
-func (l *recordingLogger) Error(msg string, args ...any) { l.append("error", msg, args...) }
+func (l *recordingLogger) WithContext(context.Context) corelog.Logger {
+	return l
+}
 
-func (l *recordingLogger) append(level, msg string, args ...any) {
+func (l *recordingLogger) Debug(event corelog.Event, fields ...corelog.Field) {
+	l.append("debug", event, fields...)
+}
+
+func (l *recordingLogger) Info(event corelog.Event, fields ...corelog.Field) {
+	l.append("info", event, fields...)
+}
+
+func (l *recordingLogger) Warn(event corelog.Event, fields ...corelog.Field) {
+	l.append("warn", event, fields...)
+}
+
+func (l *recordingLogger) Error(event corelog.Event, fields ...corelog.Field) {
+	l.append("error", event, fields...)
+}
+
+func (l *recordingLogger) append(level string, event corelog.Event, fields ...corelog.Field) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	attrs := append(append([]any{}, l.attrs...), args...)
+	msg := ""
+	attrs := append([]any{}, l.attrs...)
+	if event != nil {
+		msg = event.Message()
+		if code := event.Code(); code != "" {
+			attrs = append(attrs, "event", code)
+		}
+	}
+
+	for _, f := range fields {
+		if f == nil {
+			continue
+		}
+
+		attrs = append(attrs, f.Key(), f.Value())
+	}
+
 	*l.records = append(*l.records, logRecord{level: level, msg: msg, attrs: attrs})
 }
 

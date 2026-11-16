@@ -27,7 +27,7 @@ func (r *Runtime) Register(t task.Task) error {
 	r.logger.With(
 		"task_name", t.Name,
 		"task_handler", t.Handler,
-	).Info("task registration ignored by noop runtime")
+	).Info(log.Msg("task registration ignored by noop runtime"))
 
 	return nil
 }
@@ -37,7 +37,7 @@ func (r *Runtime) Dispatch(ctx context.Context, cmd task.Command) error {
 	r.logger.With(
 		"command_id", cmd.ID,
 		"task_handler", cmd.Handler,
-	).Info("task dispatch ignored by noop runtime")
+	).Info(log.Msg("task dispatch ignored by noop runtime"))
 
 	return nil
 }
@@ -46,11 +46,11 @@ func (r *Runtime) Dispatch(ctx context.Context, cmd task.Command) error {
 //
 // No scheduled tasks are executed while the runtime is running.
 func (r *Runtime) Start(ctx context.Context) error {
-	r.logger.Info("starting noop task runtime")
+	r.logger.Info(log.Msg("starting noop task runtime"))
 
 	<-ctx.Done()
 
-	r.logger.Info("stopping noop task runtime")
+	r.logger.Info(log.Msg("stopping noop task runtime"))
 
 	return nil
 }

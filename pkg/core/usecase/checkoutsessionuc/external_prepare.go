@@ -40,8 +40,15 @@ func (uc *UseCase) prepareExternalOffer(
 	}
 
 	// Terminal / non-continuable sessions are returned as-is for Partner Create
-	// replay (for example unavailable after a denied Decision).
+	// replay (for example unavailable after a denied Decision), except the two
+	// merchant-safe financing rejections that surface as public errors.
 	if !session.Status.AllowsCustomerContinuation() {
+		if session.Status == model.UnavailableCheckoutSessionStatus && session.CustomerID == nil {
+			return session, Offer{}, checkoutCreditPurchaseUnavailableForPhoneError(
+				fmt.Errorf("%s: replay of phone financing rejection", op),
+			)
+		}
+
 		return session, Offer{}, nil
 	}
 
@@ -86,18 +93,30 @@ func (uc *UseCase) prepareExternalOffer(
 
 	if !usable {
 		// Customer Reference NOT_FOUND or suspended is a merchant-safe financing
-		// outcome, not a retryable dependency failure. Terminalize the
-		// already-created session so it cannot remain an orphan active attempt.
+		// rejection, not a retryable dependency failure. Terminalize the
+		// already-created session so it cannot remain an orphan active attempt,
+		// then return the phone-scoped public error (no CRS/BNPL distinction).
 		unavailable, unavailableErr := uc.persistExternalUnavailable(ctx, session.PublicToken)
 		if unavailableErr != nil {
 			return model.CheckoutSession{}, Offer{}, unavailableErr
 		}
 
-		return unavailable, Offer{}, nil
+		return unavailable, Offer{}, checkoutCreditPurchaseUnavailableForPhoneError(
+			fmt.Errorf("%s: customer reference did not yield a usable customer", op),
+		)
 	}
 
 	bound, err := uc.bindExternalCustomer(ctx, session.PublicToken, externalCustomerID)
 	if err != nil {
+		if isCreditPurchaseUnavailableForPhone(err) {
+			unavailable, unavailableErr := uc.persistExternalUnavailable(ctx, session.PublicToken)
+			if unavailableErr != nil {
+				return model.CheckoutSession{}, Offer{}, unavailableErr
+			}
+
+			return unavailable, Offer{}, err
+		}
+
 		return model.CheckoutSession{}, Offer{}, err
 	}
 
@@ -213,6 +232,12 @@ func (uc *UseCase) loadPreparedExternalOffer(
 
 	outcome := offerOutcome(decision.Outcome)
 	if outcome == DeniedOfferOutcome {
+		if decisionRequiresIdentityVerification(decision.ReasonCodes) {
+			return session, Offer{}, checkoutCustomerIdentityVerificationRequiredError(
+				fmt.Errorf("%s: credit assessment is missing", op),
+			)
+		}
+
 		return session, Offer{Outcome: DeniedOfferOutcome, OfferExpiresAt: decision.ExpiresAt}, nil
 	}
 
@@ -393,7 +418,8 @@ func (uc *UseCase) clampExternalSessionToOffer(
 	return clamped, nil
 }
 
-// persistExternalUnavailable terminalizes a deterministic Identity miss.
+// persistExternalUnavailable terminalizes a deterministic phone financing
+// rejection (CRS miss/suspend or missing BNPL profile).
 //
 // Identity resolution happens after the CheckoutSession create transaction.
 // Therefore a phone that has no BNPL customer must durably close the already

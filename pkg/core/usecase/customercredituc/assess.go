@@ -35,6 +35,8 @@ func (uc *UseCase) assessInitialLimitWithPolicy(
 	input InitialLimitAssessmentInput,
 	selected initialcreditlimit.Policy,
 ) (InitialLimitAssessmentResult, error) {
+	uc.observer.AssessmentStarted(ctx, input.CustomerID)
+
 	_, err := uc.creditAssessmentClient.FetchSignals(
 		ctx,
 		creditassessment.FetchSignalsInput{
@@ -53,6 +55,8 @@ func (uc *UseCase) assessInitialLimitWithPolicy(
 	if amount > terms.MaxAmountMinor {
 		amount = terms.MaxAmountMinor
 	}
+
+	uc.observer.AssessmentCompleted(ctx, input.CustomerID, model.LimitSetDecisionOutcome)
 
 	return InitialLimitAssessmentResult{
 		Outcome:       model.LimitSetDecisionOutcome,

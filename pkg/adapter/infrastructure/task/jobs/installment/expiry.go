@@ -20,13 +20,14 @@ func Expiry(
 			return err
 		}
 
-		logger.Info(
-			"expired due offered checkout installments",
-			"expired_installment_count",
-			output.ExpiredInstallmentCount,
-			"canceled_charge_count",
-			output.CanceledChargeCount,
-		)
+		logger.With(
+		"expired_installment_count",
+		output.ExpiredInstallmentCount,
+		"canceled_charge_count",
+		output.CanceledChargeCount,
+	).Info(
+		corelog.Msg("expired due offered checkout installments"),
+	)
 
 		return nil
 	}
@@ -43,10 +44,12 @@ func MarkDue(
 			return err
 		}
 
-		logger.Info(
-			"marked scheduled installments due",
-			"marked_due_installment_count", output.MarkedDueInstallmentCount,
-		)
+		logger.With(
+		"marked_due_installment_count",
+		output.MarkedDueInstallmentCount,
+	).Info(
+		corelog.Msg("marked scheduled installments due"),
+	)
 
 		return nil
 	}
@@ -63,10 +66,12 @@ func MarkOverdue(
 			return err
 		}
 
-		logger.Info(
-			"marked due installments overdue",
-			"marked_overdue_installment_count", output.MarkedOverdueInstallmentCount,
-		)
+		logger.With(
+		"marked_overdue_installment_count",
+		output.MarkedOverdueInstallmentCount,
+	).Info(
+		corelog.Msg("marked due installments overdue"),
+	)
 
 		return nil
 	}

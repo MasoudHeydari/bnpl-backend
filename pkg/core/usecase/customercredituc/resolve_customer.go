@@ -48,6 +48,8 @@ func (uc *UseCase) resolveActiveExternalCustomerID(
 
 	switch resolved.Status {
 	case extcustomer.ActiveStatus:
+		uc.observer.CustomerResolved(ctx, resolved.ExternalCustomerID)
+
 		return resolved.ExternalCustomerID, nil
 
 	case extcustomer.SuspendedStatus:

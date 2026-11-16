@@ -279,6 +279,7 @@ func TestRequest_NotificationTimeoutLeavesChallengeUsable(t *testing.T) {
 		adapterclock.NewFixed(h.now, time.UTC),
 		h.random,
 		20*time.Millisecond,
+		h.observer,
 	)
 	require.NoError(t, err)
 	h.uc = uc

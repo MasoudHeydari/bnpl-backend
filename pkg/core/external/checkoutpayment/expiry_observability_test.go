@@ -1,6 +1,7 @@
 package checkoutpayment
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -34,18 +35,44 @@ func (l *expiryRecordingLogger) With(args ...any) corelog.Logger {
 	return &expiryRecordingLogger{mu: l.mu, records: l.records, attrs: attrs}
 }
 
-func (l *expiryRecordingLogger) Debug(msg string, args ...any) { l.append("debug", msg, args...) }
-func (l *expiryRecordingLogger) Info(msg string, args ...any)  { l.append("info", msg, args...) }
-func (l *expiryRecordingLogger) Warn(msg string, args ...any)  { l.append("warn", msg, args...) }
-func (l *expiryRecordingLogger) Error(msg string, args ...any) { l.append("error", msg, args...) }
+func (l *expiryRecordingLogger) WithContext(context.Context) corelog.Logger {
+	return l
+}
 
-func (l *expiryRecordingLogger) append(level, msg string, args ...any) {
+func (l *expiryRecordingLogger) Debug(event corelog.Event, fields ...corelog.Field) {
+	l.recordLog("debug", event, fields...)
+}
+
+func (l *expiryRecordingLogger) Info(event corelog.Event, fields ...corelog.Field) {
+	l.recordLog("info", event, fields...)
+}
+
+func (l *expiryRecordingLogger) Warn(event corelog.Event, fields ...corelog.Field) {
+	l.recordLog("warn", event, fields...)
+}
+
+func (l *expiryRecordingLogger) Error(event corelog.Event, fields ...corelog.Field) {
+	l.recordLog("error", event, fields...)
+}
+
+func (l *expiryRecordingLogger) recordLog(level string, event corelog.Event, fields ...corelog.Field) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	combined := append(append([]any{}, l.attrs...), args...)
-	*l.records = append(*l.records, expiryLogRecord{level: level, msg: msg, args: combined})
+	msg := ""
+	attrs := append([]any{}, l.attrs...)
+	if event != nil {
+		msg = event.Message()
+	}
+	for _, f := range fields {
+		if f == nil {
+			continue
+		}
+		attrs = append(attrs, f.Key(), f.Value())
+	}
+	*l.records = append(*l.records, expiryLogRecord{level: level, msg: msg, args: attrs})
 }
+
 
 func (l *expiryRecordingLogger) warnings() []expiryLogRecord {
 	l.mu.Lock()

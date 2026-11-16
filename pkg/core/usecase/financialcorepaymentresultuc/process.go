@@ -80,9 +80,20 @@ func (uc *UseCase) Process(
 ) (output ProcessOutput, err error) {
 	input = normalizeProcessInput(input)
 
+	uc.observer.ResultReceived(ctx, input.EventID, observedContractID(input), input.PaymentStatus)
+
 	if err = validateMinimumTrustedEnvelope(input); err != nil {
+		uc.observer.ResultValidationFailed(
+			ctx,
+			input.EventID,
+			observedContractID(input),
+			validationReasonCode(err),
+		)
+
 		return
 	}
+
+	uc.observer.ResultValidated(ctx, input.EventID, observedContractID(input), input.PaymentStatus)
 
 	purpose := resolvePaymentPurpose(input)
 
@@ -97,6 +108,8 @@ func (uc *UseCase) Process(
 	if err != nil {
 		return
 	}
+
+	uc.observer.ApplicationStarted(ctx, input.EventID, observedContractID(input))
 
 	switch purpose {
 	case model.CheckoutFirstInstallmentFinancialCorePaymentPurpose:
@@ -219,6 +232,8 @@ func (uc *UseCase) processUnsupportedPaymentPurpose(
 	if err != nil {
 		return ProcessOutput{}, err
 	}
+
+	uc.observeCommitted(ctx, input, purpose, output)
 
 	return output, nil
 }
@@ -355,6 +370,11 @@ func (uc *UseCase) processCheckoutFirstInstallment(
 	if err != nil {
 		return ProcessOutput{}, err
 	}
+
+	// The checkout transaction committed. Observe before the post-commit
+	// merchant-entitlement call so a later failure there cannot hide an
+	// activation that is already durable.
+	uc.observeCommitted(ctx, input, purpose, output)
 
 	if input.PaymentStatus == model.SucceededFinancialPaymentResultStatus &&
 		(output.Result == ProcessResultPaymentApplied ||
@@ -737,6 +757,7 @@ func (uc *UseCase) persistUnmatchedTerminalCheckoutResult(
 	}
 
 	output.Result = ProcessResultTerminalResultUnmatched
+	output.outcomeReasonCode = failureCode
 	return nil
 }
 
@@ -887,6 +908,8 @@ func (uc *UseCase) processInstallmentRepayment(
 	if err != nil {
 		return ProcessOutput{}, err
 	}
+
+	uc.observeCommitted(ctx, input, purpose, output)
 
 	return output, nil
 }
@@ -1144,6 +1167,7 @@ func (uc *UseCase) persistPermanentInboxFailure(
 	}
 
 	output.Result = ProcessResultPermanentlyRejected
+	output.outcomeReasonCode = failureCode
 
 	return nil
 }

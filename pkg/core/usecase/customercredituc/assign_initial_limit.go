@@ -33,10 +33,13 @@ func (uc *UseCase) AssignInitialLimit(ctx context.Context, input AssignInitialLi
 		return AssignInitialLimitOutput{}, err
 	}
 
+	externalSubjectID := input.SubjectID.AsExternalSubjectID()
+	uc.observer.LimitAssignmentAttempted(ctx, externalSubjectID)
+
 	now := uc.clock.Now().UTC()
 	prepare, err := uc.prepareInitialLimitAssignment(
 		ctx,
-		input.SubjectID.AsExternalSubjectID(),
+		externalSubjectID,
 		externalCustomerID,
 		now,
 	)
@@ -47,12 +50,15 @@ func (uc *UseCase) AssignInitialLimit(ctx context.Context, input AssignInitialLi
 	if prepare.earlyOutput != nil {
 		output := *prepare.earlyOutput
 		output.Result = AssignInitialLimitResultAlreadyAssigned
+		uc.observeAssignment(ctx, prepare.profile.ID, output)
+
 		return output, nil
 	}
 
 	var assessment InitialLimitAssessmentResult
 	if prepare.blockedReasonCode != "" {
 		assessment = uc.deniedProfileAssessment(prepare.blockedReasonCode, prepare.selectedPolicy)
+		uc.observer.AssessmentCompleted(ctx, prepare.profile.ID, assessment.Outcome)
 	} else {
 		assessment, err = uc.assessInitialLimitWithPolicy(ctx, prepare.assessmentInput, prepare.selectedPolicy)
 		if err != nil {
@@ -77,16 +83,48 @@ func (uc *UseCase) AssignInitialLimit(ctx context.Context, input AssignInitialLi
 		}
 
 		output.Result = resultFromResolvedOutput(output)
+		uc.observeAssignment(ctx, prepare.profile.ID, output)
+
 		return output, nil
 	}
 
-	return uc.persistInitialLimitAssignment(
+	output, err := uc.persistInitialLimitAssignment(
 		ctx,
 		prepare.profile.ID,
 		prepare.assessmentInput,
 		assessment,
 		now,
 	)
+	if err != nil {
+		return AssignInitialLimitOutput{}, err
+	}
+
+	uc.observeAssignment(ctx, prepare.profile.ID, output)
+
+	return output, nil
+}
+
+// observeAssignment reports a committed or replayed assignment outcome.
+func (uc *UseCase) observeAssignment(
+	ctx context.Context,
+	customerID model.CustomerID,
+	output AssignInitialLimitOutput,
+) {
+	switch output.Result {
+	case AssignInitialLimitResultCreated:
+		uc.observer.LimitAssigned(ctx, customerID, output.Decision.ID)
+
+	case AssignInitialLimitResultAlreadyAssigned:
+		uc.observer.LimitAlreadyAssigned(ctx, customerID, output.Decision.ID)
+
+	case AssignInitialLimitResultDenied:
+		reasonCode := ""
+		if len(output.Decision.ReasonCodes) > 0 {
+			reasonCode = output.Decision.ReasonCodes[0]
+		}
+
+		uc.observer.LimitAssignmentDenied(ctx, customerID, output.Decision.ID, reasonCode)
+	}
 }
 
 func (uc *UseCase) prepareInitialLimitAssignment(

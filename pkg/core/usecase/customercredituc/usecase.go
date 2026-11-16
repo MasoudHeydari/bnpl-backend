@@ -35,6 +35,7 @@ type UseCase struct {
 	defaultInitialLimitRef policy.Ref
 	auditDestination       string
 	idGenerator            identifier.Generator
+	observer               Observer
 }
 
 // New constructs a customer credit use case.
@@ -57,6 +58,7 @@ func New(
 	auditDestination string,
 	idGenerator identifier.Generator,
 	collectionsPolicy collections.Policy,
+	observer Observer,
 ) (*UseCase, error) {
 	const op = "customercredituc.New"
 
@@ -132,6 +134,10 @@ func New(
 		return nil, fmt.Errorf("%s: identifier generator is required", op)
 	}
 
+	if observer == nil {
+		return nil, fmt.Errorf("%s: observer is required", op)
+	}
+
 	return &UseCase{
 		pool:                   pool,
 		collectionsPolicy:      collectionsPolicy,
@@ -151,5 +157,6 @@ func New(
 		defaultInitialLimitRef: defaultInitialLimitRef,
 		auditDestination:       auditDestination,
 		idGenerator:            idGenerator,
+		observer:               observer,
 	}, nil
 }

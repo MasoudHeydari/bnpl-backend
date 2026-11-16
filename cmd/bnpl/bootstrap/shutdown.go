@@ -119,7 +119,7 @@ func (a *App) startBackgroundWorkers(ctx context.Context, registry *consumers.Re
 			err = errors.New("task runtime stopped without context cancellation")
 		}
 
-		a.Infrastructure.Logger.With("error", err.Error()).Error("task runtime stopped unexpectedly")
+		a.Infrastructure.Logger.With("error", err.Error()).Error(log.Msg("task runtime stopped unexpectedly"))
 		reportFatal(fmt.Errorf("%s: %w: %w", op, ErrFatalTaskRuntimeExit, err))
 	}()
 
@@ -151,7 +151,7 @@ func (a *App) startBackgroundWorkers(ctx context.Context, registry *consumers.Re
 			a.Infrastructure.ConsumerState.SetFatal()
 		}
 
-		a.Infrastructure.Logger.With("error", err.Error()).Error("message consumer stopped unexpectedly")
+		a.Infrastructure.Logger.With("error", err.Error()).Error(log.Msg("message consumer stopped unexpectedly"))
 		if isFatalConsumerSubscribeError(err) {
 			reportFatal(fmt.Errorf("%s: %w: %w", op, ErrFatalConsumerExit, err))
 			return
@@ -179,7 +179,7 @@ func (a *App) startBackgroundWorkers(ctx context.Context, registry *consumers.Re
 			err = errors.New("bot messaging runtime stopped without context cancellation")
 		}
 
-		a.Infrastructure.Logger.With("error", err.Error()).Error("bot messaging runtime stopped unexpectedly")
+		a.Infrastructure.Logger.With("error", err.Error()).Error(log.Msg("bot messaging runtime stopped unexpectedly"))
 		reportFatal(fmt.Errorf("%s: %w: %w", op, ErrFatalBotMessagingExit, err))
 	}()
 
@@ -213,7 +213,7 @@ func (a *App) recoverBackgroundPanic(ctx context.Context, component string, onPa
 		a.Infrastructure.Logger.With(
 			"component", component,
 			"panic", fmt.Sprint(recovered),
-		).Error("background worker panic recovered")
+		).Error(log.Msg("background worker panic recovered"))
 	}
 }
 
@@ -255,7 +255,7 @@ func (a *App) shutdown(
 	stopWorkers context.CancelFunc,
 ) error {
 	logger := a.Infrastructure.Logger
-	logger.Info("shutdown started")
+	logger.Info(log.Msg("shutdown started"))
 
 	var (
 		shutdownErr error
@@ -268,12 +268,12 @@ func (a *App) shutdown(
 		defer shutdownMu.Unlock()
 
 		if err == nil {
-			logger.With("component", step).Info("component stopped")
+			logger.With("component", step).Info(log.Msg("component stopped"))
 			return
 		}
 
 		shutdownErr = errors.Join(shutdownErr, fmt.Errorf("%s: %w", step, err))
-		logger.With("component", step, "error", err.Error()).Error("component stop failed")
+		logger.With("component", step, "error", err.Error()).Error(log.Msg("component stop failed"))
 	}
 
 	record("drain_delay", a.waitDrainDelay(shutdownCtx))
@@ -292,26 +292,26 @@ func (a *App) shutdown(
 	// before the reporter transport is closed with the shared resources. A flush
 	// timeout is observability loss, not an application shutdown failure.
 	if a.Infrastructure.ErrorReporter != nil && !a.Infrastructure.ErrorReporter.Flush(shutdownCtx) {
-		logger.Warn("error reporter flush did not complete before shutdown deadline")
+		logger.Warn(log.Msg("error reporter flush did not complete before shutdown deadline"))
 	}
 
 	// Log each shared dependency close through record, but join errors from the
 	// single ownership path (releaseErr) so Close/shutdown do not duplicate.
 	_ = a.releaseResources(func(step string, err error) {
 		if err == nil {
-			logger.With("component", step).Info("component stopped")
+			logger.With("component", step).Info(log.Msg("component stopped"))
 			return
 		}
 
-		logger.With("component", step, "error", err.Error()).Error("component stop failed")
+		logger.With("component", step, "error", err.Error()).Error(log.Msg("component stop failed"))
 	})
 	shutdownErr = errors.Join(shutdownErr, a.releaseErr)
 
 	if errors.Is(shutdownErr, context.DeadlineExceeded) {
 		shutdownErr = errors.Join(shutdownErr, ErrShutdownTimedOut)
-		logger.Error("shutdown timed out")
+		logger.Error(log.Msg("shutdown timed out"))
 	} else if shutdownErr == nil {
-		logger.Info("shutdown completed")
+		logger.Info(log.Msg("shutdown completed"))
 	}
 
 	return shutdownErr
@@ -426,6 +426,6 @@ func shutdownContext(parent context.Context, timeout time.Duration) (context.Con
 
 func logListenError(logger log.Logger, component string, err error) {
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
-		logger.With("component", component, "error", err.Error()).Error("http listener stopped with error")
+		logger.With("component", component, "error", err.Error()).Error(log.Msg("http listener stopped with error"))
 	}
 }

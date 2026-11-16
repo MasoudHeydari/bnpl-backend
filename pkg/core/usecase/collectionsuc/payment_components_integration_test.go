@@ -161,7 +161,7 @@ func testFullCommandSettlement(t *testing.T, restricted bool) {
 	require.NoError(t, e)
 	intent := *attempt.PaymentAttempt.FinancialPaymentIntentID
 	client := authoritativePaymentClient{status: fc.GetPaymentStatusResult{PaymentIntentID: intent, Status: fc.SucceededPaymentStatus, AmountMinor: 110, Currency: "IRR", CompletedAt: f.now.Add(-time.Minute)}}
-	result, e := financialcorepaymentresultuc.New(f.pool, &contractuc.UseCase{}, &checkoutsessionuc.UseCase{}, client, inboxrp.New(), outboxrp.New(), paymentattemptrp.New(), contractrp.New(), installmentrp.New(), installmentchargerp.New(), creditaccountrp.New(), uuidgen.New(), sha256fingerprint.New(), "fc.payment.applications", "bnpl.audit.events.v1", f.clk, 0, metricsnoop.New())
+	result, e := financialcorepaymentresultuc.New(f.pool, &contractuc.UseCase{}, &checkoutsessionuc.UseCase{}, client, inboxrp.New(), outboxrp.New(), paymentattemptrp.New(), contractrp.New(), installmentrp.New(), installmentchargerp.New(), creditaccountrp.New(), uuidgen.New(), sha256fingerprint.New(), "fc.payment.applications", "bnpl.audit.events.v1", f.clk, 0, metricsnoop.New(), mustPaymentResultObserver(t))
 	require.NoError(t, e)
 	result.WithCollectionsCoordination(customerprofilerp.New(), func(ctx context.Context, id model.CustomerID) error { _, e := f.uc.AssessCustomer(ctx, id); return e })
 	event := financialcorepaymentresultuc.ProcessInput{EventID: uuid.NewString(), EventType: "financial_core.payment_result.v1", EventVersion: "1", SourceService: "financial-core", RawPayload: json.RawMessage(`{"settled":true}`), PaymentPurpose: model.InstallmentRepaymentFinancialCorePaymentPurpose, ContractID: contract, InstallmentID: model.InstallmentID(target), PaymentIntentID: intent, PaymentStatus: model.SucceededFinancialPaymentResultStatus, EventOccurredAt: f.now}
@@ -193,7 +193,7 @@ func TestPostgreSQLRepayment_RollbackAfterFinancialApplicationThenRetry(t *testi
 	f.exec(t, `INSERT INTO installment_charges(installment_id,charge_type,charge_status,amount_minor,currency,payer_type,recipient_type,policy_id,policy_version,assessed_at,metadata) VALUES($1,'late_fee','applied',20,'IRR','customer','platform','test','v1',$2,'{}')`, installment, f.now)
 	normal, input := f.settlement(t, customer, installment, f.now.Add(-time.Minute), 120)
 	client := authoritativePaymentClient{status: fc.GetPaymentStatusResult{PaymentIntentID: input.PaymentIntentID, Status: fc.SucceededPaymentStatus, AmountMinor: 120, Currency: "IRR", CompletedAt: f.now.Add(-time.Minute)}}
-	broken, e := financialcorepaymentresultuc.New(f.pool, &contractuc.UseCase{}, &checkoutsessionuc.UseCase{}, client, inboxrp.New(), rejectingOutbox{outboxrp.New()}, paymentattemptrp.New(), contractrp.New(), installmentrp.New(), installmentchargerp.New(), creditaccountrp.New(), uuidgen.New(), sha256fingerprint.New(), "fc.payment.applications", "bnpl.audit.events.v1", f.clk, 0, metricsnoop.New())
+	broken, e := financialcorepaymentresultuc.New(f.pool, &contractuc.UseCase{}, &checkoutsessionuc.UseCase{}, client, inboxrp.New(), rejectingOutbox{outboxrp.New()}, paymentattemptrp.New(), contractrp.New(), installmentrp.New(), installmentchargerp.New(), creditaccountrp.New(), uuidgen.New(), sha256fingerprint.New(), "fc.payment.applications", "bnpl.audit.events.v1", f.clk, 0, metricsnoop.New(), mustPaymentResultObserver(t))
 	require.NoError(t, e)
 	broken.WithCollectionsCoordination(customerprofilerp.New(), nil)
 	_, e = broken.Process(f.ctx, input)

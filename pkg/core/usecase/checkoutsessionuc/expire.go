@@ -58,5 +58,7 @@ func (uc *UseCase) ExpireDueOpenSessions(ctx context.Context) (ExpireDueOpenSess
 		return ExpireDueOpenSessionsOutput{}, err
 	}
 
+	uc.observer.ExpirySweepCompleted(ctx, output.ExpiredCount)
+
 	return output, nil
 }

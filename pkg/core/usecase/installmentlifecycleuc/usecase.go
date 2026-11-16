@@ -19,6 +19,7 @@ type UseCase struct {
 	auditDestination  string
 	idGenerator       identifier.Generator
 	businessMetrics   coremetrics.BusinessMetrics
+	observer          Observer
 	// MarkDueBatchSize is the maximum scheduled-to-due transitions per run.
 	MarkDueBatchSize int
 	// MarkOverdueBatchSize is the maximum due-to-overdue transitions per run.
@@ -37,6 +38,7 @@ func New(
 	markDueBatchSize int,
 	markOverdueBatchSize int,
 	businessMetrics coremetrics.BusinessMetrics,
+	observer Observer,
 ) (*UseCase, error) {
 	const op = "installmentlifecycleuc.New"
 
@@ -60,6 +62,10 @@ func New(
 		return nil, fmt.Errorf("%s: business metrics is required", op)
 	}
 
+	if observer == nil {
+		return nil, fmt.Errorf("%s: observer is required", op)
+	}
+
 	return &UseCase{
 		pool:                 pool,
 		installment:          installment,
@@ -69,6 +75,7 @@ func New(
 		auditDestination:     auditDestination,
 		idGenerator:          idGenerator,
 		businessMetrics:      businessMetrics,
+		observer:             observer,
 		MarkDueBatchSize:     markDueBatchSize,
 		MarkOverdueBatchSize: markOverdueBatchSize,
 	}, nil

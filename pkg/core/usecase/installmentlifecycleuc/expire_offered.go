@@ -80,6 +80,10 @@ func (uc *UseCase) ExpireDueOfferedInstallments(
 		return ExpireDueOfferedInstallmentsOutput{}, err
 	}
 
+	if output.ExpiredInstallmentCount > 0 {
+		uc.observer.SweepCompleted(ctx, SweepExpireOffered, output.ExpiredInstallmentCount)
+	}
+
 	return output, nil
 }
 

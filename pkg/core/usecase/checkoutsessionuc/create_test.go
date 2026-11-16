@@ -12,6 +12,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/event/checkoutlifecycle"
 	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/decisionuc"
 )
 
 const (
@@ -355,7 +356,7 @@ func TestCreatePartner_SnapshotsOfferPreparationModeOntoSession(t *testing.T) {
 }
 
 
-func TestCreatePartner_IdentityNotFoundTerminalizesUnavailable(t *testing.T) {
+func TestCreatePartner_IdentityNotFound_ReturnsPhoneUnavailableError(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
@@ -382,16 +383,14 @@ func TestCreatePartner_IdentityNotFoundTerminalizesUnavailable(t *testing.T) {
 		Return(unavailable, nil).Once()
 	h.expectLifecycleEvent(unavailable, checkoutlifecycle.EventTypeUnavailable)
 
-	output, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
-	require.NoError(t, err)
-	require.Equal(t, CreateResultCreated, output.Result)
-	require.Equal(t, model.UnavailableCheckoutSessionStatus, output.Session.Status)
+	_, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
+	requireCerr(t, err, cerr.CodeForbidden, "error.checkout_credit_purchase_unavailable_for_phone")
 	require.Len(t, h.identityCalls, 1)
 	require.Empty(t, h.decisions.calls)
 	require.Empty(t, h.notificationCalls)
 }
 
-func TestCreatePartner_CustomerSuspendedTerminalizesUnavailable(t *testing.T) {
+func TestCreatePartner_CustomerSuspended_ReturnsPhoneUnavailableError(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
@@ -421,11 +420,102 @@ func TestCreatePartner_CustomerSuspendedTerminalizesUnavailable(t *testing.T) {
 		Return(unavailable, nil).Once()
 	h.expectLifecycleEvent(unavailable, checkoutlifecycle.EventTypeUnavailable)
 
-	output, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
-	require.NoError(t, err)
-	require.Equal(t, model.UnavailableCheckoutSessionStatus, output.Session.Status)
+	_, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
+	requireCerr(t, err, cerr.CodeForbidden, "error.checkout_credit_purchase_unavailable_for_phone")
 	require.Len(t, h.identityCalls, 1)
 	require.Empty(t, h.decisions.calls)
+	require.Empty(t, h.notificationCalls)
+}
+
+func TestCreatePartner_BNPLProfileMissing_ReturnsPhoneUnavailableError(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.expectPool(0, 3)
+	h.expectActiveMerchant()
+	h.expectKeyNotFound()
+
+	previous := h.session(
+		withStatus(model.ExpiredCheckoutSessionStatus),
+		func(s *model.CheckoutSession) { s.IdempotencyKey = "attempt-0" },
+	)
+	h.sessionTx.EXPECT().
+		LockByMerchantOrderID(h.ctx, h.merchantPID, testMerchantOrderID).
+		Return(previous, nil).Once()
+
+	created := h.expectNewAttemptCreated()
+	unavailable := created
+	unavailable.Status = model.UnavailableCheckoutSessionStatus
+
+	h.sessionTx.EXPECT().LockByPublicToken(h.ctx, h.publicToken).Return(created, nil).Once()
+	h.customerTx.EXPECT().
+		GetByExternalCustomerID(h.ctx, h.profileID).
+		Return(model.CustomerProfile{}, cerr.ResourceNotFound(errors.New("bnpl profile missing"))).Once()
+	h.sessionTx.EXPECT().LockByPublicToken(h.ctx, h.publicToken).Return(created, nil).Once()
+	h.sessionTx.EXPECT().
+		UpdateStatus(h.ctx, created.ID, model.UnavailableCheckoutSessionStatus, h.now).
+		Return(unavailable, nil).Once()
+	h.expectLifecycleEvent(unavailable, checkoutlifecycle.EventTypeUnavailable)
+
+	_, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
+	requireCerr(t, err, cerr.CodeForbidden, "error.checkout_credit_purchase_unavailable_for_phone")
+	require.Len(t, h.identityCalls, 1)
+	require.Empty(t, h.decisions.calls)
+	require.Empty(t, h.notificationCalls)
+}
+
+func TestCreatePartner_CreditLimitMissing_ReturnsIdentityVerificationRequired(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.expectPool(0, 3)
+	h.expectActiveMerchant()
+	h.expectKeyNotFound()
+
+	previous := h.session(
+		withStatus(model.ExpiredCheckoutSessionStatus),
+		func(s *model.CheckoutSession) { s.IdempotencyKey = "attempt-0" },
+	)
+	h.sessionTx.EXPECT().
+		LockByMerchantOrderID(h.ctx, h.merchantPID, testMerchantOrderID).
+		Return(previous, nil).Once()
+
+	created := h.expectNewAttemptCreated()
+	unbound := created
+	bound := created
+	bound.CustomerID = &h.customerID
+	unavailable := bound
+	unavailable.Status = model.UnavailableCheckoutSessionStatus
+	unavailable.DecisionID = &h.decisionID
+
+	h.decisions.output = decisionuc.CreateOutput{
+		Decision: model.Decision{
+			ID:          h.decisionID,
+			Outcome:     model.DeniedDecisionOutcome,
+			ReasonCodes: []string{model.CreditLimitMissingDecisionReason},
+		},
+	}
+	linked := bound
+	linked.DecisionID = &h.decisionID
+	h.expectExternalBind(unbound, bound)
+	h.sessionTx.EXPECT().LockByID(h.ctx, unbound.ID).Return(bound, nil).Once()
+	h.sessionTx.EXPECT().
+		LinkDecision(
+			h.ctx,
+			unbound.ID,
+			h.decisionID,
+			1,
+			h.now,
+		).
+		Return(linked, nil).Once()
+	h.sessionTx.EXPECT().
+		UpdateStatus(h.ctx, linked.ID, model.UnavailableCheckoutSessionStatus, h.now).
+		Return(unavailable, nil).Once()
+	h.expectLifecycleEvent(unavailable, checkoutlifecycle.EventTypeUnavailable)
+
+	_, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
+	requireCerr(t, err, cerr.CodeForbidden, "error.checkout_customer_identity_verification_required")
+	require.Len(t, h.decisions.calls, 1)
 	require.Empty(t, h.notificationCalls)
 }
 

@@ -58,7 +58,7 @@ func (p *Publisher) Publish(ctx context.Context, destination string, msg messagi
 		"outcome",
 		OutcomeSkipped,
 	)
-	logger.Info("webhook delivery skipped because noop provider is enabled")
+	logger.Info(log.Msg("webhook delivery skipped because noop provider is enabled"))
 	p.businessMetrics.WebhookDeliveryCompleted(ctx, OutcomeSkipped)
 
 	return messaging.Skipped(fmt.Errorf("%s: webhook noop provider is enabled", op))

@@ -49,7 +49,7 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 			)
 		}
 
-		logger.Warn("outbound http request rejected because noop provider is enabled")
+		logger.Warn(corelog.Msg("outbound http request rejected because noop provider is enabled"))
 	}
 
 	return nil, corehttpclient.ErrDisabled

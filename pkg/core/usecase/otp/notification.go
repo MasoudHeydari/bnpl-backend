@@ -24,17 +24,6 @@ func (uc *UseCase) submitNotification(
 ) (string, error) {
 	const op = "otp.UseCase.submitNotification"
 
-	i := notification.SubmitInput{
-		TemplateID:     auth.TemplateID,
-		Recipient:      auth.Recipient,
-		IdempotencyKey: auth.IdempotencyKeyPrefix + issueID.String(),
-		CorrelationID:  auth.CorrelationID,
-		ExpiresAt:      expiresAt,
-		Variables:      withCodeVariable(auth.Variables, code),
-	}
-
-	fmt.Printf("\n\n\n%+v\n\n\n", i)
-
 	out, err := uc.notification.Submit(ctx, notification.SubmitInput{
 		TemplateID:     auth.TemplateID,
 		Recipient:      auth.Recipient,
@@ -130,4 +119,21 @@ func (uc *UseCase) handleNotificationFailure(
 	}
 
 	return err
+}
+
+func (uc *UseCase) observeNotificationFailure(
+	ctx context.Context,
+	challengeID model.OTPChallengeID,
+	err error,
+) {
+	switch {
+	case notification.IsRejected(err):
+		uc.observer.ProviderRejected(ctx, challengeID, "provider_rejected")
+
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+		uc.observer.ProviderTimedOut(ctx, challengeID)
+
+	default:
+		uc.observer.ProviderRejected(ctx, challengeID, "provider_error")
+	}
 }

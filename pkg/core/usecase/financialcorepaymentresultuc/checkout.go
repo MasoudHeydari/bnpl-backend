@@ -442,6 +442,7 @@ func (uc *UseCase) persistCheckoutAttemptReconciliation(
 	}
 
 	output.Result = ProcessResultReconciliationRequired
+	output.outcomeReasonCode = string(reason)
 	return nil
 }
 
