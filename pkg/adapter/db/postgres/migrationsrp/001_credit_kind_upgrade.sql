@@ -24,7 +24,7 @@ END
 $$;
 
 
-// Checkout product selection is immutable once a Decision is linked.
+-- Checkout product selection is immutable once a Decision is linked.
 ALTER TABLE checkout_sessions
     ADD COLUMN IF NOT EXISTS credit_kind text NOT NULL DEFAULT 'pay_in_4';
 
