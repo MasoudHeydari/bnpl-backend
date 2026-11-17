@@ -460,3 +460,10 @@ func (q txQueryer) SetCreditKindBeforeDecision(
 }
 
 var _ repo.CheckoutSessionProductTxQueryer = (*txQueryer)(nil)
+
+
+func (q txQueryer) SelectCreditKindBeforeDecision(
+	ctx context.Context, id model.CheckoutSessionID, kind model.CreditKind, now time.Time,
+) (model.CheckoutSession, error) {
+	return SelectCreditKindBeforeDecision(ctx, q.Tx, id, kind, now)
+}

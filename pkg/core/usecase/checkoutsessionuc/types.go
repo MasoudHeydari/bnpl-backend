@@ -556,6 +556,10 @@ type StartExternalInput struct {
 	// Token is the public checkout session token from the hosted URL.
 	Token model.CheckoutSessionToken
 
+	// CreditKind is selected by the hosted customer, not by the merchant.
+	// Omission preserves the previously selected product on retries.
+	CreditKind model.CreditKind
+
 	// EvaluationGeneration is the offer version presented by GET, or zero when
 	// the client has not yet seen a prepared offer (deferred preparation).
 	EvaluationGeneration int
@@ -566,6 +570,9 @@ func (i StartExternalInput) validate() error {
 		return err
 	}
 
+	if i.CreditKind != "" && !i.CreditKind.IsValid() {
+		return validationError("INVALID", "credit_kind", "error.credit_kind_invalid")
+	}
 	if i.EvaluationGeneration < 0 {
 		return validationError(
 			"INVALID",

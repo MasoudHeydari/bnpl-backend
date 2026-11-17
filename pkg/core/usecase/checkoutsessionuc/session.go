@@ -131,7 +131,8 @@ func (uc *UseCase) createOrReplaySessionTx(
 			return model.CheckoutSession{}, "", canErr
 		}
 
-		if model.EffectiveCreditKind(existing.CreditKind) != model.EffectiveCreditKind(request.CreditKind) {
+		if request.CreditKind != "" &&
+			model.EffectiveCreditKind(existing.CreditKind) != model.EffectiveCreditKind(request.CreditKind) {
 			return model.CheckoutSession{}, "", merchantOrderConflictError(fmt.Errorf("%s: credit product changed on replay", op))
 		}
 
@@ -312,7 +313,8 @@ func (uc *UseCase) resolveSessionAfterConflict(
 				return existingErr
 			}
 
-			if model.EffectiveCreditKind(existing.CreditKind) != model.EffectiveCreditKind(request.CreditKind) {
+			if request.CreditKind != "" &&
+				model.EffectiveCreditKind(existing.CreditKind) != model.EffectiveCreditKind(request.CreditKind) {
 				return merchantOrderConflictError(fmt.Errorf("%s: credit product changed on conflict replay", op))
 			}
 

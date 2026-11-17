@@ -65,7 +65,10 @@ func (uc *UseCase) CreatePartner(
 		CheckoutURL: uc.hostedCheckoutURL(session.PublicToken),
 	}
 
-	if session.EffectiveOfferPreparationMode() != model.OfferPreparationOnCreate {
+	// Unspecified product means the hosted customer chooses at START, even
+	// when merchant configuration previously requested on_create preparation.
+	// Explicit legacy product checkouts retain their prior on_create behavior.
+	if input.CreditKind == "" || session.EffectiveOfferPreparationMode() != model.OfferPreparationOnCreate {
 		return output, nil
 	}
 

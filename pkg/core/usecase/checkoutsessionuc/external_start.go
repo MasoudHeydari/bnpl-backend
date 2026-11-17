@@ -92,6 +92,12 @@ func (uc *UseCase) StartExternal(
 		return StartExternalOutput{}, err
 	}
 
+	// Apply the customer-selected product while the checkout is still open.
+	// A product change advances evaluation_generation, fencing concurrent
+	// Decision creation on the previous credit account.
+	if _, err := uc.selectExternalCreditKindForStart(ctx, input.Token, input.CreditKind); err != nil {
+		return StartExternalOutput{}, err
+	}
 	prepared, err := uc.ensureOfferPreparedForStart(ctx, input.Token)
 	if err != nil {
 		return StartExternalOutput{}, err

@@ -74,6 +74,8 @@ type hostedExternalStartResponse struct {
 // hostedExternalStartRequest carries the offer version the customer saw on GET.
 // Omit or send 0 when the offer has not been prepared yet (on_start first START).
 type hostedExternalStartRequest struct {
+	// Customer-selected product. An omitted field replays the current choice.
+	CreditKind model.CreditKind `json:"credit_kind,omitempty" enums:"pay_in_4,pay_next_month"`
 	// EvaluationGeneration is the offer version returned by GET, when known.
 	EvaluationGeneration int `json:"evaluation_generation" binding:"omitempty,min=1" example:"1"`
 }
@@ -279,6 +281,7 @@ func (rs *resource) StartHostedExternal(c *gin.Context) {
 		c.Request.Context(),
 		checkoutsessionuc.StartExternalInput{
 			Token:                token,
+			CreditKind:           req.CreditKind,
 			EvaluationGeneration: req.EvaluationGeneration,
 		},
 	)
