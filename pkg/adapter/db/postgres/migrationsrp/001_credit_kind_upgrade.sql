@@ -36,3 +36,47 @@ BEGIN
     END IF;
 END
 $$;
+
+-- Store an immutable customer-accepted snapshot before any external FC call.
+-- Status is BNPL orchestration only; FC remains monetary/accounting authority.
+CREATE TABLE IF NOT EXISTS repayment_batches (
+    id uuid PRIMARY KEY,
+    customer_id uuid NOT NULL REFERENCES customer_profiles(id),
+    external_customer_id uuid NOT NULL,
+    idempotency_key text NOT NULL,
+    snapshot jsonb NOT NULL,
+    currency text NOT NULL,
+    total_amount_minor bigint NOT NULL,
+    status text NOT NULL DEFAULT 'created',
+    financial_collection_payment_id text NULL,
+    snapshot_revision bigint NOT NULL DEFAULT 0,
+    next_reconciliation_at timestamptz NULL,
+    last_reason_code text NULL,
+    version bigint NOT NULL DEFAULT 1,
+    created_at timestamptz NOT NULL,
+    updated_at timestamptz NOT NULL,
+    CONSTRAINT uq_repayment_batches_customer_key UNIQUE (customer_id,idempotency_key),
+    CONSTRAINT uq_repayment_batches_financial_id UNIQUE (financial_collection_payment_id),
+    CONSTRAINT chk_repayment_batches_total CHECK(total_amount_minor > 0),
+    CONSTRAINT chk_repayment_batches_revision CHECK(snapshot_revision >= 0 AND version > 0),
+    CONSTRAINT chk_repayment_batches_currency CHECK(currency IN ('IRR','EUR','USD')),
+    CONSTRAINT chk_repayment_batches_status CHECK(status IN (
+       'created','prepared','starting','requires_action','reconciling',
+       'accounting_pending','posted','failed','expired','manual_review'
+    ))
+);
+
+-- Multiple batches must never hold the same installment concurrently.
+-- The claim is retained until the corresponding BNPL application/release
+-- transaction decides it is safe to remove. Reconciliation is not release.
+CREATE TABLE IF NOT EXISTS repayment_batch_installment_claims (
+    installment_id uuid PRIMARY KEY REFERENCES installments(id),
+    batch_id uuid NOT NULL REFERENCES repayment_batches(id),
+    created_at timestamptz NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_repayment_batch_claims_batch
+ON repayment_batch_installment_claims (batch_id);
+
+CREATE INDEX IF NOT EXISTS idx_repayment_batches_reconcile_due
+ON repayment_batches (next_reconciliation_at, created_at)
+WHERE status IN ('created','prepared','starting','requires_action','reconciling','accounting_pending');
