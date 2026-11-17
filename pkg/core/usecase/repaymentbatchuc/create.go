@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -277,7 +276,8 @@ func (uc *UseCase) CreateForCustomer(
 		for j := range item.Components {
 			comp := &item.Components[j]
 			if comp.Kind == collectionpayment.PrincipalComponent {
-				if comp.GrossMinor > inst.PrincipalAmountMinor-principal {
+				if principal > inst.PrincipalAmountMinor ||
+					comp.GrossMinor > inst.PrincipalAmountMinor-principal {
 					return repo.RepaymentBatchRow{}, cerr.Conflict(fmt.Errorf("%s: FC instructions exceed recognized principal", op))
 				}
 				principal += comp.GrossMinor
@@ -313,6 +313,3 @@ func (uc *UseCase) CreateForCustomer(
 	return repo.RepaymentBatchRow{}, loadErr
 }
 
-// A first-party injected resolver may use FC's own assessment time. The
-// independent BNPL clock remains the sole source for local persistence time.
-var _ = time.Time{}

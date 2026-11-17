@@ -328,3 +328,5 @@ error.installment_financial_adjustment_required: این قسط پیش از پر�
 success.repayment_batch_retrieved: "اطلاعات پرداخت گروهی دریافت شد."
 success.repayment_batch_started: "فرآیند پرداخت گروهی آغاز شد."
 validation.repayment_batch_id_invalid: "شناسه پرداخت گروهی نامعتبر است."
+
+success.repayment_batch_created: "درخواست پرداخت گروهی برای آماده‌سازی ثبت شد."

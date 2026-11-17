@@ -674,6 +674,15 @@ func (a *App) NewUseCases() (UseCases, error) {
 		return UseCases{}, fmt.Errorf("%s: initialize repayment batch use case: %w", op, err)
 	}
 	repaymentBatchUseCase.WithCustomerProfile(a.Repos.CustomerProfile)
+	repaymentBatchUseCase.WithPlanCreation(
+		a.Repos.Installment, a.Repos.Contract, a.Repos.CreditAccount,
+		a.Repos.MerchantProfile, a.Repos.InstallmentCharge,
+		a.Infrastructure.DomainUUIDGenerator,
+	)
+	// FinancialInstructionsResolver is deliberately not set until FC publishes
+	// the trusted entitlement/recognition and relationship provisioning path.
+	// The customer POST creation endpoint fails closed rather than fabricating
+	// Financial claim IDs or distribution rules.
 
 	return UseCases{
 		OutboxPublisher:                    outboxPublisherUseCase,

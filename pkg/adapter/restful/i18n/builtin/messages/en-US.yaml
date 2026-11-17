@@ -328,3 +328,5 @@ error.installment_financial_adjustment_required: This installment requires finan
 success.repayment_batch_retrieved: "Repayment batch retrieved."
 success.repayment_batch_started: "Repayment payment session started."
 validation.repayment_batch_id_invalid: "repayment batch id is invalid"
+
+success.repayment_batch_created: "Repayment batch accepted for preparation."

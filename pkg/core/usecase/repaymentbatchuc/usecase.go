@@ -18,6 +18,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/clock"
 	"github.com/parstis/bnpl-backend/pkg/core/collectionpayment"
+	"github.com/parstis/bnpl-backend/pkg/core/identifier"
 	extcollection "github.com/parstis/bnpl-backend/pkg/core/external/collectionpayment"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
@@ -38,6 +39,13 @@ type UseCase struct {
 	batches repo.RepaymentBatch
 	financial extcollection.Client
 	customer repo.CustomerProfile
+	installments repo.Installment
+	contracts repo.Contract
+	accounts repo.CreditAccount
+	merchants repo.MerchantProfile
+	charges repo.InstallmentCharge
+	idGenerator identifier.Generator
+	instructions FinancialInstructionsResolver
 	applier PostedApplier
 	clock clock.Clock
 }
