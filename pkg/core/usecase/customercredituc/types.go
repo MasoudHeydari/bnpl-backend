@@ -30,6 +30,9 @@ type Input struct {
 	// MobileE164 is the gateway-injected authenticated mobile
 	// (x-auth-mobile-number ← JWT auth_mobile_number), canonical E.164.
 	MobileE164 string
+
+	// CreditKind requests one product only; empty keeps legacy pay-in-four.
+	CreditKind model.CreditKind
 }
 
 // Output carries the customer's current BNPL credit summary.
@@ -43,6 +46,9 @@ type Output struct {
 
 	// CustomerID is the internal customer_profiles.id primary key.
 	CustomerID model.CustomerID
+
+	// CreditKind prevents the UI from combining unrelated credit capacities.
+	CreditKind model.CreditKind
 
 	// LimitAmountMinor is the governed total credit capacity in minor units.
 	LimitAmountMinor uint64

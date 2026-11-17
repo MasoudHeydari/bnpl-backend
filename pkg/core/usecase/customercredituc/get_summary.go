@@ -2,6 +2,7 @@ package customercredituc
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
@@ -16,6 +17,11 @@ import (
 // journal explains how that state changed; it is not recomputed as a financial
 // ledger.
 func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) {
+	kind := model.EffectiveCreditKind(input.CreditKind)
+	if !kind.IsValid() {
+		return Output{}, cerr.InvalidArgument(fmt.Errorf("unsupported credit_kind %q", input.CreditKind))
+	}
+
 	externalCustomerID, err := uc.resolveActiveExternalCustomerID(ctx, input.MobileE164)
 	if err != nil {
 		return Output{}, err
@@ -46,14 +52,26 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 			}
 
 			currency := selectedPolicy.Terms().Currency
-			if err = accountQ.ExpireDueByCustomerIDAndCurrency(ctx, profile.ID, currency, now); err != nil {
-				return err
+			var account model.CreditAccount
+			if kind == model.PayIn4CreditKind {
+				if err = accountQ.ExpireDueByCustomerIDAndCurrency(ctx, profile.ID, currency, now); err != nil {
+					return err
+				}
+				account, err = accountQ.GetByCustomerIDAndCurrency(ctx, profile.ID, currency)
+			} else {
+				products, ok := accountQ.(repo.CreditAccountProductTxQueryer)
+				if !ok {
+					return cerr.InternalError(fmt.Errorf("credit account product repository is unavailable"))
+				}
+				if err = products.ExpireDueByCustomerIDCurrencyAndKind(ctx, profile.ID, currency, kind, now); err != nil {
+					return err
+				}
+				account, err = products.GetByCustomerIDCurrencyAndKind(ctx, profile.ID, currency, kind)
 			}
-
-			account, err := accountQ.GetByCustomerIDAndCurrency(ctx, profile.ID, currency)
 			if err != nil {
 				if cerr.IsCode(err, cerr.CodeResourceNotFound) {
 					output = zeroSummary(profile.ID, currency)
+					output.CreditKind = kind
 					return nil
 				}
 
@@ -76,6 +94,7 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 			}
 
 			output = summaryFromAccount(account, newCreditBlocked)
+			output.CreditKind = kind
 			if newCreditBlocked {
 				output.CreditUsage.Reason = publicReason
 			}

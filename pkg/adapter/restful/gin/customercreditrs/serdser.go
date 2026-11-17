@@ -24,6 +24,8 @@ type creditSummaryResponse struct {
 	LimitAmountMinor     *uint64                        `json:"limit_amount_minor,omitempty" example:"90000000"`
 	AvailableAmountMinor *uint64                        `json:"available_amount_minor,omitempty" example:"4000000"`
 	Currency             model.Currency                 `json:"currency,omitempty" example:"IRR"`
+	// Kept absent on legacy responses; supplied for monthly credit inquiries.
+	CreditKind model.CreditKind `json:"credit_kind,omitempty" enums:"pay_in_4,pay_next_month"`
 	Status               customercredituc.SummaryStatus `json:"status" example:"active"`
 	ExpiresAt            *time.Time                     `json:"expires_at,omitempty" example:"2027-08-09T12:00:00Z"`
 }
@@ -32,6 +34,9 @@ func toCreditSummaryResponse(output customercredituc.Output) creditSummaryRespon
 	resp := creditSummaryResponse{
 		Status:      output.Status,
 		CreditUsage: output.CreditUsage,
+	}
+	if output.CreditKind == model.PayNextMonthCreditKind {
+		resp.CreditKind = output.CreditKind
 	}
 
 	if resp.CreditUsage.Status == "" {
@@ -75,8 +80,16 @@ func toGetInput(c *gin.Context) (customercredituc.Input, bool) {
 		return customercredituc.Input{}, false
 	}
 
+	// A customer can query each product explicitly, never a combined limit.
+	// Unknown products fail at the authenticated HTTP boundary.
+	kind := model.CreditKind(c.Query("credit_kind"))
+	if !model.EffectiveCreditKind(kind).IsValid() {
+		serdser.SerValidationErr(c, "credit_kind", "validation.credit_kind_invalid")
+		return customercredituc.Input{}, false
+	}
 	return customercredituc.Input{
-		SubjectID:  authCtx.SubjectID,
+		SubjectID: authCtx.SubjectID,
 		MobileE164: mobile,
+		CreditKind: kind,
 	}, true
 }
