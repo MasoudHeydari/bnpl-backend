@@ -308,6 +308,27 @@ func (uc *UseCase) CreateForCustomer(
 		return row, nil
 	}
 	if prepareErr != nil {
+		// Two concurrent requests may both miss the preflight idempotency
+		// lookup. The unique (customer,idempotency_key) index selects one
+		// winner. A loser resolves that persisted winner and verifies that
+		// the caller selected the same installments. It must never mint an
+		// alternate FC source or allocate the installment twice.
+		var winner repo.RepaymentBatchRow
+		recoveryErr := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
+			var err error
+			winner, err = uc.batches.Conn(conn).GetByCustomerAndIdempotencyKey(ctx, profile.ID, key)
+			return err
+		})
+		if recoveryErr == nil {
+			winnerPlan, err := planFromRow(winner)
+			if err != nil {
+				return repo.RepaymentBatchRow{}, err
+			}
+			if !sameInstallmentSelection(winnerPlan, selected) {
+				return repo.RepaymentBatchRow{}, cerr.Conflict(fmt.Errorf("%s: idempotency key reused for another installment selection", op))
+			}
+			return winner, nil
+		}
 		return repo.RepaymentBatchRow{}, prepareErr
 	}
 	return repo.RepaymentBatchRow{}, loadErr
