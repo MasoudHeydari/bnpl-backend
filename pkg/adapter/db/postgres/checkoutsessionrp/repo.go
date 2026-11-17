@@ -448,3 +448,15 @@ func (q txQueryer) UpsertWebhookDestination(
 		now,
 	)
 }
+
+
+// SetCreditKindBeforeDecision stores the selected product only while a
+// checkout has not yet produced a Decision. The caller must hold the same
+// database transaction that created the checkout.
+func (q txQueryer) SetCreditKindBeforeDecision(
+	ctx context.Context, id model.CheckoutSessionID, kind model.CreditKind, now time.Time,
+) (model.CheckoutSession, error) {
+	return SetCreditKindBeforeDecision(ctx, q.Tx, id, kind, now)
+}
+
+var _ repo.CheckoutSessionProductTxQueryer = (*txQueryer)(nil)

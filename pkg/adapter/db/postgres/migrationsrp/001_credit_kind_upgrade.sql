@@ -22,3 +22,17 @@ BEGIN
     END IF;
 END
 $$;
+
+
+// Checkout product selection is immutable once a Decision is linked.
+ALTER TABLE checkout_sessions
+    ADD COLUMN IF NOT EXISTS credit_kind text NOT NULL DEFAULT 'pay_in_4';
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_checkout_sessions_credit_kind') THEN
+        ALTER TABLE checkout_sessions ADD CONSTRAINT chk_checkout_sessions_credit_kind
+            CHECK (credit_kind IN ('pay_in_4', 'pay_next_month'));
+    END IF;
+END
+$$;

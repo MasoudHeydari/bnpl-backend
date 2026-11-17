@@ -392,6 +392,10 @@ type CheckoutSession struct {
 	// Currency is the currency of RequestedAmountMinor.
 	Currency Currency `db:"currency" json:"currency"`
 
+	// CreditKind snapshots the credit product selected for this purchase.
+	// One checkout may use only one credit account and policy.
+	CreditKind CreditKind `db:"credit_kind" json:"credit_kind"`
+
 	// Status is the current checkout session lifecycle state.
 	Status CheckoutSessionStatus `db:"status" json:"status"`
 

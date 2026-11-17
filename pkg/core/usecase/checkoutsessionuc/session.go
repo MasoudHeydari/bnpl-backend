@@ -131,6 +131,10 @@ func (uc *UseCase) createOrReplaySessionTx(
 			return model.CheckoutSession{}, "", canErr
 		}
 
+		if model.EffectiveCreditKind(existing.CreditKind) != model.EffectiveCreditKind(request.CreditKind) {
+			return model.CheckoutSession{}, "", merchantOrderConflictError(fmt.Errorf("%s: credit product changed on replay", op))
+		}
+
 		if !existing.MatchesCreateRequest(
 			request.ExternalOnlineStoreID,
 			request.MerchantOrderID,
@@ -240,6 +244,20 @@ func (uc *UseCase) createOrReplaySessionTx(
 		return model.CheckoutSession{}, "", err
 	}
 
+	// Persist product selection inside the same transaction as CheckoutSession
+	// creation. Its default is pay-in-four for legacy callers. The additive
+	// repository method avoids changing the existing Create signature/mocks.
+	if kind := model.EffectiveCreditKind(request.CreditKind); kind == model.PayNextMonthCreditKind {
+		productQ, ok := sessionQ.(repo.CheckoutSessionProductTxQueryer)
+		if !ok {
+			return model.CheckoutSession{}, "", cerr.InternalError(fmt.Errorf("%s: product-aware checkout session repository is unavailable", op))
+		}
+		created, err = productQ.SetCreditKindBeforeDecision(ctx, created.ID, kind, now)
+		if err != nil {
+			return model.CheckoutSession{}, "", err
+		}
+	}
+
 	return created, CreateResultCreated, nil
 }
 
@@ -292,6 +310,10 @@ func (uc *UseCase) resolveSessionAfterConflict(
 				}
 
 				return existingErr
+			}
+
+			if model.EffectiveCreditKind(existing.CreditKind) != model.EffectiveCreditKind(request.CreditKind) {
+				return merchantOrderConflictError(fmt.Errorf("%s: credit product changed on conflict replay", op))
 			}
 
 			if !existing.MatchesCreateRequest(

@@ -29,6 +29,7 @@ const checkoutSessionColumns = `
 	merchant_state,
 	requested_amount_minor,
 	currency,
+	credit_kind,
 	status,
 	confirmation_attempt_id,
 	decision_id,

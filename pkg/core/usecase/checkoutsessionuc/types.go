@@ -68,6 +68,10 @@ type CheckoutSessionRequest struct {
 
 	// Currency is the currency of RequestedAmountMinor.
 	Currency model.Currency
+
+	// CreditKind selects exactly one credit product per checkout. Empty retains
+	// the legacy installment product for existing merchants.
+	CreditKind model.CreditKind
 }
 
 // EffectiveIdempotencyKey returns the create idempotency key, falling back to
@@ -402,6 +406,10 @@ func (r CheckoutSessionRequest) validate() error {
 
 	if !r.Currency.IsValid() {
 		return currencyInvalidError()
+	}
+
+	if !model.EffectiveCreditKind(r.CreditKind).IsValid() {
+		return validationError("INVALID", "credit_kind", "error.credit_kind_invalid")
 	}
 
 	return nil

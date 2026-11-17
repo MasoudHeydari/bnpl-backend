@@ -81,6 +81,7 @@ func (uc *UseCase) evaluateSession(
 		},
 		RequestedAmountMinor: session.RequestedAmountMinor,
 		Currency:             session.Currency,
+		CreditKind:           model.EffectiveCreditKind(session.CreditKind),
 	})
 	if err != nil {
 		return model.CheckoutSession{}, Offer{}, err
