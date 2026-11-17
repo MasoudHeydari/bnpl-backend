@@ -9,12 +9,13 @@ import (
 )
 
 // Monthly limits are governed separately from installment credit. The initial
-// 100M IRR amount follows the existing standard assessment baseline until a
-// product-specific commercial policy is approved; changing it requires v2.
+// 30M IRR is the independently governed initial monthly revolving capacity.
+// It never inherits the 100M IRR pay-in-four baseline. Future changes must
+// use another immutable policy version.
 const (
 	policyID = "customer_monthly_initial_limit"
 	policyVersion = "v1"
-	defaultAmountMinor = uint64(100_000_000)
+	defaultAmountMinor = uint64(30_000_000)
 	maxAmountMinor = uint64(2_000_000_000)
 	validFor = 365 * 24 * time.Hour
 	reasonCode = "MONTHLY_INITIAL_CREDIT_LIMIT_POLICY_APPROVED"
