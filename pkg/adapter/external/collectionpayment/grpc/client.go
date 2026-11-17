@@ -13,6 +13,9 @@ import (
 
 	"github.com/google/uuid"
 	grpcclient "google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"google.golang.org/grpc/metadata"
 	"github.com/parstis/bnpl-backend/pkg/core/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -293,6 +296,11 @@ func(c *Client)GetBySource(ctx context.Context,id uuid.UUID)(external.Result,err
 			Source:source("bnpl_repayment_batch",id.String(),1),
 		},
 	})
-	if err!=nil{return external.Result{},fmt.Errorf("get FC collection by source: %w",err)}
+	if err!=nil{
+		if status.Code(err)==codes.NotFound {
+			return external.Result{},cerr.ResourceNotFound(fmt.Errorf("FC collection source is not found: %w",err))
+		}
+		return external.Result{},fmt.Errorf("get FC collection by source: %w",err)
+	}
 	return parseResult(res)
 }

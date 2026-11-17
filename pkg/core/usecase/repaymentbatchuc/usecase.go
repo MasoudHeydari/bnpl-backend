@@ -246,6 +246,13 @@ func (uc *UseCase) Reconcile(ctx context.Context,id uuid.UUID)(extcollection.Res
 		result,err=uc.financial.GetByID(ctx,*row.FinancialCollectionPaymentID)
 	}else{
 		result,err=uc.financial.GetBySource(ctx,row.ID)
+		if cerr.IsCode(err,cerr.CodeResourceNotFound) {
+			// Crash-safe recovery when BNPL committed its immutable snapshot
+			// before it could send Prepare. FC source lookup proved there is
+			// no accepted snapshot; replay the EXACT same source and key,
+			// never a new batch or a different payment.
+			result,err=uc.financial.Prepare(ctx,plan,row.IdempotencyKey)
+		}
 	}
 	if err!=nil {
 		uc.scheduleReconciliation(ctx,row,row.FinancialCollectionPaymentID,row.SnapshotRevision,nil)
@@ -256,6 +263,15 @@ func (uc *UseCase) Reconcile(ctx context.Context,id uuid.UUID)(extcollection.Res
 	}
 	if row.FinancialCollectionPaymentID!=nil && *row.FinancialCollectionPaymentID!=result.CollectionPaymentID{
 		return extcollection.Result{},fmt.Errorf("FC collection ID changed")
+	}
+	if result.Status==extcollection.Prepared && row.Status==model.CreatedRepaymentBatchStatus {
+		// The original initial Prepare response may have been lost, or the
+		// worker recovered the Prepare after a process crash. No customer
+		// payment was started, so persist the returned FC identity and stop
+		// polling until the customer starts it.
+		err=uc.persistTransition(ctx,row,model.PreparedRepaymentBatchStatus,
+			&result.CollectionPaymentID,result.SnapshotRevision,nil,nil)
+		return result,err
 	}
 	if result.IsAuthoritativelySettled(){
 		if err:=extcollection.VerifyPostedAllocations(plan,result);err!=nil{
