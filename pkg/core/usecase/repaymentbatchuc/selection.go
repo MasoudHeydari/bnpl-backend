@@ -1,54 +1,24 @@
 package repaymentbatchuc
 
 import (
-	"fmt"
 	"time"
 
-	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
+	"github.com/parstis/bnpl-backend/pkg/core/policy/repaymentselection"
 )
 
-// requireAllOverdueInstallments enforces the customer's single-payment
-// obligation across BOTH credit products and ALL merchants. A scheduled due
-// installment is optional until it becomes contractually overdue.
+// Keep use-case-local entry points; repository revalidation uses the exact
+// same domain policy after acquiring DB locks, eliminating TOCTOU drift.
 func requireAllOverdueInstallments(
 	selected map[model.InstallmentID]struct{},
-	due []model.Installment,
-	at time.Time, businessLocation *time.Location,
+	due []model.Installment, at time.Time, loc *time.Location,
 ) error {
-	for _, installment := range due {
-		if installment.Status == model.OverdueInstallmentStatus ||
-			installment.IsOverdueEligible(at,businessLocation) {
-			if _, chosen := selected[installment.ID]; !chosen {
-				return cerr.Conflict(fmt.Errorf(
-					"repayment must include every overdue installment across all credit products",
-				))
-			}
-		}
-	}
-	return nil
+	return repaymentselection.RequireAllOverdueInstallments(selected,due,at,loc)
 }
 
-// requireConsecutiveInstallments prevents skipping an earlier unpaid
-// installment in a four-installment contract. Paid installments do not need
-// to be selected again. A monthly contract has one installment and passes.
 func requireConsecutiveInstallments(
 	selected map[model.InstallmentID]struct{},
 	contractInstallments []model.Installment,
 ) error {
-	// Repository ListByContractID guarantees installment_order ascending.
-	unselectedEarlier := false
-	for _, installment := range contractInstallments {
-		if !installment.Status.IsActive() {
-			continue
-		}
-		_,chosen:=selected[installment.ID]
-		if chosen && unselectedEarlier {
-			return cerr.Conflict(fmt.Errorf(
-				"repayment cannot skip an earlier unpaid installment",
-			))
-		}
-		if !chosen { unselectedEarlier = true }
-	}
-	return nil
+	return repaymentselection.RequireConsecutiveInstallments(selected,contractInstallments)
 }

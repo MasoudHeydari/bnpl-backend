@@ -8,6 +8,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/installmentrp"
+	"github.com/parstis/bnpl-backend/pkg/core/policy/repaymentselection"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/collectionpayment"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
@@ -60,6 +62,15 @@ func Create[Q postgres.Queryer](
 		len(installments)==0 || row.CreatedAt.IsZero() || row.UpdatedAt.IsZero() {
 		return repo.RepaymentBatchRow{},cerr.InvalidArgument(fmt.Errorf("invalid repayment batch creation"))
 	}
+	// Lock the customer before taking installment locks. This serializes
+	// snapshot claim validation against other customer-scoped BNPL commands,
+	// and ensures the final overdue sweep is checked under the same lock.
+	type customerLock struct { ID model.CustomerID `db:"id"` }
+	const lockCustomer = `SELECT id FROM customer_profiles WHERE id=$1 FOR UPDATE`
+	if _, err := postgres.QueryOne[customerLock](
+		ctx,q,"lock repayment customer",lockCustomer,row.CustomerID,
+	); err != nil {return repo.RepaymentBatchRow{},err}
+
 	const query = `
 	INSERT INTO repayment_batches(
 		id,customer_id,external_customer_id,idempotency_key,snapshot,currency,
@@ -110,7 +121,34 @@ func Create[Q postgres.Queryer](
 				AND financial_payment_session_id IS NULL))
 		)
 	) AS blocked`
+	
+	// Recheck customer-wide overdue inclusion INSIDE the claim transaction.
+	// Preflight customer selection can race with activation or due transitions;
+	// it is never final authority for a persisted repayment batch.
 	seen:=make(map[model.InstallmentID]struct{},len(installments))
+	for _, id := range installments { seen[id] = struct{}{} }
+	location, err := time.LoadLocation("Asia/Tehran")
+	if err != nil {return repo.RepaymentBatchRow{},fmt.Errorf("load repayment business location: %w",err)}
+	due, err := installmentrp.ListDueUnpaidByCustomerID(ctx,q,row.CustomerID,row.CreatedAt)
+	if err != nil {return repo.RepaymentBatchRow{},err}
+	if err := repaymentselection.RequireAllOverdueInstallments(
+		seen,due,row.CreatedAt,location,
+	); err != nil {return repo.RepaymentBatchRow{},err}
+
+	// Validate every selected contract's entire installment sequence, not
+	// only the selected rows, after the customer lock and before claiming.
+	schedules:=make(map[model.ContractID]struct{})
+	for _, item := range plan.Items {
+		if _, checked := schedules[item.ContractID]; checked {continue}
+		schedule,err:=installmentrp.LockByContractID(ctx,q,item.ContractID)
+		if err!=nil{return repo.RepaymentBatchRow{},err}
+		if err:=repaymentselection.RequireConsecutiveInstallments(
+			seen,schedule,
+		); err!=nil{return repo.RepaymentBatchRow{},err}
+		schedules[item.ContractID]=struct{}{}
+	}
+
+	seen=make(map[model.InstallmentID]struct{},len(installments))
 	const claim = `INSERT INTO repayment_batch_installment_claims(
 		installment_id,batch_id,created_at
 	) VALUES($1,$2,$3)`
