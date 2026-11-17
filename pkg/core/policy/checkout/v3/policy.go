@@ -16,7 +16,9 @@ const (
 
 	installmentCount       = 1
 	decisionTTL            = 15 * time.Minute
-	gracePeriodDays        = uint(5)
+	// Monthly installments become overdue at Tehran midnight on the sixth.
+	// Their fifth-day deadline has no additional grace days.
+	gracePeriodDays        = uint(0)
 	maxFinancedAmountMinor = uint64(2_000_000_000)
 	reminderLeadDays       = uint(3)
 )

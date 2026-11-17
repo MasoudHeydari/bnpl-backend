@@ -163,7 +163,19 @@ func (uc *UseCase) CreateForCustomer(
 			return loadErr
 		}
 
+		// Selection is customer-wide, not product-scoped: overdue debt from
+		// either credit product must be part of the same atomic payment.
+		now := uc.clock.Now()
+		due, dueErr := uc.installments.Conn(conn).ListDueUnpaidByCustomerID(
+			ctx,profile.ID,now,
+		)
+		if dueErr != nil {return dueErr}
+		if err := requireAllOverdueInstallments(
+			unique,due,now,uc.clock.BusinessLocation(),
+		); err != nil {return err}
+
 		obligations = make([]Obligation, 0, len(selected))
+		contractSchedules := make(map[model.ContractID][]model.Installment)
 		for _, id := range selected {
 			installment, getErr := uc.installments.Conn(conn).GetByID(ctx, id)
 			if getErr != nil {
@@ -180,6 +192,17 @@ func (uc *UseCase) CreateForCustomer(
 			if contract.CustomerID != profile.ID || contract.Status != model.ActiveContractStatus ||
 				contract.Currency != installment.Currency {
 				return cerr.Conflict(fmt.Errorf("%s: contract is not a payable customer obligation", op))
+			}
+			// The selected installments must start with the earliest unpaid
+			// installment of their contract, without gaps or partial items.
+			schedule, loaded := contractSchedules[contract.ID]
+			if !loaded {
+				schedule, getErr = uc.installments.Conn(conn).ListByContractID(ctx,contract.ID)
+				if getErr != nil {return getErr}
+				contractSchedules[contract.ID]=schedule
+			}
+			if err := requireConsecutiveInstallments(unique,schedule); err != nil {
+				return err
 			}
 			account, getErr := uc.accounts.Conn(conn).GetByID(ctx, contract.CreditAccountID)
 			if getErr != nil {
