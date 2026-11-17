@@ -69,12 +69,24 @@ func (r Result) IsAuthoritativelySettled() bool {
 		r.CollectionPaymentID!="" && r.PostedAt!=nil && !r.PostedAt.IsZero()
 }
 
+// ReturnURLs are pre-registered caller destinations, not arbitrary URLs
+// supplied by an unauthenticated user. FC binds them to the first Start.
+type ReturnURLs struct {
+	Success string
+	Failure string
+	Cancel string
+}
+
+func (u ReturnURLs) IsComplete() bool {
+	return u.Success!="" && u.Failure!="" && u.Cancel!=""
+}
+
 // Client is the agreed command/query boundary. GetBySource permits recovery
 // when Prepare succeeded remotely but BNPL lost the response. Replaying Start
 // must never create a second provider charge.
 type Client interface {
 	Prepare(ctx context.Context, plan collectionpayment.Plan, idempotencyKey string) (Result,error)
-	Start(ctx context.Context, collectionPaymentID, idempotencyKey, providerCode string, revision int64) (Result,error)
+	Start(ctx context.Context, collectionPaymentID, idempotencyKey, providerCode string, urls ReturnURLs, revision int64) (Result,error)
 	GetByID(ctx context.Context, collectionPaymentID string) (Result,error)
 	GetBySource(ctx context.Context, sourceID uuid.UUID) (Result,error)
 }

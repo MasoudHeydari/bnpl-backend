@@ -140,8 +140,8 @@ func (uc *UseCase) PrepareDurably(ctx context.Context,plan collectionpayment.Pla
 // StartPayment saves STARTING before the remote call. It may be retried only
 // with the same FC idempotency key and bound provider settings. An ambiguous
 // response is recovered by Get, not by minting another payment attempt.
-func (uc *UseCase) StartPayment(ctx context.Context,id uuid.UUID,key,providerCode string)(extcollection.Result,error){
-	if key=="" || providerCode==""{
+func (uc *UseCase) StartPayment(ctx context.Context,id uuid.UUID,key,providerCode string, urls extcollection.ReturnURLs)(extcollection.Result,error){
+	if key=="" || providerCode=="" || !urls.IsComplete(){
 		return extcollection.Result{},cerr.InvalidArgument(fmt.Errorf("start payment requires idempotency key and provider"))
 	}
 	row,err:=uc.load(ctx,id)
@@ -163,7 +163,7 @@ func (uc *UseCase) StartPayment(ctx context.Context,id uuid.UUID,key,providerCod
 		// Never assume a second Start is safe with different settings.
 		return uc.financial.GetByID(ctx,*row.FinancialCollectionPaymentID)
 	}
-	result,err:=uc.financial.Start(ctx,*row.FinancialCollectionPaymentID,key,providerCode,row.SnapshotRevision)
+	result,err:=uc.financial.Start(ctx,*row.FinancialCollectionPaymentID,key,providerCode,urls,row.SnapshotRevision)
 	if err!=nil{
 		uc.scheduleReconciliation(ctx,row,row.FinancialCollectionPaymentID,row.SnapshotRevision,nil)
 		return extcollection.Result{},err

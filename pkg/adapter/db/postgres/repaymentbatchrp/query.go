@@ -2,12 +2,14 @@ package repaymentbatchrp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
+	"github.com/parstis/bnpl-backend/pkg/core/collectionpayment"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
@@ -69,14 +71,74 @@ func Create[Q postgres.Queryer](
 		row.CreatedAt,row.UpdatedAt,
 	)
 	if err!=nil{return repo.RepaymentBatchRow{},err}
+	// Revalidate the customer-selected snapshot against authoritative BNPL
+	// installment and contract rows under locks. FC still verifies its own
+	// receivables and registered distribution relationships independently.
+	var plan collectionpayment.Plan
+	if err:=json.Unmarshal(row.Snapshot,&plan);err!=nil{return repo.RepaymentBatchRow{},err}
+	if err:=plan.Validate();err!=nil{return repo.RepaymentBatchRow{},err}
+	if plan.ID!=row.ID || plan.CustomerID!=row.CustomerID || plan.TotalMinor!=row.TotalAmountMinor ||
+		plan.Currency!=row.Currency || len(plan.Items)!=len(installments) {
+		return repo.RepaymentBatchRow{},cerr.InvalidArgument(fmt.Errorf("batch snapshot identity or total mismatch"))
+	}
+	type lockedInstallment struct {
+		ID model.InstallmentID `db:"id"`
+		PrincipalAmountMinor uint64 `db:"principal_amount_minor"`
+		ContractID model.ContractID `db:"contract_id"`
+		CreditAccountID model.CreditAccountID `db:"credit_account_id"`
+		CustomerID model.CustomerID `db:"customer_id"`
+		ExternalMerchantID model.ExternalMerchantID `db:"external_merchant_id"`
+		CreditKind model.CreditKind `db:"credit_kind"`
+	}
+	const lock = `SELECT i.id,i.principal_amount_minor,i.contract_id,
+	       c.credit_account_id,c.customer_id,m.external_merchant_id,a.credit_kind
+	FROM installments i
+	JOIN contracts c ON c.id=i.contract_id
+	JOIN merchant_profiles m ON m.id=c.merchant_profile_id
+	JOIN credit_accounts a ON a.id=c.credit_account_id
+	WHERE i.id=$1 AND i.status IN ('scheduled','due','overdue') AND c.status='active'
+	FOR UPDATE OF i,c,a`
+	type blockingRow struct { Blocked bool `db:"blocked"` }
+	const blocking = `SELECT EXISTS (
+		SELECT 1 FROM payment_attempts
+		WHERE installment_id=$1 AND (
+			state IN ('created','submitted','reconciliation_required','manual_review_required','succeeded')
+			OR (state='expired' AND NOT financial_outcome_resolved)
+		)
+	) AS blocked`
 	seen:=make(map[model.InstallmentID]struct{},len(installments))
 	const claim = `INSERT INTO repayment_batch_installment_claims(
 		installment_id,batch_id,created_at
 	) VALUES($1,$2,$3)`
-	for _,id:=range installments{
+	for index,id:=range installments{
 		if id.IsZero(){return repo.RepaymentBatchRow{},cerr.InvalidArgument(fmt.Errorf("missing installment id"))}
 		if _,ok:=seen[id];ok{return repo.RepaymentBatchRow{},cerr.InvalidArgument(fmt.Errorf("duplicate installment claim"))}
 		seen[id]=struct{}{}
+		item:=plan.Items[index]
+		if item.InstallmentID!=id{return repo.RepaymentBatchRow{},cerr.InvalidArgument(fmt.Errorf("installment order mismatch"))}
+		actual,err:=postgres.QueryOne[lockedInstallment](ctx,q,"lock selected installment",lock,id)
+		if err!=nil{return repo.RepaymentBatchRow{},err}
+		if actual.CustomerID!=plan.CustomerID || actual.ContractID!=item.ContractID ||
+			actual.CreditAccountID!=item.CreditAccountID || actual.CreditKind!=item.CreditKind ||
+			actual.ExternalMerchantID!=item.MerchantID {
+			return repo.RepaymentBatchRow{},cerr.Conflict(fmt.Errorf("batch item does not match an active customer obligation"))
+		}
+		// A principal component must match the installment's recognized
+		// principal in full; no user-selected partial or invented principal.
+		var principal uint64
+		for _,component:=range item.Components{
+			if component.Kind==collectionpayment.PrincipalComponent{
+				principal+=component.GrossMinor
+			}
+		}
+		if principal!=actual.PrincipalAmountMinor{
+			return repo.RepaymentBatchRow{},cerr.Conflict(fmt.Errorf("batch principal differs from installment"))
+		}
+		blocked,err:=postgres.QueryOne[blockingRow](ctx,q,"check active installment payment",blocking,id)
+		if err!=nil{return repo.RepaymentBatchRow{},err}
+		if blocked.Blocked{
+			return repo.RepaymentBatchRow{},cerr.Conflict(fmt.Errorf("an unresolved payment already owns installment"))
+		}
 		if _,err:=q.Exec(ctx,claim,id,stored.ID,row.CreatedAt);err!=nil{
 			return repo.RepaymentBatchRow{},fmt.Errorf("reserve installment for batch: %w",postgres.MapError(err))
 		}

@@ -80,3 +80,27 @@ ON repayment_batch_installment_claims (batch_id);
 CREATE INDEX IF NOT EXISTS idx_repayment_batches_reconcile_due
 ON repayment_batches (next_reconciliation_at, created_at)
 WHERE status IN ('created','prepared','starting','requires_action','reconciling','accounting_pending');
+
+
+-- Legacy single-installment payment creation must respect batch ownership.
+-- Without this guard an old API path could create a second PaymentAttempt
+-- while the new CollectionPayment v2 snapshot holds an active installment.
+CREATE OR REPLACE FUNCTION bnpl.reject_claimed_installment_payment_attempt()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF EXISTS (
+       SELECT 1 FROM bnpl.repayment_batch_installment_claims
+       WHERE installment_id = NEW.installment_id
+    ) THEN
+        RAISE EXCEPTION 'installment already reserved for a repayment batch'
+          USING ERRCODE = '23505',
+                CONSTRAINT = 'uq_payment_attempts_repayment_batch_claim';
+    END IF;
+    RETURN NEW;
+END
+$$;
+
+DROP TRIGGER IF EXISTS trg_payment_attempt_repayment_batch_claim ON payment_attempts;
+CREATE TRIGGER trg_payment_attempt_repayment_batch_claim
+BEFORE INSERT ON payment_attempts FOR EACH ROW
+EXECUTE FUNCTION bnpl.reject_claimed_installment_payment_attempt();
