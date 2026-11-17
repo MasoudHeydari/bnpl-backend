@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"time"
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/clock"
@@ -214,5 +213,3 @@ func (a *DefaultPostedApplier) ApplyPosted(
 	return nil
 }
 
-// Ensure compile-time independence from FC transport implementation.
-var _ = time.Time{}
