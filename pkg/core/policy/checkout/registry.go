@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/parstis/bnpl-backend/pkg/core/policy"
-	"github.com/parstis/bnpl-backend/pkg/core/model"
 )
 
 // ErrPolicyNotFound indicates no policy is registered for a requested Ref.
@@ -65,30 +64,6 @@ func (r *Registry) Resolve(ref policy.Ref) (Policy, error) {
 	}
 
 	return nil, fmt.Errorf("%s: checkout policy registry: unknown ref %s: %w", op, ref, ErrPolicyNotFound)
-}
-
-// ForCreditKind selects the one explicitly registered product policy.
-// Existing installment variants are selected by customer PolicyAssignment
-// instead; this lookup is intentionally reserved for the monthly product.
-func (r *Registry) ForCreditKind(kind model.CreditKind) (Policy, error) {
-	const op = "checkout.Registry.ForCreditKind"
-	if !kind.IsValid() {
-		return nil, fmt.Errorf("%s: unsupported credit kind %q", op, kind)
-	}
-	var selected Policy
-	for _, p := range r.All() {
-		if model.EffectiveCreditKind(p.Terms().CreditKind) != kind {
-			continue
-		}
-		if selected != nil {
-			return nil, fmt.Errorf("%s: ambiguous policies for credit kind %q", op, kind)
-		}
-		selected = p
-	}
-	if selected == nil {
-		return nil, fmt.Errorf("%s: no policy for credit kind %q: %w", op, kind, ErrPolicyNotFound)
-	}
-	return selected, nil
 }
 
 // MaxReminderLeadDays returns the largest Reminder.LeadDays among registered

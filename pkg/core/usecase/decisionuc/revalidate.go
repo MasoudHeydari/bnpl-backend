@@ -144,6 +144,7 @@ func (uc *UseCase) RevalidateCheckoutOffer(
 				customerProfile.ID,
 				allocation.Currency,
 				now,
+				model.EffectiveCreditKind(selectedPolicy.Terms().CreditKind),
 			)
 			if err != nil {
 				return fmt.Errorf("%s: load credit account: %w", op, err)
