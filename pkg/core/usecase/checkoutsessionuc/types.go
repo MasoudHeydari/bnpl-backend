@@ -513,6 +513,10 @@ type GetExternalOutput struct {
 	// EvaluationGeneration is the offer version Hosted START/Confirm must echo.
 	EvaluationGeneration int
 
+	// SupportedCreditKinds are enabled products for this merchant only,
+	// never a representation of the customer's credit balances.
+	SupportedCreditKinds []model.CreditKind
+
 	// Offer is the persisted financing projection when a Decision is linked.
 	// Nil when preparation has not produced a projectable offer yet.
 	Offer *Offer

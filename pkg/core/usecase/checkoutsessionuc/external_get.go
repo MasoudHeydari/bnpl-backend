@@ -61,6 +61,22 @@ func (uc *UseCase) GetExternal(ctx context.Context, input GetExternalInput) (Get
 				return err
 			}
 
+			// A public checkout locator may safely reveal merchant-level
+			// supported product names. Never expose a customer's limits.
+			supported := []model.CreditKind{}
+			if productQ, ok := merchantQ.(repo.MerchantProductEligibilityQueryer); ok {
+				for _, kind := range []model.CreditKind{
+					model.PayIn4CreditKind,model.PayNextMonthCreditKind,
+				} {
+					enabled, err := productQ.IsCreditKindEnabled(ctx,merchant.ID,kind)
+					if err != nil { return err }
+					if enabled { supported = append(supported,kind) }
+				}
+			} else {
+				// Legacy repository mocks only support the original product.
+				supported = append(supported,model.PayIn4CreditKind)
+			}
+
 			phone, err := uc.decryptCustomerPhone(found)
 			if err != nil {
 				return err
@@ -80,6 +96,7 @@ func (uc *UseCase) GetExternal(ctx context.Context, input GetExternalInput) (Get
 				AmountMinor:          found.RequestedAmountMinor,
 				Currency:             found.Currency,
 				EvaluationGeneration: found.EvaluationGeneration,
+				SupportedCreditKinds: supported,
 				Verification: ExternalVerification{
 					Type:        VerificationTypeSMSOTP,
 					Destination: MaskCustomerPhone(phone),

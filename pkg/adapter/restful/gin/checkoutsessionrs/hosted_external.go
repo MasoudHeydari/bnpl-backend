@@ -37,6 +37,7 @@ type hostedExternalGetResponse struct {
 	AmountMinor          uint64                             `json:"amount_minor" example:"120000000"`
 	Currency             model.Currency                     `json:"currency" example:"IRR"`
 	EvaluationGeneration int                                `json:"evaluation_generation" example:"1"`
+	SupportedCreditKinds []model.CreditKind `json:"supported_credit_kinds" enums:"pay_in_4,pay_next_month"`
 	Offer                *hostedExternalOfferSchema         `json:"offer,omitempty"`
 	Verification         hostedExternalVerificationResponse `json:"verification"`
 	ExpiresAt            time.Time                          `json:"expires_at"`
@@ -114,6 +115,7 @@ func toHostedExternalGetResponse(output checkoutsessionuc.GetExternalOutput) hos
 		AmountMinor:          output.AmountMinor,
 		Currency:             output.Currency,
 		EvaluationGeneration: output.EvaluationGeneration,
+		SupportedCreditKinds: append([]model.CreditKind(nil),output.SupportedCreditKinds...),
 		Verification: hostedExternalVerificationResponse{
 			Type:        output.Verification.Type,
 			Destination: output.Verification.Destination,
