@@ -28,6 +28,17 @@ type assignmentPrepareState struct {
 func (uc *UseCase) AssignInitialLimit(ctx context.Context, input AssignInitialLimitInput) (AssignInitialLimitOutput, error) {
 	const op = "customercredituc.UseCase.AssignInitialLimit"
 
+	// Monthly credit has a separate account, assessment journal and decision
+	// cycle. The original installment assignment remains untouched.
+	switch model.EffectiveCreditKind(input.CreditKind) {
+	case model.PayNextMonthCreditKind:
+		return uc.assignMonthlyCreditLimit(ctx, input)
+	case model.PayIn4CreditKind:
+		// The existing v1/v2 installment limit flow remains unchanged.
+	default:
+		return AssignInitialLimitOutput{}, cerr.InvalidArgument(fmt.Errorf("%s: invalid credit_kind %q", op, input.CreditKind))
+	}
+
 	externalCustomerID, err := uc.resolveActiveExternalCustomerID(ctx, input.MobileE164)
 	if err != nil {
 		return AssignInitialLimitOutput{}, err

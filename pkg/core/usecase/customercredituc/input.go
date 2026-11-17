@@ -13,4 +13,8 @@ type AssignInitialLimitInput struct {
 	// MobileE164 is the gateway-injected authenticated mobile
 	// (x-auth-mobile-number ← JWT auth_mobile_number), canonical E.164.
 	MobileE164 string
+
+	// CreditKind is optional on the existing endpoint. Empty means pay-in-four;
+	// monthly credit must be provisioned into a different CreditAccount.
+	CreditKind model.CreditKind
 }

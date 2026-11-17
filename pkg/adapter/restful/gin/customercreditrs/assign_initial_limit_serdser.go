@@ -31,9 +31,16 @@ func toAssignInitialLimitInput(c *gin.Context) (customercredituc.AssignInitialLi
 		return customercredituc.AssignInitialLimitInput{}, false
 	}
 
+	kind := model.CreditKind(c.Query("credit_kind"))
+	if !model.EffectiveCreditKind(kind).IsValid() {
+		serdser.SerValidationErr(c, "credit_kind", "validation.credit_kind_invalid")
+		return customercredituc.AssignInitialLimitInput{}, false
+	}
+
 	return customercredituc.AssignInitialLimitInput{
-		SubjectID:  authCtx.SubjectID,
+		SubjectID: authCtx.SubjectID,
 		MobileE164: mobile,
+		CreditKind: kind,
 	}, true
 }
 
