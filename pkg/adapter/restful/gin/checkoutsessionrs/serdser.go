@@ -46,7 +46,6 @@ type createPartnerRequest struct {
 	MerchantState        string         `json:"merchant_state" binding:"max=256" maxLength:"256"`
 	RequestedAmountMinor uint64         `json:"requested_amount_minor" binding:"required,min=1"`
 	Currency             model.Currency `json:"currency" binding:"required"`
-	CreditKind model.CreditKind `json:"credit_kind,omitempty" enums:"pay_in_4,pay_next_month"`
 }
 
 type partnerCreateResponse struct {
@@ -164,11 +163,6 @@ func toCreatePartnerInput(c *gin.Context) (checkoutsessionuc.CreatePartnerInput,
 		return checkoutsessionuc.CreatePartnerInput{}, false
 	}
 
-	if !model.EffectiveCreditKind(req.CreditKind).IsValid() {
-		serdser.SerValidationErr(c, "credit_kind", "validation.credit_kind_invalid")
-		return checkoutsessionuc.CreatePartnerInput{}, false
-	}
-
 	if !req.Currency.IsValid() {
 		serdser.SerValidationErr(c, "currency", "validation.currency_invalid")
 		return checkoutsessionuc.CreatePartnerInput{}, false
@@ -185,7 +179,7 @@ func toCreatePartnerInput(c *gin.Context) (checkoutsessionuc.CreatePartnerInput,
 			MerchantState:        req.MerchantState,
 			RequestedAmountMinor: req.RequestedAmountMinor,
 			Currency:             req.Currency,
-			CreditKind: model.EffectiveCreditKind(req.CreditKind),
+
 		},
 		// Pass raw customer_phone unchanged — no TrimSpace, no country rules.
 		CustomerPhone: req.CustomerPhone,
