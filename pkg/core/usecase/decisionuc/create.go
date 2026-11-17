@@ -29,11 +29,6 @@ import (
 // BNPL profile primary keys (customer_profiles.id / merchant_profiles.id /
 // merchant_branch_profiles.id).
 type CreateInput struct {
-	// CreditKind chooses one credit product for the whole purchase. Omission
-	// preserves the pay-in-four contract for legacy checkout clients.
-	// Merchant code must not be allowed to change this after confirmation.
-	CreditKind model.CreditKind
-
 	// CheckoutKey is the checkout idempotency key.
 	CheckoutKey string
 
@@ -125,11 +120,6 @@ func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput,
 			if policyErr != nil {
 				return policyErr
 			}
-			// A replay may not switch products while reusing the same checkout key.
-			// Policy is the persisted immutable source of the product identity.
-			if model.EffectiveCreditKind(existingPolicy.Terms().CreditKind) != model.EffectiveCreditKind(input.CreditKind) {
-				return idempotencyConflictError(fmt.Errorf("%s: checkout credit kind changed on replay", op))
-			}
 
 			fingerprint, policyErr = uc.checkoutFingerprint(
 				input.CheckoutKey,
@@ -179,11 +169,6 @@ func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput,
 			customerProfile.ExternalCustomerID,
 			now,
 		)
-		// The monthly product uses a separate compiled policy and account;
-		// a trusted-customer installment assignment cannot turn it into v2.
-		if err == nil && model.EffectiveCreditKind(input.CreditKind) == model.PayNextMonthCreditKind {
-			selectedPolicy, err = uc.checkoutPolicies.ForCreditKind(model.PayNextMonthCreditKind)
-		}
 		if err != nil {
 			return err
 		}
@@ -236,7 +221,6 @@ func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput,
 			customerProfile.ID,
 			input.Currency,
 			now,
-			model.EffectiveCreditKind(input.CreditKind),
 		)
 		if err != nil {
 			return err
@@ -465,9 +449,6 @@ func validateCreateInput(input CreateInput) error {
 	if !input.Currency.IsValid() {
 		return currencyInvalidError()
 	}
-	if kind := model.EffectiveCreditKind(input.CreditKind); !kind.IsValid() {
-		return cerr.InvalidArgument(fmt.Errorf("invalid credit_kind %q", input.CreditKind))
-	}
 
 	return nil
 }
@@ -478,24 +459,8 @@ func loadCurrentCreditAccount(
 	customerID model.CustomerID,
 	currency model.Currency,
 	at time.Time,
-	kind model.CreditKind,
 ) (model.CreditAccount, bool, error) {
-	var (
-		account model.CreditAccount
-		err error
-	)
-	switch kind {
-	case model.PayIn4CreditKind:
-		account, err = accountQ.GetByCustomerIDAndCurrency(ctx, customerID, currency)
-	case model.PayNextMonthCreditKind:
-		productQ, ok := accountQ.(repo.CreditAccountProductQueryer)
-		if !ok {
-			return model.CreditAccount{}, false, cerr.InternalError(fmt.Errorf("credit account repository does not support monthly products"))
-		}
-		account, err = productQ.GetByCustomerIDCurrencyAndKind(ctx, customerID, currency, kind)
-	default:
-		return model.CreditAccount{}, false, cerr.InvalidArgument(fmt.Errorf("unsupported credit kind %q", kind))
-	}
+	account, err := accountQ.GetByCustomerIDAndCurrency(ctx, customerID, currency)
 	if err != nil {
 		if cerr.IsCode(err, cerr.CodeResourceNotFound) {
 			return model.CreditAccount{}, false, nil

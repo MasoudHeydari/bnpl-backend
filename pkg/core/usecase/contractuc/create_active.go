@@ -324,7 +324,7 @@ func (uc *UseCase) prepareMerchantFunding(
 				return cerr.InternalError(fmt.Errorf("%s: policy contract plan requires initial payment instead of merchant funding", op))
 			}
 
-			account, err := lockCheckoutCreditAccount(ctx, creditAccountQ, profile.ID, allocation.Currency, selected.Terms().CreditKind)
+			account, err := creditAccountQ.LockByCustomerIDAndCurrency(ctx, profile.ID, allocation.Currency)
 			if err != nil {
 				return err
 			}
