@@ -86,6 +86,9 @@ type CreditAccount struct {
 
 	CustomerID CustomerID `db:"customer_id" json:"customer_id"`
 	Currency   Currency   `db:"currency" json:"currency"`
+	// CreditKind is part of the account identity with customer and currency.
+	// It prevents the two products from sharing limit or exposure state.
+	CreditKind CreditKind `db:"credit_kind" json:"credit_kind"`
 
 	LimitAmountMinor    uint64 `db:"limit_amount_minor" json:"limit_amount_minor"`
 	ExposureAmountMinor uint64 `db:"exposure_amount_minor" json:"exposure_amount_minor"`
