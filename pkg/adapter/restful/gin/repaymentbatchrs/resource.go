@@ -64,6 +64,49 @@ func input(c *gin.Context)(uuid.UUID,permission.AuthContext,bool){
 	return id,auth,true
 }
 
+//	@Summary		Get repayment batch
+//	@Description	Authenticated customer endpoint; internal Financial identifiers and accounting references are never exposed.
+//	@Tags			Payments
+//	@Accept			json
+//	@Produce		json
+//	@Param			x-auth-subject-id	header	string	true	"Stable Identity subject id"	Format(uuid)
+//	@Param			x-auth-tenant-id	header	string	true	"Authenticated tenant"	Format(uuid)
+//	@Param			x-auth-context-id	header	string	true	"Authenticated context"	Format(uuid)
+//	@Param			x-auth-permissions	header	string	true	"Gateway permissions"	example(bnpl:payments:read:self)
+//	@Param			X-Trace-Id	header	string	false	"Trace ID"
+//	@Param			X-Request-Id	header	string	false	"Request ID"
+//	@Param			X-Correlation-Id	header	string	false	"Correlation ID"
+//	@Param			id	path	string	true	"Repayment batch UUID"	Format(uuid)
+//	@Success		200	{object}	BatchSuccessSchema
+//	@Failure		400	{object}	serdser.ErrorResponse
+//	@Failure		401	{object}	serdser.ErrorResponse
+//	@Failure		403	{object}	serdser.ErrorResponse
+//	@Failure		404	{object}	serdser.ErrorResponse
+//	@Failure		409	{object}	serdser.ErrorResponse
+//	@Failure		500	{object}	serdser.ErrorResponse
+//	@Header			200	{string}	X-Trace-Id	"Always set"
+//	@Header			200	{string}	X-Request-Id	"Always set"
+//	@Header			200	{string}	X-Correlation-Id	"Always set"
+//	@Header			400	{string}	X-Trace-Id	"Always set"
+//	@Header			400	{string}	X-Request-Id	"Always set"
+//	@Header			400	{string}	X-Correlation-Id	"Always set"
+//	@Header			401	{string}	X-Trace-Id	"Always set"
+//	@Header			401	{string}	X-Request-Id	"Always set"
+//	@Header			401	{string}	X-Correlation-Id	"Always set"
+//	@Header			403	{string}	X-Trace-Id	"Always set"
+//	@Header			403	{string}	X-Request-Id	"Always set"
+//	@Header			403	{string}	X-Correlation-Id	"Always set"
+//	@Header			404	{string}	X-Trace-Id	"Always set"
+//	@Header			404	{string}	X-Request-Id	"Always set"
+//	@Header			404	{string}	X-Correlation-Id	"Always set"
+//	@Header			409	{string}	X-Trace-Id	"Always set"
+//	@Header			409	{string}	X-Request-Id	"Always set"
+//	@Header			409	{string}	X-Correlation-Id	"Always set"
+//	@Header			500	{string}	X-Trace-Id	"Always set"
+//	@Header			500	{string}	X-Request-Id	"Always set"
+//	@Header			500	{string}	X-Correlation-Id	"Always set"
+//	@Security		PermissionAuth
+//	@Router			/api/v1/repayment-batches/{id} [get]
 // Get reports BNPL's durable local status without exposing FC internal IDs.
 // A background reconciliation task independently refreshes this projection.
 func(rs *resource)Get(c *gin.Context){
@@ -75,6 +118,50 @@ func(rs *resource)Get(c *gin.Context){
 		statusResponse{ID:row.ID,Status:string(row.Status),TotalAmountMinor:row.TotalAmountMinor,Currency:string(row.Currency)})
 }
 
+//	@Summary		Start repayment batch
+//	@Description	Authenticated customer endpoint; internal Financial identifiers and accounting references are never exposed.
+//	@Tags			Payments
+//	@Accept			json
+//	@Produce		json
+//	@Param			x-auth-subject-id	header	string	true	"Stable Identity subject id"	Format(uuid)
+//	@Param			x-auth-tenant-id	header	string	true	"Authenticated tenant"	Format(uuid)
+//	@Param			x-auth-context-id	header	string	true	"Authenticated context"	Format(uuid)
+//	@Param			x-auth-permissions	header	string	true	"Gateway permissions"	example(bnpl:payments:start:self)
+//	@Param			X-Trace-Id	header	string	false	"Trace ID"
+//	@Param			X-Request-Id	header	string	false	"Request ID"
+//	@Param			X-Correlation-Id	header	string	false	"Correlation ID"
+//	@Param			id	path	string	true	"Repayment batch UUID"	Format(uuid)
+//	@Param			Idempotency-Key	header	string	true	"Idempotency token"
+//	@Success		202	{object}	StartBatchSuccessSchema
+//	@Failure		400	{object}	serdser.ErrorResponse
+//	@Failure		401	{object}	serdser.ErrorResponse
+//	@Failure		403	{object}	serdser.ErrorResponse
+//	@Failure		404	{object}	serdser.ErrorResponse
+//	@Failure		409	{object}	serdser.ErrorResponse
+//	@Failure		500	{object}	serdser.ErrorResponse
+//	@Header			202	{string}	X-Trace-Id	"Always set"
+//	@Header			202	{string}	X-Request-Id	"Always set"
+//	@Header			202	{string}	X-Correlation-Id	"Always set"
+//	@Header			400	{string}	X-Trace-Id	"Always set"
+//	@Header			400	{string}	X-Request-Id	"Always set"
+//	@Header			400	{string}	X-Correlation-Id	"Always set"
+//	@Header			401	{string}	X-Trace-Id	"Always set"
+//	@Header			401	{string}	X-Request-Id	"Always set"
+//	@Header			401	{string}	X-Correlation-Id	"Always set"
+//	@Header			403	{string}	X-Trace-Id	"Always set"
+//	@Header			403	{string}	X-Request-Id	"Always set"
+//	@Header			403	{string}	X-Correlation-Id	"Always set"
+//	@Header			404	{string}	X-Trace-Id	"Always set"
+//	@Header			404	{string}	X-Request-Id	"Always set"
+//	@Header			404	{string}	X-Correlation-Id	"Always set"
+//	@Header			409	{string}	X-Trace-Id	"Always set"
+//	@Header			409	{string}	X-Request-Id	"Always set"
+//	@Header			409	{string}	X-Correlation-Id	"Always set"
+//	@Header			500	{string}	X-Trace-Id	"Always set"
+//	@Header			500	{string}	X-Request-Id	"Always set"
+//	@Header			500	{string}	X-Correlation-Id	"Always set"
+//	@Security		PermissionAuth
+//	@Router			/api/v1/repayment-batches/{id}/start [post]
 // Start uses server-configured payment destination/provider, never the
 // browser's return URL or an untrusted merchant-provided provider code.
 func(rs *resource)Start(c *gin.Context){
@@ -104,6 +191,54 @@ type createRequest struct {
 	InstallmentIDs []string `json:"installment_ids" binding:"required,min=1,max=50"`
 }
 
+//	@Summary		Create repayment batch
+//	@Description	Authenticated customer endpoint; internal Financial identifiers and accounting references are never exposed.
+//	@Tags			Payments
+//	@Accept			json
+//	@Produce		json
+//	@Param			x-auth-subject-id	header	string	true	"Stable Identity subject id"	Format(uuid)
+//	@Param			x-auth-tenant-id	header	string	true	"Authenticated tenant"	Format(uuid)
+//	@Param			x-auth-context-id	header	string	true	"Authenticated context"	Format(uuid)
+//	@Param			x-auth-permissions	header	string	true	"Gateway permissions"	example(bnpl:payments:start:self)
+//	@Param			X-Trace-Id	header	string	false	"Trace ID"
+//	@Param			X-Request-Id	header	string	false	"Request ID"
+//	@Param			X-Correlation-Id	header	string	false	"Correlation ID"
+//	@Param			Idempotency-Key	header	string	true	"Idempotency token"
+//	@Param			body	body	CreateBatchRequestSchema	true	"Installment IDs"
+//	@Success		202	{object}	BatchSuccessSchema
+//	@Failure		400	{object}	serdser.ErrorResponse
+//	@Failure		401	{object}	serdser.ErrorResponse
+//	@Failure		403	{object}	serdser.ErrorResponse
+//	@Failure		404	{object}	serdser.ErrorResponse
+//	@Failure		409	{object}	serdser.ErrorResponse
+//	@Failure		500	{object}	serdser.ErrorResponse
+//	@Failure		503	{object}	serdser.ErrorResponse
+//	@Header			202	{string}	X-Trace-Id	"Always set"
+//	@Header			202	{string}	X-Request-Id	"Always set"
+//	@Header			202	{string}	X-Correlation-Id	"Always set"
+//	@Header			400	{string}	X-Trace-Id	"Always set"
+//	@Header			400	{string}	X-Request-Id	"Always set"
+//	@Header			400	{string}	X-Correlation-Id	"Always set"
+//	@Header			401	{string}	X-Trace-Id	"Always set"
+//	@Header			401	{string}	X-Request-Id	"Always set"
+//	@Header			401	{string}	X-Correlation-Id	"Always set"
+//	@Header			403	{string}	X-Trace-Id	"Always set"
+//	@Header			403	{string}	X-Request-Id	"Always set"
+//	@Header			403	{string}	X-Correlation-Id	"Always set"
+//	@Header			404	{string}	X-Trace-Id	"Always set"
+//	@Header			404	{string}	X-Request-Id	"Always set"
+//	@Header			404	{string}	X-Correlation-Id	"Always set"
+//	@Header			409	{string}	X-Trace-Id	"Always set"
+//	@Header			409	{string}	X-Request-Id	"Always set"
+//	@Header			409	{string}	X-Correlation-Id	"Always set"
+//	@Header			500	{string}	X-Trace-Id	"Always set"
+//	@Header			500	{string}	X-Request-Id	"Always set"
+//	@Header			500	{string}	X-Correlation-Id	"Always set"
+//	@Header			503	{string}	X-Trace-Id	"Always set"
+//	@Header			503	{string}	X-Request-Id	"Always set"
+//	@Header			503	{string}	X-Correlation-Id	"Always set"
+//	@Security		PermissionAuth
+//	@Router			/api/v1/repayment-batches [post]
 // Create handles POST /api/v1/repayment-batches. A missing FC provisioning
 // integration returns a service-unavailable error and creates no payment.
 func (rs *resource) Create(c *gin.Context) {
