@@ -82,7 +82,23 @@ type Allocation struct {
 	RuleReference string
 	RuleVersion string
 	EntitlementReference string
+	// RecognitionReference is distinct from the entitlement identifier.
+	// Only FC's resolved recognition reference is valid here.
+	RecognitionReference string
 	FundingShareID *uuid.UUID
+}
+
+// TaxContext is required for TAX components, separate from beneficiary
+// routing. It must be issued by the authorized assessment, not inferred.
+type TaxContext struct {
+	TaxCode string
+	Jurisdiction string
+	LiablePartyType string
+	LiablePartyID string
+	TaxAuthorityReference string
+	TaxableBasisReference string
+	TreatmentReference string
+	TreatmentVersion string
 }
 
 // Component records original, adjusted and beneficiary amounts separately.
@@ -91,6 +107,9 @@ type Component struct {
 	Kind ComponentKind
 	Assessment Assessment
 	GrossMinor uint64
+	// FinancialClaimID may be supplied only by FC's authoritative resolution.
+	FinancialClaimID string
+	TaxContext *TaxContext
 	Adjustments []Adjustment
 	NetMinor uint64
 	Allocations []Allocation
@@ -194,6 +213,16 @@ func (p Plan) Validate() error {
 				return fmt.Errorf("%s: invalid component kind or gross", op)
 			}
 			if err := validateAssessment(component.Assessment); err != nil { return err }
+			if component.Kind == TaxComponent {
+				if component.TaxContext == nil || component.TaxContext.TaxCode == "" ||
+					component.TaxContext.TreatmentReference == "" ||
+					component.TaxContext.TreatmentVersion == "" ||
+					component.TaxContext.TaxAuthorityReference == "" {
+					return fmt.Errorf("%s: TAX requires authorized tax context", op)
+				}
+			} else if component.TaxContext != nil {
+				return fmt.Errorf("%s: tax context is only valid for TAX", op)
+			}
 
 			// FC has already recognized this receivable at purchase activation.
 			// A collection-time waiver cannot quietly extinguish principal.
