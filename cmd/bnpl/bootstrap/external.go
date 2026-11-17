@@ -13,6 +13,10 @@ import (
 	extinstallmentpayment "github.com/parstis/bnpl-backend/pkg/core/external/installmentpayment"
 	extnotification "github.com/parstis/bnpl-backend/pkg/core/external/notification"
 	"github.com/parstis/bnpl-backend/pkg/core/messaging"
+	collectiongrpc "github.com/parstis/bnpl-backend/pkg/adapter/external/collectionpayment/grpc"
+	collectionnoop "github.com/parstis/bnpl-backend/pkg/adapter/external/collectionpayment/noop"
+	checkoutgrpc "github.com/parstis/bnpl-backend/pkg/adapter/external/checkoutpayment/grpc"
+	extcollection "github.com/parstis/bnpl-backend/pkg/core/external/collectionpayment"
 )
 
 // External holds business-facing external system adapters assembled for App.
@@ -29,6 +33,10 @@ type External struct {
 
 	// CheckoutPaymentClient creates checkout payment sessions with Financial Core.
 	CheckoutPaymentClient extcheckoutpayment.Client
+
+	// CollectionPaymentClient implements FC v2 aggregate repayment RPCs.
+	// Its noop mode fails closed instead of fabricating a paid result.
+	CollectionPaymentClient extcollection.Client
 
 	// CustomerResolver maps a merchant-asserted mobile to a Customer Reference
 	// Service customer_id (stored as customer_profiles.external_customer_id).
@@ -112,6 +120,33 @@ func (a *App) NewExternal() (_ External, err error) {
 
 	if checkoutPaymentCloser != nil {
 		external.closers = append(external.closers, checkoutPaymentCloser)
+	}
+
+	// CollectionPayment v2 uses the same already-configured Financial Core
+	// transport security as CheckoutPayment. Keep the client optional at the
+	// provider level; the old Kafka-dependent flows remain intact until the
+	// durable query-based replacement is fully cut over.
+	switch a.Config.External.FinancialCore.Provider {
+	case "noop":
+		external.CollectionPaymentClient = collectionnoop.New()
+	case "grpc":
+		financialConfig := a.Config.External.FinancialCore.GRPC
+		conn, dialErr := checkoutgrpc.Dial(financialConfig.Address, financialConfig.Insecure, checkoutgrpc.TLSConfig{
+			CAFile: financialConfig.TLS.CAFile,
+			CertFile: financialConfig.TLS.CertFile,
+			KeyFile: financialConfig.TLS.KeyFile,
+			ServerName: financialConfig.TLS.ServerName,
+		})
+		if dialErr != nil {
+			return External{}, fmt.Errorf("%s: dial collection payment service: %w", op, dialErr)
+		}
+		external.closers = append(external.closers, conn)
+		external.CollectionPaymentClient, err = collectiongrpc.New(conn, financialConfig.Timeout)
+		if err != nil {
+			return External{}, fmt.Errorf("%s: initialize collection payment v2 client: %w", op, err)
+		}
+	default:
+		return External{}, fmt.Errorf("%s: unsupported Financial Core provider for collection payment v2: %q", op, a.Config.External.FinancialCore.Provider)
 	}
 
 	var customerCloser io.Closer

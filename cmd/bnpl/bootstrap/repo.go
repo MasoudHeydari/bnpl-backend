@@ -23,6 +23,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/policyassignmentimportrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/policyassignmentrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/repaymentreminderrp"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/repaymentbatchrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/sagarp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/shortlinkrp"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
@@ -80,6 +81,9 @@ type Repos struct {
 	// PaymentAttempt persists checkout and repayment payment attempts.
 	PaymentAttempt repo.PaymentAttempt
 
+	// RepaymentBatch persists immutable aggregate collections and claims.
+	RepaymentBatch repo.RepaymentBatch
+
 	// PolicyAssignment stores runtime subject-to-policy assignment history.
 	PolicyAssignment repo.PolicyAssignment
 
@@ -126,6 +130,7 @@ func NewRepos() Repos {
 		Installment:                installmentrp.New(),
 		InstallmentCharge:          installmentchargerp.New(),
 		PaymentAttempt:             paymentattemptrp.New(),
+		RepaymentBatch:              repaymentbatchrp.New(),
 		PolicyAssignment:           policyassignmentrp.New(),
 		PolicyAssignmentImport:     policyassignmentimportrp.New(),
 		Saga:                       sagarp.New(),

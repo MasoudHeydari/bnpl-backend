@@ -1,6 +1,7 @@
 package jobs
 
 import (
+	"context"
 	"fmt"
 
 	checkoutsessionjob "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task/jobs/checkoutsession"
@@ -24,6 +25,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/paymentattemptexpirationuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/paymentattemptreconciliationuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/repaymentreminderuc"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/repaymentbatchuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/sagaexecutoruc"
 )
 
@@ -40,6 +42,7 @@ type Registry struct {
 	merchantterminaluc             *merchantterminaluc.UseCase
 	repaymentreminderuc            *repaymentreminderuc.UseCase
 	collectionsuc                  *collectionsuc.UseCase
+	repaymentBatchUC              *repaymentbatchuc.UseCase
 }
 
 // NewRegistry creates a task job registry.
@@ -69,6 +72,13 @@ func NewRegistry(
 		repaymentreminderuc:            repaymentreminderuc,
 		collectionsuc:                  collectionsuc,
 	}
+}
+
+// WithRepaymentBatch installs the optional FC-v2 reconciliation job while
+// preserving the original registry constructor used by legacy tests.
+func (r Registry) WithRepaymentBatch(uc *repaymentbatchuc.UseCase) Registry {
+	r.repaymentBatchUC = uc
+	return r
 }
 
 // Resolve resolves a configured handler to an executable job.
@@ -105,6 +115,12 @@ func (r Registry) Resolve(handler string) (coretask.Job, error) {
 
 	case "payment_attempt_reconciliation":
 		return paymentattemptjob.Reconciliation(r.paymentattemptreconciliationuc), nil
+
+	case "repayment_batch_reconciliation":
+		if r.repaymentBatchUC == nil {
+			return nil, fmt.Errorf("%s: repayment batch reconciliation is not configured", op)
+		}
+		return func(ctx context.Context) error { return r.repaymentBatchUC.ReconcileDue(ctx, 100) }, nil
 
 	case "payment_attempt_expiration":
 		if r.paymentattemptexpirationuc == nil {

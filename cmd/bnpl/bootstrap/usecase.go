@@ -33,6 +33,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/paymentattemptexpirationuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/paymentattemptreconciliationuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/repaymentreminderuc"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/repaymentbatchuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/sagaexecutoruc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/shortlinkuc"
 )
@@ -64,6 +65,9 @@ type UseCases struct {
 
 	// InstallmentRepayment starts customer installment repayment attempts.
 	InstallmentRepayment *installmentrepaymentuc.UseCase
+
+	// RepaymentBatch coordinates FC-v2 aggregate repayment and durable polls.
+	RepaymentBatch *repaymentbatchuc.UseCase
 
 	// FinancialCorePaymentResult applies inbound payment-result messages.
 	FinancialCorePaymentResult *financialcorepaymentresultuc.UseCase
@@ -649,6 +653,26 @@ func (a *App) NewUseCases() (UseCases, error) {
 	}
 	repaymentReminderUseCase.WithDefaultNotifications(collectionsUseCase)
 
+	postedApplier, err := repaymentbatchuc.NewDefaultPostedApplier(
+		a.Repos.CustomerProfile,
+		a.Repos.Contract,
+		a.Repos.Installment,
+		a.Repos.InstallmentCharge,
+		a.Repos.CreditAccount,
+		a.Repos.PaymentAttempt,
+		a.Infrastructure.Clock,
+	)
+	if err != nil {
+		return UseCases{}, fmt.Errorf("%s: initialize batch posted applier: %w", op, err)
+	}
+	repaymentBatchUseCase, err := repaymentbatchuc.New(
+		a.Pool, a.Repos.RepaymentBatch, a.External.CollectionPaymentClient,
+		postedApplier, a.Infrastructure.Clock,
+	)
+	if err != nil {
+		return UseCases{}, fmt.Errorf("%s: initialize repayment batch use case: %w", op, err)
+	}
+
 	return UseCases{
 		OutboxPublisher:                    outboxPublisherUseCase,
 		Health:                             healthUseCase,
@@ -657,6 +681,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		OTP:                                otpUseCase,
 		InstallmentLifecycle:               installmentLifecycleUseCase,
 		InstallmentRepayment:               installmentRepaymentUseCase,
+		RepaymentBatch:                    repaymentBatchUseCase,
 		FinancialCorePaymentResult:         financialCorePaymentResultUseCase,
 		FinancialCorePaymentReconciliation: financialCorePaymentReconciliationUseCase,
 		PaymentAttemptReconciliation:       paymentAttemptReconciliationUseCase,

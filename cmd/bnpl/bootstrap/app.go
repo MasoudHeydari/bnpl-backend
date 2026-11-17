@@ -176,7 +176,7 @@ func (a *App) RegisterTasks() error {
 		a.UseCases.MerchantTerminal,
 		a.UseCases.RepaymentReminder,
 		a.UseCases.Collections,
-	)
+	).WithRepaymentBatch(a.UseCases.RepaymentBatch)
 
 	for _, entry := range taskDefinitions {
 		newTask := coretask.Task{

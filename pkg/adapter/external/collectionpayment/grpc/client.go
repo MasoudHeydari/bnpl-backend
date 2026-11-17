@@ -13,6 +13,8 @@ import (
 
 	"github.com/google/uuid"
 	grpcclient "google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
+	"github.com/parstis/bnpl-backend/pkg/core/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	commonpb "github.com/parstis/bnpl-backend/gen/proto/financial/common/v1"
@@ -31,8 +33,14 @@ func New(conn *grpcclient.ClientConn,timeout time.Duration)(*Client,error){
 	if conn==nil||timeout<=0{return nil,fmt.Errorf("collectionpayment/grpc.New: connection and positive timeout required")}
 	return &Client{api:collectionpb.NewCollectionPaymentServiceClient(conn),timeout:timeout},nil
 }
-func(c *Client)rpc(ctx context.Context)(context.Context,context.CancelFunc){
-	return context.WithTimeout(ctx,c.timeout)
+// rpc propagates the caller's trusted correlation context. Financial Core
+// requires this metadata for authenticated internal operations.
+func(c *Client)rpc(ctx context.Context)(context.Context,context.CancelFunc,error){
+	id:=strings.TrimSpace(trace.CorrelationID(ctx))
+	if id=="" {return ctx,func(){},fmt.Errorf("correlation id is required for CollectionPayment RPC")}
+	ctx=metadata.AppendToOutgoingContext(ctx,"x-correlation-id",id)
+	child,cancel:=context.WithTimeout(ctx,c.timeout)
+	return child,cancel,nil
 }
 func amount(n uint64,currency string)(*commonpb.Money,error){
 	if n>math.MaxInt64{return nil,fmt.Errorf("amount overflows FC int64 minor units")}
@@ -249,7 +257,7 @@ func parseResult(s *collectionpb.CollectionPaymentStatusResponse)(external.Resul
 }
 func(c *Client)Prepare(ctx context.Context,plan collectionpayment.Plan,key string)(external.Result,error){
 	req,err:=wirePlan(plan,key);if err!=nil{return external.Result{},err}
-	ctx,cancel:=c.rpc(ctx);defer cancel()
+	ctx,cancel,err:=c.rpc(ctx);if err!=nil{return external.Result{},err};defer cancel()
 	s,err:=c.api.PrepareCollectionPayment(ctx,req);if err!=nil{return external.Result{},fmt.Errorf("prepare FC collection: %w",err)}
 	r:=resultFromSnapshot(s)
 	if r.CollectionPaymentID==""||r.SourceID!=plan.ID||r.SnapshotRevision<1{
@@ -264,13 +272,13 @@ func(c *Client)Start(ctx context.Context,id,key,provider string,urls external.Re
 		ReturnUrls:&commonpb.PaymentReturnUrls{SuccessUrl:urls.Success,FailureUrl:urls.Failure,CancelUrl:urls.Cancel},
 		ExpectedSnapshotRevision:revision,
 	}
-	ctx,cancel:=c.rpc(ctx);defer cancel()
+	ctx,cancel,metaErr:=c.rpc(ctx);if metaErr!=nil{return external.Result{},metaErr};defer cancel()
 	res,err:=c.api.StartCollectionPayment(ctx,req);if err!=nil{return external.Result{},fmt.Errorf("start FC collection: %w",err)}
 	return parseResult(res)
 }
 func(c *Client)GetByID(ctx context.Context,id string)(external.Result,error){
 	if id==""{return external.Result{},fmt.Errorf("FC collection id required")}
-	ctx,cancel:=c.rpc(ctx);defer cancel()
+	ctx,cancel,metaErr:=c.rpc(ctx);if metaErr!=nil{return external.Result{},metaErr};defer cancel()
 	res,err:=c.api.GetCollectionPayment(ctx,&collectionpb.GetCollectionPaymentRequest{
 		Lookup:&collectionpb.GetCollectionPaymentRequest_CollectionPaymentId{CollectionPaymentId:id},
 	})
