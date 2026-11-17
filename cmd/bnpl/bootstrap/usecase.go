@@ -549,6 +549,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize customer credit use case: %w", op, err)
 	}
+	customerCreditUseCase.WithMonthlyLimitPolicy(initialcreditcatalog.MonthlyRef())
 
 	merchantUseCase := merchantuc.New(
 		a.Pool,

@@ -55,9 +55,14 @@ func (uc *UseCase) assignMonthlyCreditLimit(
 	if err != nil { return AssignInitialLimitOutput{}, err }
 	if prior != nil { return *prior, nil }
 
-	// Resolve assigned initial-credit assessment policy for this customer.
-	// The signal fetch is deliberately outside the database transaction.
-	assessed, err := uc.AssessInitialLimit(ctx, buildInitialLimitAssessmentInput(profile, now))
+	// Monthly credit has its own immutable assessment policy and Decision
+	// lineage. Never silently inherit the installment/trusted-customer limit.
+	selected, err := uc.initialLimitPolicies.Resolve(uc.monthlyLimitRef)
+	if err != nil { return AssignInitialLimitOutput{}, fmt.Errorf("%s: monthly limit policy: %w", op, err) }
+
+	// Fetch provider signals outside the DB transaction.
+	assessed, err := uc.assessInitialLimitWithPolicy(ctx,
+		buildInitialLimitAssessmentInput(profile, now),selected)
 	if err != nil { return AssignInitialLimitOutput{}, err }
 	assessed, err = normalizeAndValidateInitialLimitAssessment(assessed, now)
 	if err != nil { return AssignInitialLimitOutput{}, err }
@@ -109,7 +114,10 @@ func (uc *UseCase) assignMonthlyCreditLimit(
 			)
 			if err != nil { return err }
 			output = AssignInitialLimitOutput{Decision:decision, Result:AssignInitialLimitResultDenied}
-			if outcome == model.DeniedDecisionOutcome { return nil }
+			if outcome == model.DeniedDecisionOutcome {
+				return uc.insertAssignInitialLimitAuditOutbox(ctx,uc.outbox.Tx(tx),
+					currentProfile,output,assessed,now)
+			}
 
 			expires := now.Add(assessed.ValidFor)
 			var account model.CreditAccount
@@ -133,7 +141,8 @@ func (uc *UseCase) assignMonthlyCreditLimit(
 			if err != nil { return err }
 			output.CreditLimit = &account
 			output.Result = AssignInitialLimitResultCreated
-			return nil
+			return uc.insertAssignInitialLimitAuditOutbox(ctx,uc.outbox.Tx(tx),
+				currentProfile,output,assessed,now)
 		})
 	})
 	if err != nil { return AssignInitialLimitOutput{}, err }
