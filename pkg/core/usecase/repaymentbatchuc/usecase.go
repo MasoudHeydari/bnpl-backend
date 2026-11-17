@@ -5,6 +5,8 @@ package repaymentbatchuc
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"context"
 	"encoding/json"
 	"errors"
@@ -183,38 +185,50 @@ func (uc *UseCase) PrepareDurably(ctx context.Context,plan collectionpayment.Pla
 // StartPayment saves STARTING before the remote call. It may be retried only
 // with the same FC idempotency key and bound provider settings. An ambiguous
 // response is recovered by Get, not by minting another payment attempt.
-func (uc *UseCase) StartPayment(ctx context.Context,id uuid.UUID,key,providerCode string, urls extcollection.ReturnURLs)(extcollection.Result,error){
-	if key=="" || providerCode=="" || !urls.IsComplete(){
-		return extcollection.Result{},cerr.InvalidArgument(fmt.Errorf("start payment requires idempotency key and provider"))
+func (uc *UseCase) StartPayment(ctx context.Context,id uuid.UUID,key,providerCode string,urls extcollection.ReturnURLs)(extcollection.Result,error){
+	if key==""||len(key)>256||providerCode==""||!urls.IsComplete(){
+		return extcollection.Result{},cerr.InvalidArgument(fmt.Errorf("start payment requires idempotency key, provider and return URLs"))
 	}
 	row,err:=uc.load(ctx,id)
 	if err!=nil{return extcollection.Result{},err}
 	if row.Status.IsTerminal(){return extcollection.Result{},cerr.Conflict(fmt.Errorf("repayment batch is terminal"))}
-	if row.FinancialCollectionPaymentID==nil || *row.FinancialCollectionPaymentID=="" || row.SnapshotRevision<1{
-		return extcollection.Result{},cerr.Conflict(fmt.Errorf("repayment batch is not prepared in FC"))
+	if row.FinancialCollectionPaymentID==nil||*row.FinancialCollectionPaymentID==""||row.SnapshotRevision<1{
+		return extcollection.Result{},cerr.Conflict(fmt.Errorf("repayment batch must be prepared in FC first"))
 	}
-	// One durable state transition fences concurrent starts within BNPL.
-	if row.Status==model.PreparedRepaymentBatchStatus {
-		if err:=uc.persistTransition(ctx,row,model.StartingRepaymentBatchStatus,
-			row.FinancialCollectionPaymentID,row.SnapshotRevision,nil,nil);err!=nil{
-			return extcollection.Result{},err
-		}
-		row,err=uc.load(ctx,id)
-		if err!=nil{return extcollection.Result{},err}
-	}
-	if row.Status!=model.StartingRepaymentBatchStatus{
-		// Never assume a second Start is safe with different settings.
+
+	// Include ALL FC first-start bound settings in this durable fingerprint.
+	// A different key cannot buy a second provider attempt after an unknown
+	// outcome or a lost response.
+	digest:=sha256.Sum256([]byte(fmt.Sprintf("%s|%s|%s|%s|%s|%d|%s",
+		key,providerCode,urls.Success,urls.Failure,urls.Cancel,
+		row.SnapshotRevision,*row.FinancialCollectionPaymentID)))
+	fingerprint:="sha256:"+hex.EncodeToString(digest[:])
+
+	if row.Status!=model.PreparedRepaymentBatchStatus && row.Status!=model.StartingRepaymentBatchStatus {
+		// Query an existing in-flight attempt; never issue a new START.
 		return uc.financial.GetByID(ctx,*row.FinancialCollectionPaymentID)
 	}
+
+	// Record the immutable Start parameters BEFORE crossing the network.
+	// Locking and CAS also serialize two concurrent API Start commands.
+	err=uc.pool.Conn(ctx,func(ctx context.Context,conn repo.Conn)error{
+		return conn.Tx(ctx,func(ctx context.Context,tx repo.Tx)error{
+			var bindErr error
+			row,bindErr=uc.batches.Tx(tx).BindStart(ctx,id,key,fingerprint,uc.now())
+			return bindErr
+		})
+	})
+	if err!=nil{return extcollection.Result{},err}
+
 	result,err:=uc.financial.Start(ctx,*row.FinancialCollectionPaymentID,key,providerCode,urls,row.SnapshotRevision)
 	if err!=nil{
 		uc.scheduleReconciliation(ctx,row,row.FinancialCollectionPaymentID,row.SnapshotRevision,nil)
 		return extcollection.Result{},err
 	}
-	if result.CollectionPaymentID!=*row.FinancialCollectionPaymentID || result.SourceID!=row.ID{
-		return extcollection.Result{},fmt.Errorf("FC Start returned a different collection identity")
+	if result.CollectionPaymentID!=*row.FinancialCollectionPaymentID||result.SourceID!=row.ID{
+		uc.scheduleReconciliation(ctx,row,row.FinancialCollectionPaymentID,row.SnapshotRevision,nil)
+		return extcollection.Result{},fmt.Errorf("FC Start response changed collection identity")
 	}
-	// Always let reconciliation settle money and release local exposure.
 	uc.scheduleReconciliation(ctx,row,row.FinancialCollectionPaymentID,row.SnapshotRevision,nil)
 	return result,nil
 }

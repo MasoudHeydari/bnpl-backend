@@ -17,7 +17,8 @@ import (
 const columns = `
 	id, customer_id, external_customer_id, idempotency_key, snapshot, currency,
 	total_amount_minor, status, financial_collection_payment_id, snapshot_revision,
-	next_reconciliation_at, last_reason_code, version, created_at, updated_at
+next_reconciliation_at, last_reason_code, version, created_at, updated_at,
+	start_idempotency_key, start_fingerprint
 `
 
 // GetByID loads the durable snapshot without advancing its lifecycle.
@@ -195,4 +196,33 @@ func ReleaseClaims[Q postgres.Queryer](ctx context.Context,q Q,id uuid.UUID)erro
 	_,err:=q.Exec(ctx,query,id)
 	if err!=nil{return fmt.Errorf("release batch installment claims: %w",postgres.MapError(err))}
 	return nil
+}
+
+
+// BindStart is the durable compare-and-set fence before any external Start
+// RPC. Another idempotency key/provider/return URL fingerprint is a conflict.
+func BindStart[Q postgres.Queryer](
+	ctx context.Context,q Q,id uuid.UUID,key,fingerprint string,at time.Time,
+)(repo.RepaymentBatchRow,error){
+	if id==uuid.Nil||key==""||fingerprint==""||at.IsZero(){
+		return repo.RepaymentBatchRow{},cerr.InvalidArgument(fmt.Errorf("invalid initial collection Start intent"))
+	}
+	const query = `
+UPDATE repayment_batches SET
+	status='starting',
+	start_idempotency_key=COALESCE(start_idempotency_key,$2),
+	start_fingerprint=COALESCE(start_fingerprint,$3),
+	next_reconciliation_at=$4,
+	version=version+1,
+	updated_at=$4
+WHERE id=$1
+ AND ((status='prepared' AND start_idempotency_key IS NULL)
+  OR (status='starting' AND start_idempotency_key=$2 AND start_fingerprint=$3))
+RETURNING`+columns
+	row,err:=postgres.QueryOne[repo.RepaymentBatchRow](ctx,q,
+		"bind FC collection start intent",query,id,key,fingerprint,at)
+	if cerr.IsCode(err,cerr.CodeResourceNotFound){
+		return repo.RepaymentBatchRow{},cerr.Conflict(fmt.Errorf("collection Start intent conflicts with existing operation"))
+	}
+	return row,err
 }

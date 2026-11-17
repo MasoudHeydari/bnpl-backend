@@ -23,6 +23,8 @@ type RepaymentBatchRow struct {
 	SnapshotRevision int64 `db:"snapshot_revision"`
 	NextReconciliationAt *time.Time `db:"next_reconciliation_at"`
 	LastReasonCode *string `db:"last_reason_code"`
+	StartIdempotencyKey *string `db:"start_idempotency_key"`
+	StartFingerprint *string `db:"start_fingerprint"`
 	Version int64 `db:"version"`
 	CreatedAt time.Time `db:"created_at"`
 	UpdatedAt time.Time `db:"updated_at"`
@@ -43,6 +45,9 @@ type RepaymentBatchTxQueryer interface {
 	Create(ctx context.Context, row RepaymentBatchRow, installmentIDs []model.InstallmentID) (RepaymentBatchRow,error)
 	Advance(ctx context.Context, id uuid.UUID, expectedVersion int64, status model.RepaymentBatchStatus,
 		financialID *string, revision int64, nextPoll *time.Time, reason *string, at time.Time) (RepaymentBatchRow,error)
+	// BindStart writes the first immutable Start intent and transitions the
+	// local row to starting atomically; only identical retries can proceed.
+	BindStart(ctx context.Context, id uuid.UUID, key, fingerprint string, at time.Time) (RepaymentBatchRow,error)
 	ReleaseClaims(ctx context.Context, id uuid.UUID) error
 }
 

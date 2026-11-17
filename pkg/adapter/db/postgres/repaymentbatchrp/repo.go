@@ -53,3 +53,8 @@ func(q txQueryer)Advance(ctx context.Context,id uuid.UUID,version int64,status m
 func(q txQueryer)ReleaseClaims(ctx context.Context,id uuid.UUID)error{
 	return ReleaseClaims(ctx,q.Tx,id)
 }
+
+
+func(q txQueryer)BindStart(ctx context.Context,id uuid.UUID,key,fingerprint string,at time.Time)(repo.RepaymentBatchRow,error){
+	return BindStart(ctx,q.Tx,id,key,fingerprint,at)
+}

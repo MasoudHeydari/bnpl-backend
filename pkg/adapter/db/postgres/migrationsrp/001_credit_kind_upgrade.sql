@@ -108,3 +108,16 @@ DROP TRIGGER IF EXISTS trg_payment_attempt_repayment_batch_claim ON payment_atte
 CREATE TRIGGER trg_payment_attempt_repayment_batch_claim
 BEFORE INSERT ON payment_attempts FOR EACH ROW
 EXECUTE FUNCTION bnpl.reject_claimed_installment_payment_attempt();
+
+
+-- First StartCollectionPayment parameters are immutable across retries.
+-- Multiple sessions with a different idempotency key/provider/return URL must
+-- not be created after an unknown result.
+ALTER TABLE repayment_batches
+    ADD COLUMN IF NOT EXISTS start_idempotency_key text NULL,
+    ADD COLUMN IF NOT EXISTS start_fingerprint text NULL;
+
+ALTER TABLE repayment_batches
+    ADD CONSTRAINT chk_batch_start_pair CHECK (
+       (start_idempotency_key IS NULL) = (start_fingerprint IS NULL)
+    );
