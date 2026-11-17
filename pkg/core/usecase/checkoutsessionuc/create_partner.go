@@ -2,6 +2,10 @@ package checkoutsessionuc
 
 import (
 	"context"
+	"fmt"
+
+	"github.com/parstis/bnpl-backend/pkg/core/cerr"
+	"github.com/parstis/bnpl-backend/pkg/core/repo"
 
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 )
@@ -65,11 +69,16 @@ func (uc *UseCase) CreatePartner(
 		CheckoutURL: uc.hostedCheckoutURL(session.PublicToken),
 	}
 
-	// Unspecified product means the hosted customer chooses at START, even
-	// when merchant configuration previously requested on_create preparation.
-	// Explicit legacy product checkouts retain their prior on_create behavior.
-	if input.CreditKind == "" || session.EffectiveOfferPreparationMode() != model.OfferPreparationOnCreate {
+	// Preserve on_create behavior for merchants supporting only pay-in-four.
+	// When monthly is also enabled, the customer must choose at Hosted START
+	// before the immutable Decision is created. Replays retain prior offers.
+	if session.EffectiveOfferPreparationMode() != model.OfferPreparationOnCreate {
 		return output, nil
+	}
+	if input.CreditKind == "" && session.DecisionID == nil {
+		monthlyEnabled, eligibilityErr := uc.merchantAllowsMonthlyCredit(ctx, session)
+		if eligibilityErr != nil { return CreatePartnerOutput{}, eligibilityErr }
+		if monthlyEnabled { return output, nil }
 	}
 
 	uc.observer.OfferPreparationStarted(ctx, session.ID)
@@ -94,4 +103,30 @@ func (uc *UseCase) CreatePartner(
 	}
 
 	return output, nil
+}
+
+
+// merchantAllowsMonthlyCredit reads the merchant's product provisioning.
+// Legacy test adapters without this optional read capability fall back to
+// pay-in-four; they must never implicitly authorize monthly financing.
+func (uc *UseCase) merchantAllowsMonthlyCredit(
+	ctx context.Context, session model.CheckoutSession,
+) (bool,error) {
+	var enabled bool
+	err:=uc.pool.Conn(ctx,func(ctx context.Context,conn repo.Conn)error{
+		productQ,ok:=uc.merchantProfile.Conn(conn).(repo.MerchantProductEligibilityQueryer)
+		if !ok {
+			enabled=false
+			return nil
+		}
+		var lookupErr error
+		enabled,lookupErr=productQ.IsCreditKindEnabled(
+			ctx,session.MerchantProfileID,model.PayNextMonthCreditKind,
+		)
+		if lookupErr!=nil {
+			return cerr.InternalError(fmt.Errorf("merchant product eligibility: %w",lookupErr))
+		}
+		return nil
+	})
+	return enabled,err
 }
