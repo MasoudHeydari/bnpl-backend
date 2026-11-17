@@ -11,7 +11,7 @@ import (
 // authorized credit products. An absent monthly eligibility is a DENIAL,
 // not implicit permission to reuse installment credit.
 type MerchantProductEligibilityQueryer interface {
-	IsCreditKindEnabled(context.Context,model.MerchantProfileID,model.CreditKind)(bool,error)
+	IsCreditKindEnabled(context.Context, model.MerchantProfileID, model.CreditKind) (bool, error)
 }
 
 // MerchantProductEligibilityTxQueryer is an authorization-scoped configuration
@@ -19,5 +19,5 @@ type MerchantProductEligibilityQueryer interface {
 // affect existing contracts or Financial Core's accounting permissions.
 type MerchantProductEligibilityTxQueryer interface {
 	MerchantProductEligibilityQueryer
-	SetCreditKindEnabled(context.Context,model.MerchantProfileID,model.CreditKind,bool,time.Time) error
+	SetCreditKindEnabled(context.Context, model.MerchantProfileID, model.CreditKind, bool, time.Time) error
 }

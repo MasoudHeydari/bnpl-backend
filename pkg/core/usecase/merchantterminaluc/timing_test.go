@@ -109,8 +109,8 @@ func TestManualRetireUsesNowAsRetiredAt(t *testing.T) {
 	h.advance(5 * time.Minute)
 
 	out, err := h.uc.Retire(h.ctx, RetireInput{
-		ExternalMerchantID:   h.merchantID,
-		CredentialID: first.CredentialID,
+		ExternalMerchantID: h.merchantID,
+		CredentialID:       first.CredentialID,
 	})
 	require.NoError(t, err)
 	require.Equal(t, h.now, out.RetiredAt)

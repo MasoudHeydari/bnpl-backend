@@ -12,11 +12,11 @@ import (
 func GoroutineMetrics(logger corelog.Logger) task.Job {
 	return func(ctx context.Context) error {
 		logger.With(
-		"goroutine_count",
-		runtime.NumGoroutine(),
-	).Info(
-		corelog.Msg("runtime goroutine metrics"),
-	)
+			"goroutine_count",
+			runtime.NumGoroutine(),
+		).Info(
+			corelog.Msg("runtime goroutine metrics"),
+		)
 
 		return nil
 	}

@@ -14,74 +14,77 @@ import (
 
 // CollectionStatus is owned by FC.
 type CollectionStatus string
+
 const (
-	Prepared CollectionStatus = "prepared"
-	Starting CollectionStatus = "starting"
+	Prepared               CollectionStatus = "prepared"
+	Starting               CollectionStatus = "starting"
 	RequiresCustomerAction CollectionStatus = "requires_customer_action"
 	ReconciliationRequired CollectionStatus = "reconciliation_required"
-	AccountingPending CollectionStatus = "accounting_pending"
-	Succeeded CollectionStatus = "succeeded"
-	Failed CollectionStatus = "failed"
-	Expired CollectionStatus = "expired"
-	BankReversed CollectionStatus = "bank_reversed"
+	AccountingPending      CollectionStatus = "accounting_pending"
+	Succeeded              CollectionStatus = "succeeded"
+	Failed                 CollectionStatus = "failed"
+	Expired                CollectionStatus = "expired"
+	BankReversed           CollectionStatus = "bank_reversed"
 )
 
 // ProviderOutcome separates authoritative provider evidence from accounting.
 // In particular UNKNOWN must retain installment claims even after an FC
 // snapshot expires. BNPL must never interpret a network timeout as failure.
 type ProviderOutcome string
+
 const (
 	ProviderNotStarted ProviderOutcome = "not_started"
-	ProviderPending ProviderOutcome = "pending"
-	ProviderUnknown ProviderOutcome = "unknown"
-	ProviderSucceeded ProviderOutcome = "succeeded"
-	ProviderFailed ProviderOutcome = "failed"
-	ProviderReversed ProviderOutcome = "reversed"
+	ProviderPending    ProviderOutcome = "pending"
+	ProviderUnknown    ProviderOutcome = "unknown"
+	ProviderSucceeded  ProviderOutcome = "succeeded"
+	ProviderFailed     ProviderOutcome = "failed"
+	ProviderReversed   ProviderOutcome = "reversed"
 )
 
 // PostingOutcome is distinct from provider success: only Posted may authorize
 // final BNPL installment settlement and credit exposure release.
 type PostingOutcome string
+
 const (
-	NotPosted PostingOutcome = "not_posted"
-	PostingPending PostingOutcome = "pending"
-	Posted PostingOutcome = "posted"
+	NotPosted       PostingOutcome = "not_posted"
+	PostingPending  PostingOutcome = "pending"
+	Posted          PostingOutcome = "posted"
 	ReversalPending PostingOutcome = "reversal_pending"
-	Reversed PostingOutcome = "reversed"
+	Reversed        PostingOutcome = "reversed"
 )
 
 // PostedAllocation is an FC-owned immutable posting reference.
 type PostedAllocation struct {
-	ItemID uuid.UUID
-	ComponentID uuid.UUID
-	AllocationID uuid.UUID
-	AmountMinor uint64
+	ItemID           uuid.UUID
+	ComponentID      uuid.UUID
+	AllocationID     uuid.UUID
+	AmountMinor      uint64
 	PostingReference string
 }
 
 // Result represents a durable snapshot of FC collection state.
 type Result struct {
 	CollectionPaymentID string
-	SourceID uuid.UUID
-	SnapshotRevision int64
-	Status CollectionStatus
-	ProviderOutcome ProviderOutcome
-	PostingOutcome PostingOutcome
-	PaymentIntentID string
-	PaymentSessionID string
-	PaymentLink string
-	ProviderPaidAt *time.Time
-	PostedAt *time.Time
-	PostedAllocations []PostedAllocation
-	ReasonCode string
+	SourceID            uuid.UUID
+	SnapshotRevision    int64
+	Status              CollectionStatus
+	ProviderOutcome     ProviderOutcome
+	PostingOutcome      PostingOutcome
+	PaymentIntentID     string
+	PaymentSessionID    string
+	PaymentLink         string
+	ProviderPaidAt      *time.Time
+	PostedAt            *time.Time
+	PostedAllocations   []PostedAllocation
+	ReasonCode          string
 }
 
 // IsAuthoritativelySettled requires both successful collection and completed
 // accounting. Provider success or a browser redirect alone never suffices.
 func (r Result) IsAuthoritativelySettled() bool {
-	return r.Status==Succeeded && r.ProviderOutcome==ProviderSucceeded &&
-		r.PostingOutcome==Posted &&
-		r.CollectionPaymentID!="" && r.PostedAt!=nil && !r.PostedAt.IsZero()
+	return r.Status == Succeeded && r.ProviderOutcome == ProviderSucceeded &&
+		r.PostingOutcome == Posted &&
+		r.CollectionPaymentID != "" && r.PostedAt != nil && !r.PostedAt.IsZero()
 }
 
 // ReturnURLs are pre-registered caller destinations, not arbitrary URLs
@@ -89,23 +92,22 @@ func (r Result) IsAuthoritativelySettled() bool {
 type ReturnURLs struct {
 	Success string
 	Failure string
-	Cancel string
+	Cancel  string
 }
 
 func (u ReturnURLs) IsComplete() bool {
-	return u.Success!="" && u.Failure!="" && u.Cancel!=""
+	return u.Success != "" && u.Failure != "" && u.Cancel != ""
 }
 
 // Client is the agreed command/query boundary. GetBySource permits recovery
 // when Prepare succeeded remotely but BNPL lost the response. Replaying Start
 // must never create a second provider charge.
 type Client interface {
-	Prepare(ctx context.Context, plan collectionpayment.Plan, idempotencyKey string) (Result,error)
-	Start(ctx context.Context, collectionPaymentID, idempotencyKey, providerCode string, urls ReturnURLs, revision int64) (Result,error)
-	GetByID(ctx context.Context, collectionPaymentID string) (Result,error)
-	GetBySource(ctx context.Context, sourceID uuid.UUID) (Result,error)
+	Prepare(ctx context.Context, plan collectionpayment.Plan, idempotencyKey string) (Result, error)
+	Start(ctx context.Context, collectionPaymentID, idempotencyKey, providerCode string, urls ReturnURLs, revision int64) (Result, error)
+	GetByID(ctx context.Context, collectionPaymentID string) (Result, error)
+	GetBySource(ctx context.Context, sourceID uuid.UUID) (Result, error)
 }
-
 
 // VerifyPostedAllocations checks the exact immutable BNPL allocation snapshot
 // against FC's posted accounting response. It must run before a local batch
@@ -122,9 +124,9 @@ func VerifyPostedAllocations(plan collectionpayment.Plan, result Result) error {
 	}
 
 	type posting struct {
-		item uuid.UUID
+		item      uuid.UUID
 		component uuid.UUID
-		amount uint64
+		amount    uint64
 	}
 	expected := make(map[uuid.UUID]posting)
 	for _, item := range plan.Items {

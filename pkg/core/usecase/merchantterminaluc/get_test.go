@@ -38,9 +38,9 @@ func TestGetIncludesRetiringCredential(t *testing.T) {
 
 	grace := time.Hour
 	rotated, err := h.uc.Rotate(h.ctx, RotateInput{
-		ExternalMerchantID:     h.merchantID,
-		GracePeriod:    &grace,
-		IdempotencyKey: "rotate-1",
+		ExternalMerchantID: h.merchantID,
+		GracePeriod:        &grace,
+		IdempotencyKey:     "rotate-1",
 	})
 	require.NoError(t, err)
 
@@ -85,9 +85,9 @@ func TestGetOmitsRetiringAfterZeroGraceRotation(t *testing.T) {
 	zero := time.Duration(0)
 
 	rotated, err := h.uc.Rotate(h.ctx, RotateInput{
-		ExternalMerchantID:     h.merchantID,
-		GracePeriod:    &zero,
-		IdempotencyKey: "rotate-1",
+		ExternalMerchantID: h.merchantID,
+		GracePeriod:        &zero,
+		IdempotencyKey:     "rotate-1",
 	})
 	require.NoError(t, err)
 

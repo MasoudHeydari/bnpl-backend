@@ -128,26 +128,26 @@ func (uc *UseCase) MigrateAll(ctx context.Context) error {
 			if existing, ok := appliedByName[file.name]; ok {
 				if existing.Dirty {
 					uc.logger.With(
-		"migration",
-		existing.Name,
-		"checksum",
-		existing.Checksum,
-	).Error(
-		log.Msg("migration is dirty; refusing to continue"),
-	)
+						"migration",
+						existing.Name,
+						"checksum",
+						existing.Checksum,
+					).Error(
+						log.Msg("migration is dirty; refusing to continue"),
+					)
 
 					return dirtyMigrationError(op, existing)
 				}
 
 				if isLegacyMigrationChecksum(existing.Checksum) {
 					uc.logger.With(
-		"migration",
-		file.name,
-		"checksum",
-		existing.Checksum,
-	).Info(
-		log.Msg("migration already applied (legacy checksum)"),
-	)
+						"migration",
+						file.name,
+						"checksum",
+						existing.Checksum,
+					).Info(
+						log.Msg("migration already applied (legacy checksum)"),
+					)
 					skippedCount++
 
 					continue
@@ -155,15 +155,15 @@ func (uc *UseCase) MigrateAll(ctx context.Context) error {
 
 				if existing.Checksum != file.checksum {
 					uc.logger.With(
-		"migration",
-		file.name,
-		"database_checksum",
-		existing.Checksum,
-		"filesystem_checksum",
-		file.checksum,
-	).Error(
-		log.Msg("migration checksum mismatch"),
-	)
+						"migration",
+						file.name,
+						"database_checksum",
+						existing.Checksum,
+						"filesystem_checksum",
+						file.checksum,
+					).Error(
+						log.Msg("migration checksum mismatch"),
+					)
 
 					return fmt.Errorf(
 						"%s: migration %q checksum mismatch: database=%q filesystem=%q",
@@ -175,13 +175,13 @@ func (uc *UseCase) MigrateAll(ctx context.Context) error {
 				}
 
 				uc.logger.With(
-		"migration",
-		file.name,
-		"checksum",
-		file.checksum,
-	).Info(
-		log.Msg("migration already applied"),
-	)
+					"migration",
+					file.name,
+					"checksum",
+					file.checksum,
+				).Info(
+					log.Msg("migration already applied"),
+				)
 				skippedCount++
 
 				continue
@@ -198,17 +198,17 @@ func (uc *UseCase) MigrateAll(ctx context.Context) error {
 	})
 	if err != nil {
 		uc.logger.With(
-		"migration_dir",
-		uc.migDirPath,
-		"applied_count",
-		appliedCount,
-		"skipped_count",
-		skippedCount,
-		"error",
-		err.Error(),
-	).Error(
-		log.Msg("migration run failed"),
-	)
+			"migration_dir",
+			uc.migDirPath,
+			"applied_count",
+			appliedCount,
+			"skipped_count",
+			skippedCount,
+			"error",
+			err.Error(),
+		).Error(
+			log.Msg("migration run failed"),
+		)
 
 		return err
 	}
@@ -265,41 +265,41 @@ func (uc *UseCase) MigrateOne(ctx context.Context, migName string) error {
 
 			if existing.Dirty {
 				uc.logger.With(
-		"migration",
-		existing.Name,
-		"checksum",
-		existing.Checksum,
-	).Error(
-		log.Msg("migration is dirty; refusing to continue"),
-	)
+					"migration",
+					existing.Name,
+					"checksum",
+					existing.Checksum,
+				).Error(
+					log.Msg("migration is dirty; refusing to continue"),
+				)
 
 				return dirtyMigrationError(op, existing)
 			}
 
 			if isLegacyMigrationChecksum(existing.Checksum) {
 				uc.logger.With(
-		"migration",
-		file.name,
-		"checksum",
-		existing.Checksum,
-	).Info(
-		log.Msg("migration already applied (legacy checksum)"),
-	)
+					"migration",
+					file.name,
+					"checksum",
+					existing.Checksum,
+				).Info(
+					log.Msg("migration already applied (legacy checksum)"),
+				)
 
 				return nil
 			}
 
 			if existing.Checksum != file.checksum {
 				uc.logger.With(
-		"migration",
-		file.name,
-		"database_checksum",
-		existing.Checksum,
-		"filesystem_checksum",
-		file.checksum,
-	).Error(
-		log.Msg("migration checksum mismatch"),
-	)
+					"migration",
+					file.name,
+					"database_checksum",
+					existing.Checksum,
+					"filesystem_checksum",
+					file.checksum,
+				).Error(
+					log.Msg("migration checksum mismatch"),
+				)
 
 				return fmt.Errorf(
 					"%s: migration %q checksum mismatch: database=%q filesystem=%q",
@@ -311,13 +311,13 @@ func (uc *UseCase) MigrateOne(ctx context.Context, migName string) error {
 			}
 
 			uc.logger.With(
-		"migration",
-		file.name,
-		"checksum",
-		file.checksum,
-	).Info(
-		log.Msg("migration already applied"),
-	)
+				"migration",
+				file.name,
+				"checksum",
+				file.checksum,
+			).Info(
+				log.Msg("migration already applied"),
+			)
 
 			return nil
 		}
@@ -326,15 +326,15 @@ func (uc *UseCase) MigrateOne(ctx context.Context, migName string) error {
 	})
 	if err != nil {
 		uc.logger.With(
-		"migration",
-		file.name,
-		"checksum",
-		file.checksum,
-		"error",
-		err.Error(),
-	).Error(
-		log.Msg("migration one failed"),
-	)
+			"migration",
+			file.name,
+			"checksum",
+			file.checksum,
+			"error",
+			err.Error(),
+		).Error(
+			log.Msg("migration one failed"),
+		)
 
 		return err
 	}
@@ -402,11 +402,11 @@ func (uc *UseCase) applyMigration(
 
 		if err := connQ.Migrate(ctx, file.name, file.statements); err != nil {
 			logger.With(
-		"error",
-		err.Error(),
-	).Error(
-		log.Msg("migration apply failed; remains dirty and requires operator verification"),
-	)
+				"error",
+				err.Error(),
+			).Error(
+				log.Msg("migration apply failed; remains dirty and requires operator verification"),
+			)
 
 			return fmt.Errorf(
 				"%s: apply non-transactional migration %q; migration remains dirty and requires operator verification: %w",
@@ -416,11 +416,11 @@ func (uc *UseCase) applyMigration(
 
 		if _, err := connQ.MarkApplied(ctx, file.name, file.checksum, uc.clock.Now()); err != nil {
 			logger.With(
-		"error",
-		err.Error(),
-	).Error(
-		log.Msg("migration finalize failed; remains dirty and requires operator verification"),
-	)
+				"error",
+				err.Error(),
+			).Error(
+				log.Msg("migration finalize failed; remains dirty and requires operator verification"),
+			)
 
 			return fmt.Errorf(
 				"%s: finalize non-transactional migration %q; migration remains dirty and requires operator verification: %w",

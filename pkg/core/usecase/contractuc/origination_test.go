@@ -316,10 +316,10 @@ func TestPrepareCheckoutContract_PaymentBased_NewContractBlockedWhenOriginationD
 
 	uc := deps.newUseCase(t)
 	_, err := uc.PrepareCheckoutContract(ctx, CreateContractInput{
-		DecisionID:         decisionID,
+		DecisionID:        decisionID,
 		ExternalSubjectID: externalSubjectID,
-		TenantID:           tenantID,
-		ContextID:          contextID,
+		TenantID:          tenantID,
+		ContextID:         contextID,
 	})
 	require.Error(t, err)
 	require.True(t, cerr.IsCode(err, cerr.CodeInternalError))
@@ -355,10 +355,10 @@ func TestPrepareCheckoutContract_PaymentBased_ExistingContractReplayAfterOrigina
 	expiresAt := now.Add(time.Hour)
 
 	input := CreateContractInput{
-		DecisionID:         decisionID,
+		DecisionID:        decisionID,
 		ExternalSubjectID: externalSubjectID,
-		TenantID:           tenantID,
-		ContextID:          contextID,
+		TenantID:          tenantID,
+		ContextID:         contextID,
 	}
 	existing := model.Contract{
 		ID:                    contractID,
@@ -466,10 +466,10 @@ func TestPrepareCheckoutContract_PaymentBased_RaceLoserReplaysWithoutRequiringOr
 	expiresAt := now.Add(time.Hour)
 
 	input := CreateContractInput{
-		DecisionID:         decisionID,
+		DecisionID:        decisionID,
 		ExternalSubjectID: externalSubjectID,
-		TenantID:           tenantID,
-		ContextID:          contextID,
+		TenantID:          tenantID,
+		ContextID:         contextID,
 	}
 	allocation := model.CheckoutDecisionAllocation{
 		DecisionID:                  decisionID,
@@ -651,7 +651,7 @@ func TestPrepareCheckoutContract_MerchantFunding_NewContractBlockedWhenOriginati
 
 	uc := deps.newUseCase(t)
 	_, err := uc.PrepareCheckoutContract(ctx, CreateContractInput{
-		DecisionID:         decisionID,
+		DecisionID:        decisionID,
 		ExternalSubjectID: externalSubjectID,
 	})
 	require.Error(t, err)
@@ -704,7 +704,7 @@ func TestPrepareCheckoutContract_MerchantFunding_ExistingContractResumeAfterOrig
 
 	uc := deps.newUseCase(t)
 	output, err := uc.PrepareCheckoutContract(ctx, CreateContractInput{
-		DecisionID:         decisionID,
+		DecisionID:        decisionID,
 		ExternalSubjectID: externalSubjectID,
 	})
 	require.NoError(t, err)

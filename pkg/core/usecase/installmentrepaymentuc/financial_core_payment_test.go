@@ -81,7 +81,6 @@ func (l *installmentExpiryRecordingLogger) recordLog(level string, event corelog
 	*l.records = append(*l.records, installmentExpiryLogRecord{level: level, msg: msg, args: attrs})
 }
 
-
 func (l *installmentExpiryRecordingLogger) warnCount(msg string) int {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -190,7 +189,7 @@ func TestEnsureFinancialCoreInstallmentPayment_SendsAggregateUsingExistingReceiv
 	}, nil).Once()
 	merchantProfile.EXPECT().Conn(conn).Return(merchantCQ).Once()
 	merchantCQ.EXPECT().GetByID(ctx, merchantProfileID).Return(model.MerchantProfile{
-		ID:         merchantProfileID,
+		ID:                 merchantProfileID,
 		ExternalMerchantID: merchantID,
 	}, nil).Once()
 	installmentRepo.EXPECT().Conn(conn).Return(installmentCQ).Once()
@@ -330,8 +329,8 @@ func TestEnsureFinancialCoreInstallmentPayment_SendsAggregateUsingExistingReceiv
 
 	out, err := uc.ensureFinancialCoreInstallmentPayment(ctx, attempt, CreatePaymentAttemptInput{
 		ExternalSubjectID: externalSubjectID,
-		TenantID:           model.TenantID(uuid.MustParse("00000000-0000-4000-8000-0000000000aa")),
-		ContextID:          model.ContextID(uuid.MustParse("00000000-0000-4000-8000-0000000000bb")),
+		TenantID:          model.TenantID(uuid.MustParse("00000000-0000-4000-8000-0000000000aa")),
+		ContextID:         model.ContextID(uuid.MustParse("00000000-0000-4000-8000-0000000000bb")),
 	})
 	require.NoError(t, err)
 	require.Equal(t, model.SubmittedPaymentAttemptState, out.State)
@@ -468,7 +467,7 @@ func TestEnsureFinancialCoreInstallmentPayment_RejectsChargesAgainstPrincipalRec
 	}, nil).Once()
 	merchantProfile.EXPECT().Conn(conn).Return(merchantCQ).Once()
 	merchantCQ.EXPECT().GetByID(ctx, merchantProfileID).Return(model.MerchantProfile{
-		ID:         merchantProfileID,
+		ID:                 merchantProfileID,
 		ExternalMerchantID: model.ExternalMerchantID(uuid.New()),
 	}, nil).Once()
 	installmentRepo.EXPECT().Conn(conn).Return(installmentCQ).Once()

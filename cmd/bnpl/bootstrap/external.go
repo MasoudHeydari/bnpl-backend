@@ -6,17 +6,17 @@ import (
 	"io"
 
 	adapterbotmessage "github.com/parstis/bnpl-backend/pkg/adapter/external/botmessage"
+	checkoutgrpc "github.com/parstis/bnpl-backend/pkg/adapter/external/checkoutpayment/grpc"
+	collectiongrpc "github.com/parstis/bnpl-backend/pkg/adapter/external/collectionpayment/grpc"
+	collectionnoop "github.com/parstis/bnpl-backend/pkg/adapter/external/collectionpayment/noop"
 	extcheckoutpayment "github.com/parstis/bnpl-backend/pkg/core/external/checkoutpayment"
+	extcollection "github.com/parstis/bnpl-backend/pkg/core/external/collectionpayment"
 	extcontractcancellation "github.com/parstis/bnpl-backend/pkg/core/external/contractcancellation"
 	"github.com/parstis/bnpl-backend/pkg/core/external/creditassessment"
 	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"
 	extinstallmentpayment "github.com/parstis/bnpl-backend/pkg/core/external/installmentpayment"
 	extnotification "github.com/parstis/bnpl-backend/pkg/core/external/notification"
 	"github.com/parstis/bnpl-backend/pkg/core/messaging"
-	collectiongrpc "github.com/parstis/bnpl-backend/pkg/adapter/external/collectionpayment/grpc"
-	collectionnoop "github.com/parstis/bnpl-backend/pkg/adapter/external/collectionpayment/noop"
-	checkoutgrpc "github.com/parstis/bnpl-backend/pkg/adapter/external/checkoutpayment/grpc"
-	extcollection "github.com/parstis/bnpl-backend/pkg/core/external/collectionpayment"
 )
 
 // External holds business-facing external system adapters assembled for App.
@@ -132,9 +132,9 @@ func (a *App) NewExternal() (_ External, err error) {
 	case "grpc":
 		financialConfig := a.Config.External.FinancialCore.GRPC
 		conn, dialErr := checkoutgrpc.Dial(financialConfig.Address, financialConfig.Insecure, checkoutgrpc.TLSConfig{
-			CAFile: financialConfig.TLS.CAFile,
-			CertFile: financialConfig.TLS.CertFile,
-			KeyFile: financialConfig.TLS.KeyFile,
+			CAFile:     financialConfig.TLS.CAFile,
+			CertFile:   financialConfig.TLS.CertFile,
+			KeyFile:    financialConfig.TLS.KeyFile,
 			ServerName: financialConfig.TLS.ServerName,
 		})
 		if dialErr != nil {

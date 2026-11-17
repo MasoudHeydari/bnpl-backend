@@ -209,7 +209,7 @@ func TestEnsureCheckoutPaymentSession_RecoversFromReconciliationRequired(t *test
 	}, nil).Once()
 	deps.merchantProfile.EXPECT().Conn(deps.conn).Return(deps.merchantProfileCQ).Once()
 	deps.merchantProfileCQ.EXPECT().GetByID(ctx, merchantProfileID).Return(model.MerchantProfile{
-		ID:         merchantProfileID,
+		ID:                 merchantProfileID,
 		ExternalMerchantID: merchantID,
 	}, nil).Once()
 
@@ -363,7 +363,7 @@ func TestEnsureCheckoutPaymentSession_ExhaustedBudgetDoesNotCallFinancialCore(t 
 	}, nil).Once()
 	deps.merchantProfile.EXPECT().Conn(deps.conn).Return(deps.merchantProfileCQ).Once()
 	deps.merchantProfileCQ.EXPECT().GetByID(ctx, merchantProfileID).Return(model.MerchantProfile{
-		ID:         merchantProfileID,
+		ID:                 merchantProfileID,
 		ExternalMerchantID: model.ExternalMerchantID(uuid.New()),
 	}, nil).Once()
 

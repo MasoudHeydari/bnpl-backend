@@ -143,12 +143,12 @@ func (f *fakeTerminals) CreateTerminal(
 	f.writes++
 
 	terminal := model.MerchantTerminal{
-		ID:         model.MerchantTerminalID(uuid.New()),
+		ID:                 model.MerchantTerminalID(uuid.New()),
 		ExternalMerchantID: merchantID,
-		TerminalID: terminalID,
-		Status:     status,
-		CreatedAt:  createdAt,
-		UpdatedAt:  updatedAt,
+		TerminalID:         terminalID,
+		Status:             status,
+		CreatedAt:          createdAt,
+		UpdatedAt:          updatedAt,
 	}
 	f.terminals = append(f.terminals, terminal)
 

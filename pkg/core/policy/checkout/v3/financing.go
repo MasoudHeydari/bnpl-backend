@@ -9,8 +9,8 @@ import (
 // Unlike installment credit, this product never creates an upfront remainder.
 func (p policyV3) EvaluateFinancing(input checkout.FinancingInput) checkout.FinancingResult {
 	result := checkout.FinancingResult{
-		Outcome: input.Eligibility.Outcome,
-		ReasonCodes: append([]string(nil), input.Eligibility.ReasonCodes...),
+		Outcome:      input.Eligibility.Outcome,
+		ReasonCodes:  append([]string(nil), input.Eligibility.ReasonCodes...),
 		Jurisdiction: input.Eligibility.Jurisdiction,
 	}
 	if input.CreditAccount.LimitAmountMinor < input.CreditAccount.ExposureAmountMinor {

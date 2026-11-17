@@ -139,16 +139,15 @@ func (q txQueryer) LockByMerchantID(
 	return LockByMerchantID(ctx, q.Tx, merchantID)
 }
 
+var _ repo.MerchantProductEligibilityQueryer = (*connQueryer)(nil)
+var _ repo.MerchantProductEligibilityTxQueryer = (*txQueryer)(nil)
 
-var _ repo.MerchantProductEligibilityQueryer=(*connQueryer)(nil)
-var _ repo.MerchantProductEligibilityTxQueryer=(*txQueryer)(nil)
-
-func(q connQueryer)IsCreditKindEnabled(ctx context.Context,id model.MerchantProfileID,kind model.CreditKind)(bool,error){
-	return IsCreditKindEnabled(ctx,q.Conn,id,kind)
+func (q connQueryer) IsCreditKindEnabled(ctx context.Context, id model.MerchantProfileID, kind model.CreditKind) (bool, error) {
+	return IsCreditKindEnabled(ctx, q.Conn, id, kind)
 }
-func(q txQueryer)IsCreditKindEnabled(ctx context.Context,id model.MerchantProfileID,kind model.CreditKind)(bool,error){
-	return IsCreditKindEnabled(ctx,q.Tx,id,kind)
+func (q txQueryer) IsCreditKindEnabled(ctx context.Context, id model.MerchantProfileID, kind model.CreditKind) (bool, error) {
+	return IsCreditKindEnabled(ctx, q.Tx, id, kind)
 }
-func(q txQueryer)SetCreditKindEnabled(ctx context.Context,id model.MerchantProfileID,kind model.CreditKind,enabled bool,at time.Time)error{
-	return SetCreditKindEnabled(ctx,q.Tx,id,kind,enabled,at)
+func (q txQueryer) SetCreditKindEnabled(ctx context.Context, id model.MerchantProfileID, kind model.CreditKind, enabled bool, at time.Time) error {
+	return SetCreditKindEnabled(ctx, q.Tx, id, kind, enabled, at)
 }

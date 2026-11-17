@@ -549,7 +549,7 @@ func (h *harness) session(mods ...func(*model.CheckoutSession)) model.CheckoutSe
 		PublicToken:             h.publicToken,
 		Origin:                  model.ExternalPartnerCheckoutSessionOrigin,
 		MerchantProfileID:       h.merchantPID,
-		ExternalOnlineStoreID:           h.storeID,
+		ExternalOnlineStoreID:   h.storeID,
 		MerchantOrderID:         "order-1",
 		IdempotencyKey:          "order-1",
 		CustomerReference:       "cust-1",
@@ -660,9 +660,9 @@ func (h *harness) expectLifecycleEvent(session model.CheckoutSession, eventType 
 	h.merchantTx.EXPECT().
 		GetByID(h.ctx, session.MerchantProfileID).
 		Return(model.MerchantProfile{
-			ID:         session.MerchantProfileID,
+			ID:                 session.MerchantProfileID,
 			ExternalMerchantID: h.merchantID,
-			Status:     model.ActiveMerchantStatus,
+			Status:             model.ActiveMerchantStatus,
 		}, nil).Once()
 	h.sessionTx.EXPECT().
 		GetWebhookDestination(h.ctx, h.merchantID).

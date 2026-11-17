@@ -121,10 +121,10 @@ func TestCreatePartner_UnsupportedMerchantJurisdictionFailsClosed(t *testing.T) 
 	h.merchantTx.EXPECT().
 		GetByMerchantID(h.ctx, h.merchantID).
 		Return(model.MerchantProfile{
-			ID:               h.merchantPID,
-			ExternalMerchantID:       h.merchantID,
-			Status:           model.ActiveMerchantStatus,
-			Jurisdiction:     model.Jurisdiction("TR"),
+			ID:                 h.merchantPID,
+			ExternalMerchantID: h.merchantID,
+			Status:             model.ActiveMerchantStatus,
+			Jurisdiction:       model.Jurisdiction("TR"),
 		}, nil).Once()
 	h.expectNoExistingSession()
 
@@ -211,10 +211,10 @@ func TestCreatePartner_ConflictRecoveryCanonicalizesBeforePhoneCompare(t *testin
 	h.sessionTx.EXPECT().
 		GetReturnDestination(h.ctx, h.merchantID, testReturnDestination).
 		Return(model.MerchantReturnDestination{
-			ExternalMerchantID:      h.merchantID,
-			DestinationName: testReturnDestination,
-			ReturnURL:       "https://shop.example/return",
-			Enabled:         true,
+			ExternalMerchantID: h.merchantID,
+			DestinationName:    testReturnDestination,
+			ReturnURL:          "https://shop.example/return",
+			Enabled:            true,
 		}, nil).Once()
 	h.sessionTx.EXPECT().
 		Create(
@@ -247,10 +247,10 @@ func TestCreatePartner_ConflictRecoveryCanonicalizesBeforePhoneCompare(t *testin
 	h.merchantCQ.EXPECT().
 		GetByMerchantID(h.ctx, h.merchantID).
 		Return(model.MerchantProfile{
-			ID:               h.merchantPID,
-			ExternalMerchantID:       h.merchantID,
-			Status:           model.ActiveMerchantStatus,
-			Jurisdiction:     model.IRJurisdiction,
+			ID:                 h.merchantPID,
+			ExternalMerchantID: h.merchantID,
+			Status:             model.ActiveMerchantStatus,
+			Jurisdiction:       model.IRJurisdiction,
 		}, nil).Once()
 	h.sessionCQ.EXPECT().
 		GetByMerchantIdempotencyKey(h.ctx, h.merchantPID, testAttemptKey).
@@ -359,10 +359,10 @@ func TestCreatePartner_DisabledJurisdictionFailsBeforePhoneCanonicalize(t *testi
 	h.merchantTx.EXPECT().
 		GetByMerchantID(h.ctx, h.merchantID).
 		Return(model.MerchantProfile{
-			ID:               h.merchantPID,
-			ExternalMerchantID:       h.merchantID,
-			Status:           model.ActiveMerchantStatus,
-			Jurisdiction:     model.Jurisdiction("TR"),
+			ID:                 h.merchantPID,
+			ExternalMerchantID: h.merchantID,
+			Status:             model.ActiveMerchantStatus,
+			Jurisdiction:       model.Jurisdiction("TR"),
 		}, nil).Once()
 	h.expectNoExistingSession()
 
@@ -372,7 +372,6 @@ func TestCreatePartner_DisabledJurisdictionFailsBeforePhoneCanonicalize(t *testi
 	require.Empty(t, h.identityCalls)
 	require.Empty(t, h.notificationCalls)
 }
-
 
 func TestCreatePartner_IdempotentReplayAfterOriginationDisabled(t *testing.T) {
 	t.Parallel()
@@ -451,10 +450,10 @@ func TestCreatePartner_ConflictRecoveryDoesNotRequireOriginationAdmission(t *tes
 	h.sessionTx.EXPECT().
 		GetReturnDestination(h.ctx, h.merchantID, testReturnDestination).
 		Return(model.MerchantReturnDestination{
-			ExternalMerchantID:      h.merchantID,
-			DestinationName: testReturnDestination,
-			ReturnURL:       "https://shop.example/return",
-			Enabled:         true,
+			ExternalMerchantID: h.merchantID,
+			DestinationName:    testReturnDestination,
+			ReturnURL:          "https://shop.example/return",
+			Enabled:            true,
 		}, nil).Once()
 	h.sessionTx.EXPECT().
 		Create(
@@ -517,10 +516,10 @@ func TestCreatePartner_ConflictRecoveryDoesNotRequireOriginationAdmission(t *tes
 	h.merchantCQ.EXPECT().
 		GetByMerchantID(h.ctx, h.merchantID).
 		Return(model.MerchantProfile{
-			ID:               h.merchantPID,
-			ExternalMerchantID:       h.merchantID,
-			Status:           model.ActiveMerchantStatus,
-			Jurisdiction:     model.IRJurisdiction,
+			ID:                 h.merchantPID,
+			ExternalMerchantID: h.merchantID,
+			Status:             model.ActiveMerchantStatus,
+			Jurisdiction:       model.IRJurisdiction,
 		}, nil).Once()
 	h.sessionCQ.EXPECT().
 		GetByMerchantIdempotencyKey(h.ctx, h.merchantPID, testAttemptKey).

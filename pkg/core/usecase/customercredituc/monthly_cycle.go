@@ -16,10 +16,12 @@ import (
 // release exposure. Once FC confirms every old installment and BNPL commits
 // that result, the restriction disappears without another limit decision.
 func monthlyPreviousCycleBlocked(
-	ctx context.Context,q repo.CreditAccountProductQueryer,
-	customerID model.CustomerID,currency model.Currency,at time.Time,
-)(bool,error){
-	cutoff,err:=jalali.StartOfFollowingTehranMonth(at)
-	if err!=nil{return false,cerr.InternalError(fmt.Errorf("compute monthly credit cycle boundary: %w",err))}
-	return q.HasUnpaidMonthlyCycleBefore(ctx,customerID,currency,cutoff)
+	ctx context.Context, q repo.CreditAccountProductQueryer,
+	customerID model.CustomerID, currency model.Currency, at time.Time,
+) (bool, error) {
+	cutoff, err := jalali.StartOfFollowingTehranMonth(at)
+	if err != nil {
+		return false, cerr.InternalError(fmt.Errorf("compute monthly credit cycle boundary: %w", err))
+	}
+	return q.HasUnpaidMonthlyCycleBefore(ctx, customerID, currency, cutoff)
 }

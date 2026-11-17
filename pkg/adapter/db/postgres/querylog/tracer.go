@@ -57,15 +57,15 @@ func (t *Tracer) TraceQueryStart(
 			// Fall back to the parameterized statement so a rendering bug never
 			// hides the fact that a query ran.
 			t.logger.With(
-		"sql",
-		data.SQL,
-		"argument_count",
-		len(data.Args),
-		"error",
-		err,
-	).Warn(
-		corelog.Msg("database query argument rendering failed"),
-	)
+				"sql",
+				data.SQL,
+				"argument_count",
+				len(data.Args),
+				"error",
+				err,
+			).Warn(
+				corelog.Msg("database query argument rendering failed"),
+			)
 		} else {
 			sqlText = rendered
 		}

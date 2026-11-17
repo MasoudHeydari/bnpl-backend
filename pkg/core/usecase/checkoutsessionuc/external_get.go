@@ -66,15 +66,19 @@ func (uc *UseCase) GetExternal(ctx context.Context, input GetExternalInput) (Get
 			supported := []model.CreditKind{}
 			if productQ, ok := merchantQ.(repo.MerchantProductEligibilityQueryer); ok {
 				for _, kind := range []model.CreditKind{
-					model.PayIn4CreditKind,model.PayNextMonthCreditKind,
+					model.PayIn4CreditKind, model.PayNextMonthCreditKind,
 				} {
-					enabled, err := productQ.IsCreditKindEnabled(ctx,merchant.ID,kind)
-					if err != nil { return err }
-					if enabled { supported = append(supported,kind) }
+					enabled, err := productQ.IsCreditKindEnabled(ctx, merchant.ID, kind)
+					if err != nil {
+						return err
+					}
+					if enabled {
+						supported = append(supported, kind)
+					}
 				}
 			} else {
 				// Legacy repository mocks only support the original product.
-				supported = append(supported,model.PayIn4CreditKind)
+				supported = append(supported, model.PayIn4CreditKind)
 			}
 
 			phone, err := uc.decryptCustomerPhone(found)

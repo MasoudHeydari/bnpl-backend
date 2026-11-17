@@ -77,8 +77,12 @@ func (uc *UseCase) CreatePartner(
 	}
 	if input.CreditKind == "" && session.DecisionID == nil {
 		monthlyEnabled, eligibilityErr := uc.merchantAllowsMonthlyCredit(ctx, session)
-		if eligibilityErr != nil { return CreatePartnerOutput{}, eligibilityErr }
-		if monthlyEnabled { return output, nil }
+		if eligibilityErr != nil {
+			return CreatePartnerOutput{}, eligibilityErr
+		}
+		if monthlyEnabled {
+			return output, nil
+		}
 	}
 
 	uc.observer.OfferPreparationStarted(ctx, session.ID)
@@ -105,28 +109,27 @@ func (uc *UseCase) CreatePartner(
 	return output, nil
 }
 
-
 // merchantAllowsMonthlyCredit reads the merchant's product provisioning.
 // Legacy test adapters without this optional read capability fall back to
 // pay-in-four; they must never implicitly authorize monthly financing.
 func (uc *UseCase) merchantAllowsMonthlyCredit(
 	ctx context.Context, session model.CheckoutSession,
-) (bool,error) {
+) (bool, error) {
 	var enabled bool
-	err:=uc.pool.Conn(ctx,func(ctx context.Context,conn repo.Conn)error{
-		productQ,ok:=uc.merchantProfile.Conn(conn).(repo.MerchantProductEligibilityQueryer)
+	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
+		productQ, ok := uc.merchantProfile.Conn(conn).(repo.MerchantProductEligibilityQueryer)
 		if !ok {
-			enabled=false
+			enabled = false
 			return nil
 		}
 		var lookupErr error
-		enabled,lookupErr=productQ.IsCreditKindEnabled(
-			ctx,session.MerchantProfileID,model.PayNextMonthCreditKind,
+		enabled, lookupErr = productQ.IsCreditKindEnabled(
+			ctx, session.MerchantProfileID, model.PayNextMonthCreditKind,
 		)
-		if lookupErr!=nil {
-			return cerr.InternalError(fmt.Errorf("merchant product eligibility: %w",lookupErr))
+		if lookupErr != nil {
+			return cerr.InternalError(fmt.Errorf("merchant product eligibility: %w", lookupErr))
 		}
 		return nil
 	})
-	return enabled,err
+	return enabled, err
 }

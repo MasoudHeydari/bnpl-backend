@@ -67,13 +67,13 @@ func seedInstallmentRepaymentReconciliationRequired(
 	idempotencyKey := "e2e-recon-pending-" + uuid.NewString()
 
 	_, err = repaymentUC.CreatePaymentAttempt(h.ctx, installmentrepaymentuc.CreatePaymentAttemptInput{
-		TenantID:           tenantID,
-		ContextID:          contextID,
-		ContractID:         contractRow.ID,
-		InstallmentID:      installmentID,
+		TenantID:          tenantID,
+		ContextID:         contextID,
+		ContractID:        contractRow.ID,
+		InstallmentID:     installmentID,
 		ExternalSubjectID: externalSubjectIDForExternalCustomer(t, externalCustomerID),
-		IdempotencyKey:     idempotencyKey,
-		Channel:            model.GatewayPaymentChannel,
+		IdempotencyKey:    idempotencyKey,
+		Channel:           model.GatewayPaymentChannel,
 	})
 	require.Error(t, err)
 
@@ -508,13 +508,13 @@ func TestE2E_InstallmentCreate_FCExpiryLaterThanRequestedAccepted(t *testing.T) 
 
 	idempotencyKey := "e2e-late-expiry-" + uuid.NewString()
 	createOut, err := repaymentUC.CreatePaymentAttempt(h.ctx, installmentrepaymentuc.CreatePaymentAttemptInput{
-		TenantID:           model.TenantID(uuid.MustParse("00000000-0000-4000-8000-0000000000aa")),
-		ContextID:          model.ContextID(uuid.MustParse("00000000-0000-4000-8000-0000000000bb")),
-		ContractID:         contractRow.ID,
-		InstallmentID:      installmentID,
+		TenantID:          model.TenantID(uuid.MustParse("00000000-0000-4000-8000-0000000000aa")),
+		ContextID:         model.ContextID(uuid.MustParse("00000000-0000-4000-8000-0000000000bb")),
+		ContractID:        contractRow.ID,
+		InstallmentID:     installmentID,
 		ExternalSubjectID: externalSubjectIDForExternalCustomer(t, externalCustomerID),
-		IdempotencyKey:     idempotencyKey,
-		Channel:            model.GatewayPaymentChannel,
+		IdempotencyKey:    idempotencyKey,
+		Channel:           model.GatewayPaymentChannel,
 	})
 	require.NoError(t, err)
 	require.Equal(t, model.SubmittedPaymentAttemptState, createOut.PaymentAttempt.State)
@@ -526,13 +526,13 @@ func TestE2E_InstallmentCreate_FCExpiryLaterThanRequestedAccepted(t *testing.T) 
 
 	// Exact replay must not create a second FC operation.
 	replay, err := repaymentUC.CreatePaymentAttempt(h.ctx, installmentrepaymentuc.CreatePaymentAttemptInput{
-		TenantID:           model.TenantID(uuid.MustParse("00000000-0000-4000-8000-0000000000aa")),
-		ContextID:          model.ContextID(uuid.MustParse("00000000-0000-4000-8000-0000000000bb")),
-		ContractID:         contractRow.ID,
-		InstallmentID:      installmentID,
+		TenantID:          model.TenantID(uuid.MustParse("00000000-0000-4000-8000-0000000000aa")),
+		ContextID:         model.ContextID(uuid.MustParse("00000000-0000-4000-8000-0000000000bb")),
+		ContractID:        contractRow.ID,
+		InstallmentID:     installmentID,
 		ExternalSubjectID: externalSubjectIDForExternalCustomer(t, externalCustomerID),
-		IdempotencyKey:     idempotencyKey,
-		Channel:            model.GatewayPaymentChannel,
+		IdempotencyKey:    idempotencyKey,
+		Channel:           model.GatewayPaymentChannel,
 	})
 	require.NoError(t, err)
 	require.Equal(t, createOut.PaymentAttempt.ID, replay.PaymentAttempt.ID)

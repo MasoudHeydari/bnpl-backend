@@ -12,10 +12,10 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/decisionrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/healthrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/installmentpaymentrs"
-	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/repaymentbatchrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/merchantrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/merchantterminalrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/middleware"
+	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/repaymentbatchrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/swaggerrs"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/checkoutsessionuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/contractuc"
@@ -24,9 +24,9 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/decisionuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/healthcheckuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/installmentrepaymentuc"
-	"github.com/parstis/bnpl-backend/pkg/core/usecase/repaymentbatchuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/merchantterminaluc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/merchantuc"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/repaymentbatchuc"
 )
 
 // Register attaches HTTP routes to router.
@@ -92,10 +92,10 @@ func Register(
 	contractrs.Register(v1, contractUseCase, opts.Contract)
 	merchantrs.Register(v1, merchantUseCase, opts.Merchant)
 	installmentpaymentrs.Register(v1, installmentRepaymentUseCase, opts.InstallmentPayment)
-	if len(repaymentBatch)>0 && repaymentBatch[0]!=nil {
+	if len(repaymentBatch) > 0 && repaymentBatch[0] != nil {
 		repaymentbatchrs.Register(v1, repaymentBatch[0], repaymentbatchrs.RegisterOptions{
 			ProviderCode: opts.RepaymentBatchProviderCode,
-			ReturnURL: opts.RepaymentBatchReturnURL,
+			ReturnURL:    opts.RepaymentBatchReturnURL,
 		})
 	}
 	customerrs.Register(v1, customerAccountUseCase, opts.Customer)

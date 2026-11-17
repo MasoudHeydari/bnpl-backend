@@ -71,13 +71,13 @@ func (uc *UseCase) applyTerminalInstallmentPaymentResult(
 		}
 		if err := uc.insertPaymentAttemptCanceledAudit(
 			ctx, outboxQ, input, paymentAttemptTerminalAuditFacts{
-				InboxID: inboxID,
-				Attempt: *attempt,
+				InboxID:       inboxID,
+				Attempt:       *attempt,
 				PreviousState: previousState,
-				CurrentState: model.CanceledPaymentAttemptState,
+				CurrentState:  model.CanceledPaymentAttemptState,
 				ProcessResult: ProcessResultCancellationRecorded,
-				ReasonCode: reasonCode,
-				ContractID: input.ContractID,
+				ReasonCode:    reasonCode,
+				ContractID:    input.ContractID,
 				InstallmentID: input.InstallmentID,
 			}, now,
 		); err != nil {

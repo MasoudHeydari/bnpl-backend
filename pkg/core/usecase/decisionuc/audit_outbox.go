@@ -21,7 +21,7 @@ const (
 // checkoutDecisionAuditFacts carries in-transaction identifiers already loaded
 // for the audited Decision. Do not query repositories to populate this struct.
 type checkoutDecisionAuditFacts struct {
-	ExternalSubjectID      model.ExternalSubjectID
+	ExternalSubjectID       model.ExternalSubjectID
 	CustomerID              model.CustomerID
 	MerchantProfileID       model.MerchantProfileID
 	ExternalMerchantID      model.ExternalMerchantID

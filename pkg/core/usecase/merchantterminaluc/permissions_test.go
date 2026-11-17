@@ -51,15 +51,15 @@ func TestRetireDoesNotChangePermissions(t *testing.T) {
 
 	grace := time.Hour
 	rotated, err := h.uc.Rotate(h.ctx, RotateInput{
-		ExternalMerchantID:     h.merchantID,
-		GracePeriod:    &grace,
-		IdempotencyKey: "rotate-1",
+		ExternalMerchantID: h.merchantID,
+		GracePeriod:        &grace,
+		IdempotencyKey:     "rotate-1",
 	})
 	require.NoError(t, err)
 
 	_, err = h.uc.Retire(h.ctx, RetireInput{
-		ExternalMerchantID:   h.merchantID,
-		CredentialID: first.CredentialID,
+		ExternalMerchantID: h.merchantID,
+		CredentialID:       first.CredentialID,
 	})
 	require.NoError(t, err)
 

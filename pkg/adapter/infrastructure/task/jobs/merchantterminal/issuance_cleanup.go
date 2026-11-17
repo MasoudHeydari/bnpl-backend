@@ -25,11 +25,11 @@ func IssuanceDeliveryCleanup(
 		}
 
 		logger.With(
-		"scrubbed_count",
-		scrubbed,
-	).Info(
-		corelog.Msg("scrubbed expired merchant terminal issuance deliveries"),
-	)
+			"scrubbed_count",
+			scrubbed,
+		).Info(
+			corelog.Msg("scrubbed expired merchant terminal issuance deliveries"),
+		)
 
 		return nil
 	}

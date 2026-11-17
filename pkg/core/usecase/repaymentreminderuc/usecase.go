@@ -35,20 +35,20 @@ type DefaultNoticeEvaluator interface {
 }
 
 type UseCase struct {
-	defaultNotice        DefaultNoticeEvaluator
-	pool                 repo.Pool
-	installment          repo.Installment
-	contract             repo.Contract
-	repaymentReminder    repo.RepaymentReminder
-	paymentAttempt       repo.PaymentAttempt
-	decision             repo.Decision
-	checkoutPolicies     *checkout.Registry
-	outbox               repo.Outbox
-	shortLink            *shortlinkuc.UseCase
-	clock                clock.Clock
-	idGenerator          identifier.Generator
-	businessMetrics      metrics.BusinessMetrics
-	policy               reminderv1.Policy
+	defaultNotice             DefaultNoticeEvaluator
+	pool                      repo.Pool
+	installment               repo.Installment
+	contract                  repo.Contract
+	repaymentReminder         repo.RepaymentReminder
+	paymentAttempt            repo.PaymentAttempt
+	decision                  repo.Decision
+	checkoutPolicies          *checkout.Registry
+	outbox                    repo.Outbox
+	shortLink                 *shortlinkuc.UseCase
+	clock                     clock.Clock
+	idGenerator               identifier.Generator
+	businessMetrics           metrics.BusinessMetrics
+	policy                    reminderv1.Policy
 	notificationTopic         string
 	publicHost                string
 	repaymentDestination      string

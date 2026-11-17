@@ -52,8 +52,8 @@ func TestListBranches_Keyset_EmptyWhenMerchantMissing(t *testing.T) {
 
 	out, err := uc.ListBranches(context.Background(), merchantuc.ListBranchesInput{
 		ExternalMerchantID: merchantID,
-		Mode:       merchantuc.PaginationModeKeyset,
-		Keyset:     pagination.KeysetRequest{Limit: 20},
+		Mode:               merchantuc.PaginationModeKeyset,
+		Keyset:             pagination.KeysetRequest{Limit: 20},
 	})
 	require.NoError(t, err)
 	require.Empty(t, out.Branches)
@@ -102,22 +102,22 @@ func TestListBranches_Keyset_ReturnsBranches(t *testing.T) {
 			}),
 		).
 		Return([]model.MerchantBranchProfile{{
-			ID:         branchProfileID,
+			ID:                 branchProfileID,
 			ExternalMerchantID: merchantID,
 			ExternalBranchID:   model.ExternalBranchID(uuid.New()),
-			Type:       model.PhysicalMerchantBranchType,
-			Status:     model.ActiveMerchantBranchStatus,
-			Currencies: []model.Currency{model.IRRCurrency},
-			CreatedAt:  createdAt,
-			UpdatedAt:  createdAt,
+			Type:               model.PhysicalMerchantBranchType,
+			Status:             model.ActiveMerchantBranchStatus,
+			Currencies:         []model.Currency{model.IRRCurrency},
+			CreatedAt:          createdAt,
+			UpdatedAt:          createdAt,
 		}}, nil)
 
 	uc := merchantuc.New(pool, merchantProfile, branchProfile, nil)
 
 	out, err := uc.ListBranches(context.Background(), merchantuc.ListBranchesInput{
 		ExternalMerchantID: merchantID,
-		Mode:       merchantuc.PaginationModeKeyset,
-		Keyset:     pagination.KeysetRequest{Limit: 20},
+		Mode:               merchantuc.PaginationModeKeyset,
+		Keyset:             pagination.KeysetRequest{Limit: 20},
 	})
 	require.NoError(t, err)
 	require.Len(t, out.Branches, 1)
@@ -160,20 +160,20 @@ func TestListBranches_Page_ReturnsTotals(t *testing.T) {
 			}),
 		).
 		Return([]model.MerchantBranchProfile{{
-			ID:         model.MerchantBranchProfileID(uuid.New()),
+			ID:                 model.MerchantBranchProfileID(uuid.New()),
 			ExternalMerchantID: merchantID,
 			ExternalBranchID:   model.ExternalBranchID(uuid.New()),
-			Type:       model.PhysicalMerchantBranchType,
-			Status:     model.SuspendedMerchantBranchStatus,
-			CreatedAt:  time.Now().UTC(),
-			UpdatedAt:  time.Now().UTC(),
+			Type:               model.PhysicalMerchantBranchType,
+			Status:             model.SuspendedMerchantBranchStatus,
+			CreatedAt:          time.Now().UTC(),
+			UpdatedAt:          time.Now().UTC(),
 		}}, nil)
 
 	uc := merchantuc.New(pool, merchantProfile, branchProfile, nil)
 
 	out, err := uc.ListBranches(context.Background(), merchantuc.ListBranchesInput{
 		ExternalMerchantID: merchantID,
-		Mode:       merchantuc.PaginationModePage,
+		Mode:               merchantuc.PaginationModePage,
 		Offset: pagination.OffsetRequest{
 			Page:  1,
 			Limit: 20,

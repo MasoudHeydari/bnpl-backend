@@ -126,7 +126,7 @@ func TestSwaggerDocumentsTraceHeadersAndRealisticFailures(t *testing.T) {
 		"/healthz/live":  {},
 		"/healthz/ready": {},
 		"/api/v1/checkout-decisions/{decision_id}/contracts": {},
-		"/api/v1/repayment-batches": {},
+		"/api/v1/repayment-batches":                          {},
 		"/api/v1/contracts/{contract_id}/cancel":             {},
 		"/api/v1/customer-credit/initiate":                   {},
 	}

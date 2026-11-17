@@ -12,18 +12,18 @@ import (
 )
 
 const (
-	createInstallmentRepaymentAttemptAuditAction = "payment_attempt.create_for_installment_repayment"
+	createInstallmentRepaymentAttemptAuditAction   = "payment_attempt.create_for_installment_repayment"
 	cancelSessionCreationRetryExhaustedAuditAction = "payment_attempt.cancel_session_creation_retry_exhausted"
-	paymentAttemptAuditResourceType              = "payment_attempt"
-	paymentAttemptCreatedReasonCode              = "installment_repayment_payment_attempt_created"
-	sessionCreationRetryExhaustedReasonCode      = model.SessionCreationRetryExhaustedFailureCode
+	paymentAttemptAuditResourceType                = "payment_attempt"
+	paymentAttemptCreatedReasonCode                = "installment_repayment_payment_attempt_created"
+	sessionCreationRetryExhaustedReasonCode        = model.SessionCreationRetryExhaustedFailureCode
 )
 
 type installmentRepaymentAuditFacts struct {
 	ExternalSubjectID model.ExternalSubjectID
-	CustomerID         model.CustomerID
-	Installment        model.Installment
-	Charges            []model.InstallmentCharge
+	CustomerID        model.CustomerID
+	Installment       model.Installment
+	Charges           []model.InstallmentCharge
 }
 
 func (uc *UseCase) insertCreatePaymentAttemptAuditOutbox(

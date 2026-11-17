@@ -188,9 +188,9 @@ func (uc *UseCase) Cancel(
 							outboxQ,
 							cancelAuditFacts{
 								ExternalSubjectID: input.ExternalSubjectID,
-								Contract:           updated,
-								PreviousStatus:     model.ActiveContractStatus,
-								Reason:             input.Reason,
+								Contract:          updated,
+								PreviousStatus:    model.ActiveContractStatus,
+								Reason:            input.Reason,
 							},
 							now,
 						); err != nil {

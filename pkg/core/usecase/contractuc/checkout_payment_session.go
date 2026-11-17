@@ -306,16 +306,16 @@ func (uc *UseCase) ensureCheckoutCollectionObligation(
 	result, err := uc.checkoutPaymentClient.PrepareCollectionObligation(
 		ctx,
 		extcheckoutpayment.PrepareCollectionObligationInput{
-			SourceType:    financialSourceType,
-			SourceID:      contractRow.ID.String(),
-			SourceVersion: financialSourceVersion(),
+			SourceType:         financialSourceType,
+			SourceID:           contractRow.ID.String(),
+			SourceVersion:      financialSourceVersion(),
 			ExternalMerchantID: merchant.ExternalMerchantID.String(),
 			ExternalCustomerID: customer.ExternalCustomerID.String(),
-			Currency:      string(contractRow.Currency),
-			AmountMinor:   amountMinor,
-			Application:   extcheckoutpayment.PreRecognitionCashCollectionApplication,
-			Description:   fmt.Sprintf("BNPL checkout contract %s activation collection", contractRow.ID),
-			DueAt:         contractRow.ExpiresAt.UTC(),
+			Currency:           string(contractRow.Currency),
+			AmountMinor:        amountMinor,
+			Application:        extcheckoutpayment.PreRecognitionCashCollectionApplication,
+			Description:        fmt.Sprintf("BNPL checkout contract %s activation collection", contractRow.ID),
+			DueAt:              contractRow.ExpiresAt.UTC(),
 		},
 	)
 	if err != nil {

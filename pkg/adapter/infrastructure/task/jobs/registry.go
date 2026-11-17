@@ -24,8 +24,8 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/outboxpublisheruc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/paymentattemptexpirationuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/paymentattemptreconciliationuc"
-	"github.com/parstis/bnpl-backend/pkg/core/usecase/repaymentreminderuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/repaymentbatchuc"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/repaymentreminderuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/sagaexecutoruc"
 )
 
@@ -42,7 +42,7 @@ type Registry struct {
 	merchantterminaluc             *merchantterminaluc.UseCase
 	repaymentreminderuc            *repaymentreminderuc.UseCase
 	collectionsuc                  *collectionsuc.UseCase
-	repaymentBatchUC              *repaymentbatchuc.UseCase
+	repaymentBatchUC               *repaymentbatchuc.UseCase
 }
 
 // NewRegistry creates a task job registry.

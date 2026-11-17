@@ -73,7 +73,6 @@ func (l *expiryRecordingLogger) recordLog(level string, event corelog.Event, fie
 	*l.records = append(*l.records, expiryLogRecord{level: level, msg: msg, args: attrs})
 }
 
-
 func (l *expiryRecordingLogger) warnings() []expiryLogRecord {
 	l.mu.Lock()
 	defer l.mu.Unlock()

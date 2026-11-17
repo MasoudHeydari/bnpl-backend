@@ -129,13 +129,15 @@ func (uc *UseCase) RevalidateCheckoutOffer(
 			}
 
 			merchantEnabled, lookupErr := merchantAllowsCreditKind(
-				ctx,merchantProfileQ,merchantProfile.ID,
+				ctx, merchantProfileQ, merchantProfile.ID,
 				model.EffectiveCreditKind(selectedPolicy.Terms().CreditKind),
 			)
-			if lookupErr != nil { return lookupErr }
+			if lookupErr != nil {
+				return lookupErr
+			}
 			if !merchantEnabled {
-				output.StillHonorable=false
-				invalidReason=offerInvalidReasonNewCreditRestricted
+				output.StillHonorable = false
+				invalidReason = offerInvalidReasonNewCreditRestricted
 				return nil
 			}
 
@@ -165,7 +167,9 @@ func (uc *UseCase) RevalidateCheckoutOffer(
 				blocked, lookupErr := previousMonthlyCycleUnpaid(
 					ctx, creditAccountQ, customerProfile.ID, allocation.Currency, now,
 				)
-				if lookupErr != nil { return lookupErr }
+				if lookupErr != nil {
+					return lookupErr
+				}
 				if blocked {
 					output.StillHonorable = false
 					invalidReason = offerInvalidReasonNewCreditRestricted

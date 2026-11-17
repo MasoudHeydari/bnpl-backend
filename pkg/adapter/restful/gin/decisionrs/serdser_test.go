@@ -67,19 +67,19 @@ func TestPurchaseContextRequestValidate(t *testing.T) {
 		t.Parallel()
 
 		require.NoError(t, purchaseContextRequest{
-			Type:     model.POSPurchaseChannel,
+			Type:             model.POSPurchaseChannel,
 			ExternalPosGpsID: posID,
 		}.validate())
 
 		require.NoError(t, purchaseContextRequest{
-			Type:          model.OnlinePurchaseChannel,
+			Type:                  model.OnlinePurchaseChannel,
 			ExternalOnlineStoreID: onlineID,
 		}.validate())
 
 		require.NoError(t, purchaseContextRequest{
-			Type:            model.OnlinePurchaseChannel,
-			ExternalOnlineStoreID:   onlineID,
-			MerchantOrderID: "ORDER-123",
+			Type:                  model.OnlinePurchaseChannel,
+			ExternalOnlineStoreID: onlineID,
+			MerchantOrderID:       "ORDER-123",
 		}.validate())
 	})
 
@@ -110,7 +110,7 @@ func TestPurchaseContextRequestValidate(t *testing.T) {
 			{
 				name: "pos_with_empty_pos_gps_id",
 				req: purchaseContextRequest{
-					Type:     model.POSPurchaseChannel,
+					Type:             model.POSPurchaseChannel,
 					ExternalPosGpsID: model.ExternalPosGpsID{},
 				},
 				field:  "purchase_context.external_pos_gps_id",
@@ -120,7 +120,7 @@ func TestPurchaseContextRequestValidate(t *testing.T) {
 			{
 				name: "pos_with_online_store_id",
 				req: purchaseContextRequest{
-					Type:          model.POSPurchaseChannel,
+					Type:                  model.POSPurchaseChannel,
 					ExternalPosGpsID:      posID,
 					ExternalOnlineStoreID: onlineID,
 				},
@@ -131,9 +131,9 @@ func TestPurchaseContextRequestValidate(t *testing.T) {
 			{
 				name: "pos_with_merchant_order_id",
 				req: purchaseContextRequest{
-					Type:            model.POSPurchaseChannel,
-					ExternalPosGpsID:        posID,
-					MerchantOrderID: "ORDER-1",
+					Type:             model.POSPurchaseChannel,
+					ExternalPosGpsID: posID,
+					MerchantOrderID:  "ORDER-1",
 				},
 				field:  "purchase_context.merchant_order_id",
 				code:   cerr.CodeInvalidArgument,
@@ -142,7 +142,7 @@ func TestPurchaseContextRequestValidate(t *testing.T) {
 			{
 				name: "pos_with_both_ids",
 				req: purchaseContextRequest{
-					Type:          model.POSPurchaseChannel,
+					Type:                  model.POSPurchaseChannel,
 					ExternalPosGpsID:      posID,
 					ExternalOnlineStoreID: onlineID,
 				},
@@ -160,7 +160,7 @@ func TestPurchaseContextRequestValidate(t *testing.T) {
 			{
 				name: "online_with_empty_online_store_id",
 				req: purchaseContextRequest{
-					Type:          model.OnlinePurchaseChannel,
+					Type:                  model.OnlinePurchaseChannel,
 					ExternalOnlineStoreID: model.ExternalOnlineStoreID{},
 				},
 				field:  "purchase_context.external_online_store_id",
@@ -170,7 +170,7 @@ func TestPurchaseContextRequestValidate(t *testing.T) {
 			{
 				name: "online_with_pos_gps_id",
 				req: purchaseContextRequest{
-					Type:          model.OnlinePurchaseChannel,
+					Type:                  model.OnlinePurchaseChannel,
 					ExternalOnlineStoreID: onlineID,
 					ExternalPosGpsID:      posID,
 				},
@@ -181,9 +181,9 @@ func TestPurchaseContextRequestValidate(t *testing.T) {
 			{
 				name: "online_merchant_order_id_too_long",
 				req: purchaseContextRequest{
-					Type:            model.OnlinePurchaseChannel,
-					ExternalOnlineStoreID:   onlineID,
-					MerchantOrderID: strings.Repeat("a", decisionuc.MaxMerchantOrderIDLength+1),
+					Type:                  model.OnlinePurchaseChannel,
+					ExternalOnlineStoreID: onlineID,
+					MerchantOrderID:       strings.Repeat("a", decisionuc.MaxMerchantOrderIDLength+1),
 				},
 				field:  "purchase_context.merchant_order_id",
 				code:   cerr.CodeInvalidArgument,
@@ -217,7 +217,7 @@ func TestToCreateInput_PurchaseContextValidation(t *testing.T) {
 	t.Run("valid_pos", func(t *testing.T) {
 		c, w := newCreateInputContext(t, map[string]any{
 			"purchase_context": map[string]any{
-				"type":       "pos",
+				"type":                "pos",
 				"external_pos_gps_id": posID.String(),
 			},
 			"requested_amount_minor": 1_500_000,
@@ -234,9 +234,9 @@ func TestToCreateInput_PurchaseContextValidation(t *testing.T) {
 	t.Run("valid_online_with_order", func(t *testing.T) {
 		c, w := newCreateInputContext(t, map[string]any{
 			"purchase_context": map[string]any{
-				"type":              "online",
-				"external_online_store_id":   onlineID.String(),
-				"merchant_order_id": "ORDER-123",
+				"type":                     "online",
+				"external_online_store_id": onlineID.String(),
+				"merchant_order_id":        "ORDER-123",
 			},
 			"requested_amount_minor": 1_500_000,
 			"currency":               "IRR",
@@ -310,7 +310,7 @@ func TestToCreateInput_PurchaseContextValidation(t *testing.T) {
 			name: "pos_with_online_store_id",
 			body: map[string]any{
 				"purchase_context": map[string]any{
-					"type":            "pos",
+					"type":                     "pos",
 					"external_pos_gps_id":      posID.String(),
 					"external_online_store_id": onlineID.String(),
 				},
@@ -325,9 +325,9 @@ func TestToCreateInput_PurchaseContextValidation(t *testing.T) {
 			name: "pos_with_merchant_order_id",
 			body: map[string]any{
 				"purchase_context": map[string]any{
-					"type":              "pos",
-					"external_pos_gps_id":        posID.String(),
-					"merchant_order_id": "ORDER-1",
+					"type":                "pos",
+					"external_pos_gps_id": posID.String(),
+					"merchant_order_id":   "ORDER-1",
 				},
 				"requested_amount_minor": 1_500_000,
 				"currency":               "IRR",
@@ -351,7 +351,7 @@ func TestToCreateInput_PurchaseContextValidation(t *testing.T) {
 			name: "online_with_pos_gps_id",
 			body: map[string]any{
 				"purchase_context": map[string]any{
-					"type":            "online",
+					"type":                     "online",
 					"external_online_store_id": onlineID.String(),
 					"external_pos_gps_id":      posID.String(),
 				},

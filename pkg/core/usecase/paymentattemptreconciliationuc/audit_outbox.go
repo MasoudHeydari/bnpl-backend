@@ -12,11 +12,11 @@ import (
 )
 
 const (
-	auditActionPaymentAttemptRequireReconciliation = "payment_attempt.require_reconciliation"
-	auditActionPaymentAttemptRequestReconciliation = "payment_attempt.request_reconciliation"
-	auditActionPaymentAttemptRequireManualReview   = "payment_attempt.require_manual_review"
-	auditActionPaymentAttemptExpireLocalSession              = "payment_attempt.expire_local_session_creation"
-	auditActionPaymentAttemptCancelSessionCreationRetry      = "payment_attempt.cancel_session_creation_retry_exhausted"
+	auditActionPaymentAttemptRequireReconciliation      = "payment_attempt.require_reconciliation"
+	auditActionPaymentAttemptRequestReconciliation      = "payment_attempt.request_reconciliation"
+	auditActionPaymentAttemptRequireManualReview        = "payment_attempt.require_manual_review"
+	auditActionPaymentAttemptExpireLocalSession         = "payment_attempt.expire_local_session_creation"
+	auditActionPaymentAttemptCancelSessionCreationRetry = "payment_attempt.cancel_session_creation_retry_exhausted"
 
 	auditReasonAutomaticReconciliationRequested  = "automatic_reconciliation_requested"
 	auditReasonLocalSessionCreationWindowExpired = "local_session_creation_window_expired"

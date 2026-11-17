@@ -32,8 +32,8 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/outboxpublisheruc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/paymentattemptexpirationuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/paymentattemptreconciliationuc"
-	"github.com/parstis/bnpl-backend/pkg/core/usecase/repaymentreminderuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/repaymentbatchuc"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/repaymentreminderuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/sagaexecutoruc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/shortlinkuc"
 )
@@ -692,7 +692,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		OTP:                                otpUseCase,
 		InstallmentLifecycle:               installmentLifecycleUseCase,
 		InstallmentRepayment:               installmentRepaymentUseCase,
-		RepaymentBatch:                    repaymentBatchUseCase,
+		RepaymentBatch:                     repaymentBatchUseCase,
 		FinancialCorePaymentResult:         financialCorePaymentResultUseCase,
 		FinancialCorePaymentReconciliation: financialCorePaymentReconciliationUseCase,
 		PaymentAttemptReconciliation:       paymentAttemptReconciliationUseCase,

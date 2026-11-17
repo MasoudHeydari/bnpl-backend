@@ -25,7 +25,7 @@ const (
 )
 
 type createPaymentPendingAuditFacts struct {
-	ExternalSubjectID model.ExternalSubjectID
+	ExternalSubjectID  model.ExternalSubjectID
 	Contract           model.Contract
 	Installments       []model.Installment
 	InstallmentCharges []model.InstallmentCharge
@@ -435,9 +435,9 @@ func (uc *UseCase) insertAttachCheckoutPaymentSessionAuditOutbox(
 
 type cancelAuditFacts struct {
 	ExternalSubjectID model.ExternalSubjectID
-	Contract           model.Contract
-	PreviousStatus     model.ContractStatus
-	Reason             model.ContractCancellationReason
+	Contract          model.Contract
+	PreviousStatus    model.ContractStatus
+	Reason            model.ContractCancellationReason
 }
 
 func (uc *UseCase) insertCancelAuditOutbox(

@@ -60,15 +60,15 @@ func (uc *UseCase) newExpiredAuditEvent(
 	service := auditServicePaymentAttemptExpirationTask
 	reason := auditReasonLocalSessionCreationWindowExpired
 	metadata := map[string]any{
-		"payment_attempt_id":    after.ID.String(),
-		"contract_id":           after.ContractID.String(),
-		"installment_id":        after.InstallmentID.String(),
-		"payment_purpose":       after.Purpose,
-		"payment_attempt_state": after.State,
-		"expired_at":            optionalTime(after.ExpiredAt),
+		"payment_attempt_id":         after.ID.String(),
+		"contract_id":                after.ContractID.String(),
+		"installment_id":             after.InstallmentID.String(),
+		"payment_purpose":            after.Purpose,
+		"payment_attempt_state":      after.State,
+		"expired_at":                 optionalTime(after.ExpiredAt),
 		"financial_outcome_resolved": after.FinancialOutcomeResolved,
-		"reason_codes":          []string{reason},
-		"initiator":             "bnpl_system",
+		"reason_codes":               []string{reason},
+		"initiator":                  "bnpl_system",
 	}
 
 	if before.ReconciliationReason != nil {

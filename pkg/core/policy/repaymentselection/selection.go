@@ -18,7 +18,7 @@ func RequireAllOverdueInstallments(
 ) error {
 	for _, installment := range due {
 		if installment.Status == model.OverdueInstallmentStatus ||
-			installment.IsOverdueEligible(at,businessLocation) {
+			installment.IsOverdueEligible(at, businessLocation) {
 			if _, chosen := selected[installment.ID]; !chosen {
 				return cerr.Conflict(fmt.Errorf(
 					"repayment must include every overdue installment across all credit products",
@@ -42,13 +42,15 @@ func RequireConsecutiveInstallments(
 		if !installment.Status.IsActive() {
 			continue
 		}
-		_,chosen:=selected[installment.ID]
+		_, chosen := selected[installment.ID]
 		if chosen && unselectedEarlier {
 			return cerr.Conflict(fmt.Errorf(
 				"repayment cannot skip an earlier unpaid installment",
 			))
 		}
-		if !chosen { unselectedEarlier = true }
+		if !chosen {
+			unselectedEarlier = true
+		}
 	}
 	return nil
 }

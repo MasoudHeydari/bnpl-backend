@@ -63,7 +63,7 @@ func TestGetReturn_CustomerOwnership(t *testing.T) {
 			h.expectCustomerLookup()
 
 			output, err := h.uc.GetReturn(h.ctx, GetReturnInput{
-				CheckoutSessionID: h.sessionID,
+				CheckoutSessionID:  h.sessionID,
 				ExternalCustomerID: h.profileID,
 			})
 
@@ -89,7 +89,7 @@ func TestGetReturn_MissingSessionIsNotFound(t *testing.T) {
 	h.expectReturnLookup(model.CheckoutSession{}, cerr.ResourceNotFound(errors.New("no such session")))
 
 	_, err := h.uc.GetReturn(h.ctx, GetReturnInput{
-		CheckoutSessionID: h.sessionID,
+		CheckoutSessionID:  h.sessionID,
 		ExternalCustomerID: h.profileID,
 	})
 	requireCerr(t, err, cerr.CodeResourceNotFound, "error.checkout_session_not_found")
@@ -118,7 +118,7 @@ func TestGetReturn_CompletedReturnURLCarriesOnlyCheckoutIdentityAndState(t *test
 	h.expectCustomerLookup()
 
 	output, err := h.uc.GetReturn(h.ctx, GetReturnInput{
-		CheckoutSessionID: h.sessionID,
+		CheckoutSessionID:  h.sessionID,
 		ExternalCustomerID: h.profileID,
 	})
 	require.NoError(t, err)

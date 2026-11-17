@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 	testifymock "github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	adapterclock "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/clock"
 	sha256fingerprint "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/fingerprint/sha256"
@@ -226,19 +226,19 @@ func (h *revalidateHarness) wireProfilesAndCredit(limitMinor uint64) {
 		Jurisdiction:       model.IRJurisdiction,
 	}
 	merchant := model.MerchantProfile{
-		ID:                h.merchantPID,
-		ExternalMerchantID:        h.merchantID,
-		Status:            model.ActiveMerchantStatus,
-		Jurisdiction:      model.IRJurisdiction,
-		Currencies:        []model.Currency{model.IRRCurrency},
-		MaxAmountMinor:    2_000_000_000,
-		MaxAmountCurrency: model.IRRCurrency,
-		MaxTenureMonths:   12,
+		ID:                 h.merchantPID,
+		ExternalMerchantID: h.merchantID,
+		Status:             model.ActiveMerchantStatus,
+		Jurisdiction:       model.IRJurisdiction,
+		Currencies:         []model.Currency{model.IRRCurrency},
+		MaxAmountMinor:     2_000_000_000,
+		MaxAmountCurrency:  model.IRRCurrency,
+		MaxTenureMonths:    12,
 	}
 	branch := model.MerchantBranchProfile{
-		ID:         h.branchPID,
+		ID:                 h.branchPID,
 		ExternalMerchantID: h.merchantID,
-		Status:     model.ActiveMerchantBranchStatus,
+		Status:             model.ActiveMerchantBranchStatus,
 	}
 	account := model.CreditAccount{
 		CustomerID:          h.customerID,

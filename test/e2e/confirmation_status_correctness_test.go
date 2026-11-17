@@ -108,15 +108,15 @@ func TestE2E_ConfirmationStatus_FirstTimeOnStartWithoutDecision(t *testing.T) {
 
 	out, err := h.CheckoutSession.CreatePartner(h.ctx, checkoutsessionuc.CreatePartnerInput{
 		CheckoutSessionRequest: checkoutsessionuc.CheckoutSessionRequest{
-			ExternalMerchantID:           merchantID,
-			ExternalOnlineStoreID:        onlineStoreID,
-			MerchantOrderID:      "order-" + uuid.NewString(),
-			IdempotencyKey:       "idem-" + uuid.NewString(),
-			CustomerReference:    "cust-ref",
-			ReturnDestination:    confirmSagaReturnDest,
-			MerchantState:        "state",
-			RequestedAmountMinor: confirmSagaTestAmountMinor,
-			Currency:             model.IRRCurrency,
+			ExternalMerchantID:    merchantID,
+			ExternalOnlineStoreID: onlineStoreID,
+			MerchantOrderID:       "order-" + uuid.NewString(),
+			IdempotencyKey:        "idem-" + uuid.NewString(),
+			CustomerReference:     "cust-ref",
+			ReturnDestination:     confirmSagaReturnDest,
+			MerchantState:         "state",
+			RequestedAmountMinor:  confirmSagaTestAmountMinor,
+			Currency:              model.IRRCurrency,
 		},
 		CustomerPhone: "+989121111111",
 	})

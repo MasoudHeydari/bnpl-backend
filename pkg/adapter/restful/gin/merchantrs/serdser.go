@@ -57,28 +57,28 @@ func toGetInput(c *gin.Context) (merchantuc.GetProfileInput, bool) {
 }
 
 type profileResponse struct {
-	ExternalMerchantID         model.ExternalMerchantID        `json:"external_merchant_id" example:"8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c" format:"uuid"`
-	DisplayName        string                  `json:"display_name" example:"Sample Merchant"`
-	LegalName          string                  `json:"legal_name,omitempty" example:"Sample Merchant LLC"`
-	LogoURL            string                  `json:"logo_url,omitempty" example:"https://cdn.example/logo.png"`
-	SupportPhone       string                  `json:"support_phone,omitempty" example:"+989121234567"`
-	SupportEmail       string                  `json:"support_email,omitempty" example:"support@example.com"`
-	Status             model.MerchantStatus    `json:"status" example:"active"`
-	FundingModels      []model.FundingModel    `json:"funding_models"`
-	SettlementModels   []model.SettlementModel `json:"settlement_models"`
-	Currencies         []model.Currency        `json:"currencies"`
-	MaxAmountMinor     uint64                  `json:"max_amount_minor" example:"500000000"`
-	MaxAmountCurrency  model.Currency          `json:"max_amount_currency" example:"IRR"`
-	MaxTenureMonths    uint                    `json:"max_tenure_months" example:"12"`
-	RequiresBranchMode bool                    `json:"requires_branch_mode" example:"true"`
-	Jurisdiction       model.Jurisdiction      `json:"jurisdiction" example:"IR"`
-	CreatedAt          time.Time               `json:"created_at" example:"2026-01-01T00:00:00Z"`
-	UpdatedAt          time.Time               `json:"updated_at" example:"2026-08-09T12:00:00Z"`
+	ExternalMerchantID model.ExternalMerchantID `json:"external_merchant_id" example:"8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c" format:"uuid"`
+	DisplayName        string                   `json:"display_name" example:"Sample Merchant"`
+	LegalName          string                   `json:"legal_name,omitempty" example:"Sample Merchant LLC"`
+	LogoURL            string                   `json:"logo_url,omitempty" example:"https://cdn.example/logo.png"`
+	SupportPhone       string                   `json:"support_phone,omitempty" example:"+989121234567"`
+	SupportEmail       string                   `json:"support_email,omitempty" example:"support@example.com"`
+	Status             model.MerchantStatus     `json:"status" example:"active"`
+	FundingModels      []model.FundingModel     `json:"funding_models"`
+	SettlementModels   []model.SettlementModel  `json:"settlement_models"`
+	Currencies         []model.Currency         `json:"currencies"`
+	MaxAmountMinor     uint64                   `json:"max_amount_minor" example:"500000000"`
+	MaxAmountCurrency  model.Currency           `json:"max_amount_currency" example:"IRR"`
+	MaxTenureMonths    uint                     `json:"max_tenure_months" example:"12"`
+	RequiresBranchMode bool                     `json:"requires_branch_mode" example:"true"`
+	Jurisdiction       model.Jurisdiction       `json:"jurisdiction" example:"IR"`
+	CreatedAt          time.Time                `json:"created_at" example:"2026-01-01T00:00:00Z"`
+	UpdatedAt          time.Time                `json:"updated_at" example:"2026-08-09T12:00:00Z"`
 }
 
 func toProfileResponse(output merchantuc.GetProfileOutput) profileResponse {
 	return profileResponse{
-		ExternalMerchantID:         output.ExternalMerchantID,
+		ExternalMerchantID: output.ExternalMerchantID,
 		DisplayName:        output.DisplayName,
 		LegalName:          output.LegalName,
 		LogoURL:            output.LogoURL,
@@ -116,7 +116,7 @@ func toListBranchesInput(c *gin.Context) (merchantuc.ListBranchesInput, bool) {
 
 	input := merchantuc.ListBranchesInput{
 		ExternalMerchantID: authCtx.SubjectID.AsExternalMerchantID(),
-		Mode:       mode,
+		Mode:               mode,
 	}
 
 	switch mode {
@@ -160,7 +160,7 @@ func parsePaginationMode(c *gin.Context) (merchantuc.PaginationMode, bool) {
 
 type branchResponse struct {
 	ID                        uuid.UUID                `json:"id" example:"3fa85f64-5717-4562-b3fc-2c963f66afa6" format:"uuid"`
-	ExternalBranchID                  model.ExternalBranchID           `json:"external_branch_id" example:"6ba7b811-9dad-11d1-80b4-00c04fd430c8" format:"uuid"`
+	ExternalBranchID          model.ExternalBranchID   `json:"external_branch_id" example:"6ba7b811-9dad-11d1-80b4-00c04fd430c8" format:"uuid"`
 	Type                      model.MerchantBranchType `json:"type" example:"physical" enums:"physical,online"`
 	Status                    model.BranchStatus       `json:"status" example:"active"`
 	FundingModels             []model.FundingModel     `json:"funding_models"`
@@ -180,7 +180,7 @@ func toBranchResponses(output merchantuc.ListBranchesOutput) []branchResponse {
 	for _, item := range output.Branches {
 		items = append(items, branchResponse{
 			ID:                        item.ID.UUID(),
-			ExternalBranchID:                  item.ExternalBranchID,
+			ExternalBranchID:          item.ExternalBranchID,
 			Type:                      item.Type,
 			Status:                    item.Status,
 			FundingModels:             item.FundingModels,
@@ -241,7 +241,7 @@ func toListSalesInput(c *gin.Context) (merchantuc.ListSalesInput, bool) {
 
 	input := merchantuc.ListSalesInput{
 		ExternalMerchantID: authCtx.SubjectID.AsExternalMerchantID(),
-		Mode:       mode,
+		Mode:               mode,
 	}
 
 	switch mode {

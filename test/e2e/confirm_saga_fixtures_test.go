@@ -20,11 +20,11 @@ const (
 )
 
 type confirmSagaSeed struct {
-	ExternalMerchantID         model.ExternalMerchantID
-	ExternalOnlineStoreID      model.ExternalOnlineStoreID
-	ExternalCustomerID model.ExternalCustomerID
-	CustomerID         model.CustomerID
-	Session            model.CheckoutSession
+	ExternalMerchantID    model.ExternalMerchantID
+	ExternalOnlineStoreID model.ExternalOnlineStoreID
+	ExternalCustomerID    model.ExternalCustomerID
+	CustomerID            model.CustomerID
+	Session               model.CheckoutSession
 }
 
 func seedMerchantFundingCheckout(
@@ -52,15 +52,15 @@ func seedMerchantFundingCheckout(
 
 	out, err := h.CheckoutSession.CreatePartner(h.ctx, checkoutsessionuc.CreatePartnerInput{
 		CheckoutSessionRequest: checkoutsessionuc.CheckoutSessionRequest{
-			ExternalMerchantID:         merchantID,
-			ExternalOnlineStoreID:      onlineStoreID,
-			MerchantOrderID:    "order-" + uuid.NewString(),
-			IdempotencyKey:     "idem-" + uuid.NewString(),
-			CustomerReference:  "cust-ref",
-			ReturnDestination:  confirmSagaReturnDest,
-			MerchantState:      "state",
-			RequestedAmountMinor: confirmSagaTestAmountMinor,
-			Currency:           model.IRRCurrency,
+			ExternalMerchantID:    merchantID,
+			ExternalOnlineStoreID: onlineStoreID,
+			MerchantOrderID:       "order-" + uuid.NewString(),
+			IdempotencyKey:        "idem-" + uuid.NewString(),
+			CustomerReference:     "cust-ref",
+			ReturnDestination:     confirmSagaReturnDest,
+			MerchantState:         "state",
+			RequestedAmountMinor:  confirmSagaTestAmountMinor,
+			Currency:              model.IRRCurrency,
 		},
 		CustomerPhone: "+989121111111",
 	})
@@ -76,11 +76,11 @@ func seedMerchantFundingCheckout(
 	require.Equal(t, "v2", decision.PolicyVersion, "policy assignment must select merchant-funding checkout policy")
 
 	return confirmSagaSeed{
-		ExternalMerchantID:         merchantID,
-		ExternalOnlineStoreID:      onlineStoreID,
-		ExternalCustomerID: externalCustomerID,
-		CustomerID:         customerID,
-		Session:            session,
+		ExternalMerchantID:    merchantID,
+		ExternalOnlineStoreID: onlineStoreID,
+		ExternalCustomerID:    externalCustomerID,
+		CustomerID:            customerID,
+		Session:               session,
 	}
 }
 
@@ -126,15 +126,15 @@ func seedInitialPaymentCheckout(
 
 	out, err := h.CheckoutSession.CreatePartner(h.ctx, checkoutsessionuc.CreatePartnerInput{
 		CheckoutSessionRequest: checkoutsessionuc.CheckoutSessionRequest{
-			ExternalMerchantID:           merchantID,
-			ExternalOnlineStoreID:        onlineStoreID,
-			MerchantOrderID:      "order-" + uuid.NewString(),
-			IdempotencyKey:       "idem-" + uuid.NewString(),
-			CustomerReference:    "cust-ref",
-			ReturnDestination:    confirmSagaReturnDest,
-			MerchantState:        "state",
-			RequestedAmountMinor: confirmSagaTestAmountMinor,
-			Currency:             model.IRRCurrency,
+			ExternalMerchantID:    merchantID,
+			ExternalOnlineStoreID: onlineStoreID,
+			MerchantOrderID:       "order-" + uuid.NewString(),
+			IdempotencyKey:        "idem-" + uuid.NewString(),
+			CustomerReference:     "cust-ref",
+			ReturnDestination:     confirmSagaReturnDest,
+			MerchantState:         "state",
+			RequestedAmountMinor:  confirmSagaTestAmountMinor,
+			Currency:              model.IRRCurrency,
 		},
 		CustomerPhone: "+989121111111",
 	})
@@ -151,11 +151,11 @@ func seedInitialPaymentCheckout(
 	require.Equal(t, "v1", decision.PolicyVersion)
 
 	return confirmSagaSeed{
-		ExternalMerchantID:         merchantID,
-		ExternalOnlineStoreID:      onlineStoreID,
-		ExternalCustomerID: externalCustomerID,
-		CustomerID:         customerID,
-		Session:            session,
+		ExternalMerchantID:    merchantID,
+		ExternalOnlineStoreID: onlineStoreID,
+		ExternalCustomerID:    externalCustomerID,
+		CustomerID:            customerID,
+		Session:               session,
 	}
 }
 

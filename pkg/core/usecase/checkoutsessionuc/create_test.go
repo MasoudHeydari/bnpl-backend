@@ -27,15 +27,15 @@ const (
 
 func (h *harness) partnerRequest(mods ...func(*CheckoutSessionRequest)) CreatePartnerInput {
 	request := CheckoutSessionRequest{
-		ExternalMerchantID:           h.merchantID,
-		ExternalOnlineStoreID:        h.storeID,
-		MerchantOrderID:      testMerchantOrderID,
-		IdempotencyKey:       testAttemptKey,
-		CustomerReference:    testCustomerReference,
-		ReturnDestination:    testReturnDestination,
-		MerchantState:        testMerchantStateValue,
-		RequestedAmountMinor: testRequestedAmount,
-		Currency:             model.IRRCurrency,
+		ExternalMerchantID:    h.merchantID,
+		ExternalOnlineStoreID: h.storeID,
+		MerchantOrderID:       testMerchantOrderID,
+		IdempotencyKey:        testAttemptKey,
+		CustomerReference:     testCustomerReference,
+		ReturnDestination:     testReturnDestination,
+		MerchantState:         testMerchantStateValue,
+		RequestedAmountMinor:  testRequestedAmount,
+		Currency:              model.IRRCurrency,
 	}
 
 	for _, mod := range mods {
@@ -52,10 +52,10 @@ func (h *harness) expectActiveMerchant() {
 	h.merchantTx.EXPECT().
 		GetByMerchantID(h.ctx, h.merchantID).
 		Return(model.MerchantProfile{
-			ID:           h.merchantPID,
-			ExternalMerchantID:   h.merchantID,
-			Status:       model.ActiveMerchantStatus,
-			Jurisdiction: model.IRJurisdiction,
+			ID:                 h.merchantPID,
+			ExternalMerchantID: h.merchantID,
+			Status:             model.ActiveMerchantStatus,
+			Jurisdiction:       model.IRJurisdiction,
 		}, nil).Once()
 }
 
@@ -83,16 +83,16 @@ func (h *harness) expectNewAttemptCreated() model.CheckoutSession {
 		LockByOnlineStoreID(h.ctx, h.storeID).
 		Return(model.MerchantBranchProfile{
 			ID:                   branchID,
-			ExternalMerchantID:           h.merchantID,
+			ExternalMerchantID:   h.merchantID,
 			OfferPreparationMode: h.branchOfferMode,
 		}, nil).Once()
 	h.sessionTx.EXPECT().
 		GetReturnDestination(h.ctx, h.merchantID, testReturnDestination).
 		Return(model.MerchantReturnDestination{
-			ExternalMerchantID:      h.merchantID,
-			DestinationName: testReturnDestination,
-			ReturnURL:       "https://shop.example/return",
-			Enabled:         true,
+			ExternalMerchantID: h.merchantID,
+			DestinationName:    testReturnDestination,
+			ReturnURL:          "https://shop.example/return",
+			Enabled:            true,
 		}, nil).Once()
 
 	created := h.session(
@@ -354,7 +354,6 @@ func TestCreatePartner_SnapshotsOfferPreparationModeOntoSession(t *testing.T) {
 	require.Equal(t, CreateResultCreated, output.Result)
 	require.Equal(t, model.OfferPreparationOnCreate, output.Session.EffectiveOfferPreparationMode())
 }
-
 
 func TestCreatePartner_IdentityNotFound_ReturnsPhoneUnavailableError(t *testing.T) {
 	t.Parallel()

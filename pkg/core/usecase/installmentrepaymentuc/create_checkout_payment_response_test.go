@@ -39,10 +39,10 @@ type installmentFCResponseHarness struct {
 	idGenerator        *mock.IdentifierGenerator
 	checkoutClient     *mock.CheckoutPaymentClient
 
-	now                time.Time
-	attempt            model.PaymentAttempt
+	now               time.Time
+	attempt           model.PaymentAttempt
 	externalSubjectID model.ExternalSubjectID
-	uc                 *UseCase
+	uc                *UseCase
 }
 
 func newInstallmentFCResponseHarness(t *testing.T) *installmentFCResponseHarness {
@@ -120,12 +120,12 @@ func newInstallmentFCResponseHarness(t *testing.T) *installmentFCResponseHarness
 	}, nil).Maybe()
 	h.customerProfile.EXPECT().Conn(h.conn).Return(h.customerCQ).Maybe()
 	h.customerCQ.EXPECT().GetByExternalSubjectID(testifymock.Anything, h.externalSubjectID).Return(model.CustomerProfile{
-		ID:                 customerInternalID,
+		ID:                customerInternalID,
 		ExternalSubjectID: h.externalSubjectID,
 	}, nil).Maybe()
 	h.merchantProfile.EXPECT().Conn(h.conn).Return(h.merchantCQ).Maybe()
 	h.merchantCQ.EXPECT().GetByID(testifymock.Anything, merchantProfileID).Return(model.MerchantProfile{
-		ID:         merchantProfileID,
+		ID:                 merchantProfileID,
 		ExternalMerchantID: model.ExternalMerchantID(uuid.New()),
 	}, nil).Maybe()
 	h.installmentRepo.EXPECT().Conn(h.conn).Return(h.installmentCQ).Maybe()
@@ -172,8 +172,8 @@ func newInstallmentFCResponseHarness(t *testing.T) *installmentFCResponseHarness
 func (h *installmentFCResponseHarness) input() CreatePaymentAttemptInput {
 	return CreatePaymentAttemptInput{
 		ExternalSubjectID: h.externalSubjectID,
-		TenantID:           model.TenantID(uuid.MustParse("00000000-0000-4000-8000-0000000000aa")),
-		ContextID:          model.ContextID(uuid.MustParse("00000000-0000-4000-8000-0000000000bb")),
+		TenantID:          model.TenantID(uuid.MustParse("00000000-0000-4000-8000-0000000000aa")),
+		ContextID:         model.ContextID(uuid.MustParse("00000000-0000-4000-8000-0000000000bb")),
 	}
 }
 

@@ -278,9 +278,9 @@ type ExpireDueOpenSessionsOutput struct {
 
 // UpsertReturnDestinationInput registers a browser return destination.
 type UpsertReturnDestinationInput struct {
-	ExternalMerchantID      model.ExternalMerchantID
-	DestinationName string
-	ReturnURL       string
+	ExternalMerchantID model.ExternalMerchantID
+	DestinationName    string
+	ReturnURL          string
 
 	// Enabled is optional. Nil preserves the stored value on update and defaults
 	// to true on create, so omitting it never silently disables a destination.
@@ -296,7 +296,7 @@ type UpsertReturnDestinationOutput struct {
 // webhook endpoint.
 type UpsertWebhookDestinationInput struct {
 	ExternalMerchantID model.ExternalMerchantID
-	WebhookURL string
+	WebhookURL         string
 
 	// SigningSecret is write-only. Nil preserves the stored secret; a non-nil
 	// value rotates it. The first registration must supply a secret of at least

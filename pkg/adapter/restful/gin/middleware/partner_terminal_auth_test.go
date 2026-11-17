@@ -85,9 +85,9 @@ func TestPartnerTerminalAuth_ValidCredentialsAttachPrincipal(t *testing.T) {
 		terminal: 4242,
 		apiKey:   testTerminalAPIKey,
 		principal: merchantterminal.MerchantPrincipal{
-			ExternalMerchantID:  merchantID,
-			TerminalID:  4242,
-			Permissions: merchantterminal.InitialPartnerTerminalPermissions(),
+			ExternalMerchantID: merchantID,
+			TerminalID:         4242,
+			Permissions:        merchantterminal.InitialPartnerTerminalPermissions(),
 		},
 	}
 	engine := newPartnerEngine(t, fake)
@@ -109,9 +109,9 @@ func TestPartnerTerminalAuth_RejectionsShareOnePublicShape(t *testing.T) {
 		terminal: 4242,
 		apiKey:   testTerminalAPIKey,
 		principal: merchantterminal.MerchantPrincipal{
-			ExternalMerchantID:  model.ExternalMerchantID(uuid.New()),
-			TerminalID:  4242,
-			Permissions: merchantterminal.InitialPartnerTerminalPermissions(),
+			ExternalMerchantID: model.ExternalMerchantID(uuid.New()),
+			TerminalID:         4242,
+			Permissions:        merchantterminal.InitialPartnerTerminalPermissions(),
 		},
 	}
 
@@ -210,9 +210,9 @@ func TestPartnerTerminalAuth_PermissionStillEnforced(t *testing.T) {
 		terminal: 4242,
 		apiKey:   testTerminalAPIKey,
 		principal: merchantterminal.MerchantPrincipal{
-			ExternalMerchantID:  model.ExternalMerchantID(uuid.New()),
-			TerminalID:  4242,
-			Permissions: []string{permission.CheckoutSessionsReadMerchant.Code},
+			ExternalMerchantID: model.ExternalMerchantID(uuid.New()),
+			TerminalID:         4242,
+			Permissions:        []string{permission.CheckoutSessionsReadMerchant.Code},
 		},
 	}
 	engine := newPartnerEngine(t, fake)
@@ -284,9 +284,9 @@ func TestPartnerTerminalAuth_ManagePermissionsFromPrincipal(t *testing.T) {
 				terminal: 4242,
 				apiKey:   testTerminalAPIKey,
 				principal: merchantterminal.MerchantPrincipal{
-					ExternalMerchantID:  model.ExternalMerchantID(uuid.New()),
-					TerminalID:  4242,
-					Permissions: tc.permissions,
+					ExternalMerchantID: model.ExternalMerchantID(uuid.New()),
+					TerminalID:         4242,
+					Permissions:        tc.permissions,
 				},
 			}
 
@@ -322,9 +322,9 @@ func TestPartnerTerminalAuth_IgnoresGatewaySubjectAndPermissions(t *testing.T) {
 		terminal: 4242,
 		apiKey:   testTerminalAPIKey,
 		principal: merchantterminal.MerchantPrincipal{
-			ExternalMerchantID:  merchantID,
-			TerminalID:  4242,
-			Permissions: merchantterminal.InitialPartnerTerminalPermissions(),
+			ExternalMerchantID: merchantID,
+			TerminalID:         4242,
+			Permissions:        merchantterminal.InitialPartnerTerminalPermissions(),
 		},
 	}
 
@@ -394,9 +394,9 @@ func TestPartnerRoutes_WithoutGatewayScope_ReachPermissionCheck(t *testing.T) {
 				terminal: 4242,
 				apiKey:   testTerminalAPIKey,
 				principal: merchantterminal.MerchantPrincipal{
-					ExternalMerchantID:  model.ExternalMerchantID(uuid.New()),
-					TerminalID:  4242,
-					Permissions: []string{tc.required.Code},
+					ExternalMerchantID: model.ExternalMerchantID(uuid.New()),
+					TerminalID:         4242,
+					Permissions:        []string{tc.required.Code},
 				},
 			}
 
@@ -436,9 +436,9 @@ func TestPartnerCreate_DoesNotRequireGatewayAuthHeaders(t *testing.T) {
 		terminal: 4242,
 		apiKey:   testTerminalAPIKey,
 		principal: merchantterminal.MerchantPrincipal{
-			ExternalMerchantID:  merchantID,
-			TerminalID:  4242,
-			Permissions: merchantterminal.InitialPartnerTerminalPermissions(),
+			ExternalMerchantID: merchantID,
+			TerminalID:         4242,
+			Permissions:        merchantterminal.InitialPartnerTerminalPermissions(),
 		},
 	}
 

@@ -53,10 +53,10 @@ func (uc *UseCase) Get(ctx context.Context, input GetInput) (GetOutput, error) {
 
 			item := GetTerminal{
 				ExternalMerchantID: terminal.ExternalMerchantID,
-				TerminalID: terminal.TerminalID,
-				Status:     terminal.Status,
-				CreatedAt:  terminal.CreatedAt,
-				UpdatedAt:  terminal.UpdatedAt,
+				TerminalID:         terminal.TerminalID,
+				Status:             terminal.Status,
+				CreatedAt:          terminal.CreatedAt,
+				UpdatedAt:          terminal.UpdatedAt,
 			}
 
 			for _, credential := range credentials {

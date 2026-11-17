@@ -1349,7 +1349,7 @@ func (t Task) getTaskDefinitions() ([]TaskDefinitionEntry, error) {
 	if t.Scheduled.RepaymentBatchReconciliation.Enabled ||
 		t.Scheduled.RepaymentBatchReconciliation.Handler != "" {
 		definitions = append(definitions, TaskDefinitionEntry{
-			Name: "repayment_batch_reconciliation",
+			Name:           "repayment_batch_reconciliation",
 			TaskDefinition: t.Scheduled.RepaymentBatchReconciliation,
 		})
 	}

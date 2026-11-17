@@ -245,28 +245,28 @@ func eligibleFixtures(now time.Time) (
 	merchantIdentityID := model.ExternalMerchantID(uuid.New())
 
 	customerProfile = model.CustomerProfile{
-		ID:                  model.CustomerID(uuid.New()),
-		ExternalSubjectID:   externalSubjectID,
-		ExternalCustomerID:  model.ExternalCustomerID(externalSubjectID.UUID()),
-		Jurisdiction:        model.IRJurisdiction,
-		Status:              model.ActiveCustomerStatus,
+		ID:                 model.CustomerID(uuid.New()),
+		ExternalSubjectID:  externalSubjectID,
+		ExternalCustomerID: model.ExternalCustomerID(externalSubjectID.UUID()),
+		Jurisdiction:       model.IRJurisdiction,
+		Status:             model.ActiveCustomerStatus,
 	}
 	merchantProfile = model.MerchantProfile{
-		ID:                model.MerchantProfileID(uuid.New()),
-		ExternalMerchantID:        merchantIdentityID,
-		Status:            model.ActiveMerchantStatus,
-		Currencies:        []model.Currency{model.IRRCurrency},
-		MaxAmountMinor:    1_000_000,
-		MaxAmountCurrency: model.IRRCurrency,
-		MaxTenureMonths:   12,
-		Jurisdiction:      model.IRJurisdiction,
+		ID:                 model.MerchantProfileID(uuid.New()),
+		ExternalMerchantID: merchantIdentityID,
+		Status:             model.ActiveMerchantStatus,
+		Currencies:         []model.Currency{model.IRRCurrency},
+		MaxAmountMinor:     1_000_000,
+		MaxAmountCurrency:  model.IRRCurrency,
+		MaxTenureMonths:    12,
+		Jurisdiction:       model.IRJurisdiction,
 	}
 	branch = model.MerchantBranchProfile{
-		ID:         model.MerchantBranchProfileID(uuid.New()),
+		ID:                 model.MerchantBranchProfileID(uuid.New()),
 		ExternalMerchantID: merchantIdentityID,
 		ExternalBranchID:   model.ExternalBranchID(uuid.New()),
-		Type:       model.PhysicalMerchantBranchType,
-		Status:     model.ActiveMerchantBranchStatus,
+		Type:               model.PhysicalMerchantBranchType,
+		Status:             model.ActiveMerchantBranchStatus,
 	}
 	expiresAt := now.Add(365 * 24 * time.Hour)
 	creditAccount = model.CreditAccount{
@@ -356,10 +356,10 @@ func TestCreate_NilBranchIdentity_Rejected(t *testing.T) {
 	deps := newCreateDeps(t, now)
 
 	_, err := deps.newUseCase(t).Create(ctx, decisionuc.CreateInput{
-		CheckoutKey:        "checkout-key",
+		CheckoutKey:       "checkout-key",
 		ExternalSubjectID: model.ExternalSubjectID(uuid.New()),
 		PurchaseContext: decisionuc.PurchaseContext{
-			Channel:  model.POSPurchaseChannel,
+			Channel:          model.POSPurchaseChannel,
 			ExternalPosGpsID: model.ExternalPosGpsID{},
 		},
 		RequestedAmountMinor: 100_000,
@@ -396,10 +396,10 @@ func TestCreate_MissingBranch_ReturnsNotFound(t *testing.T) {
 		Return(model.MerchantBranchProfile{}, cerr.ResourceNotFound(errors.New("branch missing"))).Once()
 
 	_, err := deps.newUseCase(t).Create(ctx, decisionuc.CreateInput{
-		CheckoutKey:        "checkout-key",
+		CheckoutKey:       "checkout-key",
 		ExternalSubjectID: externalSubjectID,
 		PurchaseContext: decisionuc.PurchaseContext{
-			Channel:  model.POSPurchaseChannel,
+			Channel:          model.POSPurchaseChannel,
 			ExternalPosGpsID: posGpsID,
 		},
 		RequestedAmountMinor: 100_000,
@@ -513,10 +513,10 @@ func TestCreate_Denied_NoInstallments_ReturnsReasonCodes(t *testing.T) {
 	)
 
 	output, err := deps.newUseCase(t).Create(ctx, decisionuc.CreateInput{
-		CheckoutKey:        "checkout-key",
+		CheckoutKey:       "checkout-key",
 		ExternalSubjectID: externalSubjectID,
 		PurchaseContext: decisionuc.PurchaseContext{
-			Channel:  model.POSPurchaseChannel,
+			Channel:          model.POSPurchaseChannel,
 			ExternalPosGpsID: posGpsID,
 		},
 		RequestedAmountMinor: 100_000,
@@ -662,10 +662,10 @@ func TestCreate_Approved_CreatesInstallmentsAndAudit(t *testing.T) {
 	)
 
 	output, err := deps.newUseCase(t).Create(ctx, decisionuc.CreateInput{
-		CheckoutKey:        "checkout-key",
+		CheckoutKey:       "checkout-key",
 		ExternalSubjectID: externalSubjectID,
 		PurchaseContext: decisionuc.PurchaseContext{
-			Channel:  model.POSPurchaseChannel,
+			Channel:          model.POSPurchaseChannel,
 			ExternalPosGpsID: posGpsID,
 		},
 		RequestedAmountMinor: 100_000,
@@ -810,10 +810,10 @@ func TestCreate_InstallmentCreateFailure_RollsBack(t *testing.T) {
 	).Return(model.Installment{}, cerr.InternalError(errors.New("installment insert failed"))).Once()
 
 	_, err := deps.newUseCase(t).Create(ctx, decisionuc.CreateInput{
-		CheckoutKey:        "checkout-key",
+		CheckoutKey:       "checkout-key",
 		ExternalSubjectID: externalSubjectID,
 		PurchaseContext: decisionuc.PurchaseContext{
-			Channel:  model.POSPurchaseChannel,
+			Channel:          model.POSPurchaseChannel,
 			ExternalPosGpsID: posGpsID,
 		},
 		RequestedAmountMinor: 100_000,
@@ -906,10 +906,10 @@ func TestCreate_IdempotentReplay_ReturnsPersistedInstallments(t *testing.T) {
 		Return([]model.InstallmentCharge{}, nil).Once()
 
 	output, err := uc.Create(ctx, decisionuc.CreateInput{
-		CheckoutKey:        "checkout-key",
+		CheckoutKey:       "checkout-key",
 		ExternalSubjectID: externalSubjectID,
 		PurchaseContext: decisionuc.PurchaseContext{
-			Channel:  model.POSPurchaseChannel,
+			Channel:          model.POSPurchaseChannel,
 			ExternalPosGpsID: posGpsID,
 		},
 		RequestedAmountMinor: 100_000,
@@ -977,10 +977,10 @@ func TestCreate_DeniedIdempotentReplay_ReturnsPersistedAvailableCredit(t *testin
 	}, nil).Once()
 
 	output, err := uc.Create(ctx, decisionuc.CreateInput{
-		CheckoutKey:        "checkout-key",
+		CheckoutKey:       "checkout-key",
 		ExternalSubjectID: externalSubjectID,
 		PurchaseContext: decisionuc.PurchaseContext{
-			Channel:  model.POSPurchaseChannel,
+			Channel:          model.POSPurchaseChannel,
 			ExternalPosGpsID: posGpsID,
 		},
 		RequestedAmountMinor: 100_000,
@@ -1037,10 +1037,10 @@ func TestCreate_ChangedBranch_IdempotencyConflict(t *testing.T) {
 		}, nil).Twice()
 
 	_, err = uc.Create(ctx, decisionuc.CreateInput{
-		CheckoutKey:        "checkout-key",
+		CheckoutKey:       "checkout-key",
 		ExternalSubjectID: externalSubjectID,
 		PurchaseContext: decisionuc.PurchaseContext{
-			Channel:  model.POSPurchaseChannel,
+			Channel:          model.POSPurchaseChannel,
 			ExternalPosGpsID: posGpsID,
 		},
 		RequestedAmountMinor: 100_000,
@@ -1078,10 +1078,10 @@ func TestCreate_OriginationDisabled_FailsClosedBeforePersist(t *testing.T) {
 	deps.merchantProfileTx.EXPECT().LockByMerchantID(ctx, branch.ExternalMerchantID).Return(merchantProfile, nil).Once()
 
 	_, err := deps.newUseCase(t).Create(ctx, decisionuc.CreateInput{
-		CheckoutKey:        "checkout-key",
+		CheckoutKey:       "checkout-key",
 		ExternalSubjectID: externalSubjectID,
 		PurchaseContext: decisionuc.PurchaseContext{
-			Channel:  model.POSPurchaseChannel,
+			Channel:          model.POSPurchaseChannel,
 			ExternalPosGpsID: posGpsID,
 		},
 		RequestedAmountMinor: 100_000,
@@ -1177,10 +1177,10 @@ func TestCreate_IdempotentReplay_AfterOriginationDisabled(t *testing.T) {
 		Return([]model.InstallmentCharge{}, nil).Once()
 
 	output, err := uc.Create(ctx, decisionuc.CreateInput{
-		CheckoutKey:        "checkout-key",
+		CheckoutKey:       "checkout-key",
 		ExternalSubjectID: externalSubjectID,
 		PurchaseContext: decisionuc.PurchaseContext{
-			Channel:  model.POSPurchaseChannel,
+			Channel:          model.POSPurchaseChannel,
 			ExternalPosGpsID: posGpsID,
 		},
 		RequestedAmountMinor: 100_000,

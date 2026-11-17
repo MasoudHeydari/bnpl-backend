@@ -17,13 +17,13 @@ func (p policyV3) BuildContractPlan(input checkout.ContractPlanInput) (checkout.
 		return checkout.ContractPlan{}, fmt.Errorf("%s: invalid monthly financing allocation", op)
 	}
 	return checkout.ContractPlan{
-		ActivationMode: checkout.ActivationAfterMerchantFunding,
-		ScheduleAnchor: checkout.ScheduleFromContractActivation,
-		InitialPaymentRequired: false,
-		InitialPaymentAmountMinor: 0,
-		ActiveExposureAmountMinor: input.FinancedAmountMinor,
-		CollectedCashAmountMinor: 0,
-		ReceivableAmountMinor: input.FinancedAmountMinor,
+		ActivationMode:                   checkout.ActivationAfterMerchantFunding,
+		ScheduleAnchor:                   checkout.ScheduleFromContractActivation,
+		InitialPaymentRequired:           false,
+		InitialPaymentAmountMinor:        0,
+		ActiveExposureAmountMinor:        input.FinancedAmountMinor,
+		CollectedCashAmountMinor:         0,
+		ReceivableAmountMinor:            input.FinancedAmountMinor,
 		FirstInstallmentPaidOnActivation: false,
 	}, nil
 }

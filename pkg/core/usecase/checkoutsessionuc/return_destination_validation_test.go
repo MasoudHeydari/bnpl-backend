@@ -19,9 +19,9 @@ func TestUpsertReturnDestinationInput_ValidateDestinationName(t *testing.T) {
 	policy := returndestination.Development()
 
 	valid := UpsertReturnDestinationInput{
-		ExternalMerchantID:      merchantID,
-		DestinationName: "damz-web",
-		ReturnURL:       "https://merchant.example/return",
+		ExternalMerchantID: merchantID,
+		DestinationName:    "damz-web",
+		ReturnURL:          "https://merchant.example/return",
 	}
 	require.NoError(t, valid.validate(policy))
 
@@ -39,9 +39,9 @@ func TestUpsertReturnDestinationInput_ValidateDestinationName(t *testing.T) {
 		strings.Repeat("a", 65),
 	} {
 		err := (UpsertReturnDestinationInput{
-			ExternalMerchantID:      merchantID,
-			DestinationName: name,
-			ReturnURL:       "https://merchant.example/return",
+			ExternalMerchantID: merchantID,
+			DestinationName:    name,
+			ReturnURL:          "https://merchant.example/return",
 		}).validate(policy)
 		require.Error(t, err, "name=%q", name)
 	}
@@ -53,9 +53,9 @@ func TestUpsertReturnDestinationInput_ValidateReturnURLPolicy(t *testing.T) {
 	merchantID := model.ExternalMerchantID(uuid.New())
 
 	loopback := UpsertReturnDestinationInput{
-		ExternalMerchantID:      merchantID,
-		DestinationName: "default",
-		ReturnURL:       "http://localhost:3000/bnpl/return",
+		ExternalMerchantID: merchantID,
+		DestinationName:    "default",
+		ReturnURL:          "http://localhost:3000/bnpl/return",
 	}
 	require.NoError(t, loopback.validate(returndestination.Development()))
 	requireCerr(
@@ -66,9 +66,9 @@ func TestUpsertReturnDestinationInput_ValidateReturnURLPolicy(t *testing.T) {
 	)
 
 	publicHTTP := UpsertReturnDestinationInput{
-		ExternalMerchantID:      merchantID,
-		DestinationName: "default",
-		ReturnURL:       "http://merchant.example/return",
+		ExternalMerchantID: merchantID,
+		DestinationName:    "default",
+		ReturnURL:          "http://merchant.example/return",
 	}
 	requireCerr(
 		t,
@@ -90,9 +90,9 @@ func TestUpsertReturnDestinationInput_ValidateReturnURLPolicy(t *testing.T) {
 		"https://example.com/return\n",
 	} {
 		err := (UpsertReturnDestinationInput{
-			ExternalMerchantID:      merchantID,
-			DestinationName: "default",
-			ReturnURL:       raw,
+			ExternalMerchantID: merchantID,
+			DestinationName:    "default",
+			ReturnURL:          raw,
 		}).validate(returndestination.Development())
 		requireCerr(t, err, cerr.CodeInvalidArgument, "error.return_url_invalid")
 	}
@@ -102,12 +102,12 @@ func TestCheckoutSessionRequest_ValidateReturnDestinationGrammar(t *testing.T) {
 	t.Parallel()
 
 	base := CheckoutSessionRequest{
-		ExternalMerchantID:           model.ExternalMerchantID(uuid.New()),
-		ExternalOnlineStoreID:        model.ExternalOnlineStoreID(uuid.New()),
-		MerchantOrderID:      "order-1",
-		ReturnDestination:    "default",
-		RequestedAmountMinor: 1,
-		Currency:             model.IRRCurrency,
+		ExternalMerchantID:    model.ExternalMerchantID(uuid.New()),
+		ExternalOnlineStoreID: model.ExternalOnlineStoreID(uuid.New()),
+		MerchantOrderID:       "order-1",
+		ReturnDestination:     "default",
+		RequestedAmountMinor:  1,
+		Currency:              model.IRRCurrency,
 	}
 	require.NoError(t, base.validate())
 

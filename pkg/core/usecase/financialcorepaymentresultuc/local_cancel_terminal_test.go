@@ -32,11 +32,11 @@ func TestApplyTerminalInstallmentPaymentResult_ResolvesLocalCancel(t *testing.T)
 			inboxID := model.InboxID(uuid.New())
 			reason := model.SessionCreationRetryExhaustedFailureCode
 			attempt := model.PaymentAttempt{
-				ID: attemptID,
-				Purpose: model.InstallmentRepaymentFinancialCorePaymentPurpose,
-				State: model.CanceledPaymentAttemptState,
-				FailureCode: &reason,
-				ContractID: model.ContractID(uuid.New()),
+				ID:            attemptID,
+				Purpose:       model.InstallmentRepaymentFinancialCorePaymentPurpose,
+				State:         model.CanceledPaymentAttemptState,
+				FailureCode:   &reason,
+				ContractID:    model.ContractID(uuid.New()),
 				InstallmentID: model.InstallmentID(uuid.New()),
 			}
 			resolved := attempt
@@ -57,16 +57,16 @@ func TestApplyTerminalInstallmentPaymentResult_ResolvesLocalCancel(t *testing.T)
 				Return(model.Inbox{ID: inboxID}, nil).Once()
 
 			uc := &UseCase{
-				idGenerator: idGenerator,
+				idGenerator:      idGenerator,
 				auditDestination: "bnpl.audit.events.v1",
 			}
 			input := ProcessInput{
-				EventID: "fc-terminal-" + uuid.NewString(),
-				SourceService: "financial_core",
-				PaymentStatus: tc.status,
+				EventID:         "fc-terminal-" + uuid.NewString(),
+				SourceService:   "financial_core",
+				PaymentStatus:   tc.status,
 				EventOccurredAt: now,
-				ContractID: attempt.ContractID,
-				InstallmentID: attempt.InstallmentID,
+				ContractID:      attempt.ContractID,
+				InstallmentID:   attempt.InstallmentID,
 			}
 			var output ProcessOutput
 			err := uc.applyTerminalInstallmentPaymentResult(

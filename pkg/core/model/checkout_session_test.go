@@ -74,13 +74,13 @@ func TestCheckoutSession_MatchesCreateRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	session := CheckoutSession{
-		ExternalOnlineStoreID:        storeID,
-		MerchantOrderID:      "order-1",
-		CustomerReference:    "cust-1",
-		ReturnDestination:    "storefront",
-		MerchantState:        "cart-42",
-		RequestedAmountMinor: 150000000,
-		Currency:             IRRCurrency,
+		ExternalOnlineStoreID: storeID,
+		MerchantOrderID:       "order-1",
+		CustomerReference:     "cust-1",
+		ReturnDestination:     "storefront",
+		MerchantState:         "cart-42",
+		RequestedAmountMinor:  150000000,
+		Currency:              IRRCurrency,
 	}
 
 	require.True(t, session.MatchesCreateRequest(

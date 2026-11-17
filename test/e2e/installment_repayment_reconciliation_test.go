@@ -69,13 +69,13 @@ func TestE2E_InstallmentRepayment_LostFCResponse_ExpiresWithoutSessionRediscover
 	idempotencyKey := "e2e-installment-idem-" + uuid.NewString()
 
 	createOut, err := repaymentUC.CreatePaymentAttempt(h.ctx, installmentrepaymentuc.CreatePaymentAttemptInput{
-		TenantID:           tenantID,
-		ContextID:          contextID,
-		ContractID:         contractRow.ID,
-		InstallmentID:      installmentID,
+		TenantID:          tenantID,
+		ContextID:         contextID,
+		ContractID:        contractRow.ID,
+		InstallmentID:     installmentID,
 		ExternalSubjectID: externalSubjectIDForExternalCustomer(t, externalCustomerID),
-		IdempotencyKey:     idempotencyKey,
-		Channel:            model.GatewayPaymentChannel,
+		IdempotencyKey:    idempotencyKey,
+		Channel:           model.GatewayPaymentChannel,
 	})
 	require.Error(t, err)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
@@ -94,13 +94,13 @@ func TestE2E_InstallmentRepayment_LostFCResponse_ExpiresWithoutSessionRediscover
 
 	h.advanceClock(time.Minute)
 	_, err = repaymentUC.CreatePaymentAttempt(h.ctx, installmentrepaymentuc.CreatePaymentAttemptInput{
-		TenantID:           tenantID,
-		ContextID:          contextID,
-		ContractID:         contractRow.ID,
-		InstallmentID:      installmentID,
+		TenantID:          tenantID,
+		ContextID:         contextID,
+		ContractID:        contractRow.ID,
+		InstallmentID:     installmentID,
 		ExternalSubjectID: externalSubjectIDForExternalCustomer(t, externalCustomerID),
-		IdempotencyKey:     idempotencyKey,
-		Channel:            model.GatewayPaymentChannel,
+		IdempotencyKey:    idempotencyKey,
+		Channel:           model.GatewayPaymentChannel,
 	})
 	require.Error(t, err)
 	require.True(t, cerr.IsCode(err, cerr.CodeConflict))

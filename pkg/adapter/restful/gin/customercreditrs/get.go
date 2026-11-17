@@ -11,7 +11,7 @@ import (
 
 // GetSuccessSchema is a schema-only success envelope for customer credit summary.
 type GetSuccessSchema struct {
-	Data allCreditSummariesResponse       `json:"data"`
+	Data allCreditSummariesResponse      `json:"data"`
 	Meta serdser.SuccessMetaNoPagination `json:"meta"`
 }
 

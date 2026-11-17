@@ -8,10 +8,10 @@ type BatchStatusSchema statusResponse
 type StartBatchSchema startResponse
 
 type BatchSuccessSchema struct {
-	Data BatchStatusSchema `json:"data"`
+	Data BatchStatusSchema   `json:"data"`
 	Meta serdser.SuccessMeta `json:"meta"`
 }
 type StartBatchSuccessSchema struct {
-	Data StartBatchSchema `json:"data"`
+	Data StartBatchSchema    `json:"data"`
 	Meta serdser.SuccessMeta `json:"meta"`
 }

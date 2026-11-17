@@ -159,43 +159,41 @@ func (q txQueryer) AppendTransaction(
 	)
 }
 
-
 // Product-aware methods are additive: legacy account operations continue to
 // address only pay-in-four, while callers can explicitly request monthly credit.
 var _ repo.CreditAccountProductQueryer = (*connQueryer)(nil)
 var _ repo.CreditAccountProductTxQueryer = (*txQueryer)(nil)
 
-func (q connQueryer) GetByCustomerIDCurrencyAndKind(ctx context.Context,id model.CustomerID,currency model.Currency,kind model.CreditKind)(model.CreditAccount,error){
-	return GetByCustomerIDCurrencyAndKind(ctx,q.Conn,id,currency,kind)
+func (q connQueryer) GetByCustomerIDCurrencyAndKind(ctx context.Context, id model.CustomerID, currency model.Currency, kind model.CreditKind) (model.CreditAccount, error) {
+	return GetByCustomerIDCurrencyAndKind(ctx, q.Conn, id, currency, kind)
 }
-func (q connQueryer) ListByCustomerID(ctx context.Context,id model.CustomerID)([]model.CreditAccount,error){
-	return ListByCustomerID(ctx,q.Conn,id)
+func (q connQueryer) ListByCustomerID(ctx context.Context, id model.CustomerID) ([]model.CreditAccount, error) {
+	return ListByCustomerID(ctx, q.Conn, id)
 }
-func (q txQueryer) GetByCustomerIDCurrencyAndKind(ctx context.Context,id model.CustomerID,currency model.Currency,kind model.CreditKind)(model.CreditAccount,error){
-	return GetByCustomerIDCurrencyAndKind(ctx,q.Tx,id,currency,kind)
+func (q txQueryer) GetByCustomerIDCurrencyAndKind(ctx context.Context, id model.CustomerID, currency model.Currency, kind model.CreditKind) (model.CreditAccount, error) {
+	return GetByCustomerIDCurrencyAndKind(ctx, q.Tx, id, currency, kind)
 }
-func (q txQueryer) ListByCustomerID(ctx context.Context,id model.CustomerID)([]model.CreditAccount,error){
-	return ListByCustomerID(ctx,q.Tx,id)
+func (q txQueryer) ListByCustomerID(ctx context.Context, id model.CustomerID) ([]model.CreditAccount, error) {
+	return ListByCustomerID(ctx, q.Tx, id)
 }
-func (q txQueryer) LockByCustomerIDCurrencyAndKind(ctx context.Context,id model.CustomerID,currency model.Currency,kind model.CreditKind)(model.CreditAccount,error){
-	return LockByCustomerIDCurrencyAndKind(ctx,q.Tx,id,currency,kind)
+func (q txQueryer) LockByCustomerIDCurrencyAndKind(ctx context.Context, id model.CustomerID, currency model.Currency, kind model.CreditKind) (model.CreditAccount, error) {
+	return LockByCustomerIDCurrencyAndKind(ctx, q.Tx, id, currency, kind)
 }
-func (q txQueryer) CreateWithLimitForKind(ctx context.Context,id model.CustomerID,currency model.Currency,kind model.CreditKind,
-	limit uint64,decision model.DecisionID,from time.Time,expires *time.Time,created time.Time,updated time.Time)(model.CreditAccount,error){
-	return CreateWithLimitForKind(ctx,q.Tx,id,currency,kind,limit,decision,from,expires,created,updated)
+func (q txQueryer) CreateWithLimitForKind(ctx context.Context, id model.CustomerID, currency model.Currency, kind model.CreditKind,
+	limit uint64, decision model.DecisionID, from time.Time, expires *time.Time, created time.Time, updated time.Time) (model.CreditAccount, error) {
+	return CreateWithLimitForKind(ctx, q.Tx, id, currency, kind, limit, decision, from, expires, created, updated)
 }
-func (q txQueryer) ExpireDueByCustomerIDCurrencyAndKind(ctx context.Context,id model.CustomerID,currency model.Currency,kind model.CreditKind,now time.Time)error{
-	return ExpireDueByCustomerIDCurrencyAndKind(ctx,q.Tx,id,currency,kind,now)
+func (q txQueryer) ExpireDueByCustomerIDCurrencyAndKind(ctx context.Context, id model.CustomerID, currency model.Currency, kind model.CreditKind, now time.Time) error {
+	return ExpireDueByCustomerIDCurrencyAndKind(ctx, q.Tx, id, currency, kind, now)
 }
-
 
 func (q connQueryer) HasUnpaidMonthlyCycleBefore(
-	ctx context.Context,id model.CustomerID,currency model.Currency,cutoff time.Time,
-)(bool,error){
-	return HasUnpaidMonthlyCycleBefore(ctx,q.Conn,id,currency,cutoff)
+	ctx context.Context, id model.CustomerID, currency model.Currency, cutoff time.Time,
+) (bool, error) {
+	return HasUnpaidMonthlyCycleBefore(ctx, q.Conn, id, currency, cutoff)
 }
 func (q txQueryer) HasUnpaidMonthlyCycleBefore(
-	ctx context.Context,id model.CustomerID,currency model.Currency,cutoff time.Time,
-)(bool,error){
-	return HasUnpaidMonthlyCycleBefore(ctx,q.Tx,id,currency,cutoff)
+	ctx context.Context, id model.CustomerID, currency model.Currency, cutoff time.Time,
+) (bool, error) {
+	return HasUnpaidMonthlyCycleBefore(ctx, q.Tx, id, currency, cutoff)
 }

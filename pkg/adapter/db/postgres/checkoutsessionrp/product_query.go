@@ -34,7 +34,6 @@ RETURNING` + checkoutSessionColumns
 	return row, nil
 }
 
-
 // SelectCreditKindBeforeDecision atomically changes the product and increments
 // the evaluation generation. The caller must already hold a row lock.
 func SelectCreditKindBeforeDecision[Q postgres.Queryer](

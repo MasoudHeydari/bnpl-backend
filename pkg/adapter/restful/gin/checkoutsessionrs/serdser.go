@@ -28,8 +28,8 @@ import (
 // return_destination is a symbolic name registered during merchant onboarding.
 // Arbitrary return URLs are never accepted.
 type createPartnerRequest struct {
-	ExternalOnlineStoreID   model.ExternalOnlineStoreID `json:"external_online_store_id" binding:"required" format:"uuid"`
-	MerchantOrderID string              `json:"merchant_order_id" binding:"required,max=256" maxLength:"256"`
+	ExternalOnlineStoreID model.ExternalOnlineStoreID `json:"external_online_store_id" binding:"required" format:"uuid"`
+	MerchantOrderID       string                      `json:"merchant_order_id" binding:"required,max=256" maxLength:"256"`
 	// Distinct idempotency keys allow a new attempt after a terminal checkout.
 	IdempotencyKey    string `json:"idempotency_key" binding:"max=256" maxLength:"256"`
 	CustomerReference string `json:"customer_reference" binding:"max=256" maxLength:"256"`
@@ -170,16 +170,15 @@ func toCreatePartnerInput(c *gin.Context) (checkoutsessionuc.CreatePartnerInput,
 
 	return checkoutsessionuc.CreatePartnerInput{
 		CheckoutSessionRequest: checkoutsessionuc.CheckoutSessionRequest{
-			ExternalMerchantID:           merchantID,
-			ExternalOnlineStoreID:        req.ExternalOnlineStoreID,
-			MerchantOrderID:      strings.TrimSpace(req.MerchantOrderID),
-			IdempotencyKey:       strings.TrimSpace(req.IdempotencyKey),
-			CustomerReference:    strings.TrimSpace(req.CustomerReference),
-			ReturnDestination:    req.ReturnDestination,
-			MerchantState:        req.MerchantState,
-			RequestedAmountMinor: req.RequestedAmountMinor,
-			Currency:             req.Currency,
-
+			ExternalMerchantID:    merchantID,
+			ExternalOnlineStoreID: req.ExternalOnlineStoreID,
+			MerchantOrderID:       strings.TrimSpace(req.MerchantOrderID),
+			IdempotencyKey:        strings.TrimSpace(req.IdempotencyKey),
+			CustomerReference:     strings.TrimSpace(req.CustomerReference),
+			ReturnDestination:     req.ReturnDestination,
+			MerchantState:         req.MerchantState,
+			RequestedAmountMinor:  req.RequestedAmountMinor,
+			Currency:              req.Currency,
 		},
 		// Pass raw customer_phone unchanged — no TrimSpace, no country rules.
 		CustomerPhone: req.CustomerPhone,
@@ -379,8 +378,8 @@ func toUpsertReturnDestinationInput(c *gin.Context) (checkoutsessionuc.UpsertRet
 	}
 
 	return checkoutsessionuc.UpsertReturnDestinationInput{
-		ExternalMerchantID:      merchantID,
-		DestinationName: destinationName,
+		ExternalMerchantID: merchantID,
+		DestinationName:    destinationName,
 		// Pass the raw URL unchanged. Leading/trailing whitespace must be rejected
 		// by Core policy, not silently normalized at the REST boundary.
 		ReturnURL: req.ReturnURL,
@@ -410,10 +409,10 @@ func toUpsertWebhookDestinationInput(c *gin.Context) (checkoutsessionuc.UpsertWe
 	}
 
 	return checkoutsessionuc.UpsertWebhookDestinationInput{
-		ExternalMerchantID:    merchantID,
-		WebhookURL:    strings.TrimSpace(req.WebhookURL),
-		SigningSecret: req.SigningSecret,
-		Enabled:       req.Enabled,
+		ExternalMerchantID: merchantID,
+		WebhookURL:         strings.TrimSpace(req.WebhookURL),
+		SigningSecret:      req.SigningSecret,
+		Enabled:            req.Enabled,
 	}, true
 }
 

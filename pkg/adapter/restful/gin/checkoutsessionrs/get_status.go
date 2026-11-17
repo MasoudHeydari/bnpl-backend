@@ -69,7 +69,7 @@ func (rs *resource) GetPartnerStatus(c *gin.Context) {
 		c.Request.Context(),
 		checkoutsessionuc.GetPartnerStatusInput{
 			CheckoutSessionToken: token,
-			ExternalMerchantID:           merchantID,
+			ExternalMerchantID:   merchantID,
 		},
 	)
 	if err != nil {

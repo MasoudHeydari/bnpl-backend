@@ -84,14 +84,14 @@ func TestProvisionRequiresActiveExistingMerchant(t *testing.T) {
 	h := newHarness(t)
 
 	_, err := h.uc.Provision(h.ctx, ProvisionInput{
-		ExternalMerchantID:     model.ExternalMerchantID(uuid.New()),
-		IdempotencyKey: "k",
+		ExternalMerchantID: model.ExternalMerchantID(uuid.New()),
+		IdempotencyKey:     "k",
 	})
 	requireCode(t, err, cerr.CodeResourceNotFound)
 
 	h.profiles.profiles[h.merchantID] = model.MerchantProfile{
 		ExternalMerchantID: h.merchantID,
-		Status:     model.SuspendedMerchantStatus,
+		Status:             model.SuspendedMerchantStatus,
 	}
 
 	_, err = h.uc.Provision(h.ctx, ProvisionInput{ExternalMerchantID: h.merchantID, IdempotencyKey: "k"})

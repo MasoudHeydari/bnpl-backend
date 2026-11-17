@@ -90,7 +90,6 @@ func insertCustomerProfile(t *testing.T, externalCustomerID model.ExternalCustom
 	return model.CustomerID(assertValidUUID(t, idStr))
 }
 
-
 func externalSubjectIDForCustomer(t *testing.T, customerID model.CustomerID) model.ExternalSubjectID {
 	t.Helper()
 

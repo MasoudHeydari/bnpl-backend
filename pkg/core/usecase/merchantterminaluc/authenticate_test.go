@@ -106,9 +106,9 @@ func TestAuthenticateAcceptsRetiringKeyUntilDeadline(t *testing.T) {
 
 	grace := time.Hour
 	rotated, err := h.uc.Rotate(h.ctx, RotateInput{
-		ExternalMerchantID:     h.merchantID,
-		GracePeriod:    &grace,
-		IdempotencyKey: "rotate-1",
+		ExternalMerchantID: h.merchantID,
+		GracePeriod:        &grace,
+		IdempotencyKey:     "rotate-1",
 	})
 	require.NoError(t, err)
 

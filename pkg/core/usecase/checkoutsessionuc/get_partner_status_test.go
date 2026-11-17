@@ -28,15 +28,15 @@ func TestGetPartnerStatus_CompletedIncludesCommercialFields(t *testing.T) {
 
 	h.expectPool(1, 0)
 	h.merchantCQ.EXPECT().GetByMerchantID(h.ctx, h.merchantID).Return(model.MerchantProfile{
-		ID:         session.MerchantProfileID,
+		ID:                 session.MerchantProfileID,
 		ExternalMerchantID: h.merchantID,
-		Status:     model.ActiveMerchantStatus,
+		Status:             model.ActiveMerchantStatus,
 	}, nil).Once()
 	h.sessionCQ.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(session, nil).Once()
 
 	output, err := h.uc.GetPartnerStatus(h.ctx, GetPartnerStatusInput{
 		CheckoutSessionToken: h.publicToken,
-		ExternalMerchantID:           h.merchantID,
+		ExternalMerchantID:   h.merchantID,
 	})
 	require.NoError(t, err)
 	require.Equal(t, h.publicToken, output.CheckoutSessionToken)
@@ -63,16 +63,16 @@ func TestGetPartnerStatus_OpenPastExpiryProjectsExpiredWithoutWrite(t *testing.T
 
 	h.expectPool(1, 0)
 	h.merchantCQ.EXPECT().GetByMerchantID(h.ctx, h.merchantID).Return(model.MerchantProfile{
-		ID:         session.MerchantProfileID,
+		ID:                 session.MerchantProfileID,
 		ExternalMerchantID: h.merchantID,
-		Status:     model.ActiveMerchantStatus,
+		Status:             model.ActiveMerchantStatus,
 	}, nil).Once()
 	h.sessionCQ.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(session, nil).Once()
 	// No UpdateStatus / Enqueue expectations: GET must stay read-only.
 
 	output, err := h.uc.GetPartnerStatus(h.ctx, GetPartnerStatusInput{
 		CheckoutSessionToken: h.publicToken,
-		ExternalMerchantID:           h.merchantID,
+		ExternalMerchantID:   h.merchantID,
 	})
 	require.NoError(t, err)
 	require.Equal(t, model.ExpiredCheckoutSessionStatus, output.Status)
@@ -89,15 +89,15 @@ func TestGetPartnerStatus_ForeignMerchantNotFound(t *testing.T) {
 
 	h.expectPool(1, 0)
 	h.merchantCQ.EXPECT().GetByMerchantID(h.ctx, h.merchantID).Return(model.MerchantProfile{
-		ID:         h.merchantPID,
+		ID:                 h.merchantPID,
 		ExternalMerchantID: h.merchantID,
-		Status:     model.ActiveMerchantStatus,
+		Status:             model.ActiveMerchantStatus,
 	}, nil).Once()
 	h.sessionCQ.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(session, nil).Once()
 
 	_, err := h.uc.GetPartnerStatus(h.ctx, GetPartnerStatusInput{
 		CheckoutSessionToken: h.publicToken,
-		ExternalMerchantID:           h.merchantID,
+		ExternalMerchantID:   h.merchantID,
 	})
 	requireCerr(t, err, cerr.CodeResourceNotFound, "error.checkout_session_not_found")
 }

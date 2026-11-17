@@ -483,23 +483,23 @@ func (uc *UseCase) processTrustedRow(
 
 	if resolved.Status != extcustomer.ActiveStatus {
 		uc.logger.With(
-		"reason",
-		"invalid_customer_status",
-		"expected_status",
-		string(extcustomer.ActiveStatus),
-		"actual_status",
-		string(resolved.Status),
-		"row_number",
-		customer.RowNumber,
-		"mobile_hash",
-		mobileHash,
-		"external_customer_id",
-		subjectID,
-		"outcome",
-		outcomeInvalidStatus,
-	).Info(
-		log.Msg("event=trusted_customer_skipped"),
-	)
+			"reason",
+			"invalid_customer_status",
+			"expected_status",
+			string(extcustomer.ActiveStatus),
+			"actual_status",
+			string(resolved.Status),
+			"row_number",
+			customer.RowNumber,
+			"mobile_hash",
+			mobileHash,
+			"external_customer_id",
+			subjectID,
+			"outcome",
+			outcomeInvalidStatus,
+		).Info(
+			log.Msg("event=trusted_customer_skipped"),
+		)
 		_ = uc.recordFailedItem(
 			ctx,
 			importID,

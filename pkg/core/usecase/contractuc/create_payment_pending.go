@@ -293,7 +293,7 @@ func (uc *UseCase) createPaymentPending(
 						ctx,
 						auditOutboxQ,
 						createPaymentPendingAuditFacts{
-							ExternalSubjectID: input.ExternalSubjectID,
+							ExternalSubjectID:  input.ExternalSubjectID,
 							Contract:           contractRow,
 							Installments:       installments,
 							InstallmentCharges: firstCharges,

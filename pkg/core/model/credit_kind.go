@@ -30,4 +30,3 @@ func EffectiveCreditKind(k CreditKind) CreditKind {
 	}
 	return k
 }
-

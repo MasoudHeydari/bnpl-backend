@@ -75,9 +75,9 @@ func TestBuildCreatePaymentAttemptAuditEvent(t *testing.T) {
 		attempt,
 		installmentRepaymentAuditFacts{
 			ExternalSubjectID: externalSubjectID,
-			CustomerID:         customerID,
-			Installment:        installment,
-			Charges:            charges,
+			CustomerID:        customerID,
+			Installment:       installment,
+			Charges:           charges,
 		},
 		now,
 	)

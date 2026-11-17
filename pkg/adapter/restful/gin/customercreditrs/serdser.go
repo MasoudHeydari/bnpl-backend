@@ -20,14 +20,14 @@ import (
 //   - not_assigned: status only (assessment has not occurred)
 //   - expired: status and expires_at only (reassessment required)
 type creditSummaryResponse struct {
-	CreditUsage          customercredituc.CreditUsage   `json:"credit_usage"`
-	LimitAmountMinor     *uint64                        `json:"limit_amount_minor,omitempty" example:"90000000"`
-	AvailableAmountMinor *uint64                        `json:"available_amount_minor,omitempty" example:"4000000"`
-	Currency             model.Currency                 `json:"currency,omitempty" example:"IRR"`
+	CreditUsage          customercredituc.CreditUsage `json:"credit_usage"`
+	LimitAmountMinor     *uint64                      `json:"limit_amount_minor,omitempty" example:"90000000"`
+	AvailableAmountMinor *uint64                      `json:"available_amount_minor,omitempty" example:"4000000"`
+	Currency             model.Currency               `json:"currency,omitempty" example:"IRR"`
 	// Kept absent on legacy responses; supplied for monthly credit inquiries.
-	CreditKind model.CreditKind `json:"credit_kind,omitempty" enums:"pay_in_4,pay_next_month"`
-	Status               customercredituc.SummaryStatus `json:"status" example:"active"`
-	ExpiresAt            *time.Time                     `json:"expires_at,omitempty" example:"2027-08-09T12:00:00Z"`
+	CreditKind model.CreditKind               `json:"credit_kind,omitempty" enums:"pay_in_4,pay_next_month"`
+	Status     customercredituc.SummaryStatus `json:"status" example:"active"`
+	ExpiresAt  *time.Time                     `json:"expires_at,omitempty" example:"2027-08-09T12:00:00Z"`
 }
 
 func toCreditSummaryResponse(output customercredituc.Output) creditSummaryResponse {
@@ -76,13 +76,13 @@ type creditProductResponse struct {
 }
 
 type allCreditSummariesResponse struct {
-	Status customercredituc.AllCreditStatus `json:"status" enums:"not_assigned,partially_assigned,assigned"`
-	Credits []creditProductResponse `json:"credits"`
+	Status  customercredituc.AllCreditStatus `json:"status" enums:"not_assigned,partially_assigned,assigned"`
+	Credits []creditProductResponse          `json:"credits"`
 }
 
 func toAllCreditSummariesResponse(output customercredituc.AllSummariesOutput) allCreditSummariesResponse {
 	response := allCreditSummariesResponse{
-		Status: output.Status,
+		Status:  output.Status,
 		Credits: make([]creditProductResponse, 0, len(output.Credits)),
 	}
 	for _, item := range output.Credits {
@@ -98,7 +98,7 @@ func toAllCreditSummariesResponse(output customercredituc.AllSummariesOutput) al
 		}
 		response.Credits = append(response.Credits, creditProductResponse{
 			creditSummaryResponse: summary,
-			Application: application,
+			Application:           application,
 		})
 	}
 	return response
@@ -110,18 +110,18 @@ type creditAssignmentResponse struct {
 }
 
 type allCreditAssignmentsResponse struct {
-	Status customercredituc.AllCreditStatus `json:"status" enums:"not_assigned,partially_assigned,assigned"`
-	Credits []creditAssignmentResponse `json:"credits"`
+	Status  customercredituc.AllCreditStatus `json:"status" enums:"not_assigned,partially_assigned,assigned"`
+	Credits []creditAssignmentResponse       `json:"credits"`
 }
 
 func toAllCreditAssignmentsResponse(output customercredituc.AllAssignmentsOutput) allCreditAssignmentsResponse {
 	response := allCreditAssignmentsResponse{
-		Status: output.Status,
+		Status:  output.Status,
 		Credits: make([]creditAssignmentResponse, 0, len(output.Credits)),
 	}
 	for _, item := range output.Credits {
 		response.Credits = append(response.Credits, creditAssignmentResponse{
-			CreditKind: item.CreditKind,
+			CreditKind:                 item.CreditKind,
 			assignInitialLimitResponse: toAssignInitialLimitResponse(item.Assignment),
 		})
 	}
@@ -152,7 +152,7 @@ func toGetInput(c *gin.Context) (customercredituc.Input, bool) {
 		return customercredituc.Input{}, false
 	}
 	return customercredituc.Input{
-		SubjectID: authCtx.SubjectID,
+		SubjectID:  authCtx.SubjectID,
 		MobileE164: mobile,
 		CreditKind: kind,
 	}, true

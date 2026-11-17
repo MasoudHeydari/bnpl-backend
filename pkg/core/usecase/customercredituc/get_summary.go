@@ -99,9 +99,11 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 			if kind == model.PayNextMonthCreditKind {
 				products := accountQ.(repo.CreditAccountProductTxQueryer)
 				monthlyBlocked, err = monthlyPreviousCycleBlocked(
-					ctx,products,profile.ID,currency,now,
+					ctx, products, profile.ID, currency, now,
 				)
-				if err != nil { return err }
+				if err != nil {
+					return err
+				}
 			}
 			output = summaryFromAccount(account, newCreditBlocked || monthlyBlocked)
 			output.CreditKind = kind

@@ -181,7 +181,7 @@ func mapBranches(rows []model.MerchantBranchProfile) []Branch {
 	for _, row := range rows {
 		branches = append(branches, Branch{
 			ID:                        row.ID,
-			ExternalBranchID:                  row.ExternalBranchID,
+			ExternalBranchID:          row.ExternalBranchID,
 			Type:                      row.Type,
 			Status:                    row.Status,
 			FundingModels:             row.FundingModels,

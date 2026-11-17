@@ -15,9 +15,9 @@ import (
 type AllCreditStatus string
 
 const (
-	AllCreditNotAssigned AllCreditStatus = "not_assigned"
+	AllCreditNotAssigned       AllCreditStatus = "not_assigned"
 	AllCreditPartiallyAssigned AllCreditStatus = "partially_assigned"
-	AllCreditAssigned AllCreditStatus = "assigned"
+	AllCreditAssigned          AllCreditStatus = "assigned"
 )
 
 var supportedCreditKinds = [...]model.CreditKind{
@@ -28,9 +28,9 @@ var supportedCreditKinds = [...]model.CreditKind{
 // AllSummariesOutput always includes every supported credit product,
 // including products that have not yet been assigned.
 type AllSummariesOutput struct {
-	Status AllCreditStatus
+	Status     AllCreditStatus
 	CustomerID model.CustomerID
-	Credits []Output
+	Credits    []Output
 }
 
 // AggregateCreditStatus returns the overall state without treating the two
@@ -39,11 +39,19 @@ type AllSummariesOutput struct {
 func AggregateCreditStatus(credits []Output) AllCreditStatus {
 	var active, assigned int
 	for _, item := range credits {
-		if item.Status == SummaryStatusActive { active++ }
-		if item.Status != SummaryStatusNotAssigned { assigned++ }
+		if item.Status == SummaryStatusActive {
+			active++
+		}
+		if item.Status != SummaryStatusNotAssigned {
+			assigned++
+		}
 	}
-	if active == len(supportedCreditKinds) { return AllCreditAssigned }
-	if assigned == 0 { return AllCreditNotAssigned }
+	if active == len(supportedCreditKinds) {
+		return AllCreditAssigned
+	}
+	if assigned == 0 {
+		return AllCreditNotAssigned
+	}
 	return AllCreditPartiallyAssigned
 }
 
@@ -54,7 +62,9 @@ func AggregateCreditStatus(credits []Output) AllCreditStatus {
 func (uc *UseCase) GetAllSummaries(ctx context.Context, input Input) (AllSummariesOutput, error) {
 	const op = "customercredituc.UseCase.GetAllSummaries"
 	externalCustomerID, err := uc.resolveActiveExternalCustomerID(ctx, input.MobileE164)
-	if err != nil { return AllSummariesOutput{}, err }
+	if err != nil {
+		return AllSummariesOutput{}, err
+	}
 
 	now := uc.clock.Now().UTC()
 	output := AllSummariesOutput{Credits: make([]Output, 0, len(supportedCreditKinds))}
@@ -65,7 +75,9 @@ func (uc *UseCase) GetAllSummaries(ctx context.Context, input Input) (AllSummari
 				ctx, uc.customerProfile.Tx(tx), input.SubjectID.AsExternalSubjectID(),
 				externalCustomerID, now,
 			)
-			if err != nil { return err }
+			if err != nil {
+				return err
+			}
 			if !profile.IsActive() {
 				return cerr.Conflict(fmt.Errorf("%s: customer profile is inactive", op))
 			}
@@ -76,7 +88,9 @@ func (uc *UseCase) GetAllSummaries(ctx context.Context, input Input) (AllSummari
 			selectedPolicy, err := uc.resolveInitialLimitPolicy(
 				ctx, uc.policyAssignment.Tx(tx), externalCustomerID, now,
 			)
-			if err != nil { return err }
+			if err != nil {
+				return err
+			}
 			currency := selectedPolicy.Terms().Currency
 			products, ok := uc.creditAccount.Tx(tx).(repo.CreditAccountProductTxQueryer)
 			if !ok {
@@ -89,7 +103,9 @@ func (uc *UseCase) GetAllSummaries(ctx context.Context, input Input) (AllSummari
 				ctx, uc.customerRestriction.Tx(tx), uc.installment.Tx(tx),
 				uc.defaultEpisode.Tx(tx), profile.ID, now, uc.collectionsPolicy,
 			)
-			if err != nil { return err }
+			if err != nil {
+				return err
+			}
 
 			for _, kind := range supportedCreditKinds {
 				monthlyBlocked := false
@@ -97,11 +113,15 @@ func (uc *UseCase) GetAllSummaries(ctx context.Context, input Input) (AllSummari
 					monthlyBlocked, err = monthlyPreviousCycleBlocked(
 						ctx, products, profile.ID, currency, now,
 					)
-					if err != nil { return err }
+					if err != nil {
+						return err
+					}
 				}
 				if err := products.ExpireDueByCustomerIDCurrencyAndKind(
 					ctx, profile.ID, currency, kind, now,
-				); err != nil { return err }
+				); err != nil {
+					return err
+				}
 
 				account, err := products.GetByCustomerIDCurrencyAndKind(
 					ctx, profile.ID, currency, kind,
@@ -127,7 +147,9 @@ func (uc *UseCase) GetAllSummaries(ctx context.Context, input Input) (AllSummari
 			return nil
 		})
 	})
-	if err != nil { return AllSummariesOutput{}, err }
+	if err != nil {
+		return AllSummariesOutput{}, err
+	}
 
 	for _, item := range output.Credits {
 		uc.observer.AvailabilityRetrieved(ctx, item.CustomerID, string(item.Status))
@@ -141,7 +163,7 @@ func (uc *UseCase) GetAllSummaries(ctx context.Context, input Input) (AllSummari
 // AllAssignmentsOutput describes the two independently persisted assessment
 // results. Each credit product has its own immutable Decision and journal.
 type AllAssignmentsOutput struct {
-	Status AllCreditStatus
+	Status  AllCreditStatus
 	Credits []CreditAssignment
 }
 
@@ -162,7 +184,9 @@ func (uc *UseCase) InitiateAll(ctx context.Context, input AssignInitialLimitInpu
 		productInput := input
 		productInput.CreditKind = kind
 		assignment, err := uc.AssignInitialLimit(ctx, productInput)
-		if err != nil { return AllAssignmentsOutput{}, err }
+		if err != nil {
+			return AllAssignmentsOutput{}, err
+		}
 		output.Credits = append(output.Credits, CreditAssignment{
 			CreditKind: kind,
 			Assignment: assignment,

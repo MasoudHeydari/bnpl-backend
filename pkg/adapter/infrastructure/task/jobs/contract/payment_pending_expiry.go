@@ -20,15 +20,15 @@ func PaymentPendingExpiry(
 		}
 
 		logger.With(
-		"expired_contract_count",
-		output.ExpiredContractCount,
-		"expired_installment_count",
-		output.ExpiredInstallmentCount,
-		"canceled_charge_count",
-		output.CanceledChargeCount,
-	).Info(
-		corelog.Msg("expired due payment pending contracts"),
-	)
+			"expired_contract_count",
+			output.ExpiredContractCount,
+			"expired_installment_count",
+			output.ExpiredInstallmentCount,
+			"canceled_charge_count",
+			output.CanceledChargeCount,
+		).Info(
+			corelog.Msg("expired due payment pending contracts"),
+		)
 
 		return nil
 	}

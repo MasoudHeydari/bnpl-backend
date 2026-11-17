@@ -867,7 +867,7 @@ WHERE id=$1
 	input.SourceID = attemptID.String()
 
 	var (
-		capturedMu  sync.Mutex
+		capturedMu   sync.Mutex
 		capturedPIDs []int32
 	)
 	capturingPool := &pidCapturingPool{

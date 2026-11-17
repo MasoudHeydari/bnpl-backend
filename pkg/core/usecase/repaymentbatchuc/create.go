@@ -18,12 +18,12 @@ import (
 // collection. No Financial Core claim/recognition reference is inferred from
 // MerchantEntitlementID, and no customer request contains allocation rules.
 type Obligation struct {
-	Installment model.Installment
-	Contract model.Contract
+	Installment   model.Installment
+	Contract      model.Contract
 	CreditAccount model.CreditAccount
-	Merchant model.MerchantProfile
-	Charges []model.InstallmentCharge
-	PayableMinor uint64
+	Merchant      model.MerchantProfile
+	Charges       []model.InstallmentCharge
+	PayableMinor  uint64
 }
 
 // FinancialInstructions contain FC-authorized economic references for an
@@ -32,7 +32,7 @@ type Obligation struct {
 // Financial provisioning integration, NEVER from the customer's HTTP payload.
 type FinancialInstructions struct {
 	FundingShares []collectionpayment.FundingShare
-	Components []collectionpayment.Component
+	Components    []collectionpayment.Component
 }
 
 // FinancialInstructionsResolver supplies only financial terms; BNPL owns
@@ -133,9 +133,9 @@ func (uc *UseCase) CreateForCustomer(
 	}
 
 	var (
-		profile model.CustomerProfile
-		existing repo.RepaymentBatchRow
-		replayed bool
+		profile     model.CustomerProfile
+		existing    repo.RepaymentBatchRow
+		replayed    bool
 		obligations []Obligation
 	)
 	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
@@ -167,12 +167,16 @@ func (uc *UseCase) CreateForCustomer(
 		// either credit product must be part of the same atomic payment.
 		now := uc.clock.Now()
 		due, dueErr := uc.installments.Conn(conn).ListDueUnpaidByCustomerID(
-			ctx,profile.ID,now,
+			ctx, profile.ID, now,
 		)
-		if dueErr != nil {return dueErr}
+		if dueErr != nil {
+			return dueErr
+		}
 		if err := requireAllOverdueInstallments(
-			unique,due,now,uc.clock.BusinessLocation(),
-		); err != nil {return err}
+			unique, due, now, uc.clock.BusinessLocation(),
+		); err != nil {
+			return err
+		}
 
 		obligations = make([]Obligation, 0, len(selected))
 		contractSchedules := make(map[model.ContractID][]model.Installment)
@@ -197,11 +201,13 @@ func (uc *UseCase) CreateForCustomer(
 			// installment of their contract, without gaps or partial items.
 			schedule, loaded := contractSchedules[contract.ID]
 			if !loaded {
-				schedule, getErr = uc.installments.Conn(conn).ListByContractID(ctx,contract.ID)
-				if getErr != nil {return getErr}
-				contractSchedules[contract.ID]=schedule
+				schedule, getErr = uc.installments.Conn(conn).ListByContractID(ctx, contract.ID)
+				if getErr != nil {
+					return getErr
+				}
+				contractSchedules[contract.ID] = schedule
 			}
-			if err := requireConsecutiveInstallments(unique,schedule); err != nil {
+			if err := requireConsecutiveInstallments(unique, schedule); err != nil {
 				return err
 			}
 			account, getErr := uc.accounts.Conn(conn).GetByID(ctx, contract.CreditAccountID)
@@ -231,12 +237,12 @@ func (uc *UseCase) CreateForCustomer(
 				return cerr.ServiceUnavailable(fmt.Errorf("%s: existing entitlement is not bound by FC", op))
 			}
 			obligations = append(obligations, Obligation{
-				Installment: installment,
-				Contract: contract,
+				Installment:   installment,
+				Contract:      contract,
 				CreditAccount: account,
-				Merchant: merchant,
-				Charges: chargeRows,
-				PayableMinor: payable,
+				Merchant:      merchant,
+				Charges:       chargeRows,
+				PayableMinor:  payable,
 			})
 		}
 		return nil
@@ -269,8 +275,8 @@ func (uc *UseCase) CreateForCustomer(
 	plan := collectionpayment.Plan{
 		ID: batchID, CustomerID: profile.ID,
 		ExternalCustomerID: profile.ExternalCustomerID,
-		Currency: obligations[0].Installment.Currency,
-		Description: "BNPL installment repayment",
+		Currency:           obligations[0].Installment.Currency,
+		Description:        "BNPL installment repayment",
 	}
 	for i, obligation := range obligations {
 		inst := obligation.Installment
@@ -284,13 +290,13 @@ func (uc *UseCase) CreateForCustomer(
 		resolved := instructions[i]
 		item := collectionpayment.Item{
 			ID: itemID, InstallmentID: inst.ID,
-			ContractID: obligation.Contract.ID,
-			CreditAccountID: obligation.CreditAccount.ID,
-			CreditKind: model.EffectiveCreditKind(obligation.CreditAccount.CreditKind),
-			MerchantID: obligation.Merchant.ExternalMerchantID,
+			ContractID:            obligation.Contract.ID,
+			CreditAccountID:       obligation.CreditAccount.ID,
+			CreditKind:            model.EffectiveCreditKind(obligation.CreditAccount.CreditKind),
+			MerchantID:            obligation.Merchant.ExternalMerchantID,
 			MerchantEntitlementID: *obligation.Contract.FinancialMerchantEntitlementID,
-			FundingShares: resolved.FundingShares,
-			Components: resolved.Components,
+			FundingShares:         resolved.FundingShares,
+			Components:            resolved.Components,
 		}
 		// Product rules own the payable amount. FC-provisioned instructions
 		// cannot add or remove cash from the accepted BNPL installment.
@@ -356,4 +362,3 @@ func (uc *UseCase) CreateForCustomer(
 	}
 	return repo.RepaymentBatchRow{}, loadErr
 }
-

@@ -1,10 +1,10 @@
 package standard
 
 import (
-	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
 	"context"
 	"errors"
 	"fmt"
+	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
 	"net"
 	"net/http"
 	"net/netip"

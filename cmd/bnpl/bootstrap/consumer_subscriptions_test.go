@@ -37,7 +37,7 @@ func TestValidateConsumerSubscriptions(t *testing.T) {
 						Provider: adaptermessaging.KafkaProvider,
 						Kafka: config.Kafka{
 							Topics: config.Topics{
-								PaymentResults:                           paymentResults,
+								PaymentResults:                          paymentResults,
 								InstallmentPaymentReconciliationResults: reconciliationResults,
 							},
 							Consumer: config.Consumer{Topics: tt.topics},

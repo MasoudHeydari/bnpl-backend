@@ -80,7 +80,7 @@ func TestRetireRejectsCredentialOfAnotherTerminal(t *testing.T) {
 	otherMerchant := model.ExternalMerchantID(uuid.New())
 	h.profiles.profiles[otherMerchant] = model.MerchantProfile{
 		ExternalMerchantID: otherMerchant,
-		Status:     model.ActiveMerchantStatus,
+		Status:             model.ActiveMerchantStatus,
 	}
 
 	other, err := h.uc.Provision(h.ctx, ProvisionInput{ExternalMerchantID: otherMerchant, IdempotencyKey: "other"})
@@ -102,16 +102,16 @@ func TestRetireValidationAndMissing(t *testing.T) {
 	requireCode(t, err, cerr.CodeInvalidArgument)
 
 	_, err = h.uc.Retire(h.ctx, RetireInput{
-		ExternalMerchantID:   h.merchantID,
-		CredentialID: model.MerchantTerminalCredentialID(uuid.New()),
+		ExternalMerchantID: h.merchantID,
+		CredentialID:       model.MerchantTerminalCredentialID(uuid.New()),
 	})
 	requireCode(t, err, cerr.CodeResourceNotFound)
 
 	h.provision()
 
 	_, err = h.uc.Retire(h.ctx, RetireInput{
-		ExternalMerchantID:   h.merchantID,
-		CredentialID: model.MerchantTerminalCredentialID(uuid.New()),
+		ExternalMerchantID: h.merchantID,
+		CredentialID:       model.MerchantTerminalCredentialID(uuid.New()),
 	})
 	requireCode(t, err, cerr.CodeResourceNotFound)
 }

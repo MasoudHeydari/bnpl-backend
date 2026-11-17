@@ -19,7 +19,7 @@ import (
 // own options here and receive them during route registration.
 type RegisterOptions struct {
 	RepaymentBatchProviderCode string
-	RepaymentBatchReturnURL string
+	RepaymentBatchReturnURL    string
 	// Health configures registration of the health resources.
 	Health healthrs.RegisterOptions
 

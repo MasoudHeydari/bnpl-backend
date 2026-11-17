@@ -61,13 +61,13 @@ func toCreatePaymentAttemptInput(c *gin.Context) (installmentrepaymentuc.CreateP
 	}
 
 	return installmentrepaymentuc.CreatePaymentAttemptInput{
-		TenantID:           authCtx.TenantID,
-		ContextID:          authCtx.ContextID,
-		ContractID:         contractID,
-		InstallmentID:      installmentID,
+		TenantID:          authCtx.TenantID,
+		ContextID:         authCtx.ContextID,
+		ContractID:        contractID,
+		InstallmentID:     installmentID,
 		ExternalSubjectID: authCtx.SubjectID.AsExternalSubjectID(),
-		IdempotencyKey:     idempotencyKey,
-		Channel:            channel,
+		IdempotencyKey:    idempotencyKey,
+		Channel:           channel,
 	}, true
 }
 

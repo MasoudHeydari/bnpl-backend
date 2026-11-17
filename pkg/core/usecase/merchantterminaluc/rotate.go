@@ -176,15 +176,15 @@ func (uc *UseCase) replayRotation(
 	}
 
 	return RotateOutput{
-		ExternalMerchantID:        terminal.ExternalMerchantID,
-		TerminalID:        terminal.TerminalID,
-		CredentialID:      replayed.credential.ID,
-		CredentialVersion: replayed.credential.Version,
-		APIKey:            replayed.plaintext,
-		ActivatedAt:       replayed.credential.ActivatedAt,
-		Retiring:          retiringBelow(credentials, replayed.credential.Version, now),
-		ExpiresAt:         replayed.expiresAt,
-		Replayed:          true,
+		ExternalMerchantID: terminal.ExternalMerchantID,
+		TerminalID:         terminal.TerminalID,
+		CredentialID:       replayed.credential.ID,
+		CredentialVersion:  replayed.credential.Version,
+		APIKey:             replayed.plaintext,
+		ActivatedAt:        replayed.credential.ActivatedAt,
+		Retiring:           retiringBelow(credentials, replayed.credential.Version, now),
+		ExpiresAt:          replayed.expiresAt,
+		Replayed:           true,
 	}, nil
 }
 
@@ -330,14 +330,14 @@ func (uc *UseCase) rotateCredentials(
 	}
 
 	return RotateOutput{
-		ExternalMerchantID:        terminal.ExternalMerchantID,
-		TerminalID:        terminal.TerminalID,
-		CredentialID:      created.ID,
-		CredentialVersion: created.Version,
-		APIKey:            key.plaintext,
-		ActivatedAt:       created.ActivatedAt,
-		Retiring:          retiring,
-		ExpiresAt:         expiresAt,
-		Replayed:          false,
+		ExternalMerchantID: terminal.ExternalMerchantID,
+		TerminalID:         terminal.TerminalID,
+		CredentialID:       created.ID,
+		CredentialVersion:  created.Version,
+		APIKey:             key.plaintext,
+		ActivatedAt:        created.ActivatedAt,
+		Retiring:           retiring,
+		ExpiresAt:          expiresAt,
+		Replayed:           false,
 	}, nil
 }

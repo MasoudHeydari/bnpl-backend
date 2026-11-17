@@ -25,10 +25,10 @@ import (
 // OpenAPI Example Value uses the POS variant (type + external_pos_gps_id only). Online
 // fields intentionally have no example tags so they are not injected into that sample.
 type purchaseContextRequest struct {
-	Type            model.PurchaseChannel `json:"type" binding:"required" example:"pos" enums:"pos,online"`
-	ExternalPosGpsID        model.ExternalPosGpsID        `json:"external_pos_gps_id,omitempty" example:"6ba7b811-9dad-11d1-80b4-00c04fd430c8" format:"uuid"`
-	ExternalOnlineStoreID   model.ExternalOnlineStoreID   `json:"external_online_store_id,omitempty" format:"uuid"`
-	MerchantOrderID string                `json:"merchant_order_id,omitempty" maxLength:"256"`
+	Type                  model.PurchaseChannel       `json:"type" binding:"required" example:"pos" enums:"pos,online"`
+	ExternalPosGpsID      model.ExternalPosGpsID      `json:"external_pos_gps_id,omitempty" example:"6ba7b811-9dad-11d1-80b4-00c04fd430c8" format:"uuid"`
+	ExternalOnlineStoreID model.ExternalOnlineStoreID `json:"external_online_store_id,omitempty" format:"uuid"`
+	MerchantOrderID       string                      `json:"merchant_order_id,omitempty" maxLength:"256"`
 }
 
 // validate rejects malformed purchase contexts at the HTTP boundary.
@@ -37,10 +37,10 @@ type purchaseContextRequest struct {
 // because callers are not limited to the HTTP adapter.
 func (req purchaseContextRequest) validate() error {
 	return decisionuc.PurchaseContext{
-		Channel:         req.Type,
-		ExternalPosGpsID:        req.ExternalPosGpsID,
-		ExternalOnlineStoreID:   req.ExternalOnlineStoreID,
-		MerchantOrderID: req.MerchantOrderID,
+		Channel:               req.Type,
+		ExternalPosGpsID:      req.ExternalPosGpsID,
+		ExternalOnlineStoreID: req.ExternalOnlineStoreID,
+		MerchantOrderID:       req.MerchantOrderID,
 	}.Validate()
 }
 
@@ -87,10 +87,10 @@ func toCreateInput(c *gin.Context) (decisionuc.CreateInput, bool) {
 		CheckoutKey:       idempotencyKey,
 		ExternalSubjectID: authCtx.SubjectID.AsExternalSubjectID(),
 		PurchaseContext: decisionuc.PurchaseContext{
-			Channel:         req.PurchaseContext.Type,
-			ExternalPosGpsID:        req.PurchaseContext.ExternalPosGpsID,
-			ExternalOnlineStoreID:   req.PurchaseContext.ExternalOnlineStoreID,
-			MerchantOrderID: req.PurchaseContext.MerchantOrderID,
+			Channel:               req.PurchaseContext.Type,
+			ExternalPosGpsID:      req.PurchaseContext.ExternalPosGpsID,
+			ExternalOnlineStoreID: req.PurchaseContext.ExternalOnlineStoreID,
+			MerchantOrderID:       req.PurchaseContext.MerchantOrderID,
 		},
 		RequestedAmountMinor: req.RequestedAmountMinor,
 		Currency:             currency,
@@ -128,10 +128,10 @@ type installmentOfferResponse struct {
 }
 
 type purchaseContextResponse struct {
-	Type            model.PurchaseChannel `json:"type" example:"pos" enums:"pos,online"`
-	ExternalPosGpsID        *model.ExternalPosGpsID       `json:"external_pos_gps_id,omitempty" example:"6ba7b811-9dad-11d1-80b4-00c04fd430c8" format:"uuid"`
-	ExternalOnlineStoreID   *model.ExternalOnlineStoreID  `json:"external_online_store_id,omitempty" format:"uuid"`
-	MerchantOrderID string                `json:"merchant_order_id,omitempty"`
+	Type                  model.PurchaseChannel        `json:"type" example:"pos" enums:"pos,online"`
+	ExternalPosGpsID      *model.ExternalPosGpsID      `json:"external_pos_gps_id,omitempty" example:"6ba7b811-9dad-11d1-80b4-00c04fd430c8" format:"uuid"`
+	ExternalOnlineStoreID *model.ExternalOnlineStoreID `json:"external_online_store_id,omitempty" format:"uuid"`
+	MerchantOrderID       string                       `json:"merchant_order_id,omitempty"`
 }
 
 type checkoutActionResponse struct {

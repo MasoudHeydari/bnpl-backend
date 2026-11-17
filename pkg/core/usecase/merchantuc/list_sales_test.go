@@ -34,7 +34,7 @@ func TestListSales_InvalidPaginationMode(t *testing.T) {
 	uc := merchantuc.New(nil, nil, nil, nil)
 	_, err := uc.ListSales(context.Background(), merchantuc.ListSalesInput{
 		ExternalMerchantID: model.ExternalMerchantID(uuid.New()),
-		Mode:       "cursor",
+		Mode:               "cursor",
 	})
 	require.True(t, cerr.IsCode(err, cerr.CodeInvalidArgument))
 }
@@ -63,8 +63,8 @@ func TestListSales_Keyset_EmptyWhenMerchantMissing(t *testing.T) {
 
 	out, err := uc.ListSales(context.Background(), merchantuc.ListSalesInput{
 		ExternalMerchantID: merchantID,
-		Mode:       merchantuc.PaginationModeKeyset,
-		Keyset:     pagination.KeysetRequest{Limit: 20},
+		Mode:               merchantuc.PaginationModeKeyset,
+		Keyset:             pagination.KeysetRequest{Limit: 20},
 	})
 	require.NoError(t, err)
 	require.Empty(t, out.Sales)
@@ -131,8 +131,8 @@ func TestListSales_Keyset_ReturnsActiveSales(t *testing.T) {
 
 	out, err := uc.ListSales(context.Background(), merchantuc.ListSalesInput{
 		ExternalMerchantID: merchantID,
-		Mode:       merchantuc.PaginationModeKeyset,
-		Keyset:     pagination.KeysetRequest{Limit: 20},
+		Mode:               merchantuc.PaginationModeKeyset,
+		Keyset:             pagination.KeysetRequest{Limit: 20},
 	})
 	require.NoError(t, err)
 	require.Len(t, out.Sales, 1)
@@ -190,7 +190,7 @@ func TestListSales_Page_ReturnsTotals(t *testing.T) {
 
 	out, err := uc.ListSales(context.Background(), merchantuc.ListSalesInput{
 		ExternalMerchantID: merchantID,
-		Mode:       merchantuc.PaginationModePage,
+		Mode:               merchantuc.PaginationModePage,
 		Offset: pagination.OffsetRequest{
 			Page:  1,
 			Limit: 20,

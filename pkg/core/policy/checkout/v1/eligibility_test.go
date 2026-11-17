@@ -47,14 +47,14 @@ func eligibleEligibilityInput() checkout.EligibilityInput {
 			Status:             model.ActiveCustomerStatus,
 		},
 		MerchantProfile: model.MerchantProfile{
-			ID:                model.MerchantProfileID(uuid.New()),
-			ExternalMerchantID:        model.ExternalMerchantID(uuid.New()),
-			Status:            model.ActiveMerchantStatus,
-			Currencies:        []model.Currency{model.IRRCurrency},
-			MaxAmountMinor:    1_000_000,
-			MaxAmountCurrency: model.IRRCurrency,
-			MaxTenureMonths:   12,
-			Jurisdiction:      model.IRJurisdiction,
+			ID:                 model.MerchantProfileID(uuid.New()),
+			ExternalMerchantID: model.ExternalMerchantID(uuid.New()),
+			Status:             model.ActiveMerchantStatus,
+			Currencies:         []model.Currency{model.IRRCurrency},
+			MaxAmountMinor:     1_000_000,
+			MaxAmountCurrency:  model.IRRCurrency,
+			MaxTenureMonths:    12,
+			Jurisdiction:       model.IRJurisdiction,
 		},
 		CreditAccount: model.CreditAccount{
 			LimitAmountMinor: 500_000,
@@ -123,9 +123,9 @@ func TestEvaluateEligibility_DenialBranches(t *testing.T) {
 			mutate: func(in *checkout.EligibilityInput) {
 				in.BranchRequested = true
 				in.MerchantBranchProfile = &model.MerchantBranchProfile{
-					ID:         requestedBranchID,
+					ID:                 requestedBranchID,
 					ExternalMerchantID: otherMerchant,
-					Status:     model.ActiveMerchantBranchStatus,
+					Status:             model.ActiveMerchantBranchStatus,
 				}
 			},
 			wantReason: model.MerchantBranchDoesNotBelongToMerchantDecisionReason,
@@ -135,9 +135,9 @@ func TestEvaluateEligibility_DenialBranches(t *testing.T) {
 			mutate: func(in *checkout.EligibilityInput) {
 				in.BranchRequested = true
 				in.MerchantBranchProfile = &model.MerchantBranchProfile{
-					ID:         requestedBranchID,
+					ID:                 requestedBranchID,
 					ExternalMerchantID: in.MerchantProfile.ExternalMerchantID,
-					Status:     model.DeactivatedMerchantBranchStatus,
+					Status:             model.DeactivatedMerchantBranchStatus,
 				}
 			},
 			wantReason: model.MerchantBranchProfileNotActiveDecisionReason,
@@ -147,10 +147,10 @@ func TestEvaluateEligibility_DenialBranches(t *testing.T) {
 			mutate: func(in *checkout.EligibilityInput) {
 				in.BranchRequested = true
 				in.MerchantBranchProfile = &model.MerchantBranchProfile{
-					ID:           requestedBranchID,
-					ExternalMerchantID:   in.MerchantProfile.ExternalMerchantID,
-					Status:       model.ActiveMerchantBranchStatus,
-					Jurisdiction: model.Jurisdiction("US"),
+					ID:                 requestedBranchID,
+					ExternalMerchantID: in.MerchantProfile.ExternalMerchantID,
+					Status:             model.ActiveMerchantBranchStatus,
+					Jurisdiction:       model.Jurisdiction("US"),
 				}
 			},
 			wantReason: model.JurisdictionMismatchDecisionReason,
@@ -174,10 +174,10 @@ func TestEvaluateEligibility_DenialBranches(t *testing.T) {
 			mutate: func(in *checkout.EligibilityInput) {
 				in.BranchRequested = true
 				in.MerchantBranchProfile = &model.MerchantBranchProfile{
-					ID:         requestedBranchID,
+					ID:                 requestedBranchID,
 					ExternalMerchantID: in.MerchantProfile.ExternalMerchantID,
-					Status:     model.ActiveMerchantBranchStatus,
-					Currencies: []model.Currency{model.USDCurrency},
+					Status:             model.ActiveMerchantBranchStatus,
+					Currencies:         []model.Currency{model.USDCurrency},
 				}
 			},
 			wantReason: model.CurrencyNotSupportedDecisionReason,
@@ -196,7 +196,7 @@ func TestEvaluateEligibility_DenialBranches(t *testing.T) {
 				override := uint(1)
 				in.MerchantBranchProfile = &model.MerchantBranchProfile{
 					ID:                      requestedBranchID,
-					ExternalMerchantID:              in.MerchantProfile.ExternalMerchantID,
+					ExternalMerchantID:      in.MerchantProfile.ExternalMerchantID,
 					Status:                  model.ActiveMerchantBranchStatus,
 					MaxTenureMonthsOverride: &override,
 				}
@@ -225,7 +225,7 @@ func TestEvaluateEligibility_DenialBranches(t *testing.T) {
 				overrideCurrency := model.IRRCurrency
 				in.MerchantBranchProfile = &model.MerchantBranchProfile{
 					ID:                        requestedBranchID,
-					ExternalMerchantID:                in.MerchantProfile.ExternalMerchantID,
+					ExternalMerchantID:        in.MerchantProfile.ExternalMerchantID,
 					Status:                    model.ActiveMerchantBranchStatus,
 					MaxAmountOverrideMinor:    &overrideAmount,
 					MaxAmountOverrideCurrency: &overrideCurrency,
@@ -312,7 +312,7 @@ func TestEvaluateEligibility_BranchOverridesGrantWiderLimits(t *testing.T) {
 	overrideCurrency := model.IRRCurrency
 	input.MerchantBranchProfile = &model.MerchantBranchProfile{
 		ID:                        model.MerchantBranchProfileID(uuid.New()),
-		ExternalMerchantID:                input.MerchantProfile.ExternalMerchantID,
+		ExternalMerchantID:        input.MerchantProfile.ExternalMerchantID,
 		Status:                    model.ActiveMerchantBranchStatus,
 		MaxAmountOverrideMinor:    &overrideAmount,
 		MaxAmountOverrideCurrency: &overrideCurrency,

@@ -99,11 +99,11 @@ func (uc *UseCase) Authenticate(
 			}
 
 			principal = merchantterminal.MerchantPrincipal{
-				ExternalMerchantID:        terminal.ExternalMerchantID,
-				TerminalID:        terminal.TerminalID,
-				CredentialID:      matched.ID,
-				CredentialVersion: matched.Version,
-				Permissions:       permission.FilterKnown(storedPermissions),
+				ExternalMerchantID: terminal.ExternalMerchantID,
+				TerminalID:         terminal.TerminalID,
+				CredentialID:       matched.ID,
+				CredentialVersion:  matched.Version,
+				Permissions:        permission.FilterKnown(storedPermissions),
 			}
 
 			return nil

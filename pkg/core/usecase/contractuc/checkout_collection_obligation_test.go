@@ -72,7 +72,7 @@ func TestEnsureCheckoutCollectionObligation_UsesPreRecognitionCashAndExternalIDs
 		ExternalCustomerID: externalCustomerID,
 	}
 	merchant := model.MerchantProfile{
-		ID:         merchantProfileID,
+		ID:                 merchantProfileID,
 		ExternalMerchantID: merchantID,
 	}
 

@@ -22,8 +22,8 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/paymentattemptrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/policyassignmentimportrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/policyassignmentrp"
-	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/repaymentreminderrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/repaymentbatchrp"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/repaymentreminderrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/sagarp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/shortlinkrp"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
@@ -130,7 +130,7 @@ func NewRepos() Repos {
 		Installment:                installmentrp.New(),
 		InstallmentCharge:          installmentchargerp.New(),
 		PaymentAttempt:             paymentattemptrp.New(),
-		RepaymentBatch:              repaymentbatchrp.New(),
+		RepaymentBatch:             repaymentbatchrp.New(),
 		PolicyAssignment:           policyassignmentrp.New(),
 		PolicyAssignmentImport:     policyassignmentimportrp.New(),
 		Saga:                       sagarp.New(),

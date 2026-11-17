@@ -14,8 +14,8 @@ const (
 	policyID      = "checkout_contract_approval"
 	policyVersion = "v3"
 
-	installmentCount       = 1
-	decisionTTL            = 15 * time.Minute
+	installmentCount = 1
+	decisionTTL      = 15 * time.Minute
 	// Monthly installments become overdue at Tehran midnight on the sixth.
 	// Their fifth-day deadline has no additional grace days.
 	gracePeriodDays        = uint(0)
@@ -32,22 +32,22 @@ func (policyV3) Ref() policy.Ref { return policy.Ref{ID: policyID, Version: poli
 
 func (policyV3) Terms() checkout.Terms {
 	return checkout.Terms{
-		CreditKind: model.PayNextMonthCreditKind,
-		DueDateRule: checkout.DueNextJalaliMonthFifth,
-		InstallmentCount: installmentCount,
-		DecisionTTL: decisionTTL,
-		MaxFinancedAmountMinor: maxFinancedAmountMinor,
-		FinancingMode: checkout.FullFinancingOnly,
-		ActivationMode: checkout.ActivationAfterMerchantFunding,
-		ScheduleAnchor: checkout.ScheduleFromContractActivation,
+		CreditKind:                    model.PayNextMonthCreditKind,
+		DueDateRule:                   checkout.DueNextJalaliMonthFifth,
+		InstallmentCount:              installmentCount,
+		DecisionTTL:                   decisionTTL,
+		MaxFinancedAmountMinor:        maxFinancedAmountMinor,
+		FinancingMode:                 checkout.FullFinancingOnly,
+		ActivationMode:                checkout.ActivationAfterMerchantFunding,
+		ScheduleAnchor:                checkout.ScheduleFromContractActivation,
 		FirstInstallmentPaymentWindow: 0,
 		Repayment: checkout.RepaymentTerms{
 			Cadence: checkout.RepaymentCadence{
-				Unit: checkout.CadenceJalaliMonth,
+				Unit:  checkout.CadenceJalaliMonth,
 				Every: 1,
 			},
 			GracePeriodDays: gracePeriodDays,
-			Reminder: checkout.ReminderTerms{LeadDays: reminderLeadDays},
+			Reminder:        checkout.ReminderTerms{LeadDays: reminderLeadDays},
 		},
 	}
 }

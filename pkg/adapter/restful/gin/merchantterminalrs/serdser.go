@@ -33,14 +33,14 @@ type rotateRequest struct {
 }
 
 type provisionResponse struct {
-	ExternalMerchantID        model.ExternalMerchantID                   `json:"external_merchant_id" example:"8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c" format:"uuid"`
-	TerminalID        model.TerminalID                   `json:"terminal_id" swaggertype:"string" example:"4829174650293817"`
-	CredentialID      model.MerchantTerminalCredentialID `json:"credential_id" example:"7f3d9a10-2b4c-4e5f-9a6b-1c2d3e4f5a6b" format:"uuid"`
-	CredentialVersion int64                              `json:"credential_version" example:"1"`
-	APIKey            string                             `json:"api_key" example:"bnpl_live_example"`
-	CreatedAt         time.Time                          `json:"created_at" example:"2026-08-09T12:00:00Z"`
-	ExpiresAt         time.Time                          `json:"api_key_replayable_until" example:"2026-08-10T12:00:00Z"`
-	Replayed          bool                               `json:"replayed" example:"false"`
+	ExternalMerchantID model.ExternalMerchantID           `json:"external_merchant_id" example:"8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c" format:"uuid"`
+	TerminalID         model.TerminalID                   `json:"terminal_id" swaggertype:"string" example:"4829174650293817"`
+	CredentialID       model.MerchantTerminalCredentialID `json:"credential_id" example:"7f3d9a10-2b4c-4e5f-9a6b-1c2d3e4f5a6b" format:"uuid"`
+	CredentialVersion  int64                              `json:"credential_version" example:"1"`
+	APIKey             string                             `json:"api_key" example:"bnpl_live_example"`
+	CreatedAt          time.Time                          `json:"created_at" example:"2026-08-09T12:00:00Z"`
+	ExpiresAt          time.Time                          `json:"api_key_replayable_until" example:"2026-08-10T12:00:00Z"`
+	Replayed           bool                               `json:"replayed" example:"false"`
 }
 
 type retiringCredentialResponse struct {
@@ -50,15 +50,15 @@ type retiringCredentialResponse struct {
 }
 
 type rotateResponse struct {
-	ExternalMerchantID        model.ExternalMerchantID                   `json:"external_merchant_id" example:"8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c" format:"uuid"`
-	TerminalID        model.TerminalID                   `json:"terminal_id" swaggertype:"string" example:"4829174650293817"`
-	CredentialID      model.MerchantTerminalCredentialID `json:"credential_id" example:"7f3d9a10-2b4c-4e5f-9a6b-1c2d3e4f5a6b" format:"uuid"`
-	CredentialVersion int64                              `json:"credential_version" example:"2"`
-	APIKey            string                             `json:"api_key" example:"bnpl_live_example"`
-	ActivatedAt       time.Time                          `json:"activated_at" example:"2026-08-09T12:00:00Z"`
-	Retiring          *retiringCredentialResponse        `json:"retiring,omitempty"`
-	ExpiresAt         time.Time                          `json:"api_key_replayable_until" example:"2026-08-10T12:00:00Z"`
-	Replayed          bool                               `json:"replayed" example:"false"`
+	ExternalMerchantID model.ExternalMerchantID           `json:"external_merchant_id" example:"8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c" format:"uuid"`
+	TerminalID         model.TerminalID                   `json:"terminal_id" swaggertype:"string" example:"4829174650293817"`
+	CredentialID       model.MerchantTerminalCredentialID `json:"credential_id" example:"7f3d9a10-2b4c-4e5f-9a6b-1c2d3e4f5a6b" format:"uuid"`
+	CredentialVersion  int64                              `json:"credential_version" example:"2"`
+	APIKey             string                             `json:"api_key" example:"bnpl_live_example"`
+	ActivatedAt        time.Time                          `json:"activated_at" example:"2026-08-09T12:00:00Z"`
+	Retiring           *retiringCredentialResponse        `json:"retiring,omitempty"`
+	ExpiresAt          time.Time                          `json:"api_key_replayable_until" example:"2026-08-10T12:00:00Z"`
+	Replayed           bool                               `json:"replayed" example:"false"`
 }
 
 type retireResponse struct {
@@ -74,13 +74,13 @@ type activeCredentialResponse struct {
 }
 
 type getResponse struct {
-	ExternalMerchantID       model.ExternalMerchantID             `json:"external_merchant_id" example:"8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c" format:"uuid"`
-	TerminalID       model.TerminalID             `json:"terminal_id" swaggertype:"string" example:"4829174650293817"`
-	Status           model.MerchantTerminalStatus `json:"status" example:"active"`
-	CreatedAt        time.Time                    `json:"created_at" example:"2026-08-09T12:00:00Z"`
-	UpdatedAt        time.Time                    `json:"updated_at" example:"2026-08-09T12:00:00Z"`
-	ActiveCredential *activeCredentialResponse    `json:"active_credential,omitempty"`
-	Retiring         *retiringCredentialResponse  `json:"retiring,omitempty"`
+	ExternalMerchantID model.ExternalMerchantID     `json:"external_merchant_id" example:"8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c" format:"uuid"`
+	TerminalID         model.TerminalID             `json:"terminal_id" swaggertype:"string" example:"4829174650293817"`
+	Status             model.MerchantTerminalStatus `json:"status" example:"active"`
+	CreatedAt          time.Time                    `json:"created_at" example:"2026-08-09T12:00:00Z"`
+	UpdatedAt          time.Time                    `json:"updated_at" example:"2026-08-09T12:00:00Z"`
+	ActiveCredential   *activeCredentialResponse    `json:"active_credential,omitempty"`
+	Retiring           *retiringCredentialResponse  `json:"retiring,omitempty"`
 }
 
 // idempotencyKey reads the required Idempotency-Key header. Length limits are
@@ -146,8 +146,8 @@ func toProvisionInput(c *gin.Context) (merchantterminaluc.ProvisionInput, bool) 
 	}
 
 	return merchantterminaluc.ProvisionInput{
-		ExternalMerchantID:     merchantID,
-		IdempotencyKey: key,
+		ExternalMerchantID: merchantID,
+		IdempotencyKey:     key,
 	}, true
 }
 
@@ -166,10 +166,10 @@ func toGetResponse(output merchantterminaluc.GetOutput) []getResponse {
 	for _, terminal := range output.Items {
 		response := getResponse{
 			ExternalMerchantID: terminal.ExternalMerchantID,
-			TerminalID: terminal.TerminalID,
-			Status:     terminal.Status,
-			CreatedAt:  terminal.CreatedAt,
-			UpdatedAt:  terminal.UpdatedAt,
+			TerminalID:         terminal.TerminalID,
+			Status:             terminal.Status,
+			CreatedAt:          terminal.CreatedAt,
+			UpdatedAt:          terminal.UpdatedAt,
 		}
 
 		if terminal.ActiveCredential != nil {
@@ -196,14 +196,14 @@ func toGetResponse(output merchantterminaluc.GetOutput) []getResponse {
 
 func toProvisionResponse(output merchantterminaluc.ProvisionOutput) provisionResponse {
 	return provisionResponse{
-		ExternalMerchantID:        output.ExternalMerchantID,
-		TerminalID:        output.TerminalID,
-		CredentialID:      output.CredentialID,
-		CredentialVersion: output.CredentialVersion,
-		APIKey:            output.APIKey,
-		CreatedAt:         output.CreatedAt,
-		ExpiresAt:         output.ExpiresAt,
-		Replayed:          output.Replayed,
+		ExternalMerchantID: output.ExternalMerchantID,
+		TerminalID:         output.TerminalID,
+		CredentialID:       output.CredentialID,
+		CredentialVersion:  output.CredentialVersion,
+		APIKey:             output.APIKey,
+		CreatedAt:          output.CreatedAt,
+		ExpiresAt:          output.ExpiresAt,
+		Replayed:           output.Replayed,
 	}
 }
 
@@ -235,22 +235,22 @@ func toRotateInput(c *gin.Context) (merchantterminaluc.RotateInput, bool) {
 	}
 
 	return merchantterminaluc.RotateInput{
-		ExternalMerchantID:     merchantID,
-		GracePeriod:    grace,
-		IdempotencyKey: key,
+		ExternalMerchantID: merchantID,
+		GracePeriod:        grace,
+		IdempotencyKey:     key,
 	}, true
 }
 
 func toRotateResponse(output merchantterminaluc.RotateOutput) rotateResponse {
 	response := rotateResponse{
-		ExternalMerchantID:        output.ExternalMerchantID,
-		TerminalID:        output.TerminalID,
-		CredentialID:      output.CredentialID,
-		CredentialVersion: output.CredentialVersion,
-		APIKey:            output.APIKey,
-		ActivatedAt:       output.ActivatedAt,
-		ExpiresAt:         output.ExpiresAt,
-		Replayed:          output.Replayed,
+		ExternalMerchantID: output.ExternalMerchantID,
+		TerminalID:         output.TerminalID,
+		CredentialID:       output.CredentialID,
+		CredentialVersion:  output.CredentialVersion,
+		APIKey:             output.APIKey,
+		ActivatedAt:        output.ActivatedAt,
+		ExpiresAt:          output.ExpiresAt,
+		Replayed:           output.Replayed,
 	}
 
 	if output.Retiring != nil {
@@ -278,8 +278,8 @@ func toRetireInput(c *gin.Context) (merchantterminaluc.RetireInput, bool) {
 	}
 
 	return merchantterminaluc.RetireInput{
-		ExternalMerchantID:   merchantID,
-		CredentialID: credentialID,
+		ExternalMerchantID: merchantID,
+		CredentialID:       credentialID,
 	}, true
 }
 

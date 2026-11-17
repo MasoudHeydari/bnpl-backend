@@ -13,12 +13,12 @@ func requireAllOverdueInstallments(
 	selected map[model.InstallmentID]struct{},
 	due []model.Installment, at time.Time, loc *time.Location,
 ) error {
-	return repaymentselection.RequireAllOverdueInstallments(selected,due,at,loc)
+	return repaymentselection.RequireAllOverdueInstallments(selected, due, at, loc)
 }
 
 func requireConsecutiveInstallments(
 	selected map[model.InstallmentID]struct{},
 	contractInstallments []model.Installment,
 ) error {
-	return repaymentselection.RequireConsecutiveInstallments(selected,contractInstallments)
+	return repaymentselection.RequireConsecutiveInstallments(selected, contractInstallments)
 }

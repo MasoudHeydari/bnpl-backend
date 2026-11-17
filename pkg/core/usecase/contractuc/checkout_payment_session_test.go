@@ -76,7 +76,6 @@ func (l *checkoutExpiryRecordingLogger) recordLog(level string, event corelog.Ev
 	*l.records = append(*l.records, checkoutExpiryLogRecord{level: level, msg: msg, args: attrs})
 }
 
-
 func (l *checkoutExpiryRecordingLogger) warnCount(msg string) int {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -155,16 +154,16 @@ func TestValidatePaymentBasedCreateContractInput_AllowsMissingTenantOrContext(t 
 	t.Parallel()
 
 	generic := CreateContractInput{
-		DecisionID:         model.DecisionID(uuid.New()),
+		DecisionID:        model.DecisionID(uuid.New()),
 		ExternalSubjectID: model.ExternalSubjectID(uuid.New()),
 	}
 	require.NoError(t, validateCreateContractInput(generic))
 
 	paymentBased := CreateContractInput{
-		DecisionID:         model.DecisionID(uuid.New()),
+		DecisionID:        model.DecisionID(uuid.New()),
 		ExternalSubjectID: model.ExternalSubjectID(uuid.New()),
-		TenantID:           model.TenantID{},
-		ContextID:          model.ContextID{},
+		TenantID:          model.TenantID{},
+		ContextID:         model.ContextID{},
 	}
 	require.NoError(t, validatePaymentBasedCreateContractInput(paymentBased))
 }

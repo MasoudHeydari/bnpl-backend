@@ -58,13 +58,13 @@ func validCreatePartnerInput(t *testing.T) CreatePartnerInput {
 
 	return CreatePartnerInput{
 		CheckoutSessionRequest: CheckoutSessionRequest{
-			ExternalMerchantID:           model.ExternalMerchantID(uuid.New()),
-			ExternalOnlineStoreID:        model.ExternalOnlineStoreID(uuid.New()),
-			MerchantOrderID:      "order-1",
-			IdempotencyKey:       "attempt-1",
-			ReturnDestination:    "storefront",
-			RequestedAmountMinor: 150000,
-			Currency:             model.IRRCurrency,
+			ExternalMerchantID:    model.ExternalMerchantID(uuid.New()),
+			ExternalOnlineStoreID: model.ExternalOnlineStoreID(uuid.New()),
+			MerchantOrderID:       "order-1",
+			IdempotencyKey:        "attempt-1",
+			ReturnDestination:     "storefront",
+			RequestedAmountMinor:  150000,
+			Currency:              model.IRRCurrency,
 		},
 		CustomerPhone: "+989121234567",
 	}

@@ -149,7 +149,7 @@ func (uc *UseCase) ensureFinancialCoreInstallmentPayment(
 		SourceType:            financialCorePaymentAttemptSourceType,
 		SourceID:              attempt.ID.String(),
 		SourceVersion:         financialCoreSourceVersionPtr(),
-		ExternalMerchantID: merchant.ExternalMerchantID.String(),
+		ExternalMerchantID:    merchant.ExternalMerchantID.String(),
 		ExternalCustomerID:    customer.ExternalCustomerID.String(),
 		Currency:              string(attempt.Currency),
 		AmountMinor:           amountMinor,

@@ -38,7 +38,7 @@ func toAssignInitialLimitInput(c *gin.Context) (customercredituc.AssignInitialLi
 	}
 
 	return customercredituc.AssignInitialLimitInput{
-		SubjectID: authCtx.SubjectID,
+		SubjectID:  authCtx.SubjectID,
 		MobileE164: mobile,
 		CreditKind: kind,
 	}, true

@@ -12,7 +12,7 @@ import (
 type CheckoutSessionProductTxQueryer interface {
 	// SelectCreditKindBeforeDecision advances evaluation_generation when
 	// the customer changes product, fencing concurrent Decision evaluation.
-	SelectCreditKindBeforeDecision(context.Context, model.CheckoutSessionID, model.CreditKind, time.Time) (model.CheckoutSession,error)
+	SelectCreditKindBeforeDecision(context.Context, model.CheckoutSessionID, model.CreditKind, time.Time) (model.CheckoutSession, error)
 	SetCreditKindBeforeDecision(
 		context.Context,
 		model.CheckoutSessionID,

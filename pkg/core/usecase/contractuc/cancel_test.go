@@ -399,12 +399,12 @@ func TestCancel_ActiveToCanceling(t *testing.T) {
 	deps.expectFinalizeLeavesCanceling(ctx, sagaID)
 
 	output, err := uc.Cancel(ctx, CancelInput{
-		TenantID:           tenantID,
-		ContextID:          contextID,
-		ContractID:         contractID,
+		TenantID:          tenantID,
+		ContextID:         contextID,
+		ContractID:        contractID,
 		ExternalSubjectID: externalSubjectID,
-		IdempotencyKey:     idempotencyKey,
-		Reason:             reason,
+		IdempotencyKey:    idempotencyKey,
+		Reason:            reason,
 	})
 	require.NoError(t, err)
 	require.Equal(t, CancelResultStarted, output.Result)
@@ -498,12 +498,12 @@ func TestCancel_SagaExecuteByIDFailureReturnsUnavailable(t *testing.T) {
 	deps.executor.EXPECT().ExecuteByID(ctx, sagaID).Return(fcErr).Once()
 
 	_, err := uc.Cancel(ctx, CancelInput{
-		TenantID:           tenantID,
-		ContextID:          contextID,
-		ContractID:         contractID,
+		TenantID:          tenantID,
+		ContextID:         contextID,
+		ContractID:        contractID,
 		ExternalSubjectID: externalSubjectID,
-		IdempotencyKey:     idempotencyKey,
-		Reason:             reason,
+		IdempotencyKey:    idempotencyKey,
+		Reason:            reason,
 	})
 	require.Error(t, err)
 	require.True(t, cerr.IsCode(err, cerr.CodeServiceUnavailable))
@@ -559,12 +559,12 @@ func TestCancel_ExactIdempotentReplay(t *testing.T) {
 	deps.contractTx.EXPECT().LockByID(ctx, contractID).Return(canceling, nil).Once()
 
 	output, err := uc.Cancel(ctx, CancelInput{
-		TenantID:           tenantID,
-		ContextID:          contextID,
-		ContractID:         contractID,
+		TenantID:          tenantID,
+		ContextID:         contextID,
+		ContractID:        contractID,
 		ExternalSubjectID: externalSubjectID,
-		IdempotencyKey:     idempotencyKey,
-		Reason:             reason,
+		IdempotencyKey:    idempotencyKey,
+		Reason:            reason,
 	})
 	require.NoError(t, err)
 	require.Equal(t, CancelResultAlreadyCanceling, output.Result)
@@ -618,12 +618,12 @@ func TestCancel_IdempotencyConflictDifferentReason(t *testing.T) {
 
 	// Same key but different tenant/context changes the fingerprint.
 	_, err := uc.Cancel(ctx, CancelInput{
-		TenantID:           model.TenantID(uuid.New()),
-		ContextID:          contextID,
-		ContractID:         contractID,
+		TenantID:          model.TenantID(uuid.New()),
+		ContextID:         contextID,
+		ContractID:        contractID,
 		ExternalSubjectID: externalSubjectID,
-		IdempotencyKey:     idempotencyKey,
-		Reason:             storedReason,
+		IdempotencyKey:    idempotencyKey,
+		Reason:            storedReason,
 	})
 	require.Error(t, err)
 	require.True(t, cerr.IsCode(err, cerr.CodeIdempotencyConflict))
@@ -662,12 +662,12 @@ func TestCancel_OwnershipForbidden(t *testing.T) {
 		Once()
 
 	_, err := uc.Cancel(ctx, CancelInput{
-		TenantID:           model.TenantID(uuid.New()),
-		ContextID:          model.ContextID(uuid.New()),
-		ContractID:         contractID,
+		TenantID:          model.TenantID(uuid.New()),
+		ContextID:         model.ContextID(uuid.New()),
+		ContractID:        contractID,
 		ExternalSubjectID: externalSubjectID,
-		IdempotencyKey:     "k",
-		Reason:             model.CustomerRequestedContractCancellationReason,
+		IdempotencyKey:    "k",
+		Reason:            model.CustomerRequestedContractCancellationReason,
 	})
 	require.Error(t, err)
 	require.True(t, cerr.IsCode(err, cerr.CodeForbidden))
@@ -716,12 +716,12 @@ func TestCancel_RejectsNonActiveStates(t *testing.T) {
 			deps.contractTx.EXPECT().LockByID(ctx, contractID).Return(row, nil).Once()
 
 			_, err := uc.Cancel(ctx, CancelInput{
-				TenantID:           model.TenantID(uuid.New()),
-				ContextID:          model.ContextID(uuid.New()),
-				ContractID:         contractID,
+				TenantID:          model.TenantID(uuid.New()),
+				ContextID:         model.ContextID(uuid.New()),
+				ContractID:        contractID,
 				ExternalSubjectID: externalSubjectID,
-				IdempotencyKey:     "k",
-				Reason:             model.CustomerRequestedContractCancellationReason,
+				IdempotencyKey:    "k",
+				Reason:            model.CustomerRequestedContractCancellationReason,
 			})
 			require.Error(t, err)
 			require.True(t, cerr.IsCode(err, cerr.CodeConflict))
@@ -760,12 +760,12 @@ func TestCancel_CanceledWithoutMatchingKey_Conflicts(t *testing.T) {
 	deps.contractTx.EXPECT().LockByID(ctx, contractID).Return(row, nil).Once()
 
 	_, err := uc.Cancel(ctx, CancelInput{
-		TenantID:           model.TenantID(uuid.New()),
-		ContextID:          model.ContextID(uuid.New()),
-		ContractID:         contractID,
+		TenantID:          model.TenantID(uuid.New()),
+		ContextID:         model.ContextID(uuid.New()),
+		ContractID:        contractID,
 		ExternalSubjectID: externalSubjectID,
-		IdempotencyKey:     "new-key",
-		Reason:             model.CustomerRequestedContractCancellationReason,
+		IdempotencyKey:    "new-key",
+		Reason:            model.CustomerRequestedContractCancellationReason,
 	})
 	require.Error(t, err)
 	require.True(t, cerr.IsCode(err, cerr.CodeConflict))
@@ -817,12 +817,12 @@ func TestCancel_SecondKeyWhileCanceling_Conflicts(t *testing.T) {
 	deps.contractTx.EXPECT().LockByID(ctx, contractID).Return(canceling, nil).Once()
 
 	_, err := uc.Cancel(ctx, CancelInput{
-		TenantID:           tenantID,
-		ContextID:          contextID,
-		ContractID:         contractID,
+		TenantID:          tenantID,
+		ContextID:         contextID,
+		ContractID:        contractID,
 		ExternalSubjectID: externalSubjectID,
-		IdempotencyKey:     "other-key",
-		Reason:             reason,
+		IdempotencyKey:    "other-key",
+		Reason:            reason,
 	})
 	require.Error(t, err)
 	require.True(t, cerr.IsCode(err, cerr.CodeConflict))
@@ -872,12 +872,12 @@ func TestCancel_BlockedByInFlightPaymentAttempt(t *testing.T) {
 		Once()
 
 	_, err := uc.Cancel(ctx, CancelInput{
-		TenantID:           model.TenantID(uuid.New()),
-		ContextID:          model.ContextID(uuid.New()),
-		ContractID:         contractID,
+		TenantID:          model.TenantID(uuid.New()),
+		ContextID:         model.ContextID(uuid.New()),
+		ContractID:        contractID,
 		ExternalSubjectID: externalSubjectID,
-		IdempotencyKey:     "cancel-with-payment-in-flight",
-		Reason:             model.CustomerRequestedContractCancellationReason,
+		IdempotencyKey:    "cancel-with-payment-in-flight",
+		Reason:            model.CustomerRequestedContractCancellationReason,
 	})
 	require.Error(t, err)
 	require.True(t, cerr.IsCode(err, cerr.CodeConflict))

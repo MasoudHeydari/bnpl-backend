@@ -98,22 +98,22 @@ func protectedRoutePermissions() []protectedRoutePermission {
 			Permission:  permission.InstallmentsReadSelf,
 		},
 		{
-			Method: http.MethodPost,
-			GinPath: "/api/v1/repayment-batches",
+			Method:      http.MethodPost,
+			GinPath:     "/api/v1/repayment-batches",
 			SwaggerPath: "/api/v1/repayment-batches",
-			Permission: permission.PaymentsStartSelf,
+			Permission:  permission.PaymentsStartSelf,
 		},
 		{
-			Method: http.MethodGet,
-			GinPath: "/api/v1/repayment-batches/" + uuid.NewString(),
+			Method:      http.MethodGet,
+			GinPath:     "/api/v1/repayment-batches/" + uuid.NewString(),
 			SwaggerPath: "/api/v1/repayment-batches/{id}",
-			Permission: permission.PaymentsReadSelf,
+			Permission:  permission.PaymentsReadSelf,
 		},
 		{
-			Method: http.MethodPost,
-			GinPath: "/api/v1/repayment-batches/" + uuid.NewString() + "/start",
+			Method:      http.MethodPost,
+			GinPath:     "/api/v1/repayment-batches/" + uuid.NewString() + "/start",
 			SwaggerPath: "/api/v1/repayment-batches/{id}/start",
-			Permission: permission.PaymentsStartSelf,
+			Permission:  permission.PaymentsStartSelf,
 		},
 		{
 			Method:      http.MethodGet,
@@ -232,9 +232,9 @@ func (f fakeTerminalAuthenticator) Authenticate(
 	_ string,
 ) (merchantterminal.MerchantPrincipal, error) {
 	return merchantterminal.MerchantPrincipal{
-		ExternalMerchantID:  model.ExternalMerchantID(uuid.New()),
-		TerminalID:  terminalID,
-		Permissions: f.permissions,
+		ExternalMerchantID: model.ExternalMerchantID(uuid.New()),
+		TerminalID:         terminalID,
+		Permissions:        f.permissions,
 	}, nil
 }
 

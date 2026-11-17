@@ -8,9 +8,9 @@ import (
 
 func TestAggregateCreditStatus(t *testing.T) {
 	cases := []struct {
-		name string
+		name  string
 		items []Output
-		want AllCreditStatus
+		want  AllCreditStatus
 	}{
 		{
 			name: "neither assigned",
@@ -48,7 +48,9 @@ func TestAggregateCreditStatus(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			got := AggregateCreditStatus(tc.items)
-			if got != tc.want { t.Fatalf("AggregateCreditStatus()=%q, want %q", got, tc.want) }
+			if got != tc.want {
+				t.Fatalf("AggregateCreditStatus()=%q, want %q", got, tc.want)
+			}
 		})
 	}
 }

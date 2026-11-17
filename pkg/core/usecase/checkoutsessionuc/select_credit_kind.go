@@ -18,12 +18,16 @@ func (uc *UseCase) selectExternalCreditKindForStart(
 	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
 			session, err := uc.lockExternalSession(ctx, tx, token)
-			if err != nil { return err }
+			if err != nil {
+				return err
+			}
 			if session.Status != model.OpenCheckoutSessionStatus || session.ContractID != nil {
 				return checkoutSessionNotContinuableError(fmt.Errorf("checkout status %q", session.Status))
 			}
 			now := uc.clock.Now().UTC()
-			if session.IsExpiredAt(now) { return checkoutSessionExpiredError() }
+			if session.IsExpiredAt(now) {
+				return checkoutSessionExpiredError()
+			}
 
 			// An omitted kind never silently switches an already-selected
 			// monthly product back to the legacy installment product.
@@ -38,7 +42,9 @@ func (uc *UseCase) selectExternalCreditKindForStart(
 				return cerr.Conflict(fmt.Errorf("checkout credit kind cannot change after Decision preparation"))
 			}
 			productQ, ok := uc.checkoutSession.Tx(tx).(repo.CheckoutSessionProductTxQueryer)
-			if !ok { return cerr.InternalError(fmt.Errorf("product-aware checkout repository unavailable")) }
+			if !ok {
+				return cerr.InternalError(fmt.Errorf("product-aware checkout repository unavailable"))
+			}
 			selected, err = productQ.SelectCreditKindBeforeDecision(ctx, session.ID, kind, now)
 			return err
 		})

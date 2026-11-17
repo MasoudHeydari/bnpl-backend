@@ -24,12 +24,12 @@ func (p policyV3) BuildInstallmentSchedule(input checkout.ScheduleInput) (checko
 	result := checkout.ScheduleResult{
 		Anchor: input.Now,
 		Installments: []checkout.InstallmentDraft{{
-			Order: 1,
+			Order:                1,
 			PrincipalAmountMinor: input.FinancedAmountMinor,
-			UpfrontAmountMinor: 0,
-			BaseFeeAmountMinor: 0,
-			TotalAmountMinor: input.FinancedAmountMinor,
-			DueAt: dueAt,
+			UpfrontAmountMinor:   0,
+			BaseFeeAmountMinor:   0,
+			TotalAmountMinor:     input.FinancedAmountMinor,
+			DueAt:                dueAt,
 		}},
 	}
 	if err := checkout.ValidateGeneratedSchedule(p.Terms(), result, input.FinancedAmountMinor, 0); err != nil {

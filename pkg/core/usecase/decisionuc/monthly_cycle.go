@@ -18,12 +18,14 @@ import (
 func previousMonthlyCycleUnpaid(
 	ctx context.Context, q repo.CreditAccountQueryer,
 	customerID model.CustomerID, currency model.Currency, now time.Time,
-)(bool,error){
-	productQ,ok:=q.(repo.CreditAccountProductQueryer)
+) (bool, error) {
+	productQ, ok := q.(repo.CreditAccountProductQueryer)
 	if !ok {
-		return false,cerr.InternalError(fmt.Errorf("monthly credit cycle lookup is unavailable"))
+		return false, cerr.InternalError(fmt.Errorf("monthly credit cycle lookup is unavailable"))
 	}
-	cutoff,err:=jalali.StartOfFollowingTehranMonth(now)
-	if err!=nil {return false,cerr.InternalError(fmt.Errorf("compute Jalali monthly cycle: %w",err))}
-	return productQ.HasUnpaidMonthlyCycleBefore(ctx,customerID,currency,cutoff)
+	cutoff, err := jalali.StartOfFollowingTehranMonth(now)
+	if err != nil {
+		return false, cerr.InternalError(fmt.Errorf("compute Jalali monthly cycle: %w", err))
+	}
+	return productQ.HasUnpaidMonthlyCycleBefore(ctx, customerID, currency, cutoff)
 }

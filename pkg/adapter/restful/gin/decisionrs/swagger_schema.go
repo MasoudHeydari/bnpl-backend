@@ -17,7 +17,7 @@ type CreateRequestSchema createRequest
 //
 //	@Description	POS purchase context: type must be "pos", external_pos_gps_id is required, external_online_store_id and merchant_order_id must be omitted.
 type POSPurchaseContextSchema struct {
-	Type     string `json:"type" binding:"required" example:"pos" enums:"pos"`
+	Type             string `json:"type" binding:"required" example:"pos" enums:"pos"`
 	ExternalPosGpsID string `json:"external_pos_gps_id" binding:"required" example:"6ba7b811-9dad-11d1-80b4-00c04fd430c8" format:"uuid"`
 }
 
@@ -25,9 +25,9 @@ type POSPurchaseContextSchema struct {
 //
 //	@Description	Online purchase context: type must be "online", external_online_store_id is required, external_pos_gps_id must be omitted, merchant_order_id is optional.
 type OnlinePurchaseContextSchema struct {
-	Type            string `json:"type" binding:"required" example:"online" enums:"online"`
-	ExternalOnlineStoreID   string `json:"external_online_store_id" binding:"required" example:"8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c" format:"uuid"`
-	MerchantOrderID string `json:"merchant_order_id,omitempty" example:"ORD-2026-847291" maxLength:"256"`
+	Type                  string `json:"type" binding:"required" example:"online" enums:"online"`
+	ExternalOnlineStoreID string `json:"external_online_store_id" binding:"required" example:"8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c" format:"uuid"`
+	MerchantOrderID       string `json:"merchant_order_id,omitempty" example:"ORD-2026-847291" maxLength:"256"`
 }
 
 // DecisionSchema is a schema-only representation of the decision payload.

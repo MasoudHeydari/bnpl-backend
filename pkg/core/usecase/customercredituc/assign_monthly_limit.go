@@ -33,39 +33,61 @@ func (uc *UseCase) assignMonthlyCreditLimit(
 			profile, getErr = uc.ensureCustomerProfileForInitialCredit(
 				ctx, uc.customerProfile.Tx(tx), externalSubjectID, externalCustomerID, now,
 			)
-			if getErr != nil { return getErr }
-			if !profile.IsActive() { return cerr.Conflict(fmt.Errorf("%s: customer profile is not active", op)) }
+			if getErr != nil {
+				return getErr
+			}
+			if !profile.IsActive() {
+				return cerr.Conflict(fmt.Errorf("%s: customer profile is not active", op))
+			}
 
 			q, ok := uc.creditAccount.Tx(tx).(repo.CreditAccountProductTxQueryer)
-			if !ok { return cerr.InternalError(fmt.Errorf("%s: product credit account repository unavailable", op)) }
+			if !ok {
+				return cerr.InternalError(fmt.Errorf("%s: product credit account repository unavailable", op))
+			}
 			currency := model.IRRCurrency
-			if err := q.ExpireDueByCustomerIDCurrencyAndKind(ctx, profile.ID, currency, model.PayNextMonthCreditKind, now); err != nil { return err }
+			if err := q.ExpireDueByCustomerIDCurrencyAndKind(ctx, profile.ID, currency, model.PayNextMonthCreditKind, now); err != nil {
+				return err
+			}
 			account, getErr := q.LockByCustomerIDCurrencyAndKind(ctx, profile.ID, currency, model.PayNextMonthCreditKind)
 			if getErr == nil && account.IsUsableAt(now) {
 				existing, outErr := uc.outputFromExistingCreditAccount(ctx, uc.decision.Tx(tx), account)
-				if outErr != nil { return outErr }
+				if outErr != nil {
+					return outErr
+				}
 				existing.Result = AssignInitialLimitResultAlreadyAssigned
 				prior = &existing
 				return nil
 			}
-			if getErr != nil && !cerr.IsCode(getErr, cerr.CodeResourceNotFound) { return getErr }
+			if getErr != nil && !cerr.IsCode(getErr, cerr.CodeResourceNotFound) {
+				return getErr
+			}
 			return nil
 		})
 	})
-	if err != nil { return AssignInitialLimitOutput{}, err }
-	if prior != nil { return *prior, nil }
+	if err != nil {
+		return AssignInitialLimitOutput{}, err
+	}
+	if prior != nil {
+		return *prior, nil
+	}
 
 	// Monthly credit has its own immutable assessment policy and Decision
 	// lineage. Never silently inherit the installment/trusted-customer limit.
 	selected, err := uc.initialLimitPolicies.Resolve(uc.monthlyLimitRef)
-	if err != nil { return AssignInitialLimitOutput{}, fmt.Errorf("%s: monthly limit policy: %w", op, err) }
+	if err != nil {
+		return AssignInitialLimitOutput{}, fmt.Errorf("%s: monthly limit policy: %w", op, err)
+	}
 
 	// Fetch provider signals outside the DB transaction.
 	assessed, err := uc.assessInitialLimitWithPolicy(ctx,
-		buildInitialLimitAssessmentInput(profile, now),selected)
-	if err != nil { return AssignInitialLimitOutput{}, err }
+		buildInitialLimitAssessmentInput(profile, now), selected)
+	if err != nil {
+		return AssignInitialLimitOutput{}, err
+	}
 	assessed, err = normalizeAndValidateInitialLimitAssessment(assessed, now)
-	if err != nil { return AssignInitialLimitOutput{}, err }
+	if err != nil {
+		return AssignInitialLimitOutput{}, err
+	}
 	if assessed.Currency != model.IRRCurrency {
 		return AssignInitialLimitOutput{}, cerr.InternalError(fmt.Errorf("%s: monthly credit requires IRR", op))
 	}
@@ -74,12 +96,16 @@ func (uc *UseCase) assignMonthlyCreditLimit(
 	err = uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
 			currentProfile, err := uc.customerProfile.Tx(tx).LockByID(ctx, profile.ID)
-			if err != nil { return err }
+			if err != nil {
+				return err
+			}
 			if !currentProfile.IsActive() || currentProfile.ExternalCustomerID != externalCustomerID {
 				return cerr.Conflict(fmt.Errorf("%s: customer changed during assessment", op))
 			}
 			q, ok := uc.creditAccount.Tx(tx).(repo.CreditAccountProductTxQueryer)
-			if !ok { return cerr.InternalError(fmt.Errorf("%s: product credit repository unavailable", op)) }
+			if !ok {
+				return cerr.InternalError(fmt.Errorf("%s: product credit repository unavailable", op))
+			}
 			if err := q.ExpireDueByCustomerIDCurrencyAndKind(ctx, profile.ID, assessed.Currency, model.PayNextMonthCreditKind, now); err != nil {
 				return err
 			}
@@ -89,18 +115,26 @@ func (uc *UseCase) assignMonthlyCreditLimit(
 				output.Result = AssignInitialLimitResultAlreadyAssigned
 				return err
 			}
-			if getErr != nil && !cerr.IsCode(getErr, cerr.CodeResourceNotFound) { return getErr }
+			if getErr != nil && !cerr.IsCode(getErr, cerr.CodeResourceNotFound) {
+				return getErr
+			}
 
 			// The account version fences the next assessment cycle for the
 			// monthly product; the customer lock serializes writers.
 			cycle := int64(0)
-			if getErr == nil { cycle = existing.Version }
+			if getErr == nil {
+				cycle = existing.Version
+			}
 			key := fmt.Sprintf("initial-monthly-credit:%s:%d", profile.ID, cycle)
 			fingerprint, err := uc.fingerprintHasher.Hash(
 				fmt.Sprintf("initial-monthly-credit:v1:%s:%d:%s:%s:%d", profile.ID, cycle, assessed.PolicyID, assessed.PolicyVersion, assessed.AmountMinor),
 			)
-			if err != nil { return err }
-			if err := fingerprint.Validate(); err != nil { return err }
+			if err != nil {
+				return err
+			}
+			if err := fingerprint.Validate(); err != nil {
+				return err
+			}
 			outcome := assessed.Outcome
 			if outcome != model.LimitSetDecisionOutcome && outcome != model.DeniedDecisionOutcome {
 				return cerr.InternalError(fmt.Errorf("%s: unexpected assessment outcome", op))
@@ -112,11 +146,13 @@ func (uc *UseCase) assignMonthlyCreditLimit(
 				profile.Jurisdiction, model.SystemDecisionActorType, nil, nil, nil, nil,
 				now, now, key, fingerprint.String(),
 			)
-			if err != nil { return err }
-			output = AssignInitialLimitOutput{Decision:decision, Result:AssignInitialLimitResultDenied}
+			if err != nil {
+				return err
+			}
+			output = AssignInitialLimitOutput{Decision: decision, Result: AssignInitialLimitResultDenied}
 			if outcome == model.DeniedDecisionOutcome {
-				return uc.insertAssignInitialLimitAuditOutbox(ctx,uc.outbox.Tx(tx),
-					currentProfile,output,assessed,now)
+				return uc.insertAssignInitialLimitAuditOutbox(ctx, uc.outbox.Tx(tx),
+					currentProfile, output, assessed, now)
 			}
 
 			expires := now.Add(assessed.ValidFor)
@@ -127,7 +163,9 @@ func (uc *UseCase) assignMonthlyCreditLimit(
 				account, err = q.CreateWithLimitForKind(ctx, profile.ID, assessed.Currency,
 					model.PayNextMonthCreditKind, assessed.AmountMinor, decision.ID, now, &expires, now, now)
 			}
-			if err != nil { return err }
+			if err != nil {
+				return err
+			}
 			journalType, journalAmount := limitChangeJournal(existing, getErr == nil, assessed.AmountMinor)
 			if journalAmount == 0 {
 				// Equal-amount reassessment must not insert a zero-value
@@ -138,14 +176,17 @@ func (uc *UseCase) assignMonthlyCreditLimit(
 			_, err = q.AppendTransaction(ctx, account.ID, journalType, journalAmount,
 				assessed.Currency, model.CreditAssessmentCreditTransactionReason,
 				model.DecisionCreditTransactionReferenceType, decision.ID.UUID(), now, now)
-			if err != nil { return err }
+			if err != nil {
+				return err
+			}
 			output.CreditLimit = &account
 			output.Result = AssignInitialLimitResultCreated
-			return uc.insertAssignInitialLimitAuditOutbox(ctx,uc.outbox.Tx(tx),
-				currentProfile,output,assessed,now)
+			return uc.insertAssignInitialLimitAuditOutbox(ctx, uc.outbox.Tx(tx),
+				currentProfile, output, assessed, now)
 		})
 	})
-	if err != nil { return AssignInitialLimitOutput{}, err }
+	if err != nil {
+		return AssignInitialLimitOutput{}, err
+	}
 	return output, nil
 }
-

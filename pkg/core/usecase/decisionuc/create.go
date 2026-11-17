@@ -236,29 +236,31 @@ func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput,
 		merchantEnabled, lookupErr := merchantAllowsCreditKind(
 			ctx, merchantProfileQ, merchantProfileID, model.EffectiveCreditKind(input.CreditKind),
 		)
-		if lookupErr != nil { return lookupErr }
+		if lookupErr != nil {
+			return lookupErr
+		}
 		if !merchantEnabled {
 			merchantDenial := checkout.EligibilityResult{
-				Outcome: model.DeniedDecisionOutcome,
-				ReasonCodes: []string{model.MerchantCreditKindNotEnabledDecisionReason},
+				Outcome:      model.DeniedDecisionOutcome,
+				ReasonCodes:  []string{model.MerchantCreditKindNotEnabledDecisionReason},
 				Jurisdiction: customerProfile.Jurisdiction,
 			}
 			return uc.persistCheckoutDecision(
-				ctx,decisionQ,allocationQ,outboxQ,input,customerID,
-				merchantProfileID,&merchantBranchProfileID,fingerprint,
-				selectedPolicy,merchantDenial,0,installmentCount,
+				ctx, decisionQ, allocationQ, outboxQ, input, customerID,
+				merchantProfileID, &merchantBranchProfileID, fingerprint,
+				selectedPolicy, merchantDenial, 0, installmentCount,
 				checkoutDecisionAuditFacts{
-					ExternalSubjectID: input.ExternalSubjectID,
-					CustomerID: customerProfile.ID,
-					MerchantProfileID: merchantProfile.ID,
-					ExternalMerchantID: merchantProfile.ExternalMerchantID,
+					ExternalSubjectID:       input.ExternalSubjectID,
+					CustomerID:              customerProfile.ID,
+					MerchantProfileID:       merchantProfile.ID,
+					ExternalMerchantID:      merchantProfile.ExternalMerchantID,
 					MerchantBranchProfileID: branchProfile.ID,
-					ExternalBranchID: branchProfile.ExternalBranchID,
-					PurchaseChannel: input.PurchaseContext.Channel,
-					PurchaseSourceID: input.PurchaseContext.sourceID(),
-					MerchantOrderID: input.PurchaseContext.merchantOrderIDPointer(),
+					ExternalBranchID:        branchProfile.ExternalBranchID,
+					PurchaseChannel:         input.PurchaseContext.Channel,
+					PurchaseSourceID:        input.PurchaseContext.sourceID(),
+					MerchantOrderID:         input.PurchaseContext.merchantOrderIDPointer(),
 				},
-				now,&output,
+				now, &output,
 			)
 		}
 
@@ -314,12 +316,12 @@ func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput,
 				0,
 				installmentCount,
 				checkoutDecisionAuditFacts{
-					ExternalSubjectID:      input.ExternalSubjectID,
+					ExternalSubjectID:       input.ExternalSubjectID,
 					CustomerID:              customerProfile.ID,
 					MerchantProfileID:       merchantProfile.ID,
-					ExternalMerchantID:              merchantProfile.ExternalMerchantID,
+					ExternalMerchantID:      merchantProfile.ExternalMerchantID,
 					MerchantBranchProfileID: branchProfile.ID,
-					ExternalBranchID:                branchProfile.ExternalBranchID,
+					ExternalBranchID:        branchProfile.ExternalBranchID,
 					PurchaseChannel:         input.PurchaseContext.Channel,
 					PurchaseSourceID:        input.PurchaseContext.sourceID(),
 					MerchantOrderID:         input.PurchaseContext.merchantOrderIDPointer(),
@@ -337,11 +339,13 @@ func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput,
 			monthlyBlocked, lookupErr := previousMonthlyCycleUnpaid(
 				ctx, creditAccountQ, customerID, input.Currency, now,
 			)
-			if lookupErr != nil { return lookupErr }
+			if lookupErr != nil {
+				return lookupErr
+			}
 			if monthlyBlocked {
 				monthlyDenial := checkout.EligibilityResult{
-					Outcome: model.DeniedDecisionOutcome,
-					ReasonCodes: []string{model.MonthlyPreviousCycleUnpaidDecisionReason},
+					Outcome:      model.DeniedDecisionOutcome,
+					ReasonCodes:  []string{model.MonthlyPreviousCycleUnpaidDecisionReason},
 					Jurisdiction: customerProfile.Jurisdiction,
 				}
 				return uc.persistCheckoutDecision(
@@ -349,15 +353,15 @@ func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput,
 					merchantProfileID, &merchantBranchProfileID, fingerprint,
 					selectedPolicy, monthlyDenial, 0, installmentCount,
 					checkoutDecisionAuditFacts{
-						ExternalSubjectID: input.ExternalSubjectID,
-						CustomerID: customerProfile.ID,
-						MerchantProfileID: merchantProfile.ID,
-						ExternalMerchantID: merchantProfile.ExternalMerchantID,
+						ExternalSubjectID:       input.ExternalSubjectID,
+						CustomerID:              customerProfile.ID,
+						MerchantProfileID:       merchantProfile.ID,
+						ExternalMerchantID:      merchantProfile.ExternalMerchantID,
 						MerchantBranchProfileID: branchProfile.ID,
-						ExternalBranchID: branchProfile.ExternalBranchID,
-						PurchaseChannel: input.PurchaseContext.Channel,
-						PurchaseSourceID: input.PurchaseContext.sourceID(),
-						MerchantOrderID: input.PurchaseContext.merchantOrderIDPointer(),
+						ExternalBranchID:        branchProfile.ExternalBranchID,
+						PurchaseChannel:         input.PurchaseContext.Channel,
+						PurchaseSourceID:        input.PurchaseContext.sourceID(),
+						MerchantOrderID:         input.PurchaseContext.merchantOrderIDPointer(),
 					},
 					now, &output,
 				)
@@ -397,12 +401,12 @@ func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput,
 				evaluation.AvailableCreditMinor,
 				installmentCount,
 				checkoutDecisionAuditFacts{
-					ExternalSubjectID:      input.ExternalSubjectID,
+					ExternalSubjectID:       input.ExternalSubjectID,
 					CustomerID:              customerProfile.ID,
 					MerchantProfileID:       merchantProfile.ID,
-					ExternalMerchantID:              merchantProfile.ExternalMerchantID,
+					ExternalMerchantID:      merchantProfile.ExternalMerchantID,
 					MerchantBranchProfileID: branchProfile.ID,
-					ExternalBranchID:                branchProfile.ExternalBranchID,
+					ExternalBranchID:        branchProfile.ExternalBranchID,
 					PurchaseChannel:         input.PurchaseContext.Channel,
 					PurchaseSourceID:        input.PurchaseContext.sourceID(),
 					MerchantOrderID:         input.PurchaseContext.merchantOrderIDPointer(),
@@ -428,12 +432,12 @@ func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput,
 			evaluation,
 			installmentCount,
 			checkoutDecisionAuditFacts{
-				ExternalSubjectID:      input.ExternalSubjectID,
+				ExternalSubjectID:       input.ExternalSubjectID,
 				CustomerID:              customerID,
 				MerchantProfileID:       merchantProfileID,
-				ExternalMerchantID:              merchantProfile.ExternalMerchantID,
+				ExternalMerchantID:      merchantProfile.ExternalMerchantID,
 				MerchantBranchProfileID: merchantBranchProfileID,
-				ExternalBranchID:                branchProfile.ExternalBranchID,
+				ExternalBranchID:        branchProfile.ExternalBranchID,
 				PurchaseChannel:         input.PurchaseContext.Channel,
 				PurchaseSourceID:        input.PurchaseContext.sourceID(),
 				MerchantOrderID:         input.PurchaseContext.merchantOrderIDPointer(),
@@ -549,7 +553,7 @@ func loadCurrentCreditAccount(
 ) (model.CreditAccount, bool, error) {
 	var (
 		account model.CreditAccount
-		err error
+		err     error
 	)
 	switch kind {
 	case model.PayIn4CreditKind:

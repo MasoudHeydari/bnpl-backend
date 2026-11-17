@@ -66,7 +66,7 @@ func (rs *resource) CancelByMerchant(c *gin.Context) {
 		c.Request.Context(),
 		checkoutsessionuc.CancelByMerchantInput{
 			CheckoutSessionToken: token,
-			ExternalMerchantID:           merchantID,
+			ExternalMerchantID:   merchantID,
 		},
 	)
 	if err != nil {

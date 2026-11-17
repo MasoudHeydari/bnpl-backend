@@ -70,13 +70,13 @@ func partnerCreateInputWithPhone(t *testing.T, customerPhone string) (checkoutse
 	c, _ := gin.CreateTestContext(w)
 
 	payload, err := json.Marshal(map[string]any{
-		"external_online_store_id":        uuid.New().String(),
-		"merchant_order_id":      "order-1",
-		"idempotency_key":        "attempt-1",
-		"customer_phone":         customerPhone,
-		"return_destination":     "storefront",
-		"requested_amount_minor": 150000,
-		"currency":               "IRR",
+		"external_online_store_id": uuid.New().String(),
+		"merchant_order_id":        "order-1",
+		"idempotency_key":          "attempt-1",
+		"customer_phone":           customerPhone,
+		"return_destination":       "storefront",
+		"requested_amount_minor":   150000,
+		"currency":                 "IRR",
 	})
 	require.NoError(t, err)
 
@@ -88,9 +88,9 @@ func partnerCreateInputWithPhone(t *testing.T, customerPhone string) (checkoutse
 	c.Request = req
 
 	principal := merchantterminal.MerchantPrincipal{
-		ExternalMerchantID:  merchantID,
-		TerminalID:  4242,
-		Permissions: []string{permission.CheckoutSessionsCreateMerchant.Code},
+		ExternalMerchantID: merchantID,
+		TerminalID:         4242,
+		Permissions:        []string{permission.CheckoutSessionsCreateMerchant.Code},
 	}
 	authCtx := permission.AuthContext{
 		SubjectID:   model.SubjectID(merchantID),

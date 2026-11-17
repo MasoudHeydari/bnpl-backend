@@ -98,7 +98,7 @@ func TestEnsureMerchantEntitlement_PersistsEntitlementAndReceivableWithExternalI
 	}, nil).Once()
 	merchantProfile.EXPECT().Conn(conn).Return(merchantCQ).Once()
 	merchantCQ.EXPECT().GetByID(ctx, merchantProfileID).Return(model.MerchantProfile{
-		ID:         merchantProfileID,
+		ID:                 merchantProfileID,
 		ExternalMerchantID: merchantID,
 	}, nil).Once()
 	installmentRepo.EXPECT().Conn(conn).Return(installmentCQ).Once()
@@ -230,7 +230,7 @@ func TestRecordMerchantEntitlement_ActivationPendingCallsFinancialCoreOnceAndDoe
 	}, nil).Once()
 	merchantProfile.EXPECT().Conn(conn).Return(merchantCQ).Once()
 	merchantCQ.EXPECT().GetByID(ctx, merchantProfileID).Return(model.MerchantProfile{
-		ID:         merchantProfileID,
+		ID:                 merchantProfileID,
 		ExternalMerchantID: merchantID,
 	}, nil).Once()
 	installmentRepo.EXPECT().Conn(conn).Return(installmentCQ).Once()

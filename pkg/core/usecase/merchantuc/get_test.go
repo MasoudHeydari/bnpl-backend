@@ -94,7 +94,7 @@ func TestGetProfile_ReturnsProfile(t *testing.T) {
 		GetByMerchantID(testifymock.Anything, merchantID).
 		Return(model.MerchantProfile{
 			ID:                 model.MerchantProfileID(uuid.New()),
-			ExternalMerchantID:         merchantID,
+			ExternalMerchantID: merchantID,
 			DisplayName:        "Demo Merchant",
 			LegalName:          "Demo Merchant LLC",
 			LogoURL:            "https://cdn.example/logo.png",

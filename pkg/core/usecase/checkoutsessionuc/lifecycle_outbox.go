@@ -95,13 +95,13 @@ func (l *LifecycleOutbox) Enqueue(
 	}
 
 	data := checkoutlifecycle.EventData{
-		CheckoutSessionID: session.PublicToken.String(),
-		MerchantOrderID:   session.MerchantOrderID,
-		ExternalMerchantID:        profile.ExternalMerchantID.String(),
-		Status:            string(session.Status),
-		AmountMinor:       session.RequestedAmountMinor,
-		Currency:          string(session.Currency),
-		MerchantState:     session.MerchantState,
+		CheckoutSessionID:  session.PublicToken.String(),
+		MerchantOrderID:    session.MerchantOrderID,
+		ExternalMerchantID: profile.ExternalMerchantID.String(),
+		Status:             string(session.Status),
+		AmountMinor:        session.RequestedAmountMinor,
+		Currency:           string(session.Currency),
+		MerchantState:      session.MerchantState,
 	}
 
 	if eventType == checkoutlifecycle.EventTypeCompleted {

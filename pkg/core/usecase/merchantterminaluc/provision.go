@@ -188,14 +188,14 @@ func (uc *UseCase) replayProvision(
 	}
 
 	return ProvisionOutput{
-		ExternalMerchantID:        terminal.ExternalMerchantID,
-		TerminalID:        terminal.TerminalID,
-		CredentialID:      replayed.credential.ID,
-		CredentialVersion: replayed.credential.Version,
-		APIKey:            replayed.plaintext,
-		CreatedAt:         replayed.credential.CreatedAt,
-		ExpiresAt:         replayed.expiresAt,
-		Replayed:          true,
+		ExternalMerchantID: terminal.ExternalMerchantID,
+		TerminalID:         terminal.TerminalID,
+		CredentialID:       replayed.credential.ID,
+		CredentialVersion:  replayed.credential.Version,
+		APIKey:             replayed.plaintext,
+		CreatedAt:          replayed.credential.CreatedAt,
+		ExpiresAt:          replayed.expiresAt,
+		Replayed:           true,
 	}, nil
 }
 
@@ -280,13 +280,13 @@ func (uc *UseCase) createTerminal(
 	}
 
 	return ProvisionOutput{
-		ExternalMerchantID:        terminal.ExternalMerchantID,
-		TerminalID:        terminal.TerminalID,
-		CredentialID:      credential.ID,
-		CredentialVersion: credential.Version,
-		APIKey:            key.plaintext,
-		CreatedAt:         credential.CreatedAt,
-		ExpiresAt:         expiresAt,
-		Replayed:          false,
+		ExternalMerchantID: terminal.ExternalMerchantID,
+		TerminalID:         terminal.TerminalID,
+		CredentialID:       credential.ID,
+		CredentialVersion:  credential.Version,
+		APIKey:             key.plaintext,
+		CreatedAt:          credential.CreatedAt,
+		ExpiresAt:          expiresAt,
+		Replayed:           false,
 	}, nil
 }

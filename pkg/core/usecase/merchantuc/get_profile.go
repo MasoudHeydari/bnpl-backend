@@ -30,7 +30,7 @@ func (uc *UseCase) GetProfile(ctx context.Context, input GetProfileInput) (GetPr
 		}
 
 		output = GetProfileOutput{
-			ExternalMerchantID:         profile.ExternalMerchantID,
+			ExternalMerchantID: profile.ExternalMerchantID,
 			DisplayName:        profile.DisplayName,
 			LegalName:          profile.LegalName,
 			LogoURL:            profile.LogoURL,

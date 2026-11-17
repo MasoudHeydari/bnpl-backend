@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/parstis/bnpl-backend/pkg/core/policy"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
+	"github.com/parstis/bnpl-backend/pkg/core/policy"
 )
 
 // ErrPolicyNotFound indicates no policy is registered for a requested Ref.

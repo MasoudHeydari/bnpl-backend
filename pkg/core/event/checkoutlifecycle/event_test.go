@@ -27,14 +27,14 @@ func TestNewEvent_CompletedIncludesCommercialFields(t *testing.T) {
 		EventTypeCompleted,
 		completedAt,
 		EventData{
-			CheckoutSessionID: "11111111-1111-1111-1111-111111111111",
-			MerchantOrderID:   "DAMZ-ORDER-1001",
-			ExternalMerchantID:        "22222222-2222-2222-2222-222222222222",
-			Status:            "completed",
-			AmountMinor:       120_000_000,
-			Currency:          "IRR",
-			CompletedAt:       &completedAt,
-			MerchantState:     "cart-42",
+			CheckoutSessionID:  "11111111-1111-1111-1111-111111111111",
+			MerchantOrderID:    "DAMZ-ORDER-1001",
+			ExternalMerchantID: "22222222-2222-2222-2222-222222222222",
+			Status:             "completed",
+			AmountMinor:        120_000_000,
+			Currency:           "IRR",
+			CompletedAt:        &completedAt,
+			MerchantState:      "cart-42",
 		},
 	)
 	require.NoError(t, err)
@@ -76,12 +76,12 @@ func TestNewEvent_NonCompletedOmitsCompletedAt(t *testing.T) {
 			time.UTC,
 		),
 		EventData{
-			CheckoutSessionID: "11111111-1111-1111-1111-111111111111",
-			MerchantOrderID:   "DAMZ-ORDER-1001",
-			ExternalMerchantID:        "22222222-2222-2222-2222-222222222222",
-			Status:            "canceled",
-			AmountMinor:       120_000_000,
-			Currency:          "IRR",
+			CheckoutSessionID:  "11111111-1111-1111-1111-111111111111",
+			MerchantOrderID:    "DAMZ-ORDER-1001",
+			ExternalMerchantID: "22222222-2222-2222-2222-222222222222",
+			Status:             "canceled",
+			AmountMinor:        120_000_000,
+			Currency:           "IRR",
 		},
 	)
 	require.NoError(t, err)

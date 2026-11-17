@@ -55,7 +55,7 @@ func TestListUnpaidInstallments_EmptyWhenCustomerProfileMissing(t *testing.T) {
 
 	out, err := uc.ListUnpaidInstallments(context.Background(), customeraccountuc.ListUnpaidInstallmentsInput{
 		ExternalSubjectID: externalSubjectID,
-		Page:               pagination.KeysetRequest{Limit: 20},
+		Page:              pagination.KeysetRequest{Limit: 20},
 	})
 	require.NoError(t, err)
 	require.Empty(t, out.Installments)
@@ -174,7 +174,7 @@ func TestListUnpaidInstallments_OrdersByDueAtAndBuildsDueAtCursor(t *testing.T) 
 
 	out, err := uc.ListUnpaidInstallments(context.Background(), customeraccountuc.ListUnpaidInstallmentsInput{
 		ExternalSubjectID: externalSubjectID,
-		Page:               pagination.KeysetRequest{Limit: 1},
+		Page:              pagination.KeysetRequest{Limit: 1},
 	})
 	require.NoError(t, err)
 	require.Len(t, out.Installments, 1)

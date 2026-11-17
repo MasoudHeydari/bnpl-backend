@@ -47,7 +47,7 @@ func TestCheckoutFingerprint_DeterministicAndSensitiveToInputs(t *testing.T) {
 
 	externalSubjectID := model.ExternalSubjectID(uuid.New())
 	purchaseContext := PurchaseContext{
-		Channel:  model.POSPurchaseChannel,
+		Channel:          model.POSPurchaseChannel,
 		ExternalPosGpsID: model.ExternalPosGpsID(uuid.New()),
 	}
 
@@ -90,7 +90,7 @@ func TestCheckoutFingerprint_DeterministicAndSensitiveToInputs(t *testing.T) {
 		"checkout-intent-1",
 		externalSubjectID,
 		PurchaseContext{
-			Channel:  model.POSPurchaseChannel,
+			Channel:          model.POSPurchaseChannel,
 			ExternalPosGpsID: model.ExternalPosGpsID(uuid.New()),
 		},
 		100_000,

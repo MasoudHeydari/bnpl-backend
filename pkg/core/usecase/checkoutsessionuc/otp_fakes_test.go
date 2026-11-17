@@ -316,4 +316,3 @@ func (r *sequentialReader) Read(p []byte) (int, error) {
 
 	return len(p), nil
 }
-

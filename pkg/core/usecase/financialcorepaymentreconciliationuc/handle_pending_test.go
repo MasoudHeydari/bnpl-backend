@@ -76,7 +76,6 @@ func (l *pendingRecordingLogger) recordLog(level string, event corelog.Event, fi
 	*l.records = append(*l.records, pendingLogRecord{level: level, msg: msg, args: attrs})
 }
 
-
 func (l *pendingRecordingLogger) warnCount(msg string) int {
 	count := 0
 	for _, record := range *l.records {

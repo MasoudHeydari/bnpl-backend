@@ -291,9 +291,9 @@ func (uc *UseCase) CreatePaymentAttempt(
 						created,
 						installmentRepaymentAuditFacts{
 							ExternalSubjectID: input.ExternalSubjectID,
-							CustomerID:         customerID,
-							Installment:        installmentRow,
-							Charges:            charges,
+							CustomerID:        customerID,
+							Installment:       installmentRow,
+							Charges:           charges,
 						},
 						now,
 					); err != nil {

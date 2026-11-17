@@ -1,10 +1,10 @@
 package inprocess_test
 
 import (
-	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
 	"context"
 	"errors"
 	"fmt"
+	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
 	"sync"
 	"sync/atomic"
 	"testing"

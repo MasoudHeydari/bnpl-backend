@@ -33,7 +33,7 @@ type UseCase struct {
 	policyAssignment       repo.PolicyAssignment
 	initialLimitPolicies   *initialcreditlimit.Registry
 	defaultInitialLimitRef policy.Ref
-	monthlyLimitRef policy.Ref
+	monthlyLimitRef        policy.Ref
 	auditDestination       string
 	idGenerator            identifier.Generator
 	observer               Observer
@@ -161,7 +161,6 @@ func New(
 		observer:               observer,
 	}, nil
 }
-
 
 // WithMonthlyLimitPolicy selects the independently registered monthly limit
 // assessment. Legacy credit-limit calls remain on their assigned v1/v2 policy.

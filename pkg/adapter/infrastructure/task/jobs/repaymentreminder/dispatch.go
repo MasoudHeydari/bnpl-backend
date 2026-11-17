@@ -18,30 +18,30 @@ func Dispatch(
 		out, err := uc.Dispatch(ctx)
 		if err != nil {
 			logger.With(
-		"error",
-		err.Error(),
-		"candidate_count",
-		out.CandidateCount,
-		"created_count",
-		out.CreatedCount,
-	).Error(
-		corelog.Msg("repayment reminder dispatch failed"),
-	)
+				"error",
+				err.Error(),
+				"candidate_count",
+				out.CandidateCount,
+				"created_count",
+				out.CreatedCount,
+			).Error(
+				corelog.Msg("repayment reminder dispatch failed"),
+			)
 			return err
 		}
 
 		logger.With(
-		"candidate_count",
-		out.CandidateCount,
-		"eligible_customer_count",
-		out.EligibleCustomerCount,
-		"created_count",
-		out.CreatedCount,
-		"skipped_count",
-		out.SkippedCount,
-	).Info(
-		corelog.Msg("repayment reminder dispatch completed"),
-	)
+			"candidate_count",
+			out.CandidateCount,
+			"eligible_customer_count",
+			out.EligibleCustomerCount,
+			"created_count",
+			out.CreatedCount,
+			"skipped_count",
+			out.SkippedCount,
+		).Info(
+			corelog.Msg("repayment reminder dispatch completed"),
+		)
 
 		return nil
 	}
