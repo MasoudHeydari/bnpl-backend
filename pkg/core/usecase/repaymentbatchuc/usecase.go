@@ -175,7 +175,15 @@ func (uc *UseCase) PrepareDurably(ctx context.Context,plan collectionpayment.Pla
 		uc.scheduleReconciliation(ctx,row,nil,0,nil)
 		return extcollection.Result{},fmt.Errorf("FC returned a mismatched/incomplete prepared collection")
 	}
-	if err:=uc.persistTransition(ctx,row,model.PreparedRepaymentBatchStatus,
+	// Preparing may race an earlier error path that scheduled reconciliation.
+	// Re-read the local version fence rather than reporting a false conflict
+	// after FC already accepted the immutable snapshot.
+	latest,err:=uc.load(ctx,row.ID)
+	if err!=nil{return extcollection.Result{},err}
+	if latest.StartIdempotencyKey!=nil{
+		return extcollection.Result{},cerr.Conflict(fmt.Errorf("collection Start was already recorded while Prepare was in flight"))
+	}
+	if err:=uc.persistTransition(ctx,latest,model.PreparedRepaymentBatchStatus,
 		&result.CollectionPaymentID,result.SnapshotRevision,nil,nil);err!=nil{
 		return extcollection.Result{},err
 	}
@@ -264,11 +272,10 @@ func (uc *UseCase) Reconcile(ctx context.Context,id uuid.UUID)(extcollection.Res
 	if row.FinancialCollectionPaymentID!=nil && *row.FinancialCollectionPaymentID!=result.CollectionPaymentID{
 		return extcollection.Result{},fmt.Errorf("FC collection ID changed")
 	}
-	if result.Status==extcollection.Prepared && row.Status==model.CreatedRepaymentBatchStatus {
-		// The original initial Prepare response may have been lost, or the
-		// worker recovered the Prepare after a process crash. No customer
-		// payment was started, so persist the returned FC identity and stop
-		// polling until the customer starts it.
+	if result.Status==extcollection.Prepared && row.StartIdempotencyKey==nil {
+		// The initial response may have been lost before the error handler
+		// scheduled reconciliation. No customer Start intent exists; bind
+		// FC's accepted identity and let the user proceed without recharging.
 		err=uc.persistTransition(ctx,row,model.PreparedRepaymentBatchStatus,
 			&result.CollectionPaymentID,result.SnapshotRevision,nil,nil)
 		return result,err
