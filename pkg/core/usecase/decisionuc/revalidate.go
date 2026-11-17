@@ -150,6 +150,18 @@ func (uc *UseCase) RevalidateCheckoutOffer(
 				return fmt.Errorf("%s: load credit account: %w", op, err)
 			}
 
+			if model.EffectiveCreditKind(selectedPolicy.Terms().CreditKind) == model.PayNextMonthCreditKind {
+				blocked, lookupErr := previousMonthlyCycleUnpaid(
+					ctx, creditAccountQ, customerProfile.ID, allocation.Currency, now,
+				)
+				if lookupErr != nil { return lookupErr }
+				if blocked {
+					output.StillHonorable = false
+					invalidReason = offerInvalidReasonNewCreditRestricted
+					return nil
+				}
+			}
+
 			_, financing := evaluateCheckoutTerms(
 				selectedPolicy,
 				now,

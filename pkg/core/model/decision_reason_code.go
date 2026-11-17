@@ -16,6 +16,10 @@ const (
 	CreditLimitNotActiveDecisionReason                      = "CREDIT_LIMIT_NOT_ACTIVE"
 	CreditLimitExpiredDecisionReason                        = "CREDIT_LIMIT_EXPIRED" //nolint:gosec // G101: decision reason code identifier, not a credential
 	NoAvailableCreditDecisionReason                         = "NO_AVAILABLE_CREDIT"
+
+	// MonthlyPreviousCycleUnpaidDecisionReason denies new monthly spending
+	// from day 1 of the following Jalali month while prior debt is unpaid.
+	MonthlyPreviousCycleUnpaidDecisionReason = "MONTHLY_PREVIOUS_CYCLE_UNPAID"
 	RequestedAmountExceedsMerchantLimitDecisionReason       = "REQUESTED_AMOUNT_EXCEEDS_MERCHANT_LIMIT"
 	RequestedAmountExceedsSupportedRangeDecisionReason      = "REQUESTED_AMOUNT_EXCEEDS_SUPPORTED_RANGE"
 	InstallmentCountNotSupportedDecisionReason              = "INSTALLMENT_COUNT_NOT_SUPPORTED"

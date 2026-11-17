@@ -297,6 +297,41 @@ func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput,
 			)
 		}
 
+		// Unlike the general collections restriction (which may affect both
+		// products), monthly cycle blocking is scoped to pay_next_month.
+		// The Decision records a stable denial instead of fabricating a
+		// missing credit account or zeroing the account's real exposure.
+		if model.EffectiveCreditKind(input.CreditKind) == model.PayNextMonthCreditKind {
+			monthlyBlocked, lookupErr := previousMonthlyCycleUnpaid(
+				ctx, creditAccountQ, customerID, input.Currency, now,
+			)
+			if lookupErr != nil { return lookupErr }
+			if monthlyBlocked {
+				monthlyDenial := checkout.EligibilityResult{
+					Outcome: model.DeniedDecisionOutcome,
+					ReasonCodes: []string{model.MonthlyPreviousCycleUnpaidDecisionReason},
+					Jurisdiction: customerProfile.Jurisdiction,
+				}
+				return uc.persistCheckoutDecision(
+					ctx, decisionQ, allocationQ, outboxQ, input, customerID,
+					merchantProfileID, &merchantBranchProfileID, fingerprint,
+					selectedPolicy, monthlyDenial, 0, installmentCount,
+					checkoutDecisionAuditFacts{
+						ExternalSubjectID: input.ExternalSubjectID,
+						CustomerID: customerProfile.ID,
+						MerchantProfileID: merchantProfile.ID,
+						ExternalMerchantID: merchantProfile.ExternalMerchantID,
+						MerchantBranchProfileID: branchProfile.ID,
+						ExternalBranchID: branchProfile.ExternalBranchID,
+						PurchaseChannel: input.PurchaseContext.Channel,
+						PurchaseSourceID: input.PurchaseContext.sourceID(),
+						MerchantOrderID: input.PurchaseContext.merchantOrderIDPointer(),
+					},
+					now, &output,
+				)
+			}
+		}
+
 		prerequisiteEvaluation, evaluation := evaluateCheckoutTerms(
 			selectedPolicy,
 			now,
