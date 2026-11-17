@@ -88,7 +88,7 @@ func (uc *UseCase) PrepareDurably(ctx context.Context,plan collectionpayment.Pla
 		ID:plan.ID,CustomerID:plan.CustomerID,ExternalCustomerID:plan.ExternalCustomerID,
 		IdempotencyKey:key,Snapshot:payload,Currency:plan.Currency,
 		TotalAmountMinor:plan.TotalMinor,Status:model.CreatedRepaymentBatchStatus,
-		CreatedAt:now,UpdatedAt:now,
+		NextReconciliationAt:&now,CreatedAt:now,UpdatedAt:now,
 	}
 	ids:=make([]model.InstallmentID,0,len(plan.Items))
 	for _,item:=range plan.Items{ids=append(ids,item.InstallmentID)}
@@ -209,9 +209,13 @@ func (uc *UseCase) Reconcile(ctx context.Context,id uuid.UUID)(extcollection.Res
 		return result,err
 	}
 	if result.Status==extcollection.Failed || result.Status==extcollection.Expired{
-		// FC terminal failure is safe to release only when no accounting posted.
-		if result.PostingOutcome==extcollection.Posted{
-			return extcollection.Result{},fmt.Errorf("FC terminal failure conflicts with posted accounting")
+		// Do not release an installment while provider/accounting reversal or
+		// another unresolved financial outcome is still possible. FC must
+		// conclusively report NOT_POSTED; a timeout or posting=PENDING isn't
+		// evidence that no money moved.
+		if result.PostingOutcome!=extcollection.NotPosted{
+			uc.scheduleReconciliation(ctx,row,&result.CollectionPaymentID,result.SnapshotRevision,nil)
+			return extcollection.Result{},fmt.Errorf("FC terminal payment is not conclusively unposted")
 		}
 		next:=model.FailedRepaymentBatchStatus
 		if result.Status==extcollection.Expired{next=model.ExpiredRepaymentBatchStatus}

@@ -62,13 +62,13 @@ func Create[Q postgres.Queryer](
 	const query = `
 	INSERT INTO repayment_batches(
 		id,customer_id,external_customer_id,idempotency_key,snapshot,currency,
-		total_amount_minor,status,created_at,updated_at
-	) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+		total_amount_minor,status,next_reconciliation_at,created_at,updated_at
+	) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
 	RETURNING`+columns
 	stored,err:=postgres.QueryOne[repo.RepaymentBatchRow](
 		ctx,q,"create repayment batch",query,row.ID,row.CustomerID,row.ExternalCustomerID,
 		row.IdempotencyKey,row.Snapshot,row.Currency,row.TotalAmountMinor,row.Status,
-		row.CreatedAt,row.UpdatedAt,
+		row.NextReconciliationAt,row.CreatedAt,row.UpdatedAt,
 	)
 	if err!=nil{return repo.RepaymentBatchRow{},err}
 	// Revalidate the customer-selected snapshot against authoritative BNPL
@@ -103,7 +103,10 @@ func Create[Q postgres.Queryer](
 		SELECT 1 FROM payment_attempts
 		WHERE installment_id=$1 AND (
 			state IN ('created','submitted','reconciliation_required','manual_review_required','succeeded')
-			OR (state='expired' AND NOT financial_outcome_resolved)
+			OR (state='expired' AND NOT financial_outcome_resolved
+				AND NOT (purpose='installment_repayment'
+				AND submitted_at IS NULL AND payment_url IS NULL
+				AND financial_payment_session_id IS NULL))
 		)
 	) AS blocked`
 	seen:=make(map[model.InstallmentID]struct{},len(installments))

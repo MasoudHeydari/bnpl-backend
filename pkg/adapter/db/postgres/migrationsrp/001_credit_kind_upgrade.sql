@@ -88,6 +88,10 @@ WHERE status IN ('created','prepared','starting','requires_action','reconciling'
 CREATE OR REPLACE FUNCTION bnpl.reject_claimed_installment_payment_attempt()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
+    -- Use the same installment row lock as repayment batch creation.
+    -- This closes the READ COMMITTED race in which a legacy attempt could
+    -- otherwise be inserted while the batch is taking its snapshot.
+    PERFORM 1 FROM bnpl.installments WHERE id = NEW.installment_id FOR UPDATE;
     IF EXISTS (
        SELECT 1 FROM bnpl.repayment_batch_installment_claims
        WHERE installment_id = NEW.installment_id
