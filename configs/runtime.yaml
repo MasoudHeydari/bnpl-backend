@@ -449,6 +449,18 @@ infrastructure:
           interval: ${TASK_PAYMENT_ATTEMPT_RECONCILIATION_INTERVAL}
           run_on_start: ${TASK_PAYMENT_ATTEMPT_RECONCILIATION_RUN_ON_START}
 
+      repayment_batch_reconciliation:
+        # FC v2 gRPC Get polling; no shared Kafka topic is required.
+        enabled: ${TASK_REPAYMENT_BATCH_RECONCILIATION_ENABLED}
+        execution: ${TASK_REPAYMENT_BATCH_RECONCILIATION_EXECUTION}
+        handler: ${TASK_REPAYMENT_BATCH_RECONCILIATION_HANDLER}
+        trigger:
+          type: ${TASK_REPAYMENT_BATCH_RECONCILIATION_TRIGGER_TYPE}
+          cron: ${TASK_REPAYMENT_BATCH_RECONCILIATION_CRON}
+          timezone: ${TASK_REPAYMENT_BATCH_RECONCILIATION_TIMEZONE}
+          interval: ${TASK_REPAYMENT_BATCH_RECONCILIATION_INTERVAL}
+          run_on_start: ${TASK_REPAYMENT_BATCH_RECONCILIATION_RUN_ON_START}
+
       payment_attempt_expiration:
         enabled: ${TASK_PAYMENT_ATTEMPT_EXPIRATION_ENABLED}
         execution: ${TASK_PAYMENT_ATTEMPT_EXPIRATION_EXECUTION}
