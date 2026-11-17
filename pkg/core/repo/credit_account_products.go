@@ -13,6 +13,9 @@ import (
 type CreditAccountProductQueryer interface {
 	GetByCustomerIDCurrencyAndKind(context.Context, model.CustomerID, model.Currency, model.CreditKind) (model.CreditAccount, error)
 	ListByCustomerID(context.Context, model.CustomerID) ([]model.CreditAccount, error)
+	// HasUnpaidMonthlyCycleBefore is a BNPL contractual-obligation check,
+	// not a lookup of the Financial Core monetary ledger.
+	HasUnpaidMonthlyCycleBefore(context.Context, model.CustomerID, model.Currency, time.Time) (bool, error)
 }
 
 // CreditAccountProductTxQueryer provides transaction-scoped mutations of a

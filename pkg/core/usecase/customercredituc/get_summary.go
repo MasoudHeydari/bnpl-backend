@@ -93,10 +93,22 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 				return blockErr
 			}
 
-			output = summaryFromAccount(account, newCreditBlocked)
+			// Old monthly debt blocks new monthly purchases from day 1 of
+			// the next Jalali month, even before the due date on day 5.
+			monthlyBlocked := false
+			if kind == model.PayNextMonthCreditKind {
+				products := accountQ.(repo.CreditAccountProductTxQueryer)
+				monthlyBlocked, err = monthlyPreviousCycleBlocked(
+					ctx,products,profile.ID,currency,now,
+				)
+				if err != nil { return err }
+			}
+			output = summaryFromAccount(account, newCreditBlocked || monthlyBlocked)
 			output.CreditKind = kind
 			if newCreditBlocked {
 				output.CreditUsage.Reason = publicReason
+			} else if monthlyBlocked {
+				output.CreditUsage.Reason = "previous_month_unpaid"
 			}
 			return nil
 		})

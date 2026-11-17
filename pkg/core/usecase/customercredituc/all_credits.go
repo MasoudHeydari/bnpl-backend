@@ -92,6 +92,13 @@ func (uc *UseCase) GetAllSummaries(ctx context.Context, input Input) (AllSummari
 			if err != nil { return err }
 
 			for _, kind := range supportedCreditKinds {
+				monthlyBlocked := false
+				if kind == model.PayNextMonthCreditKind {
+					monthlyBlocked, err = monthlyPreviousCycleBlocked(
+						ctx, products, profile.ID, currency, now,
+					)
+					if err != nil { return err }
+				}
 				if err := products.ExpireDueByCustomerIDCurrencyAndKind(
 					ctx, profile.ID, currency, kind, now,
 				); err != nil { return err }
@@ -102,8 +109,12 @@ func (uc *UseCase) GetAllSummaries(ctx context.Context, input Input) (AllSummari
 				var item Output
 				switch {
 				case err == nil:
-					item = summaryFromAccount(account, blocked)
-					if blocked { item.CreditUsage.Reason = reason }
+					item = summaryFromAccount(account, blocked || monthlyBlocked)
+					if blocked {
+						item.CreditUsage.Reason = reason
+					} else if monthlyBlocked {
+						item.CreditUsage.Reason = "previous_month_unpaid"
+					}
 				case cerr.IsCode(err, cerr.CodeResourceNotFound):
 					item = zeroSummary(profile.ID, currency)
 				default:

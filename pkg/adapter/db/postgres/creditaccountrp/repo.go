@@ -187,3 +187,15 @@ func (q txQueryer) CreateWithLimitForKind(ctx context.Context,id model.CustomerI
 func (q txQueryer) ExpireDueByCustomerIDCurrencyAndKind(ctx context.Context,id model.CustomerID,currency model.Currency,kind model.CreditKind,now time.Time)error{
 	return ExpireDueByCustomerIDCurrencyAndKind(ctx,q.Tx,id,currency,kind,now)
 }
+
+
+func (q connQueryer) HasUnpaidMonthlyCycleBefore(
+	ctx context.Context,id model.CustomerID,currency model.Currency,cutoff time.Time,
+)(bool,error){
+	return HasUnpaidMonthlyCycleBefore(ctx,q.Conn,id,currency,cutoff)
+}
+func (q txQueryer) HasUnpaidMonthlyCycleBefore(
+	ctx context.Context,id model.CustomerID,currency model.Currency,cutoff time.Time,
+)(bool,error){
+	return HasUnpaidMonthlyCycleBefore(ctx,q.Tx,id,currency,cutoff)
+}

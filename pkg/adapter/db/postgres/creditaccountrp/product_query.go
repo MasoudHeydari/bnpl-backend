@@ -89,3 +89,32 @@ WHERE customer_id=$1 AND currency=$2 AND credit_kind=$3
 	if err!=nil{return fmt.Errorf("expire product credit account: %w",postgres.MapError(err))}
 	return nil
 }
+
+
+// HasUnpaidMonthlyCycleBefore blocks new next-month purchases from the start
+// of a new Jalali month while an installment from an earlier cycle remains
+// unpaid. It counts only activated monthly contracts and never treats
+// pending checkout offers or four-installment obligations as monthly debt.
+func HasUnpaidMonthlyCycleBefore[Q postgres.Queryer](
+	ctx context.Context,q Q,customerID model.CustomerID,currency model.Currency,cutoff time.Time,
+)(bool,error){
+	if cutoff.IsZero(){return false,cerr.InvalidArgument(fmt.Errorf("monthly cutoff is required"))}
+	type result struct { Blocked bool `db:"blocked"` }
+	const query=`
+SELECT EXISTS(
+	SELECT 1
+	FROM installments AS i
+	JOIN contracts AS c ON c.id=i.contract_id
+	JOIN credit_accounts AS ca ON ca.id=c.credit_account_id
+	WHERE ca.customer_id=$1
+	  AND ca.currency=$2
+	  AND ca.credit_kind='pay_next_month'
+	  AND c.status='active'
+	  AND i.status IN ('scheduled','due','overdue')
+	  AND i.due_at < $3
+) AS blocked
+`
+	row,err:=postgres.QueryOne[result](ctx,q,"find unpaid previous monthly cycle",query,customerID,currency,cutoff)
+	if err!=nil{return false,err}
+	return row.Blocked,nil
+}
