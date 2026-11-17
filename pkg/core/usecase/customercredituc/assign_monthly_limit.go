@@ -3,7 +3,6 @@ package customercredituc
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
@@ -122,6 +121,12 @@ func (uc *UseCase) assignMonthlyCreditLimit(
 			}
 			if err != nil { return err }
 			journalType, journalAmount := limitChangeJournal(existing, getErr == nil, assessed.AmountMinor)
+			if journalAmount == 0 {
+				// Equal-amount reassessment must not insert a zero-value
+				// journal event (the journal requires a positive amount).
+				journalType = model.LimitSetCreditTransactionType
+				journalAmount = assessed.AmountMinor
+			}
 			_, err = q.AppendTransaction(ctx, account.ID, journalType, journalAmount,
 				assessed.Currency, model.CreditAssessmentCreditTransactionReason,
 				model.DecisionCreditTransactionReferenceType, decision.ID.UUID(), now, now)
@@ -135,5 +140,3 @@ func (uc *UseCase) assignMonthlyCreditLimit(
 	return output, nil
 }
 
-// Unused wall clock checks are forbidden in the product assignment path.
-var _ = time.Time{}

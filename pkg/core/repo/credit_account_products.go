@@ -19,6 +19,9 @@ type CreditAccountProductQueryer interface {
 // particular product. All limit/exposure changes still use the same CreditAccount
 // row locks and immutable credit_transactions journal as legacy accounts.
 type CreditAccountProductTxQueryer interface {
+	// Existing operations remain available when selecting product-scoped
+	// accounts. This also keeps immutable credit journal writes on one TX.
+	CreditAccountTxQueryer
 	CreditAccountProductQueryer
 	LockByCustomerIDCurrencyAndKind(context.Context, model.CustomerID, model.Currency, model.CreditKind) (model.CreditAccount, error)
 	CreateWithLimitForKind(
