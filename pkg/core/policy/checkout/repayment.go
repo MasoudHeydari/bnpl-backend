@@ -9,6 +9,44 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 )
 
+// DueDateRule describes a contractual due-date rule. It is owned by the
+// immutable checkout policy, never by an HTTP handler or a wall-clock default.
+type DueDateRule string
+
+const (
+	// DueByCadence retains the existing installment-series schedule.
+	DueByCadence DueDateRule = "cadence"
+	// DueNextJalaliMonthFifth is a single payment at the end of day 5 of the
+	// Jalali month following contract activation in Asia/Tehran.
+	DueNextJalaliMonthFifth DueDateRule = "next_jalali_month_fifth"
+)
+
+// nextJalaliFifth computes one fixed contractual due instant. A purchase
+// activated on day 1 or 30 of a Jalali month is due in the following month;
+// it never becomes due on day 5 of the current month.
+func nextJalaliFifth(anchor time.Time) (time.Time, error) {
+	const op = "checkout.nextJalaliFifth"
+	if anchor.IsZero() {
+		return time.Time{}, fmt.Errorf("%s: anchor is required", op)
+	}
+
+	location, err := time.LoadLocation("Asia/Tehran")
+	if err != nil {
+		return time.Time{}, fmt.Errorf("%s: load business timezone: %w", op, err)
+	}
+
+	date := jalali.FromTime(anchor.In(location))
+	year, month := date.Year, date.Month+1
+	if month > 12 {
+		year++
+		month = 1
+	}
+
+	// The fifth is inclusive: customer may pay until 23:59:59 in Iran.
+	wall := time.Date(2000, time.January, 5, 23, 59, 59, 0, location)
+	return (jalali.Date{Year: year, Month: month, Day: 5}).ToTime(wall, location), nil
+}
+
 // CadenceUnit identifies the calendar arithmetic used between recurring
 // installment due dates.
 type CadenceUnit string
@@ -180,6 +218,13 @@ func DueAtForInstallmentOrder(terms Terms, now time.Time, order int) (time.Time,
 		return time.Time{}, fmt.Errorf("%s: installment order must be positive", op)
 	}
 
+	if terms.DueDateRule == DueNextJalaliMonthFifth {
+		if terms.ActivationMode != ActivationAfterMerchantFunding || order != 1 {
+			return time.Time{}, fmt.Errorf("%s: monthly due rule supports one merchant-funded installment", op)
+		}
+		return nextJalaliFifth(now)
+	}
+
 	switch terms.ActivationMode {
 	case ActivationAfterInitialPayment:
 		if order == 1 {
@@ -272,6 +317,23 @@ func ValidateTerms(terms Terms) error {
 
 	if terms.InstallmentCount <= 0 {
 		return fmt.Errorf("%s: installment count must be positive", op)
+	}
+
+	if kind := model.EffectiveCreditKind(terms.CreditKind); !kind.IsValid() {
+		return fmt.Errorf("%s: invalid credit kind %q", op, kind)
+	}
+
+	switch terms.DueDateRule {
+	case "", DueByCadence:
+		// Existing schedules retain their historical cadence rules.
+	case DueNextJalaliMonthFifth:
+		if terms.InstallmentCount != 1 ||
+			terms.ActivationMode != ActivationAfterMerchantFunding ||
+			model.EffectiveCreditKind(terms.CreditKind) != model.PayNextMonthCreditKind {
+			return fmt.Errorf("%s: next-month fifth requires a single merchant-funded monthly installment", op)
+		}
+	default:
+		return fmt.Errorf("%s: unsupported due-date rule %q", op, terms.DueDateRule)
 	}
 
 	if terms.DecisionTTL <= 0 {

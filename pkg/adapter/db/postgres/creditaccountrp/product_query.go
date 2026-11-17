@@ -52,7 +52,7 @@ func ListByCustomerID[Q postgres.Queryer](ctx context.Context,q Q,customerID mod
 	const query = `SELECT` + creditAccountColumns + `
 FROM credit_accounts WHERE customer_id = $1 ORDER BY currency,credit_kind
 `
-	return postgres.QueryRows[model.CreditAccount](ctx,q,"list credit accounts by customer",query,customerID)
+	return postgres.QueryAll[model.CreditAccount](ctx,q,"list credit accounts by customer",query,customerID)
 }
 
 func CreateWithLimitForKind[Q postgres.Queryer](

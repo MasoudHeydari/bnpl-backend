@@ -77,6 +77,14 @@ type Policy interface {
 // terms so they are testable and referenceable as a single strongly typed
 // contract rather than scattered package-level constants.
 type Terms struct {
+	// CreditKind selects one independent customer credit account. Unspecified
+	// means the legacy installment account for v1/v2 policy snapshots.
+	CreditKind model.CreditKind
+
+	// DueDateRule overrides recurrence when a single-due monthly product
+	// is payable on the fifth of the following Jalali month.
+	DueDateRule DueDateRule
+
 	// InstallmentCount is the fixed number of installments this version
 	// finances new decisions into.
 	InstallmentCount int

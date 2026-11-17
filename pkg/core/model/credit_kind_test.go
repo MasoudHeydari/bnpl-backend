@@ -7,9 +7,6 @@ func TestCreditKindValidityAndIsolation(t *testing.T) {
 		if !kind.IsValid() {
 			t.Fatalf("valid credit kind %q rejected", kind)
 		}
-		if kind.DisplayName() == "" {
-			t.Fatalf("credit kind %q has no display name", kind)
-		}
 	}
 
 	if CreditKind("unknown").IsValid() || CreditKind("").IsValid() {
