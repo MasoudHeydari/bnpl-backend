@@ -9,9 +9,9 @@ type StartBatchSchema startResponse
 
 type BatchSuccessSchema struct {
 	Data BatchStatusSchema `json:"data"`
-	Meta serdser.SuccessMetaNoPagination `json:"meta"`
+	Meta serdser.SuccessMeta `json:"meta"`
 }
 type StartBatchSuccessSchema struct {
 	Data StartBatchSchema `json:"data"`
-	Meta serdser.SuccessMetaNoPagination `json:"meta"`
+	Meta serdser.SuccessMeta `json:"meta"`
 }
