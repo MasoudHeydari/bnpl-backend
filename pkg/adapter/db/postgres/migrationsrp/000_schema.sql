@@ -581,6 +581,9 @@ CREATE TABLE IF NOT EXISTS credit_accounts (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
     customer_id uuid NOT NULL REFERENCES customer_profiles (id),
     currency text NOT NULL,
+    -- Independent credit capacity per product, not another monetary wallet.
+    -- Existing deployments are migrated to pay_in_4 by the upgrade script.
+    credit_kind text NOT NULL DEFAULT 'pay_in_4',
     limit_amount_minor bigint NOT NULL DEFAULT 0,
     exposure_amount_minor bigint NOT NULL DEFAULT 0,
     status text NOT NULL,
@@ -593,7 +596,8 @@ CREATE TABLE IF NOT EXISTS credit_accounts (
     version bigint NOT NULL DEFAULT 1,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT uq_credit_accounts_customer_currency UNIQUE (customer_id, currency),
+    CONSTRAINT uq_credit_accounts_customer_currency_kind UNIQUE (customer_id, currency, credit_kind),
+    CONSTRAINT chk_credit_accounts_credit_kind CHECK (credit_kind IN ('pay_in_4', 'pay_next_month')),
     CONSTRAINT chk_credit_accounts_status CHECK (status IN ('active', 'expired', 'revoked')),
     CONSTRAINT chk_credit_accounts_amounts CHECK (limit_amount_minor >= 0 AND exposure_amount_minor >= 0),
     CONSTRAINT chk_credit_accounts_currency CHECK (currency IN ('IRR', 'EUR', 'USD')),
