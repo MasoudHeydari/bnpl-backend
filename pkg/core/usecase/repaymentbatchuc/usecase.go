@@ -209,11 +209,12 @@ func (uc *UseCase) Reconcile(ctx context.Context,id uuid.UUID)(extcollection.Res
 		return result,err
 	}
 	if result.Status==extcollection.Failed || result.Status==extcollection.Expired{
-		// Do not release an installment while provider/accounting reversal or
-		// another unresolved financial outcome is still possible. FC must
-		// conclusively report NOT_POSTED; a timeout or posting=PENDING isn't
-		// evidence that no money moved.
-		if result.PostingOutcome!=extcollection.NotPosted{
+		// Only a conclusive provider non-payment AND FC NOT_POSTED releases
+		// claims. Expiry with an unknown provider attempt is not final.
+		// A processor timeout must never authorize recharging this customer.
+		if result.PostingOutcome!=extcollection.NotPosted ||
+			(result.ProviderOutcome!=extcollection.ProviderFailed &&
+				result.ProviderOutcome!=extcollection.ProviderNotStarted){
 			uc.scheduleReconciliation(ctx,row,&result.CollectionPaymentID,result.SnapshotRevision,nil)
 			return extcollection.Result{},fmt.Errorf("FC terminal payment is not conclusively unposted")
 		}
@@ -222,6 +223,17 @@ func (uc *UseCase) Reconcile(ctx context.Context,id uuid.UUID)(extcollection.Res
 		err=uc.finishTerminal(ctx,row,next,result)
 		return result,err
 	}
+	// FC bank reversal is a separate authoritative reversal workflow, not
+	// another successful payment and not an instruction to erase the first
+	// posting. Retain claims for manual investigation until reversal handling
+	// can atomically correct the BNPL-side credit projection.
+	if result.Status==extcollection.BankReversed ||
+		result.ProviderOutcome==extcollection.ProviderReversed {
+		next:=model.ManualReviewRepaymentBatchStatus
+		return result,uc.persistTransition(ctx,row,next,
+			&result.CollectionPaymentID,result.SnapshotRevision,nil,nil)
+	}
+
 	next:=model.ReconcilingRepaymentBatchStatus
 	if result.Status==extcollection.AccountingPending{next=model.AccountingPendingRepaymentBatchStatus}
 	poll:=uc.now().Add(defaultReconciliationInterval)

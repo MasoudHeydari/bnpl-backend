@@ -26,6 +26,19 @@ const (
 	BankReversed CollectionStatus = "bank_reversed"
 )
 
+// ProviderOutcome separates authoritative provider evidence from accounting.
+// In particular UNKNOWN must retain installment claims even after an FC
+// snapshot expires. BNPL must never interpret a network timeout as failure.
+type ProviderOutcome string
+const (
+	ProviderNotStarted ProviderOutcome = "not_started"
+	ProviderPending ProviderOutcome = "pending"
+	ProviderUnknown ProviderOutcome = "unknown"
+	ProviderSucceeded ProviderOutcome = "succeeded"
+	ProviderFailed ProviderOutcome = "failed"
+	ProviderReversed ProviderOutcome = "reversed"
+)
+
 // PostingOutcome is distinct from provider success: only Posted may authorize
 // final BNPL installment settlement and credit exposure release.
 type PostingOutcome string
@@ -52,6 +65,7 @@ type Result struct {
 	SourceID uuid.UUID
 	SnapshotRevision int64
 	Status CollectionStatus
+	ProviderOutcome ProviderOutcome
 	PostingOutcome PostingOutcome
 	PaymentIntentID string
 	PaymentSessionID string
@@ -65,7 +79,8 @@ type Result struct {
 // IsAuthoritativelySettled requires both successful collection and completed
 // accounting. Provider success or a browser redirect alone never suffices.
 func (r Result) IsAuthoritativelySettled() bool {
-	return r.Status==Succeeded && r.PostingOutcome==Posted &&
+	return r.Status==Succeeded && r.ProviderOutcome==ProviderSucceeded &&
+		r.PostingOutcome==Posted &&
 		r.CollectionPaymentID!="" && r.PostedAt!=nil && !r.PostedAt.IsZero()
 }
 
