@@ -20,6 +20,10 @@ const (
 	// MonthlyPreviousCycleUnpaidDecisionReason denies new monthly spending
 	// from day 1 of the following Jalali month while prior debt is unpaid.
 	MonthlyPreviousCycleUnpaidDecisionReason = "MONTHLY_PREVIOUS_CYCLE_UNPAID"
+
+	// MerchantCreditKindNotEnabledDecisionReason prevents a checkout using
+	// a BNPL product not explicitly enabled for this merchant.
+	MerchantCreditKindNotEnabledDecisionReason = "MERCHANT_CREDIT_KIND_NOT_ENABLED"
 	RequestedAmountExceedsMerchantLimitDecisionReason       = "REQUESTED_AMOUNT_EXCEEDS_MERCHANT_LIMIT"
 	RequestedAmountExceedsSupportedRangeDecisionReason      = "REQUESTED_AMOUNT_EXCEEDS_SUPPORTED_RANGE"
 	InstallmentCountNotSupportedDecisionReason              = "INSTALLMENT_COUNT_NOT_SUPPORTED"

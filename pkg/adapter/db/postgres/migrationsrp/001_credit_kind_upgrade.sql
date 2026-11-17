@@ -121,3 +121,21 @@ ALTER TABLE repayment_batches
     ADD CONSTRAINT chk_batch_start_pair CHECK (
        (start_idempotency_key IS NULL) = (start_fingerprint IS NULL)
     );
+
+
+-- Merchant-level credit-product eligibility is independent from Funding/FC
+-- monetary provisioning. New merchants retain existing pay-in-four behavior.
+-- Monthly credit is fail-closed until explicitly enabled for that merchant.
+CREATE TABLE IF NOT EXISTS merchant_credit_product_eligibilities (
+    merchant_profile_id uuid NOT NULL REFERENCES merchant_profiles(id),
+    credit_kind text NOT NULL,
+    enabled boolean NOT NULL,
+    updated_at timestamptz NOT NULL,
+    PRIMARY KEY (merchant_profile_id, credit_kind),
+    CONSTRAINT chk_merchant_credit_product_kind
+        CHECK (credit_kind IN ('pay_in_4','pay_next_month'))
+);
+
+-- An explicit monthly approval can be provisioned through the merchant
+-- administration integration. Never infer it from the presence of a credit
+-- account or the ability to process four installments.

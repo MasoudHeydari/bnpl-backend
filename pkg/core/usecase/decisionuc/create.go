@@ -230,6 +230,38 @@ func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput,
 			))
 		}
 
+		// Merchant eligibility is a separate policy from customer capacity.
+		// A merchant accepting installment credit must not automatically
+		// accept the revolving monthly product.
+		merchantEnabled, lookupErr := merchantAllowsCreditKind(
+			ctx, merchantProfileQ, merchantProfileID, model.EffectiveCreditKind(input.CreditKind),
+		)
+		if lookupErr != nil { return lookupErr }
+		if !merchantEnabled {
+			merchantDenial := checkout.EligibilityResult{
+				Outcome: model.DeniedDecisionOutcome,
+				ReasonCodes: []string{model.MerchantCreditKindNotEnabledDecisionReason},
+				Jurisdiction: customerProfile.Jurisdiction,
+			}
+			return uc.persistCheckoutDecision(
+				ctx,decisionQ,allocationQ,outboxQ,input,customerID,
+				merchantProfileID,&merchantBranchProfileID,fingerprint,
+				selectedPolicy,merchantDenial,0,installmentCount,
+				checkoutDecisionAuditFacts{
+					ExternalSubjectID: input.ExternalSubjectID,
+					CustomerID: customerProfile.ID,
+					MerchantProfileID: merchantProfile.ID,
+					ExternalMerchantID: merchantProfile.ExternalMerchantID,
+					MerchantBranchProfileID: branchProfile.ID,
+					ExternalBranchID: branchProfile.ExternalBranchID,
+					PurchaseChannel: input.PurchaseContext.Channel,
+					PurchaseSourceID: input.PurchaseContext.sourceID(),
+					MerchantOrderID: input.PurchaseContext.merchantOrderIDPointer(),
+				},
+				now,&output,
+			)
+		}
+
 		creditAccount, hasCreditAccount, err := loadCurrentCreditAccount(
 			ctx,
 			creditAccountQ,

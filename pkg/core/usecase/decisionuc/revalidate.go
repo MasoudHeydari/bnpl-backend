@@ -128,6 +128,17 @@ func (uc *UseCase) RevalidateCheckoutOffer(
 				return fmt.Errorf("%s: load merchant profile: %w", op, err)
 			}
 
+			merchantEnabled, lookupErr := merchantAllowsCreditKind(
+				ctx,merchantProfileQ,merchantProfile.ID,
+				model.EffectiveCreditKind(selectedPolicy.Terms().CreditKind),
+			)
+			if lookupErr != nil { return lookupErr }
+			if !merchantEnabled {
+				output.StillHonorable=false
+				invalidReason=offerInvalidReasonNewCreditRestricted
+				return nil
+			}
+
 			var branchProfile *model.MerchantBranchProfile
 			if allocation.MerchantBranchProfileID != nil && !allocation.MerchantBranchProfileID.IsZero() {
 				branch, branchErr := merchantBranchProfileQ.GetByID(ctx, *allocation.MerchantBranchProfileID)
