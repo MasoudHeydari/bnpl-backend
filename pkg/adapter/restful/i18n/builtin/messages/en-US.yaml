@@ -324,3 +324,7 @@ error.installment_payment_in_progress: An installment payment is in progress.
 error.installment_financial_component_immutable: Finalized financial components cannot be modified.
 
 error.installment_financial_adjustment_required: This installment requires financial reconciliation before payment.
+
+success.repayment_batch_retrieved: "Repayment batch retrieved."
+success.repayment_batch_started: "Repayment payment session started."
+validation.repayment_batch_id_invalid: "repayment batch id is invalid"

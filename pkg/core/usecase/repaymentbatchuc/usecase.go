@@ -35,6 +35,7 @@ type UseCase struct {
 	pool repo.Pool
 	batches repo.RepaymentBatch
 	financial extcollection.Client
+	customer repo.CustomerProfile
 	applier PostedApplier
 	clock clock.Clock
 }
@@ -47,6 +48,48 @@ func New(pool repo.Pool,batches repo.RepaymentBatch,financial extcollection.Clie
 		return nil,fmt.Errorf("repaymentbatchuc.New: all dependencies are required")
 	}
 	return &UseCase{pool:pool,batches:batches,financial:financial,applier:applier,clock:clk},nil
+}
+
+// WithCustomerProfile enables ownership checks on authenticated customer
+// API routes. Do not use SubjectID directly as the BNPL internal customer key.
+func (uc *UseCase) WithCustomerProfile(r repo.CustomerProfile) *UseCase {
+	uc.customer = r
+	return uc
+}
+
+// RequireCustomerBatch resolves the trusted Identity subject to the BNPL
+// customer profile before revealing any batch or Financial Core payment data.
+func (uc *UseCase) RequireCustomerBatch(
+	ctx context.Context, subject model.ExternalSubjectID, id uuid.UUID,
+) (repo.RepaymentBatchRow,error) {
+	if subject.IsZero() || id==uuid.Nil {
+		return repo.RepaymentBatchRow{},cerr.InvalidArgument(fmt.Errorf("customer and batch ids are required"))
+	}
+	if uc.customer==nil {
+		return repo.RepaymentBatchRow{},cerr.InternalError(fmt.Errorf("repayment customer repository not configured"))
+	}
+	var row repo.RepaymentBatchRow
+	err:=uc.pool.Conn(ctx,func(ctx context.Context,conn repo.Conn)error{
+		profile,err:=uc.customer.Conn(conn).GetByExternalSubjectID(ctx,subject)
+		if err!=nil{return err}
+		row,err=uc.batches.Conn(conn).GetByID(ctx,id)
+		if err!=nil{return err}
+		if row.CustomerID!=profile.ID || row.ExternalCustomerID!=profile.ExternalCustomerID {
+			return cerr.ResourceNotFound(fmt.Errorf("repayment batch not found for authenticated customer"))
+		}
+		return nil
+	})
+	return row,err
+}
+
+// StartForCustomer protects the state-changing RPC behind a trusted subject
+// mapping. API clients cannot start an arbitrary customer's batch by UUID.
+func (uc *UseCase) StartForCustomer(
+	ctx context.Context, subject model.ExternalSubjectID, id uuid.UUID,
+	key, provider string, urls extcollection.ReturnURLs,
+) (extcollection.Result,error) {
+	if _,err:=uc.RequireCustomerBatch(ctx,subject,id);err!=nil{return extcollection.Result{},err}
+	return uc.StartPayment(ctx,id,key,provider,urls)
 }
 
 func (uc *UseCase) now()time.Time{return uc.clock.Now().UTC()}

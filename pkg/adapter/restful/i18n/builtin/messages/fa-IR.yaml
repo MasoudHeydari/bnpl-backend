@@ -324,3 +324,7 @@ error.installment_payment_in_progress: پرداخت این قسط در حال ا
 error.installment_financial_component_immutable: اجزای مالی نهایی‌شده قابل تغییر نیستند.
 
 error.installment_financial_adjustment_required: این قسط پیش از پرداخت به تطبیق مالی نیاز دارد.
+
+success.repayment_batch_retrieved: "اطلاعات پرداخت گروهی دریافت شد."
+success.repayment_batch_started: "فرآیند پرداخت گروهی آغاز شد."
+validation.repayment_batch_id_invalid: "شناسه پرداخت گروهی نامعتبر است."

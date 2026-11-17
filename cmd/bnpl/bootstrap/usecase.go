@@ -672,6 +672,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize repayment batch use case: %w", op, err)
 	}
+	repaymentBatchUseCase.WithCustomerProfile(a.Repos.CustomerProfile)
 
 	return UseCases{
 		OutboxPublisher:                    outboxPublisherUseCase,

@@ -18,6 +18,8 @@ import (
 // Each resource that exposes configurable registration options should add its
 // own options here and receive them during route registration.
 type RegisterOptions struct {
+	RepaymentBatchProviderCode string
+	RepaymentBatchReturnURL string
 	// Health configures registration of the health resources.
 	Health healthrs.RegisterOptions
 

@@ -12,6 +12,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/decisionrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/healthrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/installmentpaymentrs"
+	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/repaymentbatchrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/merchantrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/merchantterminalrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/middleware"
@@ -23,6 +24,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/decisionuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/healthcheckuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/installmentrepaymentuc"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/repaymentbatchuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/merchantterminaluc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/merchantuc"
 )
@@ -64,6 +66,7 @@ func Register(
 	customerCreditUseCase *customercredituc.UseCase,
 	merchantTerminalUseCase *merchantterminaluc.UseCase,
 	opts RegisterOptions,
+	repaymentBatch ...*repaymentbatchuc.UseCase,
 ) error {
 	const op = "routes.Register"
 
@@ -89,6 +92,12 @@ func Register(
 	contractrs.Register(v1, contractUseCase, opts.Contract)
 	merchantrs.Register(v1, merchantUseCase, opts.Merchant)
 	installmentpaymentrs.Register(v1, installmentRepaymentUseCase, opts.InstallmentPayment)
+	if len(repaymentBatch)>0 && repaymentBatch[0]!=nil {
+		repaymentbatchrs.Register(v1, repaymentBatch[0], repaymentbatchrs.RegisterOptions{
+			ProviderCode: opts.RepaymentBatchProviderCode,
+			ReturnURL: opts.RepaymentBatchReturnURL,
+		})
+	}
 	customerrs.Register(v1, customerAccountUseCase, opts.Customer)
 	customercreditrs.Register(v1, customerCreditUseCase, opts.CustomerCredit)
 

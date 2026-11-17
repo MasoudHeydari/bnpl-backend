@@ -41,6 +41,8 @@ func (a *App) RegisterRoutes(e *gin.Engine) error {
 		a.UseCases.CustomerCredit,
 		a.UseCases.MerchantTerminal,
 		routes.RegisterOptions{
+			RepaymentBatchProviderCode: a.Config.External.FinancialCore.CheckoutPaymentProviderCode,
+			RepaymentBatchReturnURL: a.Config.External.FinancialCore.PaymentReturnURL,
 			Health: healthrs.RegisterOptions{
 				Enabled: a.Config.Usecases.Health.Enabled,
 			},
@@ -48,6 +50,7 @@ func (a *App) RegisterRoutes(e *gin.Engine) error {
 				Enabled: a.Config.Gin.Swagger.Enabled,
 			},
 		},
+		a.UseCases.RepaymentBatch,
 	); err != nil {
 		return fmt.Errorf("%s: register api routes: %w", op, err)
 	}
