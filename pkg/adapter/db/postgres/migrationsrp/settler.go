@@ -1,7 +1,6 @@
 package migrationsrp
 
 import (
-	"context"
 	"crypto/sha256"
 	_ "embed"
 	"encoding/hex"
@@ -27,19 +26,6 @@ func NewSettler(tx repo.Tx) *Settler {
 
 //go:embed 000_schema.sql
 var schemaDDLStatements string
-
-//go:embed 001_credit_kind_upgrade.sql
-var creditKindUpgradeStatements string
-
-// applyCreditKindUpgrade creates the product-aware schema only after the
-// immutable baseline has been validated and executed. Existing installations
-// must apply the same named migration through their migration runner.
-func (sm1 *Settler) applyCreditKindUpgrade(ctx context.Context) error {
-	if _, err := sm1.tx.Exec(ctx, creditKindUpgradeStatements); err != nil {
-		return fmt.Errorf("apply credit-kind schema upgrade: %w", err)
-	}
-	return nil
-}
 
 // baselineSchemaSHA256 identifies the canonical pre-release schema. The file
 // becomes immutable when the first Production version ships; subsequent schema

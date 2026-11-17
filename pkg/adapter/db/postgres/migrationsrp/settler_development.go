@@ -26,10 +26,6 @@ func (sm1 *Settler) InitDevSchema(ctx context.Context) error {
 		)
 	}
 
-	if err := sm1.applyCreditKindUpgrade(ctx); err != nil {
-		return fmt.Errorf("%s: %w", op, err)
-	}
-
 	if _, err := sm1.tx.Exec(ctx, devDataStatements); err != nil {
 		return fmt.Errorf(
 			"%s: filling tables with development data: %w", op, err,
