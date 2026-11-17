@@ -1,0 +1,224 @@
+syntax = "proto3";
+
+package parstis.financial.collectionpayment.v2;
+option go_package = "github.com/parstis/bnpl-backend/gen/proto/financial/collectionpayment/v2;collectionpaymentv2";
+option java_multiple_files = true;
+option java_package = "ir.parstis.financial.contracts.collectionpayment.v2";
+option java_outer_classname = "CollectionPaymentProto";
+
+import "google/protobuf/timestamp.proto";
+import "financial/common/v1/common.proto";
+
+// Mirrors the wire contract supplied in FC v2 Educational Handoff 0.3.
+// RPC availability and final entitlement resolution are separate FC gates.
+// BNPL never treats payment-provider success as posted accounting.
+service CollectionPaymentService {
+  rpc PrepareCollectionPayment(PrepareCollectionPaymentRequest) returns (CollectionPaymentSnapshot);
+  rpc StartCollectionPayment(StartCollectionPaymentRequest) returns (CollectionPaymentStatusResponse);
+  rpc GetCollectionPayment(GetCollectionPaymentRequest) returns (CollectionPaymentStatusResponse);
+}
+
+enum CollectionComponentType {
+  COLLECTION_COMPONENT_TYPE_UNSPECIFIED = 0;
+  COLLECTION_COMPONENT_TYPE_PRINCIPAL = 1;
+  COLLECTION_COMPONENT_TYPE_LATE_FEE = 2;
+  COLLECTION_COMPONENT_TYPE_SERVICE_FEE = 3;
+  COLLECTION_COMPONENT_TYPE_TAX = 4;
+  COLLECTION_COMPONENT_TYPE_BASE_AMOUNT = 5;
+}
+enum CollectionAdjustmentType {
+  COLLECTION_ADJUSTMENT_TYPE_UNSPECIFIED = 0;
+  COLLECTION_ADJUSTMENT_TYPE_DISCOUNT = 1;
+  COLLECTION_ADJUSTMENT_TYPE_WAIVER = 2;
+}
+enum CollectionFundingModel {
+  COLLECTION_FUNDING_MODEL_UNSPECIFIED = 0;
+  COLLECTION_FUNDING_MODEL_PLATFORM = 1;
+  COLLECTION_FUNDING_MODEL_BANK = 2;
+  COLLECTION_FUNDING_MODEL_MERCHANT = 3;
+  COLLECTION_FUNDING_MODEL_CUSTOMER = 4;
+}
+enum CollectionPartyType {
+  COLLECTION_PARTY_TYPE_UNSPECIFIED = 0;
+  COLLECTION_PARTY_TYPE_PLATFORM = 1;
+  COLLECTION_PARTY_TYPE_MERCHANT = 2;
+  COLLECTION_PARTY_TYPE_FUNDER = 3;
+  COLLECTION_PARTY_TYPE_CUSTOMER = 4;
+  COLLECTION_PARTY_TYPE_TAX_AUTHORITY = 5;
+}
+message CollectionParty {
+  CollectionPartyType type = 1;
+  optional string party_id = 2;
+}
+message CollectionAssessment {
+  parstis.financial.common.v1.BusinessSourceReference source = 1;
+  string policy_reference = 2;
+  string policy_version = 3;
+  google.protobuf.Timestamp assessed_at = 4;
+}
+message CollectionFundingShare {
+  string funding_share_id = 1;
+  CollectionFundingModel model = 2;
+  CollectionParty funder = 3;
+  string financial_relationship_id = 4;
+}
+enum CollectionAllocationPurpose {
+  COLLECTION_ALLOCATION_PURPOSE_UNSPECIFIED = 0;
+  COLLECTION_ALLOCATION_PURPOSE_RECEIVABLE_RECOVERY = 1;
+  COLLECTION_ALLOCATION_PURPOSE_MERCHANT_PAYABLE_ON_COLLECTION = 2;
+  COLLECTION_ALLOCATION_PURPOSE_PLATFORM_REVENUE_ON_COLLECTION = 3;
+  COLLECTION_ALLOCATION_PURPOSE_FUNDER_PAYABLE_ON_COLLECTION = 4;
+  COLLECTION_ALLOCATION_PURPOSE_TAX_LIABILITY_ON_COLLECTION = 5;
+  COLLECTION_ALLOCATION_PURPOSE_PRE_RECOGNITION_CASH = 6;
+}
+message CollectionAllocation {
+  string allocation_id = 1;
+  CollectionAllocationPurpose purpose = 2;
+  CollectionParty beneficiary = 3;
+  parstis.financial.common.v1.Money amount = 4;
+  string distribution_rule_reference = 5;
+  string distribution_rule_version = 6;
+  optional string recognition_reference = 7;
+  optional string funding_share_id = 8;
+}
+message CollectionTaxContext {
+  string tax_code = 1;
+  string jurisdiction = 2;
+  CollectionParty liable_party = 3;
+  string tax_authority_reference = 4;
+  string taxable_basis_reference = 5;
+  string treatment_reference = 6;
+  string treatment_version = 7;
+}
+message CollectionAdjustment {
+  string adjustment_id = 1;
+  CollectionAdjustmentType type = 2;
+  parstis.financial.common.v1.Money amount = 3;
+  CollectionAssessment assessment = 4;
+}
+message CollectionComponent {
+  string component_id = 1;
+  CollectionComponentType type = 2;
+  CollectionAssessment assessment = 3;
+  optional string financial_claim_id = 4;
+  parstis.financial.common.v1.Money gross_amount = 5;
+  repeated CollectionAdjustment adjustments = 6;
+  parstis.financial.common.v1.Money net_amount = 7;
+  repeated CollectionAllocation allocations = 8;
+  optional CollectionTaxContext tax_context = 9;
+}
+enum CollectionBasisKind {
+  COLLECTION_BASIS_KIND_UNSPECIFIED = 0;
+  COLLECTION_BASIS_KIND_PURCHASE = 1;
+  COLLECTION_BASIS_KIND_INSTALLMENT = 2;
+  COLLECTION_BASIS_KIND_SERVICE = 3;
+}
+message CollectionItem {
+  string item_id = 1;
+  parstis.financial.common.v1.BusinessSourceReference source = 2;
+  optional string merchant_id = 3;
+  repeated CollectionFundingShare funding_shares = 4;
+  repeated CollectionComponent components = 5;
+  CollectionBasisKind basis_kind = 6;
+}
+
+// Payer and obligor must be equal for current execution.
+message PrepareCollectionPaymentRequest {
+  parstis.financial.common.v1.BusinessSourceReference source = 1;
+  string idempotency_key = 2;
+  string customer_id = 3 [deprecated = true];
+  repeated CollectionItem items = 4;
+  parstis.financial.common.v1.Money payment_amount = 5;
+  string description = 6;
+  string payer_customer_id = 7;
+  string obligor_customer_id = 8;
+}
+message CollectionPaymentSnapshot {
+  string collection_payment_id = 1;
+  parstis.financial.common.v1.BusinessSourceReference source = 2;
+  string customer_id = 3 [deprecated = true];
+  repeated CollectionItem items = 4;
+  parstis.financial.common.v1.Money payment_amount = 5;
+  google.protobuf.Timestamp accepted_at = 6;
+  google.protobuf.Timestamp expires_at = 7;
+  int64 revision = 8;
+  bool reused_idempotent_result = 9;
+  string description = 10;
+  string payer_customer_id = 11;
+  string obligor_customer_id = 12;
+}
+message StartCollectionPaymentRequest {
+  string collection_payment_id = 1;
+  string idempotency_key = 2;
+  string provider_code = 3;
+  parstis.financial.common.v1.PaymentReturnUrls return_urls = 4;
+  int64 expected_snapshot_revision = 5;
+}
+message GetCollectionPaymentRequest {
+  oneof lookup {
+    string collection_payment_id = 1;
+    parstis.financial.common.v1.BusinessSourceReference source = 2;
+  }
+}
+enum CollectionPaymentStatus {
+  COLLECTION_PAYMENT_STATUS_UNSPECIFIED = 0;
+  COLLECTION_PAYMENT_STATUS_PREPARED = 1;
+  COLLECTION_PAYMENT_STATUS_STARTING = 2;
+  COLLECTION_PAYMENT_STATUS_REQUIRES_CUSTOMER_ACTION = 3;
+  COLLECTION_PAYMENT_STATUS_RECONCILIATION_REQUIRED = 4;
+  COLLECTION_PAYMENT_STATUS_ACCOUNTING_PENDING = 5;
+  COLLECTION_PAYMENT_STATUS_SUCCEEDED = 6;
+  COLLECTION_PAYMENT_STATUS_FAILED = 7;
+  COLLECTION_PAYMENT_STATUS_EXPIRED = 8;
+  COLLECTION_PAYMENT_STATUS_BANK_REVERSED = 9;
+}
+enum CollectionProviderOutcome {
+  COLLECTION_PROVIDER_OUTCOME_UNSPECIFIED = 0;
+  COLLECTION_PROVIDER_OUTCOME_NOT_STARTED = 1;
+  COLLECTION_PROVIDER_OUTCOME_PENDING = 2;
+  COLLECTION_PROVIDER_OUTCOME_UNKNOWN = 3;
+  COLLECTION_PROVIDER_OUTCOME_SUCCEEDED = 4;
+  COLLECTION_PROVIDER_OUTCOME_FAILED = 5;
+  COLLECTION_PROVIDER_OUTCOME_REVERSED = 6;
+}
+enum CollectionPostingOutcome {
+  COLLECTION_POSTING_OUTCOME_UNSPECIFIED = 0;
+  COLLECTION_POSTING_OUTCOME_NOT_POSTED = 1;
+  COLLECTION_POSTING_OUTCOME_PENDING = 2;
+  COLLECTION_POSTING_OUTCOME_POSTED = 3;
+  COLLECTION_POSTING_OUTCOME_REVERSAL_PENDING = 4;
+  COLLECTION_POSTING_OUTCOME_REVERSED = 5;
+}
+message CollectionPostedAllocation {
+  string item_id = 1;
+  string component_id = 2;
+  string allocation_id = 3;
+  parstis.financial.common.v1.Money amount = 4;
+  string posting_reference = 5;
+}
+message CollectionBankReversal {
+  string reversal_id = 1;
+  string payment_attempt_id = 2;
+  string provider_evidence_reference = 3;
+  parstis.financial.common.v1.Money amount = 4;
+  google.protobuf.Timestamp observed_at = 5;
+  optional google.protobuf.Timestamp provider_occurred_at = 6;
+  CollectionPostingOutcome posting_outcome = 7;
+}
+message CollectionPaymentStatusResponse {
+  CollectionPaymentSnapshot snapshot = 1;
+  CollectionPaymentStatus status = 2;
+  CollectionProviderOutcome provider_outcome = 3;
+  CollectionPostingOutcome posting_outcome = 4;
+  optional string payment_intent_id = 5;
+  optional string payment_attempt_id = 6;
+  optional string payment_session_id = 7;
+  optional string payment_link = 8;
+  optional google.protobuf.Timestamp provider_paid_at = 9;
+  optional google.protobuf.Timestamp posted_at = 10;
+  repeated CollectionPostedAllocation posted_allocations = 11;
+  repeated CollectionBankReversal bank_reversals = 12;
+  int64 aggregate_revision = 13;
+  optional string reason_code = 14;
+  bool reused_idempotent_result = 15;
+}
