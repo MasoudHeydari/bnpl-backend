@@ -4,6 +4,8 @@ package collectionpayment
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -75,4 +77,53 @@ type Client interface {
 	Start(ctx context.Context, collectionPaymentID, idempotencyKey, providerCode string, revision int64) (Result,error)
 	GetByID(ctx context.Context, collectionPaymentID string) (Result,error)
 	GetBySource(ctx context.Context, sourceID uuid.UUID) (Result,error)
+}
+
+
+// VerifyPostedAllocations checks the exact immutable BNPL allocation snapshot
+// against FC's posted accounting response. It must run before a local batch
+// transitions to settled or releases exposure. Unexpected/missing postings fail
+// closed and require reconciliation rather than marking a partial settlement.
+func VerifyPostedAllocations(plan collectionpayment.Plan, result Result) error {
+	const op = "collectionpayment.VerifyPostedAllocations"
+	if err := plan.Validate(); err != nil {
+		return fmt.Errorf("%s: invalid plan: %w", op, err)
+	}
+	if !result.IsAuthoritativelySettled() || result.SourceID != plan.ID ||
+		result.SnapshotRevision < 1 {
+		return fmt.Errorf("%s: FC result is not an authoritative match", op)
+	}
+
+	type posting struct {
+		item uuid.UUID
+		component uuid.UUID
+		amount uint64
+	}
+	expected := make(map[uuid.UUID]posting)
+	for _, item := range plan.Items {
+		for _, component := range item.Components {
+			for _, allocation := range component.Allocations {
+				expected[allocation.ID] = posting{
+					item: item.ID, component: component.ID, amount: allocation.AmountMinor,
+				}
+			}
+		}
+	}
+	if len(expected) != len(result.PostedAllocations) {
+		return fmt.Errorf("%s: posted allocation count mismatch", op)
+	}
+	seen := make(map[uuid.UUID]struct{}, len(result.PostedAllocations))
+	for _, actual := range result.PostedAllocations {
+		exp, ok := expected[actual.AllocationID]
+		if !ok || exp.item != actual.ItemID ||
+			exp.component != actual.ComponentID || exp.amount != actual.AmountMinor ||
+			strings.TrimSpace(actual.PostingReference) == "" {
+			return fmt.Errorf("%s: posted allocation does not match snapshot", op)
+		}
+		if _, duplicate := seen[actual.AllocationID]; duplicate {
+			return fmt.Errorf("%s: duplicate posted allocation", op)
+		}
+		seen[actual.AllocationID] = struct{}{}
+	}
+	return nil
 }

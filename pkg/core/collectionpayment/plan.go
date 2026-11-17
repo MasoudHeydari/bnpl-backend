@@ -96,6 +96,31 @@ type Component struct {
 	Allocations []Allocation
 }
 
+// FundingModel names one FC-recognized financing share of the purchase.
+type FundingModel string
+
+const (
+	FundingPlatform FundingModel = "platform"
+	FundingBank FundingModel = "bank"
+	FundingMerchant FundingModel = "merchant"
+	FundingCustomer FundingModel = "customer"
+)
+
+// Party is an economic actor, not a chart-of-accounts identifier.
+type Party struct {
+	Type string
+	ID string
+}
+
+// FundingShare identifies FC-provisioned financing attached to an item.
+// The same product may have several funders; MIXED is not a funding model.
+type FundingShare struct {
+	ID uuid.UUID
+	Model FundingModel
+	Funder Party
+	FinancialRelationshipID string
+}
+
 // Item is one BNPL installment from a single contract and credit account.
 type Item struct {
 	ID uuid.UUID
@@ -105,7 +130,7 @@ type Item struct {
 	CreditKind model.CreditKind
 	MerchantID model.ExternalMerchantID
 	MerchantEntitlementID string
-	FinancialRelationshipID string
+	FundingShares []FundingShare
 	Components []Component
 }
 
@@ -140,7 +165,7 @@ func (p Plan) Validate() error {
 		if item.ID == uuid.Nil || item.InstallmentID.IsZero() || item.ContractID.IsZero() ||
 			item.CreditAccountID.IsZero() || !item.CreditKind.IsValid() ||
 			item.MerchantID.IsZero() || strings.TrimSpace(item.MerchantEntitlementID) == "" ||
-			strings.TrimSpace(item.FinancialRelationshipID) == "" || len(item.Components) == 0 {
+			len(item.FundingShares) == 0 || len(item.Components) == 0 {
 			return fmt.Errorf("%s: incomplete installment or financial relationship", op)
 		}
 		if _, ok := installments[item.InstallmentID]; ok {
@@ -148,6 +173,20 @@ func (p Plan) Validate() error {
 		}
 		installments[item.InstallmentID] = struct{}{}
 		if err := uniqueID(seen, item.ID); err != nil { return err }
+		shares := make(map[uuid.UUID]struct{}, len(item.FundingShares))
+		for _, share := range item.FundingShares {
+			if err := uniqueID(seen, share.ID); err != nil { return err }
+			if strings.TrimSpace(share.FinancialRelationshipID) == "" ||
+				strings.TrimSpace(share.Funder.Type) == "" {
+				return fmt.Errorf("%s: unprovisioned funding relationship", op)
+			}
+			switch share.Model {
+			case FundingPlatform, FundingBank, FundingMerchant, FundingCustomer:
+			default:
+				return fmt.Errorf("%s: unsupported funding model %q", op, share.Model)
+			}
+			shares[share.ID] = struct{}{}
+		}
 
 		for _, component := range item.Components {
 			if err := uniqueID(seen, component.ID); err != nil { return err }
@@ -183,6 +222,11 @@ func (p Plan) Validate() error {
 					strings.TrimSpace(allocation.RuleVersion) == "" ||
 					strings.TrimSpace(allocation.BeneficiaryType) == "" || allocation.AmountMinor == 0 {
 					return fmt.Errorf("%s: unprovisioned or invalid allocation", op)
+				}
+				if allocation.FundingShareID != nil {
+					if _, ok := shares[*allocation.FundingShareID]; !ok {
+						return fmt.Errorf("%s: allocation funding share belongs to another item", op)
+					}
 				}
 				if allocation.Purpose == ReceivableRecoveryPurpose &&
 					strings.TrimSpace(allocation.EntitlementReference) == "" {
