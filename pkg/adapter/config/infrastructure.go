@@ -1099,6 +1099,10 @@ type ScheduledTasks struct {
 	// PaymentAttemptReconciliation schedules payment attempt reconciliation work.
 	PaymentAttemptReconciliation TaskDefinition `yaml:"payment_attempt_reconciliation"`
 
+	// RepaymentBatchReconciliation polls authoritative Financial Core v2
+	// collection state using durable BNPL snapshots, not shared Kafka topics.
+	RepaymentBatchReconciliation TaskDefinition `yaml:"repayment_batch_reconciliation"`
+
 	// PaymentAttemptExpiration expires local CreateCheckoutPayment windows.
 	PaymentAttemptExpiration TaskDefinition `yaml:"payment_attempt_expiration"`
 
@@ -1280,7 +1284,7 @@ func (t Task) newCompositeTaskInfrastructure(
 
 // getTaskDefinitions returns all configured startup-known tasks.
 func (t Task) getTaskDefinitions() ([]TaskDefinitionEntry, error) {
-	return []TaskDefinitionEntry{
+	definitions := []TaskDefinitionEntry{
 		{
 			TaskDefinition: t.Scheduled.RuntimeGoroutineMetrics,
 			Name:           "runtime_goroutine_metrics",
@@ -1337,7 +1341,20 @@ func (t Task) getTaskDefinitions() ([]TaskDefinitionEntry, error) {
 			TaskDefinition: t.Scheduled.CollectionsAssessment,
 			Name:           "collections_assessment",
 		},
-	}, nil
+	}
+
+	// This capability is absent from the legacy 14-task test configuration.
+	// Include it once explicitly configured, even when disabled, so durable
+	// runtimes can remove schedules that an earlier deployment registered.
+	if t.Scheduled.RepaymentBatchReconciliation.Enabled ||
+		t.Scheduled.RepaymentBatchReconciliation.Handler != "" {
+		definitions = append(definitions, TaskDefinitionEntry{
+			Name: "repayment_batch_reconciliation",
+			TaskDefinition: t.Scheduled.RepaymentBatchReconciliation,
+		})
+	}
+
+	return definitions, nil
 }
 
 // CircuitBreaker contains configuration for the runtime circuit breaker
