@@ -31,3 +31,14 @@ func EffectiveCreditKind(k CreditKind) CreditKind {
 	return k
 }
 
+// DisplayName is a product label, not a canonical status or a localized error.
+func (k CreditKind) DisplayName() string {
+	switch k {
+	case PayIn4CreditKind:
+		return "پرداخت در ۴ قسط"
+	case PayNextMonthCreditKind:
+		return "پرداخت آخر ماه"
+	default:
+		return ""
+	}
+}
