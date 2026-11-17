@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/parstis/bnpl-backend/pkg/core/policy"
-	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/policy/checkout"
 )
 
@@ -40,7 +39,6 @@ func (policyV1) Ref() policy.Ref {
 // Terms returns the hard-coded v1 checkout business terms.
 func (policyV1) Terms() checkout.Terms {
 	return checkout.Terms{
-		CreditKind: model.PayIn4CreditKind,
 		InstallmentCount:              installmentCount,
 		DecisionTTL:                   decisionTTL,
 		MaxFinancedAmountMinor:        maxFinancedAmountMinor,
