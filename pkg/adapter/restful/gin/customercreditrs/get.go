@@ -11,14 +11,21 @@ import (
 
 // GetSuccessSchema is a schema-only success envelope for customer credit summary.
 type GetSuccessSchema struct {
+	Data allCreditSummariesResponse       `json:"data"`
+	Meta serdser.SuccessMetaNoPagination `json:"meta"`
+}
+
+// GetSingleSuccessSchema documents the optional legacy credit_kind query.
+type GetSingleSuccessSchema struct {
 	Data creditSummaryResponse           `json:"data"`
 	Meta serdser.SuccessMetaNoPagination `json:"meta"`
 }
 
 // Get handles GET /api/v1/customer-credit.
 //
-//	@Summary		Get customer credit summary
-//	@Description	Returns the authenticated customer's current BNPL credit summary.
+//	@Summary		Get all independently assigned credit products
+//	@Description	Without credit_kind returns pay_in_4 and pay_next_month in one response, even when not assigned.
+//	@Description	With credit_kind returns the legacy single-product response for backward compatibility.
 //	@Description	Resolves x-auth-mobile-number through Customer Reference Service (ACTIVE only); CRS customer_id is customer_profiles.external_customer_id.
 //	@Description	BNPL resolves or provisions the local customer profile automatically when missing. Profile provisioning is idempotent and does not assign initial credit.
 //	@Description	Requires an authenticated customer subject plus gateway-injected mobile; no BNPL profile eligibility or credit limit precondition applies.
@@ -40,7 +47,7 @@ type GetSuccessSchema struct {
 //	@Param			X-Trace-Id			header		string				false	"Optional; reused when present otherwise generated. Always returned."
 //	@Param			X-Request-Id		header		string				false	"Optional; reused when present otherwise generated. Always returned."
 //	@Param			X-Correlation-Id	header		string				false	"Optional; reused when present otherwise generated. Always returned."
-//	@Success		200					{object}	GetSuccessSchema	"Customer credit summary returned"
+//	@Success		200					{object}	GetSuccessSchema	"All credit products returned"
 //	@Failure		400					{object}	serdser.ErrorResponse
 //	@Failure		401					{object}	serdser.ErrorResponse
 //	@Failure		403					{object}	serdser.ErrorResponse
@@ -65,6 +72,22 @@ type GetSuccessSchema struct {
 func (rs *resource) Get(c *gin.Context) {
 	input, ok := toGetInput(c)
 	if !ok {
+		return
+	}
+
+	if c.Query("credit_kind") == "" {
+		output, err := rs.customerCredit.GetAllSummaries(c.Request.Context(), input)
+		if err != nil {
+			serdser.SerErr(c, err)
+			return
+		}
+		code := serdser.SuccessCodeCustomerCreditRetrieved
+		message := serdser.SuccessMessageCustomerCreditSummaryReturned
+		if output.Status == customercredituc.AllCreditNotAssigned {
+			code = serdser.SuccessCodeCustomerCreditNotAssigned
+			message = serdser.SuccessMessageCustomerCreditNotAssigned
+		}
+		serdser.Ser(c, http.StatusOK, code, message, toAllCreditSummariesResponse(output))
 		return
 	}
 

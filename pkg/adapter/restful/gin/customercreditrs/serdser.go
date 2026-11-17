@@ -64,6 +64,70 @@ func toCreditSummaryResponse(output customercredituc.Output) creditSummaryRespon
 	}
 }
 
+// creditApplicationResponse describes the observed assignment lifecycle, not
+// a second untracked application state or an FC financial obligation.
+type creditApplicationResponse struct {
+	Status string `json:"status" enums:"assigned,not_assigned,reassessment_required"`
+}
+
+type creditProductResponse struct {
+	creditSummaryResponse
+	Application creditApplicationResponse `json:"application"`
+}
+
+type allCreditSummariesResponse struct {
+	Status customercredituc.AllCreditStatus `json:"status" enums:"not_assigned,partially_assigned,assigned"`
+	Credits []creditProductResponse `json:"credits"`
+}
+
+func toAllCreditSummariesResponse(output customercredituc.AllSummariesOutput) allCreditSummariesResponse {
+	response := allCreditSummariesResponse{
+		Status: output.Status,
+		Credits: make([]creditProductResponse, 0, len(output.Credits)),
+	}
+	for _, item := range output.Credits {
+		summary := toCreditSummaryResponse(item)
+		// A uniform product array must identify pay-in-four as well as monthly.
+		summary.CreditKind = item.CreditKind
+		application := creditApplicationResponse{Status: "not_assigned"}
+		switch item.Status {
+		case customercredituc.SummaryStatusActive:
+			application.Status = "assigned"
+		case customercredituc.SummaryStatusExpired:
+			application.Status = "reassessment_required"
+		}
+		response.Credits = append(response.Credits, creditProductResponse{
+			creditSummaryResponse: summary,
+			Application: application,
+		})
+	}
+	return response
+}
+
+type creditAssignmentResponse struct {
+	CreditKind model.CreditKind `json:"credit_kind"`
+	assignInitialLimitResponse
+}
+
+type allCreditAssignmentsResponse struct {
+	Status customercredituc.AllCreditStatus `json:"status" enums:"not_assigned,partially_assigned,assigned"`
+	Credits []creditAssignmentResponse `json:"credits"`
+}
+
+func toAllCreditAssignmentsResponse(output customercredituc.AllAssignmentsOutput) allCreditAssignmentsResponse {
+	response := allCreditAssignmentsResponse{
+		Status: output.Status,
+		Credits: make([]creditAssignmentResponse, 0, len(output.Credits)),
+	}
+	for _, item := range output.Credits {
+		response.Credits = append(response.Credits, creditAssignmentResponse{
+			CreditKind: item.CreditKind,
+			assignInitialLimitResponse: toAssignInitialLimitResponse(item.Assignment),
+		})
+	}
+	return response
+}
+
 func toGetInput(c *gin.Context) (customercredituc.Input, bool) {
 	const op = "customercreditrs.toGetInput"
 

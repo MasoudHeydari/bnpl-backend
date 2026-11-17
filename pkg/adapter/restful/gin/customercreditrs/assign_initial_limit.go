@@ -11,13 +11,13 @@ import (
 
 // AssignInitialLimit handles POST /api/v1/customer-credit/initiate.
 //
-//	@Summary		Assign initial customer credit limit
+//	@Summary		Assign all available customer credit products
 //	@Description	Assigns the configured initial credit limit after resolving x-auth-mobile-number through Customer Reference Service (ACTIVE only).
 //	@Description	CRS customer_id becomes customer_profiles.external_customer_id. Trusted-customer policy assignments (v2) key off that same id.
 //	@Description	The customer profile is created automatically when it does not exist; the profile primary key is assigned by the database.
 //	@Description	Requires an authenticated customer subject plus gateway-injected mobile. No request body.
 //	@Description	Returns 201 when a new limit is created, and 200 for already-assigned or denied outcomes.
-//	@Param			credit_kind	query	string	false	"Product kind; pay_in_4 (default) or pay_next_month" Enums(pay_in_4,pay_next_month)
+//	@Param			credit_kind	query	string	false	"Optional: select one legacy credit kind; omitted assigns both independent products" Enums(pay_in_4,pay_next_month)
 //	@Tags			Credit Limits
 //	@Produce		json
 //	@Param			x-auth-subject-id		header		string							true	"Authenticated Identity Service subject UUID"															format(uuid)
@@ -69,6 +69,29 @@ import (
 func (rs *resource) AssignInitialLimit(c *gin.Context) {
 	input, ok := toAssignInitialLimitInput(c)
 	if !ok {
+		return
+	}
+
+	if c.Query("credit_kind") == "" {
+		output, err := rs.customerCredit.InitiateAll(c.Request.Context(), input)
+		if err != nil {
+			serdser.SerErr(c, err)
+			return
+		}
+		status := http.StatusOK
+		message := serdser.SuccessMessageInitialCustomerCreditLimitAlreadyActive
+		for _, item := range output.Credits {
+			if item.Assignment.Result == customercredituc.AssignInitialLimitResultCreated {
+				status = http.StatusCreated
+				message = serdser.SuccessMessageInitialCustomerCreditLimitAssigned
+				break
+			}
+		}
+		serdser.Ser(
+			c, status,
+			serdser.SuccessCodeCustomerInitialCreditLimitAssigned,
+			message, toAllCreditAssignmentsResponse(output),
+		)
 		return
 	}
 
