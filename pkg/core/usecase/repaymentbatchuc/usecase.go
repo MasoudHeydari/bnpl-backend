@@ -446,7 +446,7 @@ func (uc *UseCase) applyPostedInTransaction(
 				return err
 			}
 
-			return q.ReleaseClaims(ctx, current.ID)
+			return q.ReleaseClaims(ctx, current.ID, uc.now())
 		})
 	})
 }
@@ -470,7 +470,7 @@ func (uc *UseCase) finishTerminal(ctx context.Context, row repo.RepaymentBatchRo
 				return err
 			}
 
-			return q.ReleaseClaims(ctx, current.ID)
+			return q.ReleaseClaims(ctx, current.ID, uc.now())
 		})
 	})
 }

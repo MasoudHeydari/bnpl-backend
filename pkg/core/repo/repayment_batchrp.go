@@ -49,7 +49,33 @@ type RepaymentBatchTxQueryer interface {
 	// BindStart writes the first immutable Start intent and transitions the
 	// local row to starting atomically; only identical retries can proceed.
 	BindStart(ctx context.Context, id uuid.UUID, key, fingerprint string, at time.Time) (RepaymentBatchRow, error)
-	ReleaseClaims(ctx context.Context, id uuid.UUID) error
+	// ReleaseClaims logically releases active installment claims for a terminal
+	// batch. Runtime never deletes claim history.
+	ReleaseClaims(ctx context.Context, id uuid.UUID, at time.Time) error
+	// RecordSettlement persists immutable FC posting evidence before local
+	// installment MarkPaid. Replays of an already-recorded batch are no-ops.
+	RecordSettlement(
+		ctx context.Context,
+		settlementID uuid.UUID,
+		batchID uuid.UUID,
+		financialCollectionPaymentID string,
+		snapshotRevision int64,
+		currency model.Currency,
+		totalAmountMinor uint64,
+		postedAt time.Time,
+		createdAt time.Time,
+		allocations []RepaymentBatchSettlementAllocation,
+	) error
+}
+
+// RepaymentBatchSettlementAllocation is one installment extinguished by an
+// authoritative FC CollectionPayment posting.
+type RepaymentBatchSettlementAllocation struct {
+	ID               uuid.UUID
+	InstallmentID    model.InstallmentID
+	AmountMinor      uint64
+	Currency         model.Currency
+	PostingReference string
 }
 
 type RepaymentBatch interface {

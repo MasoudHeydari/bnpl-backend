@@ -63,9 +63,6 @@ func newActivationFixture(t *testing.T, install bool) *activationFixture {
 	baseline = rewriteActivationFixtureSchemaSQL(baseline, schema)
 	f.exec(t, baseline)
 
-	upgrade, e := os.ReadFile("../../../adapter/db/postgres/migrationsrp/001_credit_kind_upgrade.sql")
-	require.NoError(t, e)
-	f.exec(t, rewriteActivationFixtureSchemaSQL(string(upgrade), schema))
 	if !install {
 		for _, table := range []string{"installments", "installment_charges", "payment_attempts", "payment_attempt_items"} {
 			f.exec(t, "ALTER TABLE "+pgx.Identifier{schema, table}.Sanitize()+" DISABLE TRIGGER USER")

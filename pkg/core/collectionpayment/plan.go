@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 )
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
@@ -54,10 +55,48 @@ func (q txQueryer) Advance(ctx context.Context, id uuid.UUID, version int64, sta
 	financialID *string, revision int64, nextPoll *time.Time, reason *string, now time.Time) (repo.RepaymentBatchRow, error) {
 	return Advance(ctx, q.Tx, id, version, status, financialID, revision, nextPoll, reason, now)
 }
-func (q txQueryer) ReleaseClaims(ctx context.Context, id uuid.UUID) error {
-	return ReleaseClaims(ctx, q.Tx, id)
+func (q txQueryer) ReleaseClaims(ctx context.Context, id uuid.UUID, at time.Time) error {
+	return ReleaseClaims(ctx, q.Tx, id, at)
 }
 
 func (q txQueryer) BindStart(ctx context.Context, id uuid.UUID, key, fingerprint string, at time.Time) (repo.RepaymentBatchRow, error) {
 	return BindStart(ctx, q.Tx, id, key, fingerprint, at)
+}
+
+func (q txQueryer) RecordSettlement(
+	ctx context.Context,
+	settlementID uuid.UUID,
+	batchID uuid.UUID,
+	financialCollectionPaymentID string,
+	snapshotRevision int64,
+	currency model.Currency,
+	totalAmountMinor uint64,
+	postedAt time.Time,
+	createdAt time.Time,
+	allocations []repo.RepaymentBatchSettlementAllocation,
+) error {
+	wire := make([]SettlementAllocation, 0, len(allocations))
+	for _, alloc := range allocations {
+		wire = append(wire, SettlementAllocation{
+			ID:               alloc.ID,
+			InstallmentID:    alloc.InstallmentID,
+			AmountMinor:      alloc.AmountMinor,
+			Currency:         alloc.Currency,
+			PostingReference: alloc.PostingReference,
+		})
+	}
+
+	return RecordSettlement(
+		ctx,
+		q.Tx,
+		settlementID,
+		batchID,
+		financialCollectionPaymentID,
+		snapshotRevision,
+		currency,
+		totalAmountMinor,
+		postedAt,
+		createdAt,
+		wire,
+	)
 }

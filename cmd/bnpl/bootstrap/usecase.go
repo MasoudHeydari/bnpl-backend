@@ -90,6 +90,9 @@ type UseCases struct {
 	// Merchant serves merchant-facing queries.
 	Merchant *merchantuc.UseCase
 
+	// MerchantCreditProduct administers merchant credit product eligibility.
+	MerchantCreditProduct *merchantuc.CreditProductUseCase
+
 	// MerchantTerminal authenticates external partner terminals and manages
 	// their credentials.
 	MerchantTerminal *merchantterminaluc.UseCase
@@ -563,6 +566,18 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Repos.Contract,
 	)
 
+	merchantCreditProductUseCase, err := merchantuc.NewCreditProduct(
+		a.Pool,
+		a.Repos.MerchantProfile,
+		a.Repos.Outbox,
+		a.Infrastructure.Clock,
+		a.Infrastructure.IdentifierGenerator,
+		a.Config.AuditEventsTopic(),
+	)
+	if err != nil {
+		return UseCases{}, fmt.Errorf("%s: initialize merchant credit product use case: %w", op, err)
+	}
+
 	merchantTerminalHasher, err := a.Config.NewMerchantTerminalHasher()
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize merchant terminal hasher: %w", op, err)
@@ -667,6 +682,8 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Repos.InstallmentCharge,
 		a.Repos.CreditAccount,
 		a.Repos.PaymentAttempt,
+		a.Repos.RepaymentBatch,
+		a.Infrastructure.DomainUUIDGenerator,
 		a.Infrastructure.Clock,
 	)
 	if err != nil {
@@ -687,10 +704,12 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Repos.MerchantProfile, a.Repos.InstallmentCharge,
 		a.Infrastructure.DomainUUIDGenerator,
 	)
-	// FinancialInstructionsResolver is deliberately not set until FC publishes
-	// the trusted entitlement/recognition and relationship provisioning path.
-	// The customer POST creation endpoint fails closed rather than fabricating
-	// Financial claim IDs or distribution rules.
+	// FinancialInstructionsResolver remains unset: FC Target v1 Draft 0.5 still
+	// does not expose a trusted BNPL-facing entitlement/recognition provisioning
+	// contract that can supply merchant_entitlement_id, recognition references,
+	// funding relationships, allocation rules, and versions without fabrication.
+	// CreateForCustomer therefore fails closed (ServiceUnavailable) until FC
+	// publishes that capability. Do not invent claim IDs or distribution rules.
 
 	return UseCases{
 		OutboxPublisher:                    outboxPublisherUseCase,
@@ -708,6 +727,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		SagaExecutor:                       sagaExecutorUseCase,
 		Contract:                           contractUseCase,
 		Merchant:                           merchantUseCase,
+		MerchantCreditProduct:              merchantCreditProductUseCase,
 		MerchantTerminal:                   merchantTerminalUseCase,
 		CustomerAccount:                    customerAccountUseCase,
 		CustomerCredit:                     customerCreditUseCase,

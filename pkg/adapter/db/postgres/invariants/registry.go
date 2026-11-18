@@ -3,7 +3,9 @@
 package invariants
 
 const Migration = "000_schema.sql"
-const MigrationSHA256 = "sha256:f6a6d51321685c21c1203fc425291bd2e1e3899c1c1317ec12ef689d8ed38237"
+
+// MigrationSHA256 fingerprints the reviewed baseline schema SQL.
+const MigrationSHA256 = "sha256:ad09c12975839651be660966357b5edad66f78098d4f001eef7bcdf6125827ed"
 
 var managed = []Invariant{
 	{
@@ -20,7 +22,7 @@ var managed = []Invariant{
 		EnabledState:   "O",
 		TriggerType:    21,
 		Deferred:       true,
-		FunctionSHA256: "95130d1c2537c68196d914767a5c48cb5698149db5936ffa31a97c049d2f8cc1",
+		FunctionSHA256: "68ef13ed1a3a83a9bf995d0a2bc3fc5f47286566c5d629097cd6762ab732e395",
 	},
 	{
 		Name:           "installment_no_charges_after_paid",
@@ -52,7 +54,7 @@ var managed = []Invariant{
 		EnabledState:   "O",
 		TriggerType:    31,
 		Deferred:       false,
-		FunctionSHA256: "b48cabdd3cddc6033ade66ab2be61e88411e0579ae20e5f98918c26d594e07ea",
+		FunctionSHA256: "6f81d07c44df9f94fd7a71bfdec2d1c4539c757907f764aea16a32b9c9b9d4c6",
 	},
 	{
 		Name:           "installment_payment_freeze",
@@ -100,7 +102,7 @@ var managed = []Invariant{
 		EnabledState:   "O",
 		TriggerType:    5,
 		Deferred:       true,
-		FunctionSHA256: "95130d1c2537c68196d914767a5c48cb5698149db5936ffa31a97c049d2f8cc1",
+		FunctionSHA256: "68ef13ed1a3a83a9bf995d0a2bc3fc5f47286566c5d629097cd6762ab732e395",
 	},
 	{
 		Name:           "installment_payment_freeze",
@@ -116,7 +118,7 @@ var managed = []Invariant{
 		EnabledState:   "O",
 		TriggerType:    5,
 		Deferred:       true,
-		FunctionSHA256: "95130d1c2537c68196d914767a5c48cb5698149db5936ffa31a97c049d2f8cc1",
+		FunctionSHA256: "68ef13ed1a3a83a9bf995d0a2bc3fc5f47286566c5d629097cd6762ab732e395",
 	},
 	{
 		Name:           "installment_payment_freeze",
@@ -132,7 +134,7 @@ var managed = []Invariant{
 		EnabledState:   "O",
 		TriggerType:    17,
 		Deferred:       true,
-		FunctionSHA256: "95130d1c2537c68196d914767a5c48cb5698149db5936ffa31a97c049d2f8cc1",
+		FunctionSHA256: "68ef13ed1a3a83a9bf995d0a2bc3fc5f47286566c5d629097cd6762ab732e395",
 	},
 	{
 		Name:           "repayment_batch_claim_guard",
@@ -142,12 +144,12 @@ var managed = []Invariant{
 		Table:          "payment_attempts",
 		Trigger:        "trg_payment_attempt_repayment_batch_claim",
 		Function:       "reject_claimed_installment_payment_attempt",
-		Migration:      "001_credit_kind_upgrade.sql",
+		Migration:      Migration,
 		Guidance:       "Run integrity preflight, inspect pg_trigger/pg_proc, then use the migration command; never repair at startup.",
 		Code:           "pkg/core/usecase/repaymentbatchuc",
 		EnabledState:   "O",
 		TriggerType:    7,
 		Deferred:       false,
-		FunctionSHA256: "aff26a1f5ad42d2fcf495d88d484208152a911907024d3fbcce302b6163c13fa",
+		FunctionSHA256: "7c53acaeee1e163429924ccde27a5198e5544748a220fb5d68525e2caea23240",
 	},
 }

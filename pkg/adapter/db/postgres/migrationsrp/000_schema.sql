@@ -573,7 +573,8 @@ CREATE INDEX IF NOT EXISTS idx_merchant_online_stores_branch_profile_id ON merch
 -- -----------------------------------------------------------------------------
 -- Credit Accounts
 -- -----------------------------------------------------------------------------
--- One operational BNPL credit account exists per customer/currency. It stores
+-- One operational BNPL credit account exists per customer/currency/credit_kind.
+-- Pay-in-four and pay-next-month capacity never share a row. Each stores
 -- current governed capacity plus committed outstanding principal exposure.
 -- It is not a cash balance or financial ledger; Financial Core remains the
 -- authority for payment and money-movement facts.
@@ -581,6 +582,9 @@ CREATE TABLE IF NOT EXISTS credit_accounts (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
     customer_id uuid NOT NULL REFERENCES customer_profiles (id),
     currency text NOT NULL,
+    -- Independently governed financing product for this capacity/exposure row.
+    -- Pay-in-four and pay-next-month never share one account balance.
+    credit_kind text NOT NULL DEFAULT 'pay_in_4',
     limit_amount_minor bigint NOT NULL DEFAULT 0,
     exposure_amount_minor bigint NOT NULL DEFAULT 0,
     status text NOT NULL,
@@ -593,7 +597,8 @@ CREATE TABLE IF NOT EXISTS credit_accounts (
     version bigint NOT NULL DEFAULT 1,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT uq_credit_accounts_customer_currency UNIQUE (customer_id, currency),
+    CONSTRAINT uq_credit_accounts_customer_currency_kind UNIQUE (customer_id, currency, credit_kind),
+    CONSTRAINT chk_credit_accounts_credit_kind CHECK (credit_kind IN ('pay_in_4', 'pay_next_month')),
     CONSTRAINT chk_credit_accounts_status CHECK (status IN ('active', 'expired', 'revoked')),
     CONSTRAINT chk_credit_accounts_amounts CHECK (limit_amount_minor >= 0 AND exposure_amount_minor >= 0),
     CONSTRAINT chk_credit_accounts_currency CHECK (currency IN ('IRR', 'EUR', 'USD')),
@@ -1133,6 +1138,9 @@ CREATE TABLE IF NOT EXISTS checkout_sessions (
     updated_at timestamptz NOT NULL DEFAULT now(),
     -- Who canceled the checkout when status becomes canceled.
     cancellation_reason text NULL,
+    -- Selected financing product for this checkout; mutable only while no
+    -- Decision is linked. Product-scoped denial does not clear this value.
+    credit_kind text NOT NULL DEFAULT 'pay_in_4',
     -- Increments when a new Decision evaluation is required (e.g. expired offer).
     evaluation_generation integer NOT NULL DEFAULT 1,
     CONSTRAINT fk_checkout_sessions_merchant_profile FOREIGN KEY (merchant_profile_id) REFERENCES merchant_profiles (id),
@@ -1154,6 +1162,7 @@ CREATE TABLE IF NOT EXISTS checkout_sessions (
     CONSTRAINT chk_checkout_sessions_text_lengths CHECK (char_length(idempotency_key) BETWEEN 1 AND 256 AND char_length(merchant_order_id) BETWEEN 1 AND 256 AND char_length(customer_reference) <= 256 AND char_length(return_destination) BETWEEN 1 AND 64 AND char_length(return_url) BETWEEN 1 AND 2048 AND char_length(merchant_state) <= 256),
     CONSTRAINT chk_checkout_sessions_return_destination_format CHECK (return_destination ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
     CONSTRAINT chk_checkout_sessions_cancellation_reason CHECK (cancellation_reason IS NULL OR cancellation_reason IN ('customer_canceled', 'merchant_canceled')),
+    CONSTRAINT chk_checkout_sessions_credit_kind CHECK (credit_kind IN ('pay_in_4', 'pay_next_month')),
     CONSTRAINT chk_checkout_sessions_evaluation_generation CHECK (evaluation_generation >= 1),
     CONSTRAINT chk_checkout_sessions_contract_link CHECK ((status NOT IN ('processing', 'completed') OR contract_id IS NOT NULL) AND (status <> 'unavailable' OR contract_id IS NULL)),
     CONSTRAINT chk_checkout_sessions_completed_at CHECK ((status = 'completed') = (completed_at IS NOT NULL) AND (completed_at IS NULL OR completed_at >= created_at)),
@@ -1513,6 +1522,120 @@ WHERE
     revoked_at IS NULL;
 
 -- -----------------------------------------------------------------------------
+-- Repayment Batches (Financial Core CollectionPayment orchestration)
+-- -----------------------------------------------------------------------------
+-- Immutable customer-accepted snapshot before any external FC call.
+-- Status is BNPL orchestration only; FC remains monetary/accounting authority.
+CREATE TABLE IF NOT EXISTS repayment_batches (
+    id uuid PRIMARY KEY,
+    customer_id uuid NOT NULL REFERENCES customer_profiles (id),
+    external_customer_id uuid NOT NULL,
+    idempotency_key text NOT NULL,
+    snapshot jsonb NOT NULL,
+    currency text NOT NULL,
+    total_amount_minor bigint NOT NULL,
+    status text NOT NULL DEFAULT 'created',
+    financial_collection_payment_id text NULL,
+    snapshot_revision bigint NOT NULL DEFAULT 0,
+    next_reconciliation_at timestamptz NULL,
+    last_reason_code text NULL,
+    -- First StartCollectionPayment parameters are immutable across retries.
+    start_idempotency_key text NULL,
+    start_fingerprint text NULL,
+    version bigint NOT NULL DEFAULT 1,
+    created_at timestamptz NOT NULL,
+    updated_at timestamptz NOT NULL,
+    CONSTRAINT uq_repayment_batches_customer_key UNIQUE (customer_id, idempotency_key),
+    CONSTRAINT uq_repayment_batches_financial_id UNIQUE (financial_collection_payment_id),
+    CONSTRAINT chk_repayment_batches_total CHECK (total_amount_minor > 0),
+    CONSTRAINT chk_repayment_batches_revision CHECK (snapshot_revision >= 0 AND version > 0),
+    CONSTRAINT chk_repayment_batches_currency CHECK (currency IN ('IRR', 'EUR', 'USD')),
+    CONSTRAINT chk_repayment_batches_status CHECK (status IN (
+        'created', 'prepared', 'starting', 'requires_action', 'reconciling',
+        'accounting_pending', 'posted', 'failed', 'expired', 'manual_review'
+    )),
+    CONSTRAINT chk_batch_start_pair CHECK (
+        (start_idempotency_key IS NULL) = (start_fingerprint IS NULL)
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_repayment_batches_reconcile_due
+ON repayment_batches (next_reconciliation_at, created_at)
+WHERE
+    status IN ('created', 'prepared', 'starting', 'requires_action', 'reconciling', 'accounting_pending');
+
+-- Active installment reservation for a repayment batch. Claims are released
+-- logically (released_at) so Runtime never needs DELETE. At most one active
+-- claim may exist per installment.
+CREATE TABLE IF NOT EXISTS repayment_batch_installment_claims (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
+    installment_id uuid NOT NULL REFERENCES installments (id),
+    batch_id uuid NOT NULL REFERENCES repayment_batches (id),
+    created_at timestamptz NOT NULL,
+    released_at timestamptz NULL,
+    CONSTRAINT chk_repayment_batch_claims_released CHECK (
+        released_at IS NULL OR released_at >= created_at
+    )
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_repayment_batch_claims_active_installment
+ON repayment_batch_installment_claims (installment_id)
+WHERE
+    released_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_repayment_batch_claims_batch
+ON repayment_batch_installment_claims (batch_id);
+
+-- Immutable BNPL-side evidence that an FC CollectionPayment posting settled
+-- specific installments. This is the batch counterpart to a succeeded
+-- payment_attempts row; synthetic PaymentAttempts are intentionally not used.
+CREATE TABLE IF NOT EXISTS repayment_batch_settlements (
+    id uuid PRIMARY KEY,
+    batch_id uuid NOT NULL REFERENCES repayment_batches (id),
+    financial_collection_payment_id text NOT NULL,
+    snapshot_revision bigint NOT NULL,
+    currency text NOT NULL,
+    total_amount_minor bigint NOT NULL,
+    posted_at timestamptz NOT NULL,
+    created_at timestamptz NOT NULL,
+    CONSTRAINT uq_repayment_batch_settlements_batch UNIQUE (batch_id),
+    CONSTRAINT uq_repayment_batch_settlements_fc_id UNIQUE (financial_collection_payment_id),
+    CONSTRAINT chk_repayment_batch_settlements_revision CHECK (snapshot_revision > 0),
+    CONSTRAINT chk_repayment_batch_settlements_total CHECK (total_amount_minor > 0),
+    CONSTRAINT chk_repayment_batch_settlements_currency CHECK (currency IN ('IRR', 'EUR', 'USD'))
+);
+
+-- One successful batch settlement may extinguish an installment exactly once.
+CREATE TABLE IF NOT EXISTS repayment_batch_settlement_allocations (
+    id uuid PRIMARY KEY,
+    settlement_id uuid NOT NULL REFERENCES repayment_batch_settlements (id),
+    installment_id uuid NOT NULL REFERENCES installments (id),
+    amount_minor bigint NOT NULL,
+    currency text NOT NULL,
+    posting_reference text NOT NULL,
+    created_at timestamptz NOT NULL,
+    CONSTRAINT uq_batch_settlement_alloc_installment UNIQUE (installment_id),
+    CONSTRAINT uq_batch_settlement_alloc_posting UNIQUE (posting_reference),
+    CONSTRAINT chk_batch_settlement_alloc_amount CHECK (amount_minor > 0),
+    CONSTRAINT chk_batch_settlement_alloc_currency CHECK (currency IN ('IRR', 'EUR', 'USD')),
+    CONSTRAINT chk_batch_settlement_alloc_posting CHECK (char_length(posting_reference) BETWEEN 1 AND 256)
+);
+
+CREATE INDEX IF NOT EXISTS idx_batch_settlement_alloc_settlement
+ON repayment_batch_settlement_allocations (settlement_id);
+
+-- Merchant-level credit-product eligibility is independent from Funding/FC
+-- monetary provisioning. Monthly credit is fail-closed until explicitly enabled.
+CREATE TABLE IF NOT EXISTS merchant_credit_product_eligibilities (
+    merchant_profile_id uuid NOT NULL REFERENCES merchant_profiles (id),
+    credit_kind text NOT NULL,
+    enabled boolean NOT NULL,
+    updated_at timestamptz NOT NULL,
+    PRIMARY KEY (merchant_profile_id, credit_kind),
+    CONSTRAINT chk_merchant_credit_product_kind CHECK (credit_kind IN ('pay_in_4', 'pay_next_month'))
+);
+
+-- -----------------------------------------------------------------------------
 -- Repayment Reminders (per-installment SMS request audit + semantic dedupe)
 -- -----------------------------------------------------------------------------
 -- Aggregation is forbidden: each eligible installment/event gets its own row.
@@ -1828,7 +1951,15 @@ WHERE
             bnpl.payment_attempts p
             JOIN bnpl.payment_attempt_items x ON x.payment_attempt_id = p.id
         WHERE
-            p.installment_id = NEW.id AND p.amount_minor = NEW.paid_amount_minor AND p.currency = NEW.currency AND p.contract_id IS NOT DISTINCT FROM NEW.contract_id AND p.state IN ('created', 'submitted', 'reconciliation_required', 'manual_review_required', 'succeeded') AND x.item_type = 'principal' AND x.source_id = NEW.id AND x.amount_minor = NEW.principal_amount_minor AND x.effect = 'debit') THEN
+            p.installment_id = NEW.id AND p.amount_minor = NEW.paid_amount_minor AND p.currency = NEW.currency AND p.contract_id IS NOT DISTINCT FROM NEW.contract_id AND p.state IN ('created', 'submitted', 'reconciliation_required', 'manual_review_required', 'succeeded') AND x.item_type = 'principal' AND x.source_id = NEW.id AND x.amount_minor = NEW.principal_amount_minor AND x.effect = 'debit')
+        AND NOT EXISTS (
+        SELECT
+            1
+        FROM
+            bnpl.repayment_batch_settlement_allocations a
+            JOIN bnpl.repayment_batch_settlements s ON s.id = a.settlement_id
+        WHERE
+            a.installment_id = NEW.id AND a.amount_minor = NEW.paid_amount_minor AND a.currency = NEW.currency AND s.currency = NEW.currency) THEN
         RAISE EXCEPTION
             USING ERRCODE = 'BN002', CONSTRAINT = 'installment_has_unsettled_charges', MESSAGE = 'Full installment cash must match its immutable payment snapshot';
     END IF;
@@ -1981,7 +2112,14 @@ BEGIN
             FROM
                 bnpl.payment_attempts evidence
             WHERE
-                evidence.installment_id = NEW.id AND evidence.state = 'succeeded' AND evidence.amount_minor = NEW.paid_amount_minor AND evidence.currency = NEW.currency) THEN
+                evidence.installment_id = NEW.id AND evidence.state = 'succeeded' AND evidence.amount_minor = NEW.paid_amount_minor AND evidence.currency = NEW.currency)
+            AND NOT EXISTS (
+            SELECT
+                1
+            FROM
+                bnpl.repayment_batch_settlement_allocations a
+            WHERE
+                a.installment_id = NEW.id AND a.amount_minor = NEW.paid_amount_minor AND a.currency = NEW.currency) THEN
             RAISE EXCEPTION
                 USING ERRCODE = 'BN002', CONSTRAINT = 'installment_has_unsettled_charges', MESSAGE = 'Full installment settlement requires successful payment evidence at commit';
         END IF;
@@ -2172,6 +2310,36 @@ CREATE TRIGGER installment_no_charges_after_paid
     FOR EACH ROW
     EXECUTE FUNCTION bnpl.guard_installment_charge ();
 
+
+-- Legacy single-installment payment creation must respect active batch ownership.
+-- Without this guard an old API path could create a second PaymentAttempt while
+-- a CollectionPayment snapshot still holds an active installment claim.
+CREATE FUNCTION bnpl.reject_claimed_installment_payment_attempt ()
+    RETURNS TRIGGER
+    LANGUAGE plpgsql
+    SET search_path = pg_catalog, bnpl
+    AS $body$
+BEGIN
+    -- Use the same installment row lock as repayment batch creation.
+    -- This closes the READ COMMITTED race in which a legacy attempt could
+    -- otherwise be inserted while the batch is taking its snapshot.
+    PERFORM 1 FROM installments WHERE id = NEW.installment_id
+    FOR UPDATE;
+    IF EXISTS (
+        SELECT
+            1
+        FROM
+            repayment_batch_installment_claims
+        WHERE
+            installment_id = NEW.installment_id
+            AND released_at IS NULL) THEN
+        RAISE EXCEPTION 'installment already reserved for a repayment batch'
+            USING ERRCODE = '23505', CONSTRAINT = 'uq_payment_attempts_repayment_batch_claim';
+    END IF;
+    RETURN NEW;
+END
+$body$;
+
 CREATE TRIGGER installment_complete_settlement
     BEFORE INSERT OR UPDATE OR DELETE ON bnpl.installments
     FOR EACH ROW
@@ -2206,6 +2374,12 @@ CREATE CONSTRAINT TRIGGER installment_paid_evidence
     AFTER INSERT OR UPDATE ON bnpl.installments DEFERRABLE INITIALLY DEFERRED
     FOR EACH ROW
     EXECUTE FUNCTION bnpl.verify_payment_snapshot_commit ();
+
+CREATE TRIGGER trg_payment_attempt_repayment_batch_claim
+    BEFORE INSERT ON payment_attempts
+    FOR EACH ROW
+    EXECUTE FUNCTION bnpl.reject_claimed_installment_payment_attempt ();
+
 
 -- -----------------------------------------------------------------------------
 -- MANAGED DATABASE PERMISSIONS: canonical initial grants (pre-release)
@@ -2353,7 +2527,7 @@ GRANT UPDATE (enabled, signing_secret_ciphertext, signing_secret_key_id, updated
 
 GRANT SELECT, INSERT ON bnpl.checkout_sessions TO bnpl;
 
-GRANT UPDATE (canceled_at, cancellation_reason, completed_at, confirmation_attempt_id, contract_id, customer_id, decision_id, evaluation_generation, expires_at, status, updated_at) ON bnpl.checkout_sessions TO bnpl;
+GRANT UPDATE (canceled_at, cancellation_reason, completed_at, confirmation_attempt_id, contract_id, credit_kind, customer_id, decision_id, evaluation_generation, expires_at, status, updated_at) ON bnpl.checkout_sessions TO bnpl;
 
 GRANT SELECT, INSERT ON bnpl.otp_challenges TO bnpl;
 
@@ -2401,4 +2575,21 @@ GRANT SELECT, INSERT ON bnpl.collections_cases TO bnpl;
 
 GRANT SELECT, INSERT ON bnpl.collections_case_events TO bnpl;
 
-GRANT EXECUTE ON FUNCTION bnpl.guard_installment_charge (), bnpl.guard_installment_settlement (), bnpl.guard_payment_attempt_freeze (), bnpl.guard_payment_items (), bnpl.verify_payment_snapshot_commit () TO bnpl;
+GRANT SELECT, INSERT ON bnpl.repayment_batches TO bnpl;
+
+GRANT UPDATE (financial_collection_payment_id, last_reason_code, next_reconciliation_at, snapshot_revision, start_fingerprint, start_idempotency_key, status, updated_at, version) ON bnpl.repayment_batches TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.repayment_batch_installment_claims TO bnpl;
+
+-- Logical claim release only; DELETE remains denied for the Runtime role.
+GRANT UPDATE (released_at) ON bnpl.repayment_batch_installment_claims TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.repayment_batch_settlements TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.repayment_batch_settlement_allocations TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.merchant_credit_product_eligibilities TO bnpl;
+
+GRANT UPDATE (enabled, updated_at) ON bnpl.merchant_credit_product_eligibilities TO bnpl;
+
+GRANT EXECUTE ON FUNCTION bnpl.guard_installment_charge (), bnpl.guard_installment_settlement (), bnpl.guard_payment_attempt_freeze (), bnpl.guard_payment_items (), bnpl.verify_payment_snapshot_commit (), bnpl.reject_claimed_installment_payment_attempt () TO bnpl;

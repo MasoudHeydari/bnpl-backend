@@ -71,11 +71,6 @@ func newExpirationFixture(t *testing.T) *expirationFixture {
 	_, err = pool.Exec(ctx, baseline)
 	require.NoError(t, err)
 
-	upgrade, err := os.ReadFile("../migrationsrp/001_credit_kind_upgrade.sql")
-	require.NoError(t, err)
-	_, err = pool.Exec(ctx, rewriteIntegrationSchemaSQL(string(upgrade), schema))
-	require.NoError(t, err)
-
 	merchant, account, decision := uuid.New(), uuid.New(), uuid.New()
 	fingerprint := "sha256:" + strings.Repeat("0", 64)
 

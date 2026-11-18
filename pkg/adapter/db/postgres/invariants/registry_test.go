@@ -16,21 +16,17 @@ func TestRegistryMatchesInitialSchema(t *testing.T) {
 	sum := sha256.Sum256(sql)
 	require.Equal(t, MigrationSHA256, "sha256:"+hex.EncodeToString(sum[:]))
 
-	upgrade, e := os.ReadFile("../migrationsrp/001_credit_kind_upgrade.sql")
-	require.NoError(t, e)
-	combined := string(sql) + "\n" + string(upgrade)
-
 	bodies := map[string]string{}
 	const functionPattern = `(?is)CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+bnpl\.(\w+)\s*\(\s*\)\s+RETURNS\s+trigger\s+` +
 		`LANGUAGE\s+plpgsql\s+SET\s+search_path\s*=\s*pg_catalog,\s*bnpl\s+AS\s+` +
 		`\$body\$(.*?)\$body\$;`
-	for _, m := range regexp.MustCompile(functionPattern).FindAllStringSubmatch(combined, -1) {
+	for _, m := range regexp.MustCompile(functionPattern).FindAllStringSubmatch(string(sql), -1) {
 		sum := sha256.Sum256([]byte(m[2]))
 		bodies[m[1]] = hex.EncodeToString(sum[:])
 	}
 	triggers := map[string]bool{}
 	const triggerPattern = `(?i)CREATE\s+(?:CONSTRAINT\s+)?TRIGGER\s+(\w+)\b`
-	for _, m := range regexp.MustCompile(triggerPattern).FindAllStringSubmatch(combined, -1) {
+	for _, m := range regexp.MustCompile(triggerPattern).FindAllStringSubmatch(string(sql), -1) {
 		triggers[m[1]] = true
 	}
 	seen := map[string]bool{}

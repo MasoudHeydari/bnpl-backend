@@ -62,11 +62,6 @@ func newReminderCandidateFixture(t *testing.T, sessionTimezone string) *reminder
 	_, err = pool.Pool.Exec(ctx, baseline)
 	require.NoError(t, err)
 
-	upgrade, err := os.ReadFile("../migrationsrp/001_credit_kind_upgrade.sql")
-	require.NoError(t, err)
-	_, err = pool.Pool.Exec(ctx, rewriteReminderFixtureSchemaSQL(string(upgrade), schema))
-	require.NoError(t, err)
-
 	now := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
 	exec := func(t *testing.T, sql string, args ...any) {
 		t.Helper()

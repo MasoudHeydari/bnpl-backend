@@ -116,8 +116,10 @@ func (uc *UseCase) CreateForCustomer(
 	key string,
 ) (repo.RepaymentBatchRow, error) {
 	const op = "repaymentbatchuc.UseCase.CreateForCustomer"
-	if subject.IsZero() || key == "" || len(key) > 256 ||
-		len(selected) == 0 || len(selected) > 50 {
+	// No artificial upper bound: a customer must be able to settle every overdue
+	// obligation in one accepted snapshot. Collections policy must prevent
+	// extreme overdue accumulation upstream; repayment itself must not omit debt.
+	if subject.IsZero() || key == "" || len(key) > 256 || len(selected) == 0 {
 		return repo.RepaymentBatchRow{}, cerr.InvalidArgument(fmt.Errorf("%s: invalid selection or idempotency key", op))
 	}
 	unique := make(map[model.InstallmentID]struct{}, len(selected))

@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/installmentrp"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
@@ -185,9 +187,11 @@ func Create[Q postgres.Queryer](
 	}
 
 	seen = make(map[model.InstallmentID]struct{}, len(installments))
+	// Active claims are rows with released_at IS NULL. The partial unique index
+	// enforces at most one active claim per installment without Runtime DELETE.
 	const claim = `INSERT INTO repayment_batch_installment_claims(
-		installment_id,batch_id,created_at
-	) VALUES($1,$2,$3)`
+		installment_id,batch_id,created_at,released_at
+	) VALUES($1,$2,$3,NULL)`
 	for index, id := range installments {
 		if id.IsZero() {
 			return repo.RepaymentBatchRow{}, cerr.InvalidArgument(fmt.Errorf("missing installment id"))
@@ -280,16 +284,119 @@ func Advance[Q postgres.Queryer](
 // ReleaseClaims is permitted only after FC's terminal outcome was durably
 // recorded and local application has succeeded (for posted) or failure is
 // definitive. Unknown outcomes retain claims and prohibit duplicate payment.
-func ReleaseClaims[Q postgres.Queryer](ctx context.Context, q Q, id uuid.UUID) error {
-	const query = `DELETE FROM repayment_batch_installment_claims
+// Release is logical (released_at); Runtime never receives DELETE privilege.
+func ReleaseClaims[Q postgres.Queryer](ctx context.Context, q Q, id uuid.UUID, at time.Time) error {
+	if at.IsZero() {
+		return cerr.InvalidArgument(fmt.Errorf("claim release timestamp is required"))
+	}
+
+	const query = `UPDATE repayment_batch_installment_claims
+	SET released_at=$2
 	WHERE batch_id=$1
+	  AND released_at IS NULL
 	  AND EXISTS (
 		SELECT 1 FROM repayment_batches WHERE id=$1
 		AND status IN ('posted','failed','expired')
 	  )`
-	_, err := q.Exec(ctx, query, id)
+	_, err := q.Exec(ctx, query, id, at.UTC())
 	if err != nil {
 		return fmt.Errorf("release batch installment claims: %w", postgres.MapError(err))
+	}
+
+	return nil
+}
+
+// SettlementAllocation is one installment extinguished by an authoritative FC
+// CollectionPayment posting. Amounts are BNPL payable totals verified against
+// the immutable accepted snapshot before insert.
+type SettlementAllocation struct {
+	ID               uuid.UUID
+	InstallmentID    model.InstallmentID
+	AmountMinor      uint64
+	Currency         model.Currency
+	PostingReference string
+}
+
+// RecordSettlement inserts immutable batch settlement evidence before local
+// installment MarkPaid. Replaying the same FC posting for an already-recorded
+// batch is a no-op so posted application stays idempotent.
+func RecordSettlement[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	settlementID uuid.UUID,
+	batchID uuid.UUID,
+	financialCollectionPaymentID string,
+	snapshotRevision int64,
+	currency model.Currency,
+	totalAmountMinor uint64,
+	postedAt time.Time,
+	createdAt time.Time,
+	allocations []SettlementAllocation,
+) error {
+	const op = "repaymentbatchrp.RecordSettlement"
+	if settlementID == uuid.Nil || batchID == uuid.Nil ||
+		strings.TrimSpace(financialCollectionPaymentID) == "" ||
+		snapshotRevision < 1 || !currency.IsValid() || totalAmountMinor == 0 ||
+		postedAt.IsZero() || createdAt.IsZero() || len(allocations) == 0 {
+		return cerr.InvalidArgument(fmt.Errorf("%s: incomplete settlement evidence", op))
+	}
+
+	_, err := postgres.QueryOne[struct {
+		ID uuid.UUID `db:"id"`
+	}](ctx, q, "load existing batch settlement",
+		`SELECT id FROM repayment_batch_settlements WHERE batch_id=$1`, batchID)
+	if err == nil {
+		// Settlement already recorded for this batch; replay is a no-op.
+		return nil
+	}
+
+	if !cerr.IsCode(err, cerr.CodeResourceNotFound) {
+		return err
+	}
+
+	const insertSettlement = `
+INSERT INTO repayment_batch_settlements(
+	id, batch_id, financial_collection_payment_id, snapshot_revision,
+	currency, total_amount_minor, posted_at, created_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`
+	if _, err := q.Exec(
+		ctx, insertSettlement,
+		settlementID, batchID, financialCollectionPaymentID, snapshotRevision,
+		currency, totalAmountMinor, postedAt.UTC(), createdAt.UTC(),
+	); err != nil {
+		return fmt.Errorf("%s: insert settlement: %w", op, postgres.MapError(err))
+	}
+
+	const insertAlloc = `
+INSERT INTO repayment_batch_settlement_allocations(
+	id, settlement_id, installment_id, amount_minor, currency, posting_reference, created_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7)`
+	seenInstallments := make(map[model.InstallmentID]struct{}, len(allocations))
+	seenPostings := make(map[string]struct{}, len(allocations))
+	for _, alloc := range allocations {
+		if alloc.ID == uuid.Nil || alloc.InstallmentID.IsZero() ||
+			alloc.AmountMinor == 0 || !alloc.Currency.IsValid() ||
+			strings.TrimSpace(alloc.PostingReference) == "" {
+			return cerr.InvalidArgument(fmt.Errorf("%s: incomplete settlement allocation", op))
+		}
+
+		if _, ok := seenInstallments[alloc.InstallmentID]; ok {
+			return cerr.InvalidArgument(fmt.Errorf("%s: duplicate installment allocation", op))
+		}
+
+		if _, ok := seenPostings[alloc.PostingReference]; ok {
+			return cerr.InvalidArgument(fmt.Errorf("%s: duplicate posting reference", op))
+		}
+
+		seenInstallments[alloc.InstallmentID] = struct{}{}
+		seenPostings[alloc.PostingReference] = struct{}{}
+		if _, err := q.Exec(
+			ctx, insertAlloc,
+			alloc.ID, settlementID, alloc.InstallmentID, alloc.AmountMinor,
+			alloc.Currency, alloc.PostingReference, createdAt.UTC(),
+		); err != nil {
+			return fmt.Errorf("%s: insert allocation: %w", op, postgres.MapError(err))
+		}
 	}
 
 	return nil

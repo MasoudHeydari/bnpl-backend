@@ -4,11 +4,15 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
+
+	"github.com/google/uuid"
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/clock"
 	"github.com/parstis/bnpl-backend/pkg/core/collectionpayment"
 	extcollection "github.com/parstis/bnpl-backend/pkg/core/external/collectionpayment"
+	"github.com/parstis/bnpl-backend/pkg/core/identifier"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
@@ -16,6 +20,11 @@ import (
 // DefaultPostedApplier is the BNPL-side projection of an authoritative FC
 // posting. It never creates/updates an FC journal or contacts a remote system.
 // The caller supplies one transaction that also advances the batch to posted.
+//
+// Settlement evidence is written before installment MarkPaid so the existing
+// payment-snapshot triggers accept batch settlement without synthetic
+// PaymentAttempts. Legacy single-installment PaymentAttempt evidence remains
+// valid for the installment-repayment path.
 type DefaultPostedApplier struct {
 	customer     repo.CustomerProfile
 	contracts    repo.Contract
@@ -23,11 +32,14 @@ type DefaultPostedApplier struct {
 	charges      repo.InstallmentCharge
 	accounts     repo.CreditAccount
 	attempts     repo.PaymentAttempt
+	batches      repo.RepaymentBatch
+	ids          identifier.Generator
 	clock        clock.Clock
 }
 
 var _ PostedApplier = (*DefaultPostedApplier)(nil)
 
+// NewDefaultPostedApplier constructs the local FC posting applier.
 func NewDefaultPostedApplier(
 	customer repo.CustomerProfile,
 	contracts repo.Contract,
@@ -35,18 +47,24 @@ func NewDefaultPostedApplier(
 	charges repo.InstallmentCharge,
 	accounts repo.CreditAccount,
 	attempts repo.PaymentAttempt,
+	batches repo.RepaymentBatch,
+	ids identifier.Generator,
 	clk clock.Clock,
 ) (*DefaultPostedApplier, error) {
 	if customer == nil || contracts == nil || installments == nil || charges == nil ||
-		accounts == nil || attempts == nil || clk == nil {
+		accounts == nil || attempts == nil || batches == nil || ids == nil || clk == nil {
 		return nil, fmt.Errorf("repaymentbatchuc.NewDefaultPostedApplier: missing dependency")
 	}
+
 	return &DefaultPostedApplier{
 		customer: customer, contracts: contracts, installments: installments,
-		charges: charges, accounts: accounts, attempts: attempts, clock: clk,
+		charges: charges, accounts: accounts, attempts: attempts,
+		batches: batches, ids: ids, clock: clk,
 	}, nil
 }
 
+// ApplyPosted records immutable settlement evidence then settles
+// installments, charges, exposure, and eligible contracts in one TX.
 func (a *DefaultPostedApplier) ApplyPosted(
 	ctx context.Context, tx repo.Tx, plan collectionpayment.Plan, result extcollection.Result,
 ) error {
@@ -77,6 +95,7 @@ func (a *DefaultPostedApplier) ApplyPosted(
 	chq := a.charges.Tx(tx)
 	aq := a.accounts.Tx(tx)
 	pq := a.attempts.Tx(tx)
+	batchesQ := a.batches.Tx(tx)
 
 	contractIDs := make([]model.ContractID, 0)
 	seenContracts := make(map[model.ContractID]struct{})
@@ -96,6 +115,7 @@ func (a *DefaultPostedApplier) ApplyPosted(
 
 		installmentIDs = append(installmentIDs, item.InstallmentID)
 	}
+
 	sort.Slice(contractIDs, func(i, j int) bool { return contractIDs[i].String() < contractIDs[j].String() })
 	sort.Slice(installmentIDs, func(i, j int) bool { return installmentIDs[i].String() < installmentIDs[j].String() })
 	sort.Slice(accountIDs, func(i, j int) bool { return accountIDs[i].String() < accountIDs[j].String() })
@@ -111,6 +131,7 @@ func (a *DefaultPostedApplier) ApplyPosted(
 			c.Currency != plan.Currency {
 			return cerr.Conflict(fmt.Errorf("%s: contract is not an active obligation", op))
 		}
+
 		lockedContracts[id] = c
 	}
 
@@ -121,10 +142,18 @@ func (a *DefaultPostedApplier) ApplyPosted(
 			return err
 		}
 
+		// Idempotent replay: an already-paid installment from a prior successful
+		// application of this same FC posting must not fail the whole batch.
+		if inst.Status == model.PaidInstallmentStatus {
+			lockedInstallments[id] = inst
+			continue
+		}
+
 		if !inst.Status.IsActive() || inst.CustomerID != plan.CustomerID ||
 			inst.Currency != plan.Currency {
 			return cerr.Conflict(fmt.Errorf("%s: installment is not payable", op))
 		}
+
 		lockedInstallments[id] = inst
 	}
 
@@ -164,10 +193,17 @@ func (a *DefaultPostedApplier) ApplyPosted(
 	sort.Slice(plan.Items, func(i, j int) bool {
 		return plan.Items[i].InstallmentID.String() < plan.Items[j].InstallmentID.String()
 	})
+
+	allocations := make([]repo.RepaymentBatchSettlementAllocation, 0, len(plan.Items))
+	payableByInstallment := make(map[model.InstallmentID]uint64, len(plan.Items))
 	for _, item := range plan.Items {
 		contract := lockedContracts[item.ContractID]
 		installment := lockedInstallments[item.InstallmentID]
 		account := lockedAccounts[item.CreditAccountID]
+		if installment.Status == model.PaidInstallmentStatus {
+			continue
+		}
+
 		if installment.ContractID == nil || *installment.ContractID != contract.ID ||
 			contract.CreditAccountID != account.ID || account.CreditKind != item.CreditKind {
 			return cerr.Conflict(fmt.Errorf("%s: installment/contract/product relationship changed", op))
@@ -180,12 +216,23 @@ func (a *DefaultPostedApplier) ApplyPosted(
 		}
 
 		var snapshotted uint64
+		var postingRefs []string
 		for _, component := range item.Components {
 			if snapshotted > ^uint64(0)-component.NetMinor {
 				return cerr.Conflict(fmt.Errorf("%s: item amount overflow", op))
 			}
 
 			snapshotted += component.NetMinor
+			for _, allocation := range component.Allocations {
+				for _, posted := range result.PostedAllocations {
+					if posted.AllocationID == allocation.ID {
+						ref := strings.TrimSpace(posted.PostingReference)
+						if ref != "" {
+							postingRefs = append(postingRefs, ref)
+						}
+					}
+				}
+			}
 		}
 
 		if !ok || snapshotted != currentPayable {
@@ -196,6 +243,61 @@ func (a *DefaultPostedApplier) ApplyPosted(
 			account.ExposureAmountMinor < installment.PrincipalAmountMinor {
 			return cerr.Conflict(fmt.Errorf("%s: principal/exposure inconsistent with FC posting", op))
 		}
+
+		payableByInstallment[item.InstallmentID] = snapshotted
+		postingReference := strings.Join(postingRefs, "|")
+		if postingReference == "" {
+			// Deterministic fallback still binds evidence to this FC payment and
+			// installment so uniqueness and audit remain enforceable.
+			postingReference = fmt.Sprintf("%s:%s", result.CollectionPaymentID, item.InstallmentID.String())
+		}
+
+		allocID, idErr := uuid.Parse(a.ids.Generate())
+		if idErr != nil {
+			return cerr.InternalError(fmt.Errorf("%s: generate settlement allocation id: %w", op, idErr))
+		}
+
+		allocations = append(allocations, repo.RepaymentBatchSettlementAllocation{
+			ID:               allocID,
+			InstallmentID:    item.InstallmentID,
+			AmountMinor:      snapshotted,
+			Currency:         plan.Currency,
+			PostingReference: postingReference,
+		})
+	}
+
+	if len(allocations) > 0 {
+		settlementID, idErr := uuid.Parse(a.ids.Generate())
+		if idErr != nil {
+			return cerr.InternalError(fmt.Errorf("%s: generate settlement id: %w", op, idErr))
+		}
+
+		if err := batchesQ.RecordSettlement(
+			ctx,
+			settlementID,
+			plan.ID,
+			result.CollectionPaymentID,
+			result.SnapshotRevision,
+			plan.Currency,
+			plan.TotalMinor,
+			*result.PostedAt,
+			now,
+			allocations,
+		); err != nil {
+			return err
+		}
+	}
+
+	for _, item := range plan.Items {
+		installment := lockedInstallments[item.InstallmentID]
+		if installment.Status == model.PaidInstallmentStatus {
+			continue
+		}
+
+		contract := lockedContracts[item.ContractID]
+		account := lockedAccounts[item.CreditAccountID]
+		charges := chargesByInstallment[item.InstallmentID]
+		snapshotted := payableByInstallment[item.InstallmentID]
 
 		var ids []model.InstallmentChargeID
 		for _, charge := range charges {
@@ -233,6 +335,7 @@ func (a *DefaultPostedApplier) ApplyPosted(
 				effectivePaidAt, now); err != nil {
 				return err
 			}
+
 			updatedContract, err := cq.ReduceRemainingPrincipal(ctx, contract.ID, installment.PrincipalAmountMinor, now)
 			if err != nil {
 				return err

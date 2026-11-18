@@ -55,10 +55,6 @@ func newFixture(t *testing.T, install bool) *fixture {
 	baseline = rewriteInvariantFixtureSchemaSQL(baseline, schema)
 	f.exec(t, baseline)
 
-	upgrade, e := os.ReadFile("../migrationsrp/001_credit_kind_upgrade.sql")
-	require.NoError(t, e)
-	f.exec(t, rewriteInvariantFixtureSchemaSQL(string(upgrade), schema))
-
 	if !install {
 		// A separately simulated legacy dataset can have historical bad rows.
 		// Normal initialization always leaves these triggers enabled.

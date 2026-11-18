@@ -118,14 +118,6 @@ func newCollectionsFixture(t *testing.T, locations ...*time.Location) *collectio
 	_, err = pool.Pool.Exec(ctx, baseline)
 	require.NoError(t, err)
 
-	// Product-aware columns (credit_kind, merchant product eligibility, …)
-	// ship as the first post-baseline upgrade and are required by credit
-	// account / checkout session repository adapters.
-	upgrade, err := os.ReadFile("../../../adapter/db/postgres/migrationsrp/001_credit_kind_upgrade.sql")
-	require.NoError(t, err)
-	_, err = pool.Pool.Exec(ctx, rewriteFixtureSchemaSQL(string(upgrade), schema))
-	require.NoError(t, err)
-
 	now := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
 	clk := adapterclock.NewFixed(now, location)
 	uc, err := New(pool, customerprofilerp.New(), installmentrp.New(), decisionrp.New(), defaultepisoderp.New(), customerrestrictionrp.New(), collectionscaserp.New(), outboxrp.New(), clk, uuidgen.New(), sha256fingerprint.New(), metricsnoop.New(), "bnpl.audit.events.v1", 10, currentTestPolicies(location))
