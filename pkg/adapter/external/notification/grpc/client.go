@@ -13,7 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	notificationv1 "github.com/parstis/bnpl-backend/gen/proto/notification/v1"
+	notificationv1 "github.com/parstis/bnpl-backend/gen/proto/notification/submission/v1"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/circuitbreaker"
 	extnotification "github.com/parstis/bnpl-backend/pkg/core/external/notification"

@@ -67,12 +67,15 @@ func (l *pendingRecordingLogger) recordLog(level string, event corelog.Event, fi
 	if event != nil {
 		msg = event.Message()
 	}
+
 	for _, f := range fields {
 		if f == nil {
 			continue
 		}
+
 		attrs = append(attrs, f.Key(), f.Value())
 	}
+
 	*l.records = append(*l.records, pendingLogRecord{level: level, msg: msg, args: attrs})
 }
 
@@ -307,10 +310,12 @@ func TestHandlePending_CheckoutPurposeWarnsAgainstContractExpiresAt(t *testing.T
 			break
 		}
 	}
+
 	args := map[any]any{}
 	for i := 0; i+1 < len(warnArgs); i += 2 {
 		args[warnArgs[i]] = warnArgs[i+1]
 	}
+
 	require.Equal(t, contractExpires.Format(time.RFC3339Nano), args["requested_expires_at"])
 	require.Equal(t, string(model.CheckoutFirstInstallmentFinancialCorePaymentPurpose), args["payment_operation_type"])
 	require.NotContains(t, fmt.Sprint(warnArgs), url)

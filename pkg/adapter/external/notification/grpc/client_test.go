@@ -11,7 +11,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	notificationv1 "github.com/parstis/bnpl-backend/gen/proto/notification/v1"
+	notificationv1 "github.com/parstis/bnpl-backend/gen/proto/notification/submission/v1"
 	cbnoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/circuitbreaker/noop"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	extnotification "github.com/parstis/bnpl-backend/pkg/core/external/notification"

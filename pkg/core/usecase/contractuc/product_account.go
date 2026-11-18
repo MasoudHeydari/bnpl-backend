@@ -19,11 +19,13 @@ func lockCheckoutCreditAccount(
 	switch model.EffectiveCreditKind(kind) {
 	case model.PayIn4CreditKind:
 		return q.LockByCustomerIDAndCurrency(ctx, customerID, currency)
+
 	case model.PayNextMonthCreditKind:
 		productQ, ok := q.(repo.CreditAccountProductTxQueryer)
 		if !ok {
 			return model.CreditAccount{}, cerr.InternalError(fmt.Errorf("credit account repository has no monthly product support"))
 		}
+
 		return productQ.LockByCustomerIDCurrencyAndKind(ctx, customerID, currency, kind)
 	default:
 		return model.CreditAccount{}, cerr.InternalError(fmt.Errorf("unsupported checkout credit kind %q", kind))

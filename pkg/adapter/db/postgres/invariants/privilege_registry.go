@@ -31,6 +31,11 @@ func PrivilegeRegistry() []TablePrivilegePolicy {
 
 const PrivilegeMigration = "000_schema.sql"
 
+// CreditKindPrivilegeMigration is the first post-baseline product-aware
+// schema upgrade. Tables and column grants introduced there are reviewed
+// separately from the immutable 000_schema.sql baseline.
+const CreditKindPrivilegeMigration = "001_credit_kind_upgrade.sql"
+
 var privileges = []TablePrivilegePolicy{
 	{Schema: "bnpl", Table: "migrations", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation}, UpdateColumns: []string{}},
 	{Schema: "bnpl", Table: "integration_outbox", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"attempt_count", "last_error", "lock_version", "locked_at", "locked_by", "next_attempt_at", "published_at", "status"}},
@@ -57,7 +62,7 @@ var privileges = []TablePrivilegePolicy{
 	{Schema: "bnpl", Table: "checkout_decision_allocations", Migration: PrivilegeMigration, Description: "Minimal UPDATE(id) compatibility exception for existing SELECT FOR UPDATE; no repository key mutation.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"decision_id"}},
 	{Schema: "bnpl", Table: "merchant_return_destinations", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"enabled", "return_url", "updated_at"}},
 	{Schema: "bnpl", Table: "merchant_webhook_destinations", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"enabled", "signing_secret_ciphertext", "signing_secret_key_id", "updated_at", "webhook_url"}},
-	{Schema: "bnpl", Table: "checkout_sessions", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"canceled_at", "cancellation_reason", "completed_at", "confirmation_attempt_id", "contract_id", "customer_id", "decision_id", "evaluation_generation", "expires_at", "status", "updated_at"}},
+	{Schema: "bnpl", Table: "checkout_sessions", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"canceled_at", "cancellation_reason", "completed_at", "confirmation_attempt_id", "contract_id", "credit_kind", "customer_id", "decision_id", "evaluation_generation", "expires_at", "status", "updated_at"}},
 	{Schema: "bnpl", Table: "otp_challenges", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"attempt_count", "context_version", "expires_at", "issue_id", "next_issue_at", "notification_accepted_at", "notification_request_id", "send_count", "updated_at", "verified_at", "verifier"}},
 	{Schema: "bnpl", Table: "otp_rate_limits", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"send_count", "updated_at", "window_started_at"}},
 	{Schema: "bnpl", Table: "merchant_terminals", Migration: PrivilegeMigration, Description: "UPDATE(id) permits locking and a key-preserving id=id write to serialize permission replacements, including repeatable-read snapshots.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"id"}},
@@ -71,6 +76,9 @@ var privileges = []TablePrivilegePolicy{
 	{Schema: "bnpl", Table: "customer_restrictions", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"released_at", "releasing_decision_id", "status", "updated_at"}},
 	{Schema: "bnpl", Table: "collections_cases", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{}},
 	{Schema: "bnpl", Table: "collections_case_events", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{}},
+	{Schema: "bnpl", Table: "repayment_batches", Migration: CreditKindPrivilegeMigration, Description: "Reviewed CollectionPayment v1 (FC target draft) orchestration rows; FC remains monetary authority.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"financial_collection_payment_id", "last_reason_code", "next_reconciliation_at", "snapshot_revision", "start_fingerprint", "start_idempotency_key", "status", "updated_at", "version"}},
+	{Schema: "bnpl", Table: "repayment_batch_installment_claims", Migration: CreditKindPrivilegeMigration, Description: "Active installment reservation for a repayment batch; release uses a reviewed owner-side path, not Runtime DELETE.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{}},
+	{Schema: "bnpl", Table: "merchant_credit_product_eligibilities", Migration: CreditKindPrivilegeMigration, Description: "Merchant product provisioning independent from Funding/FC monetary entitlements.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"enabled", "updated_at"}},
 }
 
 const PrivilegeMigrationSHA256 = "sha256:f6a6d51321685c21c1203fc425291bd2e1e3899c1c1317ec12ef689d8ed38237"

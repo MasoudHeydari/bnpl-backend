@@ -4,17 +4,15 @@ package common.v1;
 
 option go_package = "github.com/parstis/bnpl-backend/gen/proto/common/v1;commonv1";
 
-
-// Stable public Financial wire primitives only.
-// FinancialScope, operation statuses, request envelopes, and economics stay
-// capability-specific and must not be added here.
+// Shared BNPL platform wire primitives for non-Financial Core services
+// (notification, customer reference adapters, and future BNPL-owned contracts).
+// Financial Core public primitives live under financial/common/v1 and must not
+// be imported from here.
 message Money {
   int64 amount_minor = 1;
   string currency = 2;
 }
 
-// Opaque upstream business provenance. source_service is transport-authenticated
-// and intentionally absent from the public message.
 message BusinessSourceReference {
   string type = 1;
   string id = 2;

@@ -72,12 +72,15 @@ func (l *installmentExpiryRecordingLogger) recordLog(level string, event corelog
 	if event != nil {
 		msg = event.Message()
 	}
+
 	for _, f := range fields {
 		if f == nil {
 			continue
 		}
+
 		attrs = append(attrs, f.Key(), f.Value())
 	}
+
 	*l.records = append(*l.records, installmentExpiryLogRecord{level: level, msg: msg, args: attrs})
 }
 
@@ -160,6 +163,7 @@ func TestEnsureFinancialCoreInstallmentPayment_SendsAggregateUsingExistingReceiv
 		CancelReturnURL:    &returnURL,
 		CreatedAt:          attemptCreatedAt,
 	}
+
 	attempt.Items = []model.PaymentAttemptItem{
 		{ItemType: model.PrincipalPaymentAttemptItemType, SourceID: installmentID.UUID(), AmountMinor: 15, Effect: model.DebitPaymentAttemptItemEffect},
 		{ItemType: model.ChargePaymentAttemptItemType, SourceID: uuid.New(), AmountMinor: 8, Effect: model.DebitPaymentAttemptItemEffect},

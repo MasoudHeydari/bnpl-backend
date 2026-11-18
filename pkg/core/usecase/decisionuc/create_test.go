@@ -175,6 +175,19 @@ func (d createDeps) expectTxBindings() {
 	d.outbox.EXPECT().Tx(d.tx).Return(d.outboxTx).Once()
 }
 
+// expectMerchantCreditKindEnabled stubs product eligibility after the
+// merchant profile lock. Default path authorizes the requested kind.
+func (d createDeps) expectMerchantCreditKindEnabled(
+	ctx context.Context,
+	merchantProfileID model.MerchantProfileID,
+	kind model.CreditKind,
+) {
+	d.merchantProfileTx.EXPECT().
+		IsCreditKindEnabled(ctx, merchantProfileID, kind).
+		Return(true, nil).
+		Once()
+}
+
 func (d createDeps) expectAuditOutbox(
 	t *testing.T,
 	ctx context.Context,
@@ -251,6 +264,7 @@ func eligibleFixtures(now time.Time) (
 		Jurisdiction:       model.IRJurisdiction,
 		Status:             model.ActiveCustomerStatus,
 	}
+
 	merchantProfile = model.MerchantProfile{
 		ID:                 model.MerchantProfileID(uuid.New()),
 		ExternalMerchantID: merchantIdentityID,
@@ -437,6 +451,7 @@ func TestCreate_Denied_NoInstallments_ReturnsReasonCodes(t *testing.T) {
 	deps.customerProfileTx.EXPECT().LockByExternalSubjectID(ctx, externalSubjectID).Return(customerProfile, nil).Once()
 	deps.merchantBranchProfileTx.EXPECT().LockByPosGpsID(ctx, posGpsID).Return(branch, nil).Once()
 	deps.merchantProfileTx.EXPECT().LockByMerchantID(ctx, branch.ExternalMerchantID).Return(merchantProfile, nil).Once()
+	deps.expectMerchantCreditKindEnabled(ctx, merchantProfile.ID, model.PayIn4CreditKind)
 	deps.creditAccountTx.EXPECT().GetByCustomerIDAndCurrency(
 		ctx, customerProfile.ID, model.IRRCurrency,
 	).Return(model.CreditAccount{}, cerr.ResourceNotFound(errors.New("no credit account"))).Once()
@@ -575,6 +590,7 @@ func TestCreate_Approved_CreatesInstallmentsAndAudit(t *testing.T) {
 	deps.customerProfileTx.EXPECT().LockByExternalSubjectID(ctx, externalSubjectID).Return(customerProfile, nil).Once()
 	deps.merchantBranchProfileTx.EXPECT().LockByPosGpsID(ctx, posGpsID).Return(branch, nil).Once()
 	deps.merchantProfileTx.EXPECT().LockByMerchantID(ctx, branch.ExternalMerchantID).Return(merchantProfile, nil).Once()
+	deps.expectMerchantCreditKindEnabled(ctx, merchantProfile.ID, model.PayIn4CreditKind)
 	deps.creditAccountTx.EXPECT().GetByCustomerIDAndCurrency(
 		ctx, customerProfile.ID, model.IRRCurrency,
 	).Return(creditAccount, nil).Once()
@@ -731,6 +747,7 @@ func TestCreate_InstallmentCreateFailure_RollsBack(t *testing.T) {
 	deps.customerProfileTx.EXPECT().LockByExternalSubjectID(ctx, externalSubjectID).Return(customerProfile, nil).Once()
 	deps.merchantBranchProfileTx.EXPECT().LockByPosGpsID(ctx, posGpsID).Return(branch, nil).Once()
 	deps.merchantProfileTx.EXPECT().LockByMerchantID(ctx, branch.ExternalMerchantID).Return(merchantProfile, nil).Once()
+	deps.expectMerchantCreditKindEnabled(ctx, merchantProfile.ID, model.PayIn4CreditKind)
 	deps.creditAccountTx.EXPECT().GetByCustomerIDAndCurrency(
 		ctx, customerProfile.ID, model.IRRCurrency,
 	).Return(creditAccount, nil).Once()
@@ -1076,6 +1093,7 @@ func TestCreate_OriginationDisabled_FailsClosedBeforePersist(t *testing.T) {
 	deps.customerProfileTx.EXPECT().LockByExternalSubjectID(ctx, externalSubjectID).Return(customerProfile, nil).Once()
 	deps.merchantBranchProfileTx.EXPECT().LockByPosGpsID(ctx, posGpsID).Return(branch, nil).Once()
 	deps.merchantProfileTx.EXPECT().LockByMerchantID(ctx, branch.ExternalMerchantID).Return(merchantProfile, nil).Once()
+	// Origination is rejected before merchant product eligibility is consulted.
 
 	_, err := deps.newUseCase(t).Create(ctx, decisionuc.CreateInput{
 		CheckoutKey:       "checkout-key",

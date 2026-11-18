@@ -125,6 +125,7 @@ func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput,
 			if policyErr != nil {
 				return policyErr
 			}
+
 			// A replay may not switch products while reusing the same checkout key.
 			// Policy is the persisted immutable source of the product identity.
 			if model.EffectiveCreditKind(existingPolicy.Terms().CreditKind) != model.EffectiveCreditKind(input.CreditKind) {
@@ -184,6 +185,7 @@ func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput,
 		if err == nil && model.EffectiveCreditKind(input.CreditKind) == model.PayNextMonthCreditKind {
 			selectedPolicy, err = uc.checkoutPolicies.ForCreditKind(model.PayNextMonthCreditKind)
 		}
+
 		if err != nil {
 			return err
 		}
@@ -234,21 +236,37 @@ func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput,
 		// A merchant accepting installment credit must not automatically
 		// accept the revolving monthly product.
 		merchantEnabled, lookupErr := merchantAllowsCreditKind(
-			ctx, merchantProfileQ, merchantProfileID, model.EffectiveCreditKind(input.CreditKind),
+			ctx,
+			merchantProfileQ,
+			merchantProfile.ID,
+			model.EffectiveCreditKind(input.CreditKind),
 		)
 		if lookupErr != nil {
 			return lookupErr
 		}
+
 		if !merchantEnabled {
 			merchantDenial := checkout.EligibilityResult{
 				Outcome:      model.DeniedDecisionOutcome,
 				ReasonCodes:  []string{model.MerchantCreditKindNotEnabledDecisionReason},
 				Jurisdiction: customerProfile.Jurisdiction,
 			}
+			branchID := branchProfile.ID
+
 			return uc.persistCheckoutDecision(
-				ctx, decisionQ, allocationQ, outboxQ, input, customerID,
-				merchantProfileID, &merchantBranchProfileID, fingerprint,
-				selectedPolicy, merchantDenial, 0, installmentCount,
+				ctx,
+				decisionQ,
+				allocationQ,
+				outboxQ,
+				input,
+				customerProfile.ID,
+				merchantProfile.ID,
+				&branchID,
+				fingerprint,
+				selectedPolicy,
+				merchantDenial,
+				0,
+				installmentCount,
 				checkoutDecisionAuditFacts{
 					ExternalSubjectID:       input.ExternalSubjectID,
 					CustomerID:              customerProfile.ID,
@@ -260,7 +278,8 @@ func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput,
 					PurchaseSourceID:        input.PurchaseContext.sourceID(),
 					MerchantOrderID:         input.PurchaseContext.merchantOrderIDPointer(),
 				},
-				now, &output,
+				now,
+				&output,
 			)
 		}
 
@@ -342,6 +361,7 @@ func (uc *UseCase) Create(ctx context.Context, input CreateInput) (CreateOutput,
 			if lookupErr != nil {
 				return lookupErr
 			}
+
 			if monthlyBlocked {
 				monthlyDenial := checkout.EligibilityResult{
 					Outcome:      model.DeniedDecisionOutcome,
@@ -513,6 +533,7 @@ func (uc *UseCase) observeCreated(ctx context.Context, output CreateOutput) {
 }
 
 func validateCreateInput(input CreateInput) error {
+	const op = "decisionuc.validateCreateInput"
 	if input.CheckoutKey == "" {
 		return checkoutKeyRequiredError()
 	}
@@ -536,8 +557,9 @@ func validateCreateInput(input CreateInput) error {
 	if !input.Currency.IsValid() {
 		return currencyInvalidError()
 	}
+
 	if kind := model.EffectiveCreditKind(input.CreditKind); !kind.IsValid() {
-		return cerr.InvalidArgument(fmt.Errorf("invalid credit_kind %q", input.CreditKind))
+		return cerr.InvalidArgument(fmt.Errorf("%s: invalid credit_kind %q", op, input.CreditKind))
 	}
 
 	return nil
@@ -551,6 +573,7 @@ func loadCurrentCreditAccount(
 	at time.Time,
 	kind model.CreditKind,
 ) (model.CreditAccount, bool, error) {
+	const op = "decisionuc.loadCurrentCreditAccount"
 	var (
 		account model.CreditAccount
 		err     error
@@ -558,14 +581,16 @@ func loadCurrentCreditAccount(
 	switch kind {
 	case model.PayIn4CreditKind:
 		account, err = accountQ.GetByCustomerIDAndCurrency(ctx, customerID, currency)
+
 	case model.PayNextMonthCreditKind:
 		productQ, ok := accountQ.(repo.CreditAccountProductQueryer)
 		if !ok {
-			return model.CreditAccount{}, false, cerr.InternalError(fmt.Errorf("credit account repository does not support monthly products"))
+			return model.CreditAccount{}, false, cerr.InternalError(fmt.Errorf("%s: credit account repository does not support monthly products", op))
 		}
+
 		account, err = productQ.GetByCustomerIDCurrencyAndKind(ctx, customerID, currency, kind)
 	default:
-		return model.CreditAccount{}, false, cerr.InvalidArgument(fmt.Errorf("unsupported credit kind %q", kind))
+		return model.CreditAccount{}, false, cerr.InvalidArgument(fmt.Errorf("%s: unsupported credit kind %q", op, kind))
 	}
 	if err != nil {
 		if cerr.IsCode(err, cerr.CodeResourceNotFound) {

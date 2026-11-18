@@ -13,26 +13,32 @@ func TestPlanRejectsPrincipalWaiverAndDuplicateItems(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	external, err := model.ParseExternalCustomerID(uuid.NewString())
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	contract, err := model.ParseContractID(uuid.NewString())
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	installment, err := model.ParseInstallmentID(uuid.NewString())
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	account, err := model.ParseCreditAccountID(uuid.NewString())
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	merchant, err := model.ParseExternalMerchantID(uuid.NewString())
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	assessment := Assessment{
 		SourceType: "bnpl_installment", SourceID: installment.String(),
 		SourceVersion: 1, PolicyReference: "assessment-v1", PolicyVersion: "v1",
@@ -67,17 +73,20 @@ func TestPlanRejectsPrincipalWaiverAndDuplicateItems(t *testing.T) {
 	if err := plan.Validate(); err != nil {
 		t.Fatalf("valid plan rejected: %v", err)
 	}
+
 	plan.Items[0].Components[0].Adjustments = []Adjustment{{
 		ID: uuid.New(), Kind: "waiver", AmountMinor: 100, Assessment: assessment,
 	}}
 	if err := plan.Validate(); err == nil {
 		t.Fatal("previously recognized principal was waived")
 	}
+
 	plan.Items[0].Components[0].Adjustments = nil
 	plan.TotalMinor = 900
 	if err := plan.Validate(); err == nil {
 		t.Fatal("inconsistent total accepted")
 	}
+
 	plan.TotalMinor = 1000
 	plan.Items = append(plan.Items, plan.Items[0])
 	plan.Items[1].ID = uuid.New()

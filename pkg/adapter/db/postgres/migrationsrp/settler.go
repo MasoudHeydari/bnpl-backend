@@ -38,6 +38,7 @@ func (sm1 *Settler) applyCreditKindUpgrade(ctx context.Context) error {
 	if _, err := sm1.tx.Exec(ctx, creditKindUpgradeStatements); err != nil {
 		return fmt.Errorf("apply credit-kind schema upgrade: %w", err)
 	}
+
 	return nil
 }
 

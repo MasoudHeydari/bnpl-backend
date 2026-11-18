@@ -184,6 +184,7 @@ func queryBackendPIDFromConn(ctx context.Context, conn repo.Conn) (int32, error)
 	if err != nil {
 		return 0, err
 	}
+
 	defer rows.Close()
 
 	if !rows.Next() {
@@ -360,6 +361,7 @@ SELECT count(*) FROM integration_inbox WHERE event_id=$1 AND status='processed'
 	if snap.IntentID != nil {
 		intentKey = *snap.IntentID
 	}
+
 	snap.PaymentAppOutbox = f.scalar(t, `
 SELECT count(*) FROM integration_outbox
 WHERE destination='fc.payment.applications' AND message_key=$1
@@ -400,6 +402,7 @@ func (f *collectionsFixture) newReconciliationResultUC(
 		time.Minute,
 		f.clk,
 		lognoop.New(),
+		newFinancialCorePaymentReconciliationObserver(),
 	)
 	require.NoError(t, err)
 
@@ -714,7 +717,7 @@ INSERT INTO payment_attempts(
 			10,
 			model.FinancialSessionCreateExpirationSafetyInterval,
 			adapterclock.NewFixed(f.now, time.UTC),
-			lognoop.New(),
+			newPaymentAttemptExpirationObserver(),
 		)
 		require.NoError(t, e)
 		return uc
@@ -794,7 +797,7 @@ INSERT INTO payment_attempts(
 		10,
 		model.FinancialSessionCreateExpirationSafetyInterval,
 		adapterclock.NewFixed(f.now, time.UTC),
-		lognoop.New(),
+		newPaymentAttemptExpirationObserver(),
 	)
 	require.NoError(t, err)
 
@@ -812,6 +815,7 @@ INSERT INTO payment_attempts(
 		time.Minute,
 		5,
 		adapterclock.NewFixed(f.now, time.UTC),
+		newPaymentAttemptReconciliationObserver(),
 	)
 	require.NoError(t, err)
 
@@ -1016,7 +1020,7 @@ INSERT INTO payment_attempts(
 		10,
 		model.FinancialSessionCreateExpirationSafetyInterval,
 		adapterclock.NewFixed(f.now, time.UTC),
-		lognoop.New(),
+		newPaymentAttemptExpirationObserver(),
 	)
 	require.NoError(t, err)
 
@@ -1112,6 +1116,7 @@ INSERT INTO payment_attempts(
 		time.Minute,
 		5,
 		adapterclock.NewFixed(f.now, time.UTC),
+		newPaymentAttemptReconciliationObserver(),
 	)
 	require.NoError(t, err)
 	require.NoError(t, reconUC.ProcessDue(f.ctx))

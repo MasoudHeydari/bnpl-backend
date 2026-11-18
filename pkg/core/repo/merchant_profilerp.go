@@ -8,7 +8,13 @@ import (
 )
 
 // MerchantProfileQueryer defines read-only merchant profile operations.
+//
+// MerchantProductEligibilityQueryer is embedded because production adapters
+// expose credit-product eligibility on the same merchant-profile queryer.
+// Callers that need product authorization type-assert through this surface.
 type MerchantProfileQueryer interface {
+	MerchantProductEligibilityQueryer
+
 	// GetByID returns the merchant profile identified by id.
 	GetByID(
 		ctx context.Context,

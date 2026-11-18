@@ -135,6 +135,7 @@ func (uc *UseCase) RevalidateCheckoutOffer(
 			if lookupErr != nil {
 				return lookupErr
 			}
+
 			if !merchantEnabled {
 				output.StillHonorable = false
 				invalidReason = offerInvalidReasonNewCreditRestricted
@@ -170,6 +171,7 @@ func (uc *UseCase) RevalidateCheckoutOffer(
 				if lookupErr != nil {
 					return lookupErr
 				}
+
 				if blocked {
 					output.StillHonorable = false
 					invalidReason = offerInvalidReasonNewCreditRestricted

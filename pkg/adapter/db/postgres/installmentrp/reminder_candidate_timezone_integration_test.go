@@ -58,10 +58,13 @@ func newReminderCandidateFixture(t *testing.T, sessionTimezone string) *reminder
 	require.NoError(t, err)
 
 	baseline := strings.SplitN(string(ddl), "-- MANAGED DATABASE PERMISSIONS: canonical initial grants (pre-release)", 2)[0]
-	baseline = strings.ReplaceAll(baseline, "SET search_path TO bnpl;", "SET search_path TO "+schema+";")
-	baseline = strings.ReplaceAll(baseline, "bnpl.", schema+".")
-	baseline = strings.ReplaceAll(baseline, "pg_catalog, bnpl", "pg_catalog, "+schema)
+	baseline = rewriteReminderFixtureSchemaSQL(baseline, schema)
 	_, err = pool.Pool.Exec(ctx, baseline)
+	require.NoError(t, err)
+
+	upgrade, err := os.ReadFile("../migrationsrp/001_credit_kind_upgrade.sql")
+	require.NoError(t, err)
+	_, err = pool.Pool.Exec(ctx, rewriteReminderFixtureSchemaSQL(string(upgrade), schema))
 	require.NoError(t, err)
 
 	now := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
@@ -442,4 +445,11 @@ FROM installments WHERE id=$1`, installmentA1).Scan(&decisionID, &contractID, &m
 	page3 := listCandidatesAfter(t, f, dueAtFrom, dueAtTo, businessDay, secondCustomer, 1, tehran.String())
 	require.Empty(t, page3, "no further customers after the second page")
 	require.Len(t, seen, 2)
+}
+
+func rewriteReminderFixtureSchemaSQL(sql, schema string) string {
+	out := strings.ReplaceAll(sql, "SET search_path TO bnpl;", "SET search_path TO "+schema+";")
+	out = strings.ReplaceAll(out, "bnpl.", schema+".")
+	out = strings.ReplaceAll(out, "pg_catalog, bnpl", "pg_catalog, "+schema)
+	return out
 }

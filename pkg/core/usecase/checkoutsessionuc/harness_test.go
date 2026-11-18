@@ -300,6 +300,25 @@ func newHarness(t *testing.T) *harness {
 	sessionRepo.EXPECT().Conn(h.conn).Return(h.sessionCQ).Maybe()
 	merchantRepo.EXPECT().Tx(h.tx).Return(h.merchantTx).Maybe()
 	merchantRepo.EXPECT().Conn(h.conn).Return(h.merchantCQ).Maybe()
+	// Default product provisioning: pay-in-four only. Monthly stays off so
+	// CreatePartner on_create still prepares the immutable Decision unless a
+	// test opts into dual-product selection.
+	h.merchantCQ.EXPECT().
+		IsCreditKindEnabled(testifymock.Anything, testifymock.Anything, model.PayIn4CreditKind).
+		Return(true, nil).
+		Maybe()
+	h.merchantCQ.EXPECT().
+		IsCreditKindEnabled(testifymock.Anything, testifymock.Anything, model.PayNextMonthCreditKind).
+		Return(false, nil).
+		Maybe()
+	h.merchantTx.EXPECT().
+		IsCreditKindEnabled(testifymock.Anything, testifymock.Anything, model.PayIn4CreditKind).
+		Return(true, nil).
+		Maybe()
+	h.merchantTx.EXPECT().
+		IsCreditKindEnabled(testifymock.Anything, testifymock.Anything, model.PayNextMonthCreditKind).
+		Return(false, nil).
+		Maybe()
 	branchRepo.EXPECT().Tx(h.tx).Return(h.branchTx).Maybe()
 	customerRepo.EXPECT().Tx(h.tx).Return(h.customerTx).Maybe()
 	customerRepo.EXPECT().Conn(h.conn).Return(h.customerCQ).Maybe()
@@ -507,10 +526,22 @@ func (h *harness) installDefaultCoreCollaborators() {
 // expectPool registers connCalls Pool.Conn invocations that never open a
 // transaction plus txCalls Pool.Conn invocations that immediately open one.
 
+// expectSelectCreditKindNoop expects the START product-selection lock when the
+// request omits credit_kind (or matches the session). No product write occurs.
+func (h *harness) expectSelectCreditKindNoop(session model.CheckoutSession) {
+	h.t.Helper()
+	h.sessionTx.EXPECT().
+		LockByPublicToken(h.ctx, h.publicToken).
+		Return(session, nil).
+		Once()
+}
+
 // expectStartExternalPrepareLoad expects the deferred-prepare mode probe at START.
 func (h *harness) expectStartExternalPrepareLoad() {
 	h.t.Helper()
-	h.sessionCQ.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(h.session(), nil).Once()
+	prepared := h.session()
+	h.expectSelectCreditKindNoop(prepared)
+	h.sessionCQ.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(prepared, nil).Once()
 }
 
 func (h *harness) expectPool(connCalls int, txCalls int) {

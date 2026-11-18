@@ -60,10 +60,12 @@ func newActivationFixture(t *testing.T, install bool) *activationFixture {
 	// The baseline installs all financial guards before the first business row.
 	// Owner-only grants are tested separately under the real managed roles.
 	baseline := strings.SplitN(string(ddl), "-- MANAGED DATABASE PERMISSIONS: canonical initial grants (pre-release)", 2)[0]
-	baseline = strings.ReplaceAll(baseline, "SET search_path TO bnpl;", "SET search_path TO "+schema+";")
-	baseline = strings.ReplaceAll(baseline, "bnpl.", schema+".")
-	baseline = strings.ReplaceAll(baseline, "pg_catalog, bnpl", "pg_catalog, "+schema)
+	baseline = rewriteActivationFixtureSchemaSQL(baseline, schema)
 	f.exec(t, baseline)
+
+	upgrade, e := os.ReadFile("../../../adapter/db/postgres/migrationsrp/001_credit_kind_upgrade.sql")
+	require.NoError(t, e)
+	f.exec(t, rewriteActivationFixtureSchemaSQL(string(upgrade), schema))
 	if !install {
 		for _, table := range []string{"installments", "installment_charges", "payment_attempts", "payment_attempt_items"} {
 			f.exec(t, "ALTER TABLE "+pgx.Identifier{schema, table}.Sanitize()+" DISABLE TRIGGER USER")
@@ -258,4 +260,12 @@ func TestPostgreSQLFirstInstallment_AtomicActivationWithFeesAndDiscount(t *testi
 			return nil
 		})
 	}))
+}
+
+
+func rewriteActivationFixtureSchemaSQL(sql, schema string) string {
+	out := strings.ReplaceAll(sql, "SET search_path TO bnpl;", "SET search_path TO "+schema+";")
+	out = strings.ReplaceAll(out, "bnpl.", schema+".")
+	out = strings.ReplaceAll(out, "pg_catalog, bnpl", "pg_catalog, "+schema)
+	return out
 }

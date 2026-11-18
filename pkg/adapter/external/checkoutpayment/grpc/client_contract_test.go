@@ -15,8 +15,8 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	paymentv1 "github.com/parstis/bnpl-backend/gen/proto/checkoutpayment/v1"
-	commonv1 "github.com/parstis/bnpl-backend/gen/proto/common/v1"
+	paymentv1 "github.com/parstis/bnpl-backend/gen/proto/financial/payment/v1"
+	financialcommonv1 "github.com/parstis/bnpl-backend/gen/proto/financial/common/v1"
 	cbnoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/circuitbreaker/noop"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	extcheckoutpayment "github.com/parstis/bnpl-backend/pkg/core/external/checkoutpayment"
@@ -138,7 +138,7 @@ func TestCreateCheckoutPayment_GRPCContract_CustomerPlatformEmptyPayee(t *testin
 			PaymentAttemptId: "fpa-1",
 			PaymentSessionId: "ps-1",
 			Status:           paymentv1.CheckoutPaymentStatus_CHECKOUT_PAYMENT_STATUS_REQUIRES_CUSTOMER_ACTION,
-			PaymentAmount:    &commonv1.Money{AmountMinor: 1000, Currency: "IRR"},
+			PaymentAmount:    &financialcommonv1.Money{AmountMinor: 1000, Currency: "IRR"},
 			PaymentLink:      "https://pay.example/ps-1",
 			ExpiresAt:        timestamppb.New(expires),
 		},
@@ -200,7 +200,7 @@ func TestCreateCheckoutPayment_PropagatesCorrelationMetadata(t *testing.T) {
 			PaymentAttemptId: "fpa-1",
 			PaymentSessionId: "ps-1",
 			Status:           paymentv1.CheckoutPaymentStatus_CHECKOUT_PAYMENT_STATUS_REQUIRES_CUSTOMER_ACTION,
-			PaymentAmount:    &commonv1.Money{AmountMinor: 1000, Currency: "IRR"},
+			PaymentAmount:    &financialcommonv1.Money{AmountMinor: 1000, Currency: "IRR"},
 			PaymentLink:      "https://pay.example/ps-1",
 			ExpiresAt:        timestamppb.New(expires),
 		},
@@ -234,7 +234,7 @@ func TestCreateCheckoutPayment_GRPCContract_CanonicalizesPartyTypesOnWire(t *tes
 			PaymentAttemptId: "fpa-1",
 			PaymentSessionId: "ps-1",
 			Status:           paymentv1.CheckoutPaymentStatus_CHECKOUT_PAYMENT_STATUS_REQUIRES_CUSTOMER_ACTION,
-			PaymentAmount:    &commonv1.Money{AmountMinor: 1000, Currency: "IRR"},
+			PaymentAmount:    &financialcommonv1.Money{AmountMinor: 1000, Currency: "IRR"},
 			PaymentLink:      "https://pay.example/ps-1",
 			ExpiresAt:        timestamppb.New(expires),
 		},
@@ -265,7 +265,7 @@ func TestCreateCheckoutPayment_GRPCContract_InstallmentRepaymentShape(t *testing
 			PaymentAttemptId: "fpa-2",
 			PaymentSessionId: "ps-2",
 			Status:           paymentv1.CheckoutPaymentStatus_CHECKOUT_PAYMENT_STATUS_REQUIRES_CUSTOMER_ACTION,
-			PaymentAmount:    &commonv1.Money{AmountMinor: 20, Currency: "IRR"},
+			PaymentAmount:    &financialcommonv1.Money{AmountMinor: 20, Currency: "IRR"},
 			PaymentLink:      "https://pay.example/ps-2",
 			ExpiresAt:        timestamppb.New(expires),
 		},
@@ -322,7 +322,7 @@ func TestCreateCheckoutPayment_GRPCContract_ReusedIdempotentResult(t *testing.T)
 			PaymentAttemptId:       "fpa-1",
 			PaymentSessionId:       "ps-1",
 			Status:                 paymentv1.CheckoutPaymentStatus_CHECKOUT_PAYMENT_STATUS_REQUIRES_CUSTOMER_ACTION,
-			PaymentAmount:          &commonv1.Money{AmountMinor: 1000, Currency: "IRR"},
+			PaymentAmount:          &financialcommonv1.Money{AmountMinor: 1000, Currency: "IRR"},
 			PaymentLink:            "https://pay.example/ps-1",
 			ExpiresAt:              timestamppb.New(expires),
 			ReusedIdempotentResult: true,
@@ -343,7 +343,7 @@ func TestGetPaymentStatus_GRPCContract_NoDelegation(t *testing.T) {
 		statusResp: &paymentv1.GetPaymentStatusResponse{
 			PaymentIntentId: "pi-1",
 			Status:          paymentv1.CheckoutPaymentStatus_CHECKOUT_PAYMENT_STATUS_PROCESSING,
-			PaymentAmount:   &commonv1.Money{AmountMinor: 1000, Currency: "IRR"},
+			PaymentAmount:   &financialcommonv1.Money{AmountMinor: 1000, Currency: "IRR"},
 		},
 	}
 	client := startCheckoutPaymentBufconn(t, srv)

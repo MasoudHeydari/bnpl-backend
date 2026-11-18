@@ -78,6 +78,7 @@ func (rs *resource) AssignInitialLimit(c *gin.Context) {
 			serdser.SerErr(c, err)
 			return
 		}
+
 		status := http.StatusOK
 		message := serdser.SuccessMessageInitialCustomerCreditLimitAlreadyActive
 		for _, item := range output.Credits {
@@ -87,6 +88,7 @@ func (rs *resource) AssignInitialLimit(c *gin.Context) {
 				break
 			}
 		}
+
 		serdser.Ser(
 			c, status,
 			serdser.SuccessCodeCustomerInitialCreditLimitAssigned,

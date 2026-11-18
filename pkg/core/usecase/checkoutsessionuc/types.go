@@ -577,6 +577,7 @@ func (i StartExternalInput) validate() error {
 	if i.CreditKind != "" && !i.CreditKind.IsValid() {
 		return validationError("INVALID", "credit_kind", "error.credit_kind_invalid")
 	}
+
 	if i.EvaluationGeneration < 0 {
 		return validationError(
 			"INVALID",

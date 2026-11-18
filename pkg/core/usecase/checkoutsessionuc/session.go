@@ -253,6 +253,7 @@ func (uc *UseCase) createOrReplaySessionTx(
 		if !ok {
 			return model.CheckoutSession{}, "", cerr.InternalError(fmt.Errorf("%s: product-aware checkout session repository is unavailable", op))
 		}
+
 		created, err = productQ.SetCreditKindBeforeDecision(ctx, created.ID, kind, now)
 		if err != nil {
 			return model.CheckoutSession{}, "", err

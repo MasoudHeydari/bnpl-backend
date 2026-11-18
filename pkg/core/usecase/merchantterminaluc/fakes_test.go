@@ -341,6 +341,7 @@ func (f *fakeTerminals) CreateIssuanceDelivery(
 		ExpiresAt:             expiresAt,
 		CreatedAt:             createdAt,
 	}
+
 	f.deliveries = append(f.deliveries, delivery)
 
 	return delivery, nil

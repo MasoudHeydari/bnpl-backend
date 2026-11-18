@@ -42,16 +42,20 @@ func AggregateCreditStatus(credits []Output) AllCreditStatus {
 		if item.Status == SummaryStatusActive {
 			active++
 		}
+
 		if item.Status != SummaryStatusNotAssigned {
 			assigned++
 		}
 	}
+
 	if active == len(supportedCreditKinds) {
 		return AllCreditAssigned
 	}
+
 	if assigned == 0 {
 		return AllCreditNotAssigned
 	}
+
 	return AllCreditPartiallyAssigned
 }
 
@@ -71,28 +75,38 @@ func (uc *UseCase) GetAllSummaries(ctx context.Context, input Input) (AllSummari
 
 	err = uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
+			customerProfileQ := uc.customerProfile.Tx(tx)
+			policyAssignmentQ := uc.policyAssignment.Tx(tx)
+			creditAccountQ := uc.creditAccount.Tx(tx)
+			customerRestrictionQ := uc.customerRestriction.Tx(tx)
+			installmentQ := uc.installment.Tx(tx)
+			defaultEpisodeQ := uc.defaultEpisode.Tx(tx)
+
 			profile, err := uc.ensureActiveCustomerProfile(
-				ctx, uc.customerProfile.Tx(tx), input.SubjectID.AsExternalSubjectID(),
+				ctx, customerProfileQ, input.SubjectID.AsExternalSubjectID(),
 				externalCustomerID, now,
 			)
 			if err != nil {
 				return err
 			}
+
 			if !profile.IsActive() {
 				return cerr.Conflict(fmt.Errorf("%s: customer profile is inactive", op))
 			}
+
 			output.CustomerID = profile.ID
 
 			// Currency is determined by the customer's existing governed limit
 			// policy, not by a caller-supplied amount or HTTP query.
 			selectedPolicy, err := uc.resolveInitialLimitPolicy(
-				ctx, uc.policyAssignment.Tx(tx), externalCustomerID, now,
+				ctx, policyAssignmentQ, externalCustomerID, now,
 			)
 			if err != nil {
 				return err
 			}
+
 			currency := selectedPolicy.Terms().Currency
-			products, ok := uc.creditAccount.Tx(tx).(repo.CreditAccountProductTxQueryer)
+			products, ok := creditAccountQ.(repo.CreditAccountProductTxQueryer)
 			if !ok {
 				return cerr.InternalError(fmt.Errorf("%s: product-aware account repository unavailable", op))
 			}
@@ -100,8 +114,8 @@ func (uc *UseCase) GetAllSummaries(ctx context.Context, input Input) (AllSummari
 			// Read restrictions once for one consistent response. Restriction
 			// truth is independent of assignment state.
 			blocked, reason, err := newCreditUsageBlocked(
-				ctx, uc.customerRestriction.Tx(tx), uc.installment.Tx(tx),
-				uc.defaultEpisode.Tx(tx), profile.ID, now, uc.collectionsPolicy,
+				ctx, customerRestrictionQ, installmentQ,
+				defaultEpisodeQ, profile.ID, now, uc.collectionsPolicy,
 			)
 			if err != nil {
 				return err
@@ -117,6 +131,7 @@ func (uc *UseCase) GetAllSummaries(ctx context.Context, input Input) (AllSummari
 						return err
 					}
 				}
+
 				if err := products.ExpireDueByCustomerIDCurrencyAndKind(
 					ctx, profile.ID, currency, kind, now,
 				); err != nil {
@@ -135,6 +150,7 @@ func (uc *UseCase) GetAllSummaries(ctx context.Context, input Input) (AllSummari
 					} else if monthlyBlocked {
 						item.CreditUsage.Reason = "previous_month_unpaid"
 					}
+
 				case cerr.IsCode(err, cerr.CodeResourceNotFound):
 					item = zeroSummary(profile.ID, currency)
 				default:
@@ -157,6 +173,7 @@ func (uc *UseCase) GetAllSummaries(ctx context.Context, input Input) (AllSummari
 			uc.observer.UsageRestricted(ctx, item.CustomerID, item.CreditUsage.Reason)
 		}
 	}
+
 	return output, nil
 }
 
@@ -187,6 +204,7 @@ func (uc *UseCase) InitiateAll(ctx context.Context, input AssignInitialLimitInpu
 		if err != nil {
 			return AllAssignmentsOutput{}, err
 		}
+
 		output.Credits = append(output.Credits, CreditAssignment{
 			CreditKind: kind,
 			Assignment: assignment,
@@ -200,6 +218,7 @@ func (uc *UseCase) InitiateAll(ctx context.Context, input AssignInitialLimitInpu
 	switch {
 	case active == len(supportedCreditKinds):
 		output.Status = AllCreditAssigned
+
 	case assigned == 0:
 		output.Status = AllCreditNotAssigned
 	default:

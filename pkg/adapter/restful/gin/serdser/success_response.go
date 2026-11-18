@@ -222,6 +222,12 @@ var (
 	SuccessMessageContractCancellationAlreadyExists = SuccessMessageKey{value: "success.contract_cancellation_already_exists"}
 	// SuccessMessageUnpaidInstallmentsListed reports a successful unpaid-installment listing.
 	SuccessMessageUnpaidInstallmentsListed = SuccessMessageKey{value: "success.unpaid_installments_listed"}
+	// SuccessMessageRepaymentBatchRetrieved reports a successful repayment-batch status lookup.
+	SuccessMessageRepaymentBatchRetrieved = SuccessMessageKey{value: "success.repayment_batch_retrieved"}
+	// SuccessMessageRepaymentBatchStarted reports a repayment payment session was started.
+	SuccessMessageRepaymentBatchStarted = SuccessMessageKey{value: "success.repayment_batch_started"}
+	// SuccessMessageRepaymentBatchCreated reports a repayment batch was accepted for preparation.
+	SuccessMessageRepaymentBatchCreated = SuccessMessageKey{value: "success.repayment_batch_created"}
 )
 
 // SuccessResponse is the platform-wide successful response envelope.

@@ -28,9 +28,15 @@ type DefaultPostedApplier struct {
 
 var _ PostedApplier = (*DefaultPostedApplier)(nil)
 
-func NewDefaultPostedApplier(customer repo.CustomerProfile, contracts repo.Contract,
-	installments repo.Installment, charges repo.InstallmentCharge, accounts repo.CreditAccount,
-	attempts repo.PaymentAttempt, clk clock.Clock) (*DefaultPostedApplier, error) {
+func NewDefaultPostedApplier(
+	customer repo.CustomerProfile,
+	contracts repo.Contract,
+	installments repo.Installment,
+	charges repo.InstallmentCharge,
+	accounts repo.CreditAccount,
+	attempts repo.PaymentAttempt,
+	clk clock.Clock,
+) (*DefaultPostedApplier, error) {
 	if customer == nil || contracts == nil || installments == nil || charges == nil ||
 		accounts == nil || attempts == nil || clk == nil {
 		return nil, fmt.Errorf("repaymentbatchuc.NewDefaultPostedApplier: missing dependency")
@@ -48,6 +54,7 @@ func (a *DefaultPostedApplier) ApplyPosted(
 	if err := extcollection.VerifyPostedAllocations(plan, result); err != nil {
 		return err
 	}
+
 	if result.PostedAt == nil || result.PostedAt.IsZero() {
 		return cerr.Conflict(fmt.Errorf("%s: missing FC posting timestamp", op))
 	}
@@ -55,13 +62,16 @@ func (a *DefaultPostedApplier) ApplyPosted(
 	// Lock customer first, then all contracts, installments, charges and credit
 	// accounts in deterministic order. This serializes settlement with other
 	// customer-scoped payment and origination workflows.
-	profile, err := a.customer.Tx(tx).LockByID(ctx, plan.CustomerID)
+	customerQ := a.customer.Tx(tx)
+	profile, err := customerQ.LockByID(ctx, plan.CustomerID)
 	if err != nil {
 		return err
 	}
+
 	if profile.ExternalCustomerID != plan.ExternalCustomerID {
 		return cerr.Conflict(fmt.Errorf("%s: FC obligor does not match customer", op))
 	}
+
 	cq := a.contracts.Tx(tx)
 	iq := a.installments.Tx(tx)
 	chq := a.charges.Tx(tx)
@@ -78,10 +88,12 @@ func (a *DefaultPostedApplier) ApplyPosted(
 			seenContracts[item.ContractID] = struct{}{}
 			contractIDs = append(contractIDs, item.ContractID)
 		}
+
 		if _, ok := seenAccounts[item.CreditAccountID]; !ok {
 			seenAccounts[item.CreditAccountID] = struct{}{}
 			accountIDs = append(accountIDs, item.CreditAccountID)
 		}
+
 		installmentIDs = append(installmentIDs, item.InstallmentID)
 	}
 	sort.Slice(contractIDs, func(i, j int) bool { return contractIDs[i].String() < contractIDs[j].String() })
@@ -94,6 +106,7 @@ func (a *DefaultPostedApplier) ApplyPosted(
 		if err != nil {
 			return err
 		}
+
 		if c.Status != model.ActiveContractStatus || c.CustomerID != plan.CustomerID ||
 			c.Currency != plan.Currency {
 			return cerr.Conflict(fmt.Errorf("%s: contract is not an active obligation", op))
@@ -107,6 +120,7 @@ func (a *DefaultPostedApplier) ApplyPosted(
 		if err != nil {
 			return err
 		}
+
 		if !inst.Status.IsActive() || inst.CustomerID != plan.CustomerID ||
 			inst.Currency != plan.Currency {
 			return cerr.Conflict(fmt.Errorf("%s: installment is not payable", op))
@@ -118,6 +132,7 @@ func (a *DefaultPostedApplier) ApplyPosted(
 	if err != nil {
 		return err
 	}
+
 	chargesByInstallment := make(map[model.InstallmentID][]model.InstallmentCharge, len(installmentIDs))
 	for _, charge := range lockedCharges {
 		chargesByInstallment[charge.InstallmentID] = append(chargesByInstallment[charge.InstallmentID], charge)
@@ -129,9 +144,11 @@ func (a *DefaultPostedApplier) ApplyPosted(
 		if err != nil {
 			return err
 		}
+
 		if account.CustomerID != plan.CustomerID || account.Currency != plan.Currency {
 			return cerr.Conflict(fmt.Errorf("%s: credit account does not belong to customer", op))
 		}
+
 		lockedAccounts[id] = account
 	}
 
@@ -142,6 +159,7 @@ func (a *DefaultPostedApplier) ApplyPosted(
 	if result.ProviderPaidAt != nil && !result.ProviderPaidAt.IsZero() {
 		effectivePaidAt = result.ProviderPaidAt.UTC()
 	}
+
 	now := a.clock.Now().UTC()
 	sort.Slice(plan.Items, func(i, j int) bool {
 		return plan.Items[i].InstallmentID.String() < plan.Items[j].InstallmentID.String()
@@ -160,16 +178,20 @@ func (a *DefaultPostedApplier) ApplyPosted(
 		if err != nil {
 			return err
 		}
+
 		var snapshotted uint64
 		for _, component := range item.Components {
 			if snapshotted > ^uint64(0)-component.NetMinor {
 				return cerr.Conflict(fmt.Errorf("%s: item amount overflow", op))
 			}
+
 			snapshotted += component.NetMinor
 		}
+
 		if !ok || snapshotted != currentPayable {
 			return cerr.Conflict(fmt.Errorf("%s: collection snapshot differs from current payable obligation", op))
 		}
+
 		if contract.RemainingPrincipalAmountMinor < installment.PrincipalAmountMinor ||
 			account.ExposureAmountMinor < installment.PrincipalAmountMinor {
 			return cerr.Conflict(fmt.Errorf("%s: principal/exposure inconsistent with FC posting", op))
@@ -181,23 +203,28 @@ func (a *DefaultPostedApplier) ApplyPosted(
 				ids = append(ids, charge.ID)
 			}
 		}
+
 		if len(ids) > 0 {
 			affected, err := chq.MarkSnapshottedChargeIDsPaid(ctx, ids, effectivePaidAt, now)
 			if err != nil {
 				return err
 			}
+
 			if affected != int64(len(ids)) {
 				return cerr.Conflict(fmt.Errorf("%s: charge settlement changed concurrently", op))
 			}
 		}
+
 		if _, err := iq.MarkPaid(ctx, installment.ID, contract.ID, snapshotted, effectivePaidAt, now); err != nil {
 			return err
 		}
+
 		if installment.PrincipalAmountMinor > 0 {
 			updated, err := aq.ReduceExposureIfSufficient(ctx, account.ID, installment.PrincipalAmountMinor, now)
 			if err != nil {
 				return err
 			}
+
 			lockedAccounts[account.ID] = updated
 			if _, err := aq.AppendTransaction(ctx, account.ID,
 				model.ExposureDecreasedCreditTransactionType, installment.PrincipalAmountMinor,
@@ -210,6 +237,7 @@ func (a *DefaultPostedApplier) ApplyPosted(
 			if err != nil {
 				return err
 			}
+
 			lockedContracts[contract.ID] = updatedContract
 		}
 	}
@@ -221,16 +249,20 @@ func (a *DefaultPostedApplier) ApplyPosted(
 		if err != nil {
 			return err
 		}
+
 		if contract.RemainingPrincipalAmountMinor != 0 {
 			continue
 		}
+
 		all, err := iq.ListByContractID(ctx, id)
 		if err != nil {
 			return err
 		}
+
 		if len(all) != contract.InstallmentCount {
 			return cerr.Conflict(fmt.Errorf("%s: contract installment count mismatch", op))
 		}
+
 		allPaid := true
 		for _, installment := range all {
 			if installment.Status != model.PaidInstallmentStatus {
@@ -238,26 +270,33 @@ func (a *DefaultPostedApplier) ApplyPosted(
 				break
 			}
 		}
+
 		if !allPaid {
 			continue
 		}
+
 		pendingCharges, err := chq.CountUnpaidCustomerDebitChargesByContractID(ctx, id)
 		if err != nil {
 			return err
 		}
+
 		if pendingCharges > 0 {
 			continue
 		}
+
 		blocking, err := pq.HasBlockingAttemptForContract(ctx, id)
 		if err != nil {
 			return err
 		}
+
 		if blocking {
 			continue
 		}
+
 		if _, err := cq.MarkCompleted(ctx, id, now, now); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }

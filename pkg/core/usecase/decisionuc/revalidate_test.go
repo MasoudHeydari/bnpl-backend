@@ -252,6 +252,10 @@ func (h *revalidateHarness) wireProfilesAndCredit(limitMinor uint64) {
 	h.allocationTQ.EXPECT().GetByDecisionID(h.ctx, h.decisionID).Return(allocation, nil).Once()
 	h.customerTQ.EXPECT().LockByID(h.ctx, h.customerID).Return(customer, nil).Once()
 	h.merchantTQ.EXPECT().GetByID(h.ctx, h.merchantPID).Return(merchant, nil).Once()
+	h.merchantTQ.EXPECT().
+		IsCreditKindEnabled(h.ctx, h.merchantPID, testifymock.Anything).
+		Return(true, nil).
+		Once()
 	h.branchTQ.EXPECT().GetByID(h.ctx, h.branchPID).Return(branch, nil).Once()
 	h.creditTQ.EXPECT().GetByCustomerIDAndCurrency(h.ctx, h.customerID, model.IRRCurrency).Return(account, nil).Once()
 }

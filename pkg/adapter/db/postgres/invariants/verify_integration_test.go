@@ -52,10 +52,13 @@ func newFixture(t *testing.T, install bool) *fixture {
 	// Every financial trigger is installed by the initial schema. The isolated
 	// fixture excludes owner-specific grants, which are covered by real-role tests.
 	baseline := strings.SplitN(string(ddl), "-- MANAGED DATABASE PERMISSIONS: canonical initial grants (pre-release)", 2)[0]
-	baseline = strings.ReplaceAll(baseline, "SET search_path TO bnpl;", "SET search_path TO "+schema+";")
-	baseline = strings.ReplaceAll(baseline, "bnpl.", schema+".")
-	baseline = strings.ReplaceAll(baseline, "pg_catalog, bnpl", "pg_catalog, "+schema)
+	baseline = rewriteInvariantFixtureSchemaSQL(baseline, schema)
 	f.exec(t, baseline)
+
+	upgrade, e := os.ReadFile("../migrationsrp/001_credit_kind_upgrade.sql")
+	require.NoError(t, e)
+	f.exec(t, rewriteInvariantFixtureSchemaSQL(string(upgrade), schema))
+
 	if !install {
 		// A separately simulated legacy dataset can have historical bad rows.
 		// Normal initialization always leaves these triggers enabled.
@@ -304,4 +307,11 @@ func (f *fixture) settleFixture(t *testing.T) {
 	_, e = tx.Exec(f.ctx, `UPDATE installments SET status='paid',paid_at=now(),paid_amount_minor=$2 WHERE id=$1`, f.installment, amount)
 	require.NoError(t, e)
 	require.NoError(t, tx.Commit(f.ctx))
+}
+
+func rewriteInvariantFixtureSchemaSQL(sql, schema string) string {
+	out := strings.ReplaceAll(sql, "SET search_path TO bnpl;", "SET search_path TO "+schema+";")
+	out = strings.ReplaceAll(out, "bnpl.", schema+".")
+	out = strings.ReplaceAll(out, "pg_catalog, bnpl", "pg_catalog, "+schema)
+	return out
 }

@@ -63,22 +63,20 @@ func (uc *UseCase) GetExternal(ctx context.Context, input GetExternalInput) (Get
 
 			// A public checkout locator may safely reveal merchant-level
 			// supported product names. Never expose a customer's limits.
+			// MerchantProfileQueryer embeds product eligibility, so both
+			// installment and monthly provisioning are always readable here.
 			supported := []model.CreditKind{}
-			if productQ, ok := merchantQ.(repo.MerchantProductEligibilityQueryer); ok {
-				for _, kind := range []model.CreditKind{
-					model.PayIn4CreditKind, model.PayNextMonthCreditKind,
-				} {
-					enabled, err := productQ.IsCreditKindEnabled(ctx, merchant.ID, kind)
-					if err != nil {
-						return err
-					}
-					if enabled {
-						supported = append(supported, kind)
-					}
+			for _, kind := range []model.CreditKind{
+				model.PayIn4CreditKind, model.PayNextMonthCreditKind,
+			} {
+				enabled, err := merchantQ.IsCreditKindEnabled(ctx, merchant.ID, kind)
+				if err != nil {
+					return err
 				}
-			} else {
-				// Legacy repository mocks only support the original product.
-				supported = append(supported, model.PayIn4CreditKind)
+
+				if enabled {
+					supported = append(supported, kind)
+				}
 			}
 
 			phone, err := uc.decryptCustomerPhone(found)

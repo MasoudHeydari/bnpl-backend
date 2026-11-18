@@ -2461,14 +2461,14 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Returns the authenticated customer's current BNPL credit summary.\nResolves x-auth-mobile-number through Customer Reference Service (ACTIVE only); CRS customer_id is customer_profiles.external_customer_id.\nBNPL resolves or provisions the local customer profile automatically when missing. Profile provisioning is idempotent and does not assign initial credit.\nRequires an authenticated customer subject plus gateway-injected mobile; no BNPL profile eligibility or credit limit precondition applies.\nNo request body.\nAvailable credit = effective current credit limit minus active committed financed exposure.\nActive financed exposure is persisted on the customer CreditAccount as outstanding principal from activated contracts.\nCheckout decisions, installment offers, and pre-activation contracts (payment_pending) do not reduce available credit.\nCredit is consumed only when a contract becomes active under its persisted checkout policy.\nWhen no credit limit has been assigned (customer never assessed), data contains only status not_assigned and meta.code is CUSTOMER_CREDIT_NOT_ASSIGNED — clients must initiate credit assessment, not treat this as a zero balance.\nWhen a historical limit exists but is not currently usable (including time-expired), data contains only status expired and expires_at; meta.code is CUSTOMER_CREDIT_EXPIRED — clients must trigger reassessment.\nFor an active limit, limit_amount_minor is the governed total capacity and available_amount_minor is remaining usable credit; both are integer minor-unit amounts in the response currency.",
+                "description": "Without credit_kind returns pay_in_4 and pay_next_month in one response, even when not assigned.\nWith credit_kind returns the legacy single-product response for backward compatibility.\nResolves x-auth-mobile-number through Customer Reference Service (ACTIVE only); CRS customer_id is customer_profiles.external_customer_id.\nBNPL resolves or provisions the local customer profile automatically when missing. Profile provisioning is idempotent and does not assign initial credit.\nRequires an authenticated customer subject plus gateway-injected mobile; no BNPL profile eligibility or credit limit precondition applies.\nNo request body.\nAvailable credit = effective current credit limit minus active committed financed exposure.\nActive financed exposure is persisted on the customer CreditAccount as outstanding principal from activated contracts.\nCheckout decisions, installment offers, and pre-activation contracts (payment_pending) do not reduce available credit.\nCredit is consumed only when a contract becomes active under its persisted checkout policy.\nWhen no credit limit has been assigned (customer never assessed), data contains only status not_assigned and meta.code is CUSTOMER_CREDIT_NOT_ASSIGNED — clients must initiate credit assessment, not treat this as a zero balance.\nWhen a historical limit exists but is not currently usable (including time-expired), data contains only status expired and expires_at; meta.code is CUSTOMER_CREDIT_EXPIRED — clients must trigger reassessment.\nFor an active limit, limit_amount_minor is the governed total capacity and available_amount_minor is remaining usable credit; both are integer minor-unit amounts in the response currency.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Credit Limits"
                 ],
-                "summary": "Get customer credit summary",
+                "summary": "Get all independently assigned credit products",
                 "parameters": [
                     {
                         "type": "string",
@@ -2531,7 +2531,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Customer credit summary returned",
+                        "description": "All credit products returned",
                         "schema": {
                             "$ref": "#/definitions/customercreditrs.GetSuccessSchema"
                         },
@@ -2647,8 +2647,18 @@ const docTemplate = `{
                 "tags": [
                     "Credit Limits"
                 ],
-                "summary": "Assign initial customer credit limit",
+                "summary": "Assign all available customer credit products",
                 "parameters": [
+                    {
+                        "enum": [
+                            "pay_in_4",
+                            "pay_next_month"
+                        ],
+                        "type": "string",
+                        "description": "Optional: select one legacy credit kind; omitted assigns both independent products",
+                        "name": "credit_kind",
+                        "in": "query"
+                    },
                     {
                         "type": "string",
                         "format": "uuid",
@@ -5814,6 +5824,707 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/repayment-batches": {
+            "post": {
+                "security": [
+                    {
+                        "PermissionAuth": []
+                    }
+                ],
+                "description": "Authenticated customer endpoint; internal Financial identifiers and accounting references are never exposed.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Payments"
+                ],
+                "summary": "Create repayment batch",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Stable Identity subject id",
+                        "name": "x-auth-subject-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated tenant",
+                        "name": "x-auth-tenant-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated context",
+                        "name": "x-auth-context-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "bnpl:payments:start:self",
+                        "description": "Gateway permissions",
+                        "name": "x-auth-permissions",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Trace ID",
+                        "name": "X-Trace-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Correlation ID",
+                        "name": "X-Correlation-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Idempotency token",
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Installment IDs",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/repaymentbatchrs.CreateBatchRequestSchema"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/repaymentbatchrs.BatchSuccessSchema"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/repayment-batches/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "PermissionAuth": []
+                    }
+                ],
+                "description": "Authenticated customer endpoint; internal Financial identifiers and accounting references are never exposed.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Payments"
+                ],
+                "summary": "Get repayment batch",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Stable Identity subject id",
+                        "name": "x-auth-subject-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated tenant",
+                        "name": "x-auth-tenant-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated context",
+                        "name": "x-auth-context-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "bnpl:payments:read:self",
+                        "description": "Gateway permissions",
+                        "name": "x-auth-permissions",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Trace ID",
+                        "name": "X-Trace-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Correlation ID",
+                        "name": "X-Correlation-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Repayment batch UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/repaymentbatchrs.BatchSuccessSchema"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/repayment-batches/{id}/start": {
+            "post": {
+                "security": [
+                    {
+                        "PermissionAuth": []
+                    }
+                ],
+                "description": "Authenticated customer endpoint; internal Financial identifiers and accounting references are never exposed.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Payments"
+                ],
+                "summary": "Start repayment batch",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Stable Identity subject id",
+                        "name": "x-auth-subject-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated tenant",
+                        "name": "x-auth-tenant-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated context",
+                        "name": "x-auth-context-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "bnpl:payments:start:self",
+                        "description": "Gateway permissions",
+                        "name": "x-auth-permissions",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Trace ID",
+                        "name": "X-Trace-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Correlation ID",
+                        "name": "X-Correlation-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Repayment batch UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Idempotency token",
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/repaymentbatchrs.StartBatchSuccessSchema"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/healthz/live": {
             "get": {
                 "description": "Reports whether the process is alive. Does not check external dependencies. Public endpoint outside /api/v1.",
@@ -6268,6 +6979,16 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "supported_credit_kinds": {
+                    "type": "array",
+                    "items": {
+                        "enum": [
+                            "pay_in_4",
+                            "pay_next_month"
+                        ],
+                        "$ref": "#/definitions/model.CreditKind"
+                    }
+                },
                 "verification": {
                     "$ref": "#/definitions/checkoutsessionrs.hostedExternalVerificationResponse"
                 }
@@ -6359,6 +7080,18 @@ const docTemplate = `{
         "checkoutsessionrs.HostedExternalStartRequestSchema": {
             "type": "object",
             "properties": {
+                "credit_kind": {
+                    "description": "Customer-selected product. An omitted field replays the current choice.",
+                    "enum": [
+                        "pay_in_4",
+                        "pay_next_month"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.CreditKind"
+                        }
+                    ]
+                },
                 "evaluation_generation": {
                     "description": "EvaluationGeneration is the offer version returned by GET, when known.",
                     "type": "integer",
@@ -6913,10 +7646,46 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "$ref": "#/definitions/customercreditrs.creditSummaryResponse"
+                    "$ref": "#/definitions/customercreditrs.allCreditSummariesResponse"
                 },
                 "meta": {
                     "$ref": "#/definitions/serdser.SuccessMetaNoPagination"
+                }
+            }
+        },
+        "customercreditrs.allCreditSummariesResponse": {
+            "type": "object",
+            "properties": {
+                "credits": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/customercreditrs.creditProductResponse"
+                    }
+                },
+                "status": {
+                    "enum": [
+                        "not_assigned",
+                        "partially_assigned",
+                        "assigned"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/customercredituc.AllCreditStatus"
+                        }
+                    ]
+                }
+            }
+        },
+        "customercreditrs.creditApplicationResponse": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "assigned",
+                        "not_assigned",
+                        "reassessment_required"
+                    ]
                 }
             }
         },
@@ -6964,12 +7733,27 @@ const docTemplate = `{
                 }
             }
         },
-        "customercreditrs.creditSummaryResponse": {
+        "customercreditrs.creditProductResponse": {
             "type": "object",
             "properties": {
+                "application": {
+                    "$ref": "#/definitions/customercreditrs.creditApplicationResponse"
+                },
                 "available_amount_minor": {
                     "type": "integer",
                     "example": 4000000
+                },
+                "credit_kind": {
+                    "description": "Kept absent on legacy responses; supplied for monthly credit inquiries.",
+                    "enum": [
+                        "pay_in_4",
+                        "pay_next_month"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.CreditKind"
+                        }
+                    ]
                 },
                 "credit_usage": {
                     "$ref": "#/definitions/customercredituc.CreditUsage"
@@ -7022,6 +7806,19 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "customercredituc.AllCreditStatus": {
+            "type": "string",
+            "enum": [
+                "not_assigned",
+                "partially_assigned",
+                "assigned"
+            ],
+            "x-enum-varnames": [
+                "AllCreditNotAssigned",
+                "AllCreditPartiallyAssigned",
+                "AllCreditAssigned"
+            ]
         },
         "customercredituc.AssignInitialLimitResult": {
             "type": "string",
@@ -8548,6 +9345,17 @@ const docTemplate = `{
                 "RevokedCreditAccountStatus"
             ]
         },
+        "model.CreditKind": {
+            "type": "string",
+            "enum": [
+                "pay_in_4",
+                "pay_next_month"
+            ],
+            "x-enum-varnames": [
+                "PayIn4CreditKind",
+                "PayNextMonthCreditKind"
+            ]
+        },
         "model.Currency": {
             "type": "string",
             "enum": [
@@ -8717,6 +9525,75 @@ const docTemplate = `{
                 "BankSettlementModel",
                 "MerchantFundedSettlementModel"
             ]
+        },
+        "repaymentbatchrs.BatchStatusSchema": {
+            "type": "object",
+            "properties": {
+                "currency": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "total_amount_minor": {
+                    "type": "integer"
+                }
+            }
+        },
+        "repaymentbatchrs.BatchSuccessSchema": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/repaymentbatchrs.BatchStatusSchema"
+                },
+                "meta": {
+                    "$ref": "#/definitions/serdser.SuccessMeta"
+                }
+            }
+        },
+        "repaymentbatchrs.CreateBatchRequestSchema": {
+            "type": "object",
+            "required": [
+                "installment_ids"
+            ],
+            "properties": {
+                "installment_ids": {
+                    "type": "array",
+                    "maxItems": 50,
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "repaymentbatchrs.StartBatchSchema": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "redirect_url": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "repaymentbatchrs.StartBatchSuccessSchema": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/repaymentbatchrs.StartBatchSchema"
+                },
+                "meta": {
+                    "$ref": "#/definitions/serdser.SuccessMeta"
+                }
+            }
         },
         "serdser.CursorInfo": {
             "type": "object",

@@ -28,5 +28,6 @@ func EffectiveCreditKind(k CreditKind) CreditKind {
 	if k == "" {
 		return PayIn4CreditKind
 	}
+
 	return k
 }

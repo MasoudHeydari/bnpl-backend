@@ -338,6 +338,7 @@ func TestE2E_OTP_ConcurrentIssuanceAtDeadlineCreatesAtMostOneSMS(t *testing.T) {
 		err     error
 		otpSent bool
 	}
+
 	results := make(chan issueResult, goroutines)
 
 	var wg sync.WaitGroup
@@ -537,6 +538,7 @@ func TestE2E_OTP_IssuanceVsSagaStepNoDeadlock(t *testing.T) {
 	type issueResult struct {
 		err error
 	}
+
 	issueDone := make(chan issueResult, 1)
 	go func() {
 		_, issueErr := h.CheckoutSession.RequestExternalOTP(h.ctx, checkoutsessionuc.RequestExternalOTPInput{
@@ -580,6 +582,7 @@ func containsDeadlock(err error) bool {
 	if err == nil {
 		return false
 	}
+
 	msg := err.Error()
 	return strings.Contains(msg, "40P01") || strings.Contains(strings.ToLower(msg), "deadlock")
 }

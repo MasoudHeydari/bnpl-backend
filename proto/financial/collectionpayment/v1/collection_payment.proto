@@ -1,0 +1,330 @@
+syntax = "proto3";
+
+package parstis.financial.collectionpayment.v1;
+
+option go_package = "github.com/parstis/bnpl-backend/gen/proto/financial/collectionpayment/v1;collectionpaymentv1";
+
+import "google/protobuf/timestamp.proto";
+import "financial/common/v1/common.proto";
+
+// Public v1 aggregate collection contract. RPC implementation and runtime registration are separate
+// acceptance gates; publishing this module does not claim these RPCs are enabled.
+//
+// The platform receives ALL provider cash. Economic allocation is not PSP routing.
+// Financial derives scope/source_service from authenticated service identity and
+// stored artifacts. No customer bearer token or caller-selected ledger account is
+// required/accepted. Service authorization does not grant wallet-debit authority.
+service CollectionPaymentService {
+  // Authorizes and durably reserves a complete immutable snapshot. Product-side
+  // calculation remains upstream; no provider call or cash posting occurs here.
+  rpc PrepareCollectionPayment(PrepareCollectionPaymentRequest)
+      returns (CollectionPaymentSnapshot);
+
+  // Starts at most one active provider attempt for the accepted snapshot. Safe
+  // replay returns its existing outcome, including UNKNOWN, never another charge.
+  rpc StartCollectionPayment(StartCollectionPaymentRequest)
+      returns (CollectionPaymentStatusResponse);
+
+  // Side-effect-free lookup. Source lookup recovers a lost initial response.
+  rpc GetCollectionPayment(GetCollectionPaymentRequest)
+      returns (CollectionPaymentStatusResponse);
+}
+
+// Nature of an assessed component, independent of cash recipient/beneficiary.
+// Unspecified and unrecognized enum values must be rejected at every command edge.
+enum CollectionComponentType {
+  COLLECTION_COMPONENT_TYPE_UNSPECIFIED = 0;
+  COLLECTION_COMPONENT_TYPE_PRINCIPAL = 1;
+  COLLECTION_COMPONENT_TYPE_LATE_FEE = 2;
+  COLLECTION_COMPONENT_TYPE_SERVICE_FEE = 3;
+  COLLECTION_COMPONENT_TYPE_TAX = 4;
+  // Base purchase/service amount, distinct from loan principal.
+  COLLECTION_COMPONENT_TYPE_BASE_AMOUNT = 5;
+}
+
+enum CollectionAdjustmentType {
+  COLLECTION_ADJUSTMENT_TYPE_UNSPECIFIED = 0;
+  COLLECTION_ADJUSTMENT_TYPE_DISCOUNT = 1;
+  COLLECTION_ADJUSTMENT_TYPE_WAIVER = 2;
+}
+
+// Each funding share has one model. A mixed purchase has several distinct shares;
+// MIXED is not a catch-all that could erase individual ownership and timing.
+enum CollectionFundingModel {
+  COLLECTION_FUNDING_MODEL_UNSPECIFIED = 0;
+  COLLECTION_FUNDING_MODEL_PLATFORM = 1;
+  COLLECTION_FUNDING_MODEL_BANK = 2;
+  COLLECTION_FUNDING_MODEL_MERCHANT = 3;
+  // Customer-funded remainder; not an extension of platform credit.
+  COLLECTION_FUNDING_MODEL_CUSTOMER = 4;
+}
+
+enum CollectionPartyType {
+  COLLECTION_PARTY_TYPE_UNSPECIFIED = 0;
+  COLLECTION_PARTY_TYPE_PLATFORM = 1;
+  COLLECTION_PARTY_TYPE_MERCHANT = 2;
+  COLLECTION_PARTY_TYPE_FUNDER = 3;
+  // Only the accepted snapshot customer, when used as a funding-share funder.
+  COLLECTION_PARTY_TYPE_CUSTOMER = 4;
+  // Financial-owned external reference, accepted only as a tax-liability destination.
+  COLLECTION_PARTY_TYPE_TAX_AUTHORITY = 5;
+}
+
+message CollectionParty {
+  CollectionPartyType type = 1;
+  // Required for merchant/funder/customer; absent for platform in derived scope.
+  // Customer party_id is customer-service customer_id, never Identity subject_id.
+  optional string party_id = 2;
+}
+
+// Opaque reference to an upstream assessment/contract version. It is provenance,
+// never an authorization token. Financial must independently authorize the source,
+// linked artifact, distribution purpose, parties and policy version.
+message CollectionAssessment {
+  parstis.financial.common.v1.BusinessSourceReference source = 1;
+  string policy_reference = 2;
+  string policy_version = 3;
+  google.protobuf.Timestamp assessed_at = 4;
+}
+
+message CollectionFundingShare {
+  string funding_share_id = 1;
+  CollectionFundingModel model = 2;
+  CollectionParty funder = 3;
+  // Financial-owned relationship known before preparation. Validates scope,
+  // merchant, customer, creditor and supported collection/settlement semantics.
+  string financial_relationship_id = 4;
+}
+
+// Describes the authorized economic destination, NOT an arbitrary journal entry.
+// Financial resolves an allowed posting plan from relationship and policy evidence.
+// The caller cannot select a chart account or make an unknown purpose permissive.
+enum CollectionAllocationPurpose {
+  COLLECTION_ALLOCATION_PURPOSE_UNSPECIFIED = 0;
+  COLLECTION_ALLOCATION_PURPOSE_RECEIVABLE_RECOVERY = 1;
+  COLLECTION_ALLOCATION_PURPOSE_MERCHANT_PAYABLE_ON_COLLECTION = 2;
+  COLLECTION_ALLOCATION_PURPOSE_PLATFORM_REVENUE_ON_COLLECTION = 3;
+  COLLECTION_ALLOCATION_PURPOSE_FUNDER_PAYABLE_ON_COLLECTION = 4;
+  COLLECTION_ALLOCATION_PURPOSE_TAX_LIABILITY_ON_COLLECTION = 5;
+  // Cash before economic recognition. Credits Financial-resolved platform clearing,
+  // not revenue or merchant entitlement. Later recognition requires accepted cash evidence.
+  COLLECTION_ALLOCATION_PURPOSE_PRE_RECOGNITION_CASH = 6;
+}
+
+message CollectionAllocation {
+  string allocation_id = 1;
+  CollectionAllocationPurpose purpose = 2;
+  // Economic beneficiary for ordinary purposes. For TAX_LIABILITY_ON_COLLECTION,
+  // the party for whom the tax funds are held; this is not a revenue entitlement
+  // and need not equal tax_context.liable_party. Authorized treatment maps both
+  // roles to the obligation owed to the identified tax authority.
+  CollectionParty beneficiary = 3;
+  parstis.financial.common.v1.Money amount = 4;
+  // Reference to a registered/accepted distribution rule, not caller authority.
+  string distribution_rule_reference = 5;
+  string distribution_rule_version = 6;
+  // Required for RECEIVABLE_RECOVERY and bound to original recognition. Cash
+  // collection reduces the existing claim; it must not recognize income/payable
+  // again. Other purposes require an authorized new-recognition posting plan.
+  optional string recognition_reference = 7;
+  // Resolves within the containing item. Attribution is per allocation so one
+  // component may span several funding shares without losing their economics.
+  // Absent when no financing attribution exists.
+  optional string funding_share_id = 8;
+}
+
+// Tax is not platform/merchant revenue merely because that party receives cash.
+// Legal applicability/rates are supplied by the authorized upstream assessment;
+// unknown tax treatment is rejected, never inferred from a display label.
+message CollectionTaxContext {
+  string tax_code = 1;
+  string jurisdiction = 2;
+  CollectionParty liable_party = 3;
+  string tax_authority_reference = 4;
+  // Opaque assessed base/invoice reference; prevents collecting already-included
+  // tax again. No assumption that all tax is charged on principal or late fees.
+  string taxable_basis_reference = 5;
+  string treatment_reference = 6;
+  string treatment_version = 7;
+}
+
+message CollectionAdjustment {
+  string adjustment_id = 1;
+  CollectionAdjustmentType type = 2;
+  // Positive deduction linked to THIS component, never a free negative cash item.
+  parstis.financial.common.v1.Money amount = 3;
+  CollectionAssessment assessment = 4;
+}
+
+message CollectionComponent {
+  string component_id = 1;
+  CollectionComponentType type = 2;
+  CollectionAssessment assessment = 3;
+  // Stored Financial receivable/charge reference. Current RECEIVABLE_RECOVERY
+  // execution requires the canonical UUID merchant_entitlement_id returned by
+  // RecordMerchantEntitlement. No source/customer/amount-based target inference.
+  // Absence never authorizes recognition.
+  optional string financial_claim_id = 4;
+  parstis.financial.common.v1.Money gross_amount = 5;
+  repeated CollectionAdjustment adjustments = 6;
+  // net = gross - sum(adjustments); net >= 0. All adjustments <= gross in total.
+  parstis.financial.common.v1.Money net_amount = 7;
+  // Exact amounts, not percentages; sum(allocations.amount) = net_amount.
+  // Zero-net assessed components have no allocations and remain auditable.
+  repeated CollectionAllocation allocations = 8;
+  // Required only for TAX; forbidden for other component types.
+  optional CollectionTaxContext tax_context = 9;
+}
+
+enum CollectionBasisKind {
+  COLLECTION_BASIS_KIND_UNSPECIFIED = 0;
+  COLLECTION_BASIS_KIND_PURCHASE = 1;
+  COLLECTION_BASIS_KIND_INSTALLMENT = 2;
+  COLLECTION_BASIS_KIND_SERVICE = 3;
+}
+
+message CollectionItem {
+  string item_id = 1;
+  // Opaque upstream purchase/installment provenance; Financial owns no schedule.
+  parstis.financial.common.v1.BusinessSourceReference source = 2;
+  // Absent for collection without an external seller.
+  optional string merchant_id = 3;
+  repeated CollectionFundingShare funding_shares = 4;
+  repeated CollectionComponent components = 5;
+  // Required; source tag 2 identifies the basis, not necessarily a receivable.
+  CollectionBasisKind basis_kind = 6;
+}
+
+// Current execution requires payer = obligor and one authenticated origin for all
+// provenance. Cross-origin and third-party payment are representable, not authorized.
+// Explicit payer and obligor IDs are Customer-service IDs, never Identity subjects.
+// Item, component, adjustment, allocation and funding-share IDs are UUIDs.
+// BusinessSourceReference.version remains optional and, when present, positive;
+// changing only a version does not create another logical item or payment.
+message PrepareCollectionPaymentRequest {
+  parstis.financial.common.v1.BusinessSourceReference source = 1;
+  string idempotency_key = 2;
+  // Customer-service identity, not Identity subject_id.
+  // Legacy obligor alias; if both are supplied they must match.
+  string customer_id = 3 [deprecated = true];
+  repeated CollectionItem items = 4;
+  // Positive, one currency; exactly sum of every component's net_amount.
+  parstis.financial.common.v1.Money payment_amount = 5;
+  string description = 6;
+  string payer_customer_id = 7;
+  string obligor_customer_id = 8;
+}
+
+message CollectionPaymentSnapshot {
+  string collection_payment_id = 1;
+  parstis.financial.common.v1.BusinessSourceReference source = 2;
+  // Legacy obligor alias; if both are supplied they must match.
+  string customer_id = 3 [deprecated = true];
+  repeated CollectionItem items = 4;
+  parstis.financial.common.v1.Money payment_amount = 5;
+  google.protobuf.Timestamp accepted_at = 6;
+  // Server-owned: accepted_at + exactly 10 minutes. Replay never extends it.
+  google.protobuf.Timestamp expires_at = 7;
+  int64 revision = 8;
+  bool reused_idempotent_result = 9;
+  string description = 10;
+  string payer_customer_id = 11;
+  string obligor_customer_id = 12;
+}
+
+// Initiation settings are bound durably on first acceptance. Its idempotency
+// fingerprint includes snapshot identity/revision, provider_code and all return
+// URLs. Same key with changed settings conflicts. Another key cannot bypass
+// one-active-attempt binding. Neither acceptance nor replay renews snapshot expiry;
+// the provider session deadline cannot exceed the original snapshot expires_at.
+// A verified late success reconciles the old snapshot, never a newly quoted amount.
+message StartCollectionPaymentRequest {
+  string collection_payment_id = 1;
+  string idempotency_key = 2;
+  string provider_code = 3;
+  parstis.financial.common.v1.PaymentReturnUrls return_urls = 4;
+  // Optimistic check of the accepted snapshot, not permission to change it.
+  int64 expected_snapshot_revision = 5;
+}
+
+message GetCollectionPaymentRequest {
+  oneof lookup {
+    string collection_payment_id = 1;
+    parstis.financial.common.v1.BusinessSourceReference source = 2;
+  }
+}
+
+enum CollectionPaymentStatus {
+  COLLECTION_PAYMENT_STATUS_UNSPECIFIED = 0;
+  COLLECTION_PAYMENT_STATUS_PREPARED = 1;
+  COLLECTION_PAYMENT_STATUS_STARTING = 2;
+  COLLECTION_PAYMENT_STATUS_REQUIRES_CUSTOMER_ACTION = 3;
+  COLLECTION_PAYMENT_STATUS_RECONCILIATION_REQUIRED = 4;
+  COLLECTION_PAYMENT_STATUS_ACCOUNTING_PENDING = 5;
+  COLLECTION_PAYMENT_STATUS_SUCCEEDED = 6;
+  COLLECTION_PAYMENT_STATUS_FAILED = 7;
+  COLLECTION_PAYMENT_STATUS_EXPIRED = 8;
+  COLLECTION_PAYMENT_STATUS_BANK_REVERSED = 9;
+}
+
+// Separate provider evidence from atomic Financial posting. A redirect or local
+// timeout is not authoritative payment failure. Unknown outcome keeps reservations.
+enum CollectionProviderOutcome {
+  COLLECTION_PROVIDER_OUTCOME_UNSPECIFIED = 0;
+  COLLECTION_PROVIDER_OUTCOME_NOT_STARTED = 1;
+  COLLECTION_PROVIDER_OUTCOME_PENDING = 2;
+  COLLECTION_PROVIDER_OUTCOME_UNKNOWN = 3;
+  COLLECTION_PROVIDER_OUTCOME_SUCCEEDED = 4;
+  COLLECTION_PROVIDER_OUTCOME_FAILED = 5;
+  COLLECTION_PROVIDER_OUTCOME_REVERSED = 6;
+}
+
+enum CollectionPostingOutcome {
+  COLLECTION_POSTING_OUTCOME_UNSPECIFIED = 0;
+  COLLECTION_POSTING_OUTCOME_NOT_POSTED = 1;
+  COLLECTION_POSTING_OUTCOME_PENDING = 2;
+  COLLECTION_POSTING_OUTCOME_POSTED = 3;
+  COLLECTION_POSTING_OUTCOME_REVERSAL_PENDING = 4;
+  COLLECTION_POSTING_OUTCOME_REVERSED = 5;
+}
+
+message CollectionPostedAllocation {
+  string item_id = 1;
+  string component_id = 2;
+  string allocation_id = 3;
+  parstis.financial.common.v1.Money amount = 4;
+  // Stable Financial reference, not a chart-account identifier.
+  string posting_reference = 5;
+}
+
+// Bank reversal is evidence-driven, not a caller-requested commercial refund.
+// It references the original attempt and preserves original success/posting facts.
+message CollectionBankReversal {
+  string reversal_id = 1;
+  string payment_attempt_id = 2;
+  string provider_evidence_reference = 3;
+  parstis.financial.common.v1.Money amount = 4;
+  google.protobuf.Timestamp observed_at = 5;
+  optional google.protobuf.Timestamp provider_occurred_at = 6;
+  CollectionPostingOutcome posting_outcome = 7;
+}
+
+message CollectionPaymentStatusResponse {
+  CollectionPaymentSnapshot snapshot = 1;
+  CollectionPaymentStatus status = 2;
+  CollectionProviderOutcome provider_outcome = 3;
+  CollectionPostingOutcome posting_outcome = 4;
+  optional string payment_intent_id = 5;
+  optional string payment_attempt_id = 6;
+  optional string payment_session_id = 7;
+  // Sensitive customer-action URL. Do not publish in events or ordinary logs.
+  optional string payment_link = 8;
+  optional google.protobuf.Timestamp provider_paid_at = 9;
+  optional google.protobuf.Timestamp posted_at = 10;
+  repeated CollectionPostedAllocation posted_allocations = 11;
+  repeated CollectionBankReversal bank_reversals = 12;
+  int64 aggregate_revision = 13;
+  // Controlled, non-secret reconciliation/failure reason; not free exception text.
+  optional string reason_code = 14;
+  bool reused_idempotent_result = 15;
+}

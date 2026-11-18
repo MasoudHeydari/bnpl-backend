@@ -201,6 +201,7 @@ func (uc *UseCase) Cancel(
 							Result:   CancelResultStarted,
 							Contract: updated,
 						}
+
 						return nil
 
 					case model.CancelingContractStatus, model.CanceledContractStatus:

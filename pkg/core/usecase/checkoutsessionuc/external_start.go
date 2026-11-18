@@ -98,6 +98,7 @@ func (uc *UseCase) StartExternal(
 	if _, err := uc.selectExternalCreditKindForStart(ctx, input.Token, input.CreditKind); err != nil {
 		return StartExternalOutput{}, err
 	}
+
 	prepared, err := uc.ensureOfferPreparedForStart(ctx, input.Token)
 	if err != nil {
 		return StartExternalOutput{}, err

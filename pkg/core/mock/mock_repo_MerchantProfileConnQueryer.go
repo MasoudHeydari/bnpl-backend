@@ -169,3 +169,75 @@ func (_c *MerchantProfileConnQueryer_GetByMerchantID_Call) RunAndReturn(run func
 	_c.Call.Return(run)
 	return _c
 }
+
+// IsCreditKindEnabled provides a mock function for the type MerchantProfileConnQueryer
+func (_mock *MerchantProfileConnQueryer) IsCreditKindEnabled(context1 context.Context, merchantProfileID model.MerchantProfileID, creditKind model.CreditKind) (bool, error) {
+	ret := _mock.Called(context1, merchantProfileID, creditKind)
+
+	if len(ret) == 0 {
+		panic("no return value specified for IsCreditKindEnabled")
+	}
+
+	var r0 bool
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantProfileID, model.CreditKind) (bool, error)); ok {
+		return returnFunc(context1, merchantProfileID, creditKind)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantProfileID, model.CreditKind) bool); ok {
+		r0 = returnFunc(context1, merchantProfileID, creditKind)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.MerchantProfileID, model.CreditKind) error); ok {
+		r1 = returnFunc(context1, merchantProfileID, creditKind)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MerchantProfileConnQueryer_IsCreditKindEnabled_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IsCreditKindEnabled'
+type MerchantProfileConnQueryer_IsCreditKindEnabled_Call struct {
+	*mock.Call
+}
+
+// IsCreditKindEnabled is a helper method to define mock.On call
+//   - context1 context.Context
+//   - merchantProfileID model.MerchantProfileID
+//   - creditKind model.CreditKind
+func (_e *MerchantProfileConnQueryer_Expecter) IsCreditKindEnabled(context1 any, merchantProfileID any, creditKind any) *MerchantProfileConnQueryer_IsCreditKindEnabled_Call {
+	return &MerchantProfileConnQueryer_IsCreditKindEnabled_Call{Call: _e.mock.On("IsCreditKindEnabled", context1, merchantProfileID, creditKind)}
+}
+
+func (_c *MerchantProfileConnQueryer_IsCreditKindEnabled_Call) Run(run func(context1 context.Context, merchantProfileID model.MerchantProfileID, creditKind model.CreditKind)) *MerchantProfileConnQueryer_IsCreditKindEnabled_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.MerchantProfileID
+		if args[1] != nil {
+			arg1 = args[1].(model.MerchantProfileID)
+		}
+		var arg2 model.CreditKind
+		if args[2] != nil {
+			arg2 = args[2].(model.CreditKind)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MerchantProfileConnQueryer_IsCreditKindEnabled_Call) Return(b bool, err error) *MerchantProfileConnQueryer_IsCreditKindEnabled_Call {
+	_c.Call.Return(b, err)
+	return _c
+}
+
+func (_c *MerchantProfileConnQueryer_IsCreditKindEnabled_Call) RunAndReturn(run func(context1 context.Context, merchantProfileID model.MerchantProfileID, creditKind model.CreditKind) (bool, error)) *MerchantProfileConnQueryer_IsCreditKindEnabled_Call {
+	_c.Call.Return(run)
+	return _c
+}

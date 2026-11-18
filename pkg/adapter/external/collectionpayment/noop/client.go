@@ -1,4 +1,4 @@
-// Package noop disables CollectionPayment v2 without simulating a payment.
+// Package noop disables CollectionPayment v1 (FC target draft) without simulating a payment.
 package noop
 
 import (
@@ -16,14 +16,14 @@ var _ external.Client = (*Client)(nil)
 
 func New() *Client { return &Client{} }
 func (c *Client) Prepare(context.Context, collectionpayment.Plan, string) (external.Result, error) {
-	return external.Result{}, fmt.Errorf("Financial Core CollectionPayment v2 is disabled")
+	return external.Result{}, fmt.Errorf("Financial Core CollectionPayment v1 (FC target draft) is disabled")
 }
 func (c *Client) Start(context.Context, string, string, string, external.ReturnURLs, int64) (external.Result, error) {
-	return external.Result{}, fmt.Errorf("Financial Core CollectionPayment v2 is disabled")
+	return external.Result{}, fmt.Errorf("Financial Core CollectionPayment v1 (FC target draft) is disabled")
 }
 func (c *Client) GetByID(context.Context, string) (external.Result, error) {
-	return external.Result{}, fmt.Errorf("Financial Core CollectionPayment v2 is disabled")
+	return external.Result{}, fmt.Errorf("Financial Core CollectionPayment v1 (FC target draft) is disabled")
 }
 func (c *Client) GetBySource(context.Context, uuid.UUID) (external.Result, error) {
-	return external.Result{}, fmt.Errorf("Financial Core CollectionPayment v2 is disabled")
+	return external.Result{}, fmt.Errorf("Financial Core CollectionPayment v1 (FC target draft) is disabled")
 }

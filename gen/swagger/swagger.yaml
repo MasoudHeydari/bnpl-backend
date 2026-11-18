@@ -225,6 +225,13 @@ definitions:
         - canceled
         - expired
         - unavailable
+      supported_credit_kinds:
+        items:
+          $ref: '#/definitions/model.CreditKind'
+          enum:
+          - pay_in_4
+          - pay_next_month
+        type: array
       verification:
         $ref: '#/definitions/checkoutsessionrs.hostedExternalVerificationResponse'
     type: object
@@ -287,6 +294,14 @@ definitions:
     type: object
   checkoutsessionrs.HostedExternalStartRequestSchema:
     properties:
+      credit_kind:
+        allOf:
+        - $ref: '#/definitions/model.CreditKind'
+        description: Customer-selected product. An omitted field replays the current
+          choice.
+        enum:
+        - pay_in_4
+        - pay_next_month
       evaluation_generation:
         description: EvaluationGeneration is the offer version returned by GET, when
           known.
@@ -655,9 +670,32 @@ definitions:
   customercreditrs.GetSuccessSchema:
     properties:
       data:
-        $ref: '#/definitions/customercreditrs.creditSummaryResponse'
+        $ref: '#/definitions/customercreditrs.allCreditSummariesResponse'
       meta:
         $ref: '#/definitions/serdser.SuccessMetaNoPagination'
+    type: object
+  customercreditrs.allCreditSummariesResponse:
+    properties:
+      credits:
+        items:
+          $ref: '#/definitions/customercreditrs.creditProductResponse'
+        type: array
+      status:
+        allOf:
+        - $ref: '#/definitions/customercredituc.AllCreditStatus'
+        enum:
+        - not_assigned
+        - partially_assigned
+        - assigned
+    type: object
+  customercreditrs.creditApplicationResponse:
+    properties:
+      status:
+        enum:
+        - assigned
+        - not_assigned
+        - reassessment_required
+        type: string
     type: object
   customercreditrs.creditLimitDecisionOutcome:
     enum:
@@ -687,11 +725,21 @@ definitions:
         - $ref: '#/definitions/model.CreditAccountStatus'
         example: active
     type: object
-  customercreditrs.creditSummaryResponse:
+  customercreditrs.creditProductResponse:
     properties:
+      application:
+        $ref: '#/definitions/customercreditrs.creditApplicationResponse'
       available_amount_minor:
         example: 4000000
         type: integer
+      credit_kind:
+        allOf:
+        - $ref: '#/definitions/model.CreditKind'
+        description: Kept absent on legacy responses; supplied for monthly credit
+          inquiries.
+        enum:
+        - pay_in_4
+        - pay_next_month
       credit_usage:
         $ref: '#/definitions/customercredituc.CreditUsage'
       currency:
@@ -723,6 +771,16 @@ definitions:
           type: string
         type: array
     type: object
+  customercredituc.AllCreditStatus:
+    enum:
+    - not_assigned
+    - partially_assigned
+    - assigned
+    type: string
+    x-enum-varnames:
+    - AllCreditNotAssigned
+    - AllCreditPartiallyAssigned
+    - AllCreditAssigned
   customercredituc.AssignInitialLimitResult:
     enum:
     - created
@@ -1763,6 +1821,14 @@ definitions:
     - ActiveCreditAccountStatus
     - ExpiredCreditAccountStatus
     - RevokedCreditAccountStatus
+  model.CreditKind:
+    enum:
+    - pay_in_4
+    - pay_next_month
+    type: string
+    x-enum-varnames:
+    - PayIn4CreditKind
+    - PayNextMonthCreditKind
   model.Currency:
     enum:
     - IRR
@@ -1897,6 +1963,51 @@ definitions:
     - DirectSettlementModel
     - BankSettlementModel
     - MerchantFundedSettlementModel
+  repaymentbatchrs.BatchStatusSchema:
+    properties:
+      currency:
+        type: string
+      id:
+        type: string
+      status:
+        type: string
+      total_amount_minor:
+        type: integer
+    type: object
+  repaymentbatchrs.BatchSuccessSchema:
+    properties:
+      data:
+        $ref: '#/definitions/repaymentbatchrs.BatchStatusSchema'
+      meta:
+        $ref: '#/definitions/serdser.SuccessMeta'
+    type: object
+  repaymentbatchrs.CreateBatchRequestSchema:
+    properties:
+      installment_ids:
+        items:
+          type: string
+        maxItems: 50
+        minItems: 1
+        type: array
+    required:
+    - installment_ids
+    type: object
+  repaymentbatchrs.StartBatchSchema:
+    properties:
+      id:
+        type: string
+      redirect_url:
+        type: string
+      status:
+        type: string
+    type: object
+  repaymentbatchrs.StartBatchSuccessSchema:
+    properties:
+      data:
+        $ref: '#/definitions/repaymentbatchrs.StartBatchSchema'
+      meta:
+        $ref: '#/definitions/serdser.SuccessMeta'
+    type: object
   serdser.CursorInfo:
     properties:
       limit:
@@ -3902,7 +4013,8 @@ paths:
   /api/v1/customer-credit:
     get:
       description: |-
-        Returns the authenticated customer's current BNPL credit summary.
+        Without credit_kind returns pay_in_4 and pay_next_month in one response, even when not assigned.
+        With credit_kind returns the legacy single-product response for backward compatibility.
         Resolves x-auth-mobile-number through Customer Reference Service (ACTIVE only); CRS customer_id is customer_profiles.external_customer_id.
         BNPL resolves or provisions the local customer profile automatically when missing. Profile provisioning is idempotent and does not assign initial credit.
         Requires an authenticated customer subject plus gateway-injected mobile; no BNPL profile eligibility or credit limit precondition applies.
@@ -3961,7 +4073,7 @@ paths:
       - application/json
       responses:
         "200":
-          description: Customer credit summary returned
+          description: All credit products returned
           headers:
             X-Correlation-Id:
               description: 'Always set: reuse inbound value or generate'
@@ -4032,7 +4144,7 @@ paths:
             $ref: '#/definitions/serdser.ErrorResponse'
       security:
       - PermissionAuth: []
-      summary: Get customer credit summary
+      summary: Get all independently assigned credit products
       tags:
       - Credit Limits
   /api/v1/customer-credit/initiate:
@@ -4044,6 +4156,14 @@ paths:
         Requires an authenticated customer subject plus gateway-injected mobile. No request body.
         Returns 201 when a new limit is created, and 200 for already-assigned or denied outcomes.
       parameters:
+      - description: 'Optional: select one legacy credit kind; omitted assigns both
+          independent products'
+        enum:
+        - pay_in_4
+        - pay_next_month
+        in: query
+        name: credit_kind
+        type: string
       - description: Authenticated Identity Service subject UUID
         format: uuid
         in: header
@@ -4217,7 +4337,7 @@ paths:
             $ref: '#/definitions/serdser.ErrorResponse'
       security:
       - PermissionAuth: []
-      summary: Assign initial customer credit limit
+      summary: Assign all available customer credit products
       tags:
       - Credit Limits
   /api/v1/installments:
@@ -6336,6 +6456,495 @@ paths:
       summary: List installment payment history
       tags:
       - Installment Payments
+  /api/v1/repayment-batches:
+    post:
+      consumes:
+      - application/json
+      description: Authenticated customer endpoint; internal Financial identifiers
+        and accounting references are never exposed.
+      parameters:
+      - description: Stable Identity subject id
+        format: uuid
+        in: header
+        name: x-auth-subject-id
+        required: true
+        type: string
+      - description: Authenticated tenant
+        format: uuid
+        in: header
+        name: x-auth-tenant-id
+        required: true
+        type: string
+      - description: Authenticated context
+        format: uuid
+        in: header
+        name: x-auth-context-id
+        required: true
+        type: string
+      - description: Gateway permissions
+        example: bnpl:payments:start:self
+        in: header
+        name: x-auth-permissions
+        required: true
+        type: string
+      - description: Trace ID
+        in: header
+        name: X-Trace-Id
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Correlation ID
+        in: header
+        name: X-Correlation-Id
+        type: string
+      - description: Idempotency token
+        in: header
+        name: Idempotency-Key
+        required: true
+        type: string
+      - description: Installment IDs
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/repaymentbatchrs.CreateBatchRequestSchema'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          headers:
+            X-Correlation-Id:
+              description: Always set
+              type: string
+            X-Request-Id:
+              description: Always set
+              type: string
+            X-Trace-Id:
+              description: Always set
+              type: string
+          schema:
+            $ref: '#/definitions/repaymentbatchrs.BatchSuccessSchema'
+        "400":
+          description: Bad Request
+          headers:
+            X-Correlation-Id:
+              description: Always set
+              type: string
+            X-Request-Id:
+              description: Always set
+              type: string
+            X-Trace-Id:
+              description: Always set
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "401":
+          description: Unauthorized
+          headers:
+            X-Correlation-Id:
+              description: Always set
+              type: string
+            X-Request-Id:
+              description: Always set
+              type: string
+            X-Trace-Id:
+              description: Always set
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "403":
+          description: Forbidden
+          headers:
+            X-Correlation-Id:
+              description: Always set
+              type: string
+            X-Request-Id:
+              description: Always set
+              type: string
+            X-Trace-Id:
+              description: Always set
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "404":
+          description: Not Found
+          headers:
+            X-Correlation-Id:
+              description: Always set
+              type: string
+            X-Request-Id:
+              description: Always set
+              type: string
+            X-Trace-Id:
+              description: Always set
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "409":
+          description: Conflict
+          headers:
+            X-Correlation-Id:
+              description: Always set
+              type: string
+            X-Request-Id:
+              description: Always set
+              type: string
+            X-Trace-Id:
+              description: Always set
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          headers:
+            X-Correlation-Id:
+              description: Always set
+              type: string
+            X-Request-Id:
+              description: Always set
+              type: string
+            X-Trace-Id:
+              description: Always set
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          headers:
+            X-Correlation-Id:
+              description: Always set
+              type: string
+            X-Request-Id:
+              description: Always set
+              type: string
+            X-Trace-Id:
+              description: Always set
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+      security:
+      - PermissionAuth: []
+      summary: Create repayment batch
+      tags:
+      - Payments
+  /api/v1/repayment-batches/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Authenticated customer endpoint; internal Financial identifiers
+        and accounting references are never exposed.
+      parameters:
+      - description: Stable Identity subject id
+        format: uuid
+        in: header
+        name: x-auth-subject-id
+        required: true
+        type: string
+      - description: Authenticated tenant
+        format: uuid
+        in: header
+        name: x-auth-tenant-id
+        required: true
+        type: string
+      - description: Authenticated context
+        format: uuid
+        in: header
+        name: x-auth-context-id
+        required: true
+        type: string
+      - description: Gateway permissions
+        example: bnpl:payments:read:self
+        in: header
+        name: x-auth-permissions
+        required: true
+        type: string
+      - description: Trace ID
+        in: header
+        name: X-Trace-Id
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Correlation ID
+        in: header
+        name: X-Correlation-Id
+        type: string
+      - description: Repayment batch UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          headers:
+            X-Correlation-Id:
+              description: Always set
+              type: string
+            X-Request-Id:
+              description: Always set
+              type: string
+            X-Trace-Id:
+              description: Always set
+              type: string
+          schema:
+            $ref: '#/definitions/repaymentbatchrs.BatchSuccessSchema'
+        "400":
+          description: Bad Request
+          headers:
+            X-Correlation-Id:
+              description: Always set
+              type: string
+            X-Request-Id:
+              description: Always set
+              type: string
+            X-Trace-Id:
+              description: Always set
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "401":
+          description: Unauthorized
+          headers:
+            X-Correlation-Id:
+              description: Always set
+              type: string
+            X-Request-Id:
+              description: Always set
+              type: string
+            X-Trace-Id:
+              description: Always set
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "403":
+          description: Forbidden
+          headers:
+            X-Correlation-Id:
+              description: Always set
+              type: string
+            X-Request-Id:
+              description: Always set
+              type: string
+            X-Trace-Id:
+              description: Always set
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "404":
+          description: Not Found
+          headers:
+            X-Correlation-Id:
+              description: Always set
+              type: string
+            X-Request-Id:
+              description: Always set
+              type: string
+            X-Trace-Id:
+              description: Always set
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "409":
+          description: Conflict
+          headers:
+            X-Correlation-Id:
+              description: Always set
+              type: string
+            X-Request-Id:
+              description: Always set
+              type: string
+            X-Trace-Id:
+              description: Always set
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          headers:
+            X-Correlation-Id:
+              description: Always set
+              type: string
+            X-Request-Id:
+              description: Always set
+              type: string
+            X-Trace-Id:
+              description: Always set
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+      security:
+      - PermissionAuth: []
+      summary: Get repayment batch
+      tags:
+      - Payments
+  /api/v1/repayment-batches/{id}/start:
+    post:
+      consumes:
+      - application/json
+      description: Authenticated customer endpoint; internal Financial identifiers
+        and accounting references are never exposed.
+      parameters:
+      - description: Stable Identity subject id
+        format: uuid
+        in: header
+        name: x-auth-subject-id
+        required: true
+        type: string
+      - description: Authenticated tenant
+        format: uuid
+        in: header
+        name: x-auth-tenant-id
+        required: true
+        type: string
+      - description: Authenticated context
+        format: uuid
+        in: header
+        name: x-auth-context-id
+        required: true
+        type: string
+      - description: Gateway permissions
+        example: bnpl:payments:start:self
+        in: header
+        name: x-auth-permissions
+        required: true
+        type: string
+      - description: Trace ID
+        in: header
+        name: X-Trace-Id
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Correlation ID
+        in: header
+        name: X-Correlation-Id
+        type: string
+      - description: Repayment batch UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Idempotency token
+        in: header
+        name: Idempotency-Key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          headers:
+            X-Correlation-Id:
+              description: Always set
+              type: string
+            X-Request-Id:
+              description: Always set
+              type: string
+            X-Trace-Id:
+              description: Always set
+              type: string
+          schema:
+            $ref: '#/definitions/repaymentbatchrs.StartBatchSuccessSchema'
+        "400":
+          description: Bad Request
+          headers:
+            X-Correlation-Id:
+              description: Always set
+              type: string
+            X-Request-Id:
+              description: Always set
+              type: string
+            X-Trace-Id:
+              description: Always set
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "401":
+          description: Unauthorized
+          headers:
+            X-Correlation-Id:
+              description: Always set
+              type: string
+            X-Request-Id:
+              description: Always set
+              type: string
+            X-Trace-Id:
+              description: Always set
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "403":
+          description: Forbidden
+          headers:
+            X-Correlation-Id:
+              description: Always set
+              type: string
+            X-Request-Id:
+              description: Always set
+              type: string
+            X-Trace-Id:
+              description: Always set
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "404":
+          description: Not Found
+          headers:
+            X-Correlation-Id:
+              description: Always set
+              type: string
+            X-Request-Id:
+              description: Always set
+              type: string
+            X-Trace-Id:
+              description: Always set
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "409":
+          description: Conflict
+          headers:
+            X-Correlation-Id:
+              description: Always set
+              type: string
+            X-Request-Id:
+              description: Always set
+              type: string
+            X-Trace-Id:
+              description: Always set
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          headers:
+            X-Correlation-Id:
+              description: Always set
+              type: string
+            X-Request-Id:
+              description: Always set
+              type: string
+            X-Trace-Id:
+              description: Always set
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+      security:
+      - PermissionAuth: []
+      summary: Start repayment batch
+      tags:
+      - Payments
   /healthz/live:
     get:
       description: Reports whether the process is alive. Does not check external dependencies.

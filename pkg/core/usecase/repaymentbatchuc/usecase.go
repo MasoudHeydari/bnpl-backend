@@ -1,4 +1,4 @@
-// Package repaymentbatchuc orchestrates FC v2 collections over immutable,
+// Package repaymentbatchuc orchestrates FC CollectionPayment v1 (target draft) collections over immutable,
 // locally reserved installments. It never decides monetary truth and never
 // makes a network call inside a PostgreSQL transaction.
 package repaymentbatchuc
@@ -52,11 +52,18 @@ type UseCase struct {
 
 // New fails fast on incomplete dependencies rather than silently falling
 // back to provider-verified (but unposted) payment state.
-func New(pool repo.Pool, batches repo.RepaymentBatch, financial extcollection.Client,
-	applier PostedApplier, clk clock.Clock) (*UseCase, error) {
+func New(
+	pool repo.Pool,
+	batches repo.RepaymentBatch,
+	financial extcollection.Client,
+	applier PostedApplier,
+	clk clock.Clock,
+) (*UseCase, error) {
+	const op = "repaymentbatchuc.New"
 	if pool == nil || batches == nil || financial == nil || applier == nil || clk == nil {
-		return nil, fmt.Errorf("repaymentbatchuc.New: all dependencies are required")
+		return nil, fmt.Errorf("%s: all dependencies are required", op)
 	}
+
 	return &UseCase{pool: pool, batches: batches, financial: financial, applier: applier, clock: clk}, nil
 }
 
@@ -75,22 +82,30 @@ func (uc *UseCase) RequireCustomerBatch(
 	if subject.IsZero() || id == uuid.Nil {
 		return repo.RepaymentBatchRow{}, cerr.InvalidArgument(fmt.Errorf("customer and batch ids are required"))
 	}
+
 	if uc.customer == nil {
 		return repo.RepaymentBatchRow{}, cerr.InternalError(fmt.Errorf("repayment customer repository not configured"))
 	}
+
 	var row repo.RepaymentBatchRow
 	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
-		profile, err := uc.customer.Conn(conn).GetByExternalSubjectID(ctx, subject)
+		customerQ := uc.customer.Conn(conn)
+		batchesQ := uc.batches.Conn(conn)
+
+		profile, err := customerQ.GetByExternalSubjectID(ctx, subject)
 		if err != nil {
 			return err
 		}
-		row, err = uc.batches.Conn(conn).GetByID(ctx, id)
+
+		row, err = batchesQ.GetByID(ctx, id)
 		if err != nil {
 			return err
 		}
+
 		if row.CustomerID != profile.ID || row.ExternalCustomerID != profile.ExternalCustomerID {
 			return cerr.ResourceNotFound(fmt.Errorf("repayment batch not found for authenticated customer"))
 		}
+
 		return nil
 	})
 	return row, err
@@ -105,6 +120,7 @@ func (uc *UseCase) StartForCustomer(
 	if _, err := uc.RequireCustomerBatch(ctx, subject, id); err != nil {
 		return extcollection.Result{}, err
 	}
+
 	return uc.StartPayment(ctx, id, key, provider, urls)
 }
 
@@ -113,8 +129,9 @@ func (uc *UseCase) now() time.Time { return uc.clock.Now().UTC() }
 func (uc *UseCase) load(ctx context.Context, id uuid.UUID) (repo.RepaymentBatchRow, error) {
 	var row repo.RepaymentBatchRow
 	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
+		batchesQ := uc.batches.Conn(conn)
 		var loadErr error
-		row, loadErr = uc.batches.Conn(conn).GetByID(ctx, id)
+		row, loadErr = batchesQ.GetByID(ctx, id)
 		return loadErr
 	})
 	return row, err
@@ -125,9 +142,11 @@ func planFromRow(row repo.RepaymentBatchRow) (collectionpayment.Plan, error) {
 	if err := json.Unmarshal(row.Snapshot, &plan); err != nil {
 		return collectionpayment.Plan{}, fmt.Errorf("repayment batch snapshot decode: %w", err)
 	}
+
 	if err := plan.Validate(); err != nil {
 		return collectionpayment.Plan{}, err
 	}
+
 	if plan.ID != row.ID || plan.CustomerID != row.CustomerID ||
 		plan.ExternalCustomerID != row.ExternalCustomerID ||
 		plan.Currency != row.Currency || plan.TotalMinor != row.TotalAmountMinor {
@@ -143,13 +162,16 @@ func (uc *UseCase) PrepareDurably(ctx context.Context, plan collectionpayment.Pl
 	if err := plan.Validate(); err != nil {
 		return extcollection.Result{}, err
 	}
+
 	if key == "" || len(key) > 256 {
 		return extcollection.Result{}, cerr.InvalidArgument(fmt.Errorf("invalid repayment idempotency key"))
 	}
+
 	payload, err := json.Marshal(plan)
 	if err != nil {
 		return extcollection.Result{}, err
 	}
+
 	now := uc.now()
 	row := repo.RepaymentBatchRow{
 		ID: plan.ID, CustomerID: plan.CustomerID, ExternalCustomerID: plan.ExternalCustomerID,
@@ -170,12 +192,15 @@ func (uc *UseCase) PrepareDurably(ctx context.Context, plan collectionpayment.Pl
 				if existing.ID != plan.ID || !bytes.Equal(existing.Snapshot, payload) {
 					return cerr.Conflict(fmt.Errorf("repayment idempotency key reused with different snapshot"))
 				}
+
 				row = existing
 				return nil
 			}
+
 			if !cerr.IsCode(getErr, cerr.CodeResourceNotFound) {
 				return getErr
 			}
+
 			var createErr error
 			row, createErr = q.Create(ctx, row, ids)
 			return createErr
@@ -199,10 +224,12 @@ func (uc *UseCase) PrepareDurably(ctx context.Context, plan collectionpayment.Pl
 		uc.scheduleReconciliation(ctx, row, nil, 0, nil)
 		return extcollection.Result{}, err
 	}
+
 	if result.SourceID != plan.ID || result.CollectionPaymentID == "" || result.SnapshotRevision < 1 {
 		uc.scheduleReconciliation(ctx, row, nil, 0, nil)
 		return extcollection.Result{}, fmt.Errorf("FC returned a mismatched/incomplete prepared collection")
 	}
+
 	// Preparing may race an earlier error path that scheduled reconciliation.
 	// Re-read the local version fence rather than reporting a false conflict
 	// after FC already accepted the immutable snapshot.
@@ -210,9 +237,11 @@ func (uc *UseCase) PrepareDurably(ctx context.Context, plan collectionpayment.Pl
 	if err != nil {
 		return extcollection.Result{}, err
 	}
+
 	if latest.StartIdempotencyKey != nil {
 		return extcollection.Result{}, cerr.Conflict(fmt.Errorf("collection Start was already recorded while Prepare was in flight"))
 	}
+
 	if err := uc.persistTransition(ctx, latest, model.PreparedRepaymentBatchStatus,
 		&result.CollectionPaymentID, result.SnapshotRevision, nil, nil); err != nil {
 		return extcollection.Result{}, err
@@ -227,13 +256,16 @@ func (uc *UseCase) StartPayment(ctx context.Context, id uuid.UUID, key, provider
 	if key == "" || len(key) > 256 || providerCode == "" || !urls.IsComplete() {
 		return extcollection.Result{}, cerr.InvalidArgument(fmt.Errorf("start payment requires idempotency key, provider and return URLs"))
 	}
+
 	row, err := uc.load(ctx, id)
 	if err != nil {
 		return extcollection.Result{}, err
 	}
+
 	if row.Status.IsTerminal() {
 		return extcollection.Result{}, cerr.Conflict(fmt.Errorf("repayment batch is terminal"))
 	}
+
 	if row.FinancialCollectionPaymentID == nil || *row.FinancialCollectionPaymentID == "" || row.SnapshotRevision < 1 {
 		return extcollection.Result{}, cerr.Conflict(fmt.Errorf("repayment batch must be prepared in FC first"))
 	}
@@ -255,8 +287,9 @@ func (uc *UseCase) StartPayment(ctx context.Context, id uuid.UUID, key, provider
 	// Locking and CAS also serialize two concurrent API Start commands.
 	err = uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
+			batchesQ := uc.batches.Tx(tx)
 			var bindErr error
-			row, bindErr = uc.batches.Tx(tx).BindStart(ctx, id, key, fingerprint, uc.now())
+			row, bindErr = batchesQ.BindStart(ctx, id, key, fingerprint, uc.now())
 			return bindErr
 		})
 	})
@@ -269,10 +302,12 @@ func (uc *UseCase) StartPayment(ctx context.Context, id uuid.UUID, key, provider
 		uc.scheduleReconciliation(ctx, row, row.FinancialCollectionPaymentID, row.SnapshotRevision, nil)
 		return extcollection.Result{}, err
 	}
+
 	if result.CollectionPaymentID != *row.FinancialCollectionPaymentID || result.SourceID != row.ID {
 		uc.scheduleReconciliation(ctx, row, row.FinancialCollectionPaymentID, row.SnapshotRevision, nil)
 		return extcollection.Result{}, fmt.Errorf("FC Start response changed collection identity")
 	}
+
 	uc.scheduleReconciliation(ctx, row, row.FinancialCollectionPaymentID, row.SnapshotRevision, nil)
 	return result, nil
 }
@@ -284,13 +319,16 @@ func (uc *UseCase) Reconcile(ctx context.Context, id uuid.UUID) (extcollection.R
 	if err != nil {
 		return extcollection.Result{}, err
 	}
+
 	if row.Status.IsTerminal() {
 		return extcollection.Result{}, nil
 	}
+
 	plan, err := planFromRow(row)
 	if err != nil {
 		return extcollection.Result{}, err
 	}
+
 	var result extcollection.Result
 	if row.FinancialCollectionPaymentID != nil && *row.FinancialCollectionPaymentID != "" {
 		result, err = uc.financial.GetByID(ctx, *row.FinancialCollectionPaymentID)
@@ -304,16 +342,20 @@ func (uc *UseCase) Reconcile(ctx context.Context, id uuid.UUID) (extcollection.R
 			result, err = uc.financial.Prepare(ctx, plan, row.IdempotencyKey)
 		}
 	}
+
 	if err != nil {
 		uc.scheduleReconciliation(ctx, row, row.FinancialCollectionPaymentID, row.SnapshotRevision, nil)
 		return extcollection.Result{}, err
 	}
+
 	if result.SourceID != row.ID || result.CollectionPaymentID == "" {
 		return extcollection.Result{}, fmt.Errorf("FC collection identity mismatch")
 	}
+
 	if row.FinancialCollectionPaymentID != nil && *row.FinancialCollectionPaymentID != result.CollectionPaymentID {
 		return extcollection.Result{}, fmt.Errorf("FC collection ID changed")
 	}
+
 	if result.Status == extcollection.Prepared && row.StartIdempotencyKey == nil {
 		// The initial response may have been lost before the error handler
 		// scheduled reconciliation. No customer Start intent exists; bind
@@ -322,14 +364,17 @@ func (uc *UseCase) Reconcile(ctx context.Context, id uuid.UUID) (extcollection.R
 			&result.CollectionPaymentID, result.SnapshotRevision, nil, nil)
 		return result, err
 	}
+
 	if result.IsAuthoritativelySettled() {
 		if err := extcollection.VerifyPostedAllocations(plan, result); err != nil {
 			uc.scheduleReconciliation(ctx, row, &result.CollectionPaymentID, result.SnapshotRevision, nil)
 			return extcollection.Result{}, fmt.Errorf("FC posting mismatch: %w", err)
 		}
+
 		err = uc.applyPostedInTransaction(ctx, row, plan, result)
 		return result, err
 	}
+
 	if result.Status == extcollection.Failed || result.Status == extcollection.Expired {
 		// Only a conclusive provider non-payment AND FC NOT_POSTED releases
 		// claims. Expiry with an unknown provider attempt is not final.
@@ -344,9 +389,11 @@ func (uc *UseCase) Reconcile(ctx context.Context, id uuid.UUID) (extcollection.R
 		if result.Status == extcollection.Expired {
 			next = model.ExpiredRepaymentBatchStatus
 		}
+
 		err = uc.finishTerminal(ctx, row, next, result)
 		return result, err
 	}
+
 	// FC bank reversal is a separate authoritative reversal workflow, not
 	// another successful payment and not an instruction to erase the first
 	// posting. Retain claims for manual investigation until reversal handling
@@ -362,6 +409,7 @@ func (uc *UseCase) Reconcile(ctx context.Context, id uuid.UUID) (extcollection.R
 	if result.Status == extcollection.AccountingPending {
 		next = model.AccountingPendingRepaymentBatchStatus
 	}
+
 	poll := uc.now().Add(defaultReconciliationInterval)
 	err = uc.persistTransition(ctx, row, next, &result.CollectionPaymentID, result.SnapshotRevision, &poll, nil)
 	return result, err
@@ -377,9 +425,11 @@ func (uc *UseCase) applyPostedInTransaction(
 			if err != nil {
 				return err
 			}
+
 			if current.Status == model.PostedRepaymentBatchStatus {
 				return nil
 			}
+
 			if current.Status.IsTerminal() {
 				return cerr.Conflict(fmt.Errorf("batch already terminal"))
 			}
@@ -391,9 +441,11 @@ func (uc *UseCase) applyPostedInTransaction(
 			if err != nil {
 				return err
 			}
+
 			if err := uc.applier.ApplyPosted(ctx, tx, plan, result); err != nil {
 				return err
 			}
+
 			return q.ReleaseClaims(ctx, current.ID)
 		})
 	})
@@ -408,13 +460,16 @@ func (uc *UseCase) finishTerminal(ctx context.Context, row repo.RepaymentBatchRo
 			if err != nil {
 				return err
 			}
+
 			if current.Status.IsTerminal() {
 				return nil
 			}
+
 			if _, err := q.Advance(ctx, current.ID, current.Version, next, &result.CollectionPaymentID,
 				result.SnapshotRevision, nil, nil, uc.now()); err != nil {
 				return err
 			}
+
 			return q.ReleaseClaims(ctx, current.ID)
 		})
 	})
@@ -424,7 +479,8 @@ func (uc *UseCase) persistTransition(ctx context.Context, row repo.RepaymentBatc
 	financialID *string, revision int64, poll *time.Time, reason *string) error {
 	return uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
-			_, err := uc.batches.Tx(tx).Advance(ctx, row.ID, row.Version, next,
+			batchesQ := uc.batches.Tx(tx)
+			_, err := batchesQ.Advance(ctx, row.ID, row.Version, next,
 				financialID, revision, poll, reason, uc.now())
 			return err
 		})
@@ -447,20 +503,24 @@ func (uc *UseCase) ReconcileDue(ctx context.Context, limit int) error {
 	if limit < 1 {
 		return cerr.InvalidArgument(fmt.Errorf("limit must be positive"))
 	}
+
 	var due []repo.RepaymentBatchRow
 	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
+		batchesQ := uc.batches.Conn(conn)
 		var findErr error
-		due, findErr = uc.batches.Conn(conn).ListReconciliationDue(ctx, uc.now(), limit)
+		due, findErr = batchesQ.ListReconciliationDue(ctx, uc.now(), limit)
 		return findErr
 	})
 	if err != nil {
 		return err
 	}
+
 	var failures error
 	for _, row := range due {
 		if _, err := uc.Reconcile(ctx, row.ID); err != nil {
 			failures = errors.Join(failures, fmt.Errorf("reconcile batch %s: %w", row.ID, err))
 		}
 	}
+
 	return failures
 }

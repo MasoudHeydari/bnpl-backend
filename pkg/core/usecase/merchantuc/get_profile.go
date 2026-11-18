@@ -48,6 +48,7 @@ func (uc *UseCase) GetProfile(ctx context.Context, input GetProfileInput) (GetPr
 			CreatedAt:          profile.CreatedAt,
 			UpdatedAt:          profile.UpdatedAt,
 		}
+
 		return nil
 	})
 	if err != nil {

@@ -14,16 +14,20 @@ import (
 func (uc *UseCase) selectExternalCreditKindForStart(
 	ctx context.Context, token model.CheckoutSessionToken, kind model.CreditKind,
 ) (model.CheckoutSession, error) {
+	const op = "checkoutsessionuc.UseCase.selectExternalCreditKindForStart"
 	var selected model.CheckoutSession
 	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
+			checkoutSessionQ := uc.checkoutSession.Tx(tx)
 			session, err := uc.lockExternalSession(ctx, tx, token)
 			if err != nil {
 				return err
 			}
+
 			if session.Status != model.OpenCheckoutSessionStatus || session.ContractID != nil {
 				return checkoutSessionNotContinuableError(fmt.Errorf("checkout status %q", session.Status))
 			}
+
 			now := uc.clock.Now().UTC()
 			if session.IsExpiredAt(now) {
 				return checkoutSessionExpiredError()
@@ -35,16 +39,20 @@ func (uc *UseCase) selectExternalCreditKindForStart(
 				selected = session
 				return nil
 			}
+
 			if !kind.IsValid() {
 				return validationError("INVALID", "credit_kind", "error.credit_kind_invalid")
 			}
+
 			if session.DecisionID != nil {
-				return cerr.Conflict(fmt.Errorf("checkout credit kind cannot change after Decision preparation"))
+				return cerr.Conflict(fmt.Errorf("%s: checkout credit kind cannot change after Decision preparation", op))
 			}
-			productQ, ok := uc.checkoutSession.Tx(tx).(repo.CheckoutSessionProductTxQueryer)
+
+			productQ, ok := checkoutSessionQ.(repo.CheckoutSessionProductTxQueryer)
 			if !ok {
-				return cerr.InternalError(fmt.Errorf("product-aware checkout repository unavailable"))
+				return cerr.InternalError(fmt.Errorf("%s: product-aware checkout repository unavailable", op))
 			}
+
 			selected, err = productQ.SelectCreditKindBeforeDecision(ctx, session.ID, kind, now)
 			return err
 		})

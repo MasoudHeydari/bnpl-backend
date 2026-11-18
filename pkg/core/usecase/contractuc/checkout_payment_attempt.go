@@ -77,7 +77,7 @@ func (uc *UseCase) ensureCheckoutPaymentAttemptInTx(
 
 	providerCode := optionalTrimmedString(input.ProviderCode)
 
-	// Financial Core v2 derives scope from the payment target. Do not require or
+	// Financial Core (FC target draft) derives scope from the payment target. Do not require or
 	// fabricate TenantID/ContextID for new checkout payment attempts.
 	attempt, err := paymentAttemptQ.CreateCheckoutWithItems(
 		ctx,

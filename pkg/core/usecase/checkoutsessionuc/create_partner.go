@@ -75,11 +75,13 @@ func (uc *UseCase) CreatePartner(
 	if session.EffectiveOfferPreparationMode() != model.OfferPreparationOnCreate {
 		return output, nil
 	}
+
 	if input.CreditKind == "" && session.DecisionID == nil {
 		monthlyEnabled, eligibilityErr := uc.merchantAllowsMonthlyCredit(ctx, session)
 		if eligibilityErr != nil {
 			return CreatePartnerOutput{}, eligibilityErr
 		}
+
 		if monthlyEnabled {
 			return output, nil
 		}
@@ -109,26 +111,24 @@ func (uc *UseCase) CreatePartner(
 	return output, nil
 }
 
-// merchantAllowsMonthlyCredit reads the merchant's product provisioning.
-// Legacy test adapters without this optional read capability fall back to
-// pay-in-four; they must never implicitly authorize monthly financing.
+// merchantAllowsMonthlyCredit reads the merchant's product provisioning for
+// the revolving monthly product. MerchantProfileQueryer embeds eligibility,
+// so this never silently falls back to pay-in-four authorization.
 func (uc *UseCase) merchantAllowsMonthlyCredit(
 	ctx context.Context, session model.CheckoutSession,
 ) (bool, error) {
 	var enabled bool
 	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
-		productQ, ok := uc.merchantProfile.Conn(conn).(repo.MerchantProductEligibilityQueryer)
-		if !ok {
-			enabled = false
-			return nil
-		}
+		merchantQ := uc.merchantProfile.Conn(conn)
+
 		var lookupErr error
-		enabled, lookupErr = productQ.IsCreditKindEnabled(
+		enabled, lookupErr = merchantQ.IsCreditKindEnabled(
 			ctx, session.MerchantProfileID, model.PayNextMonthCreditKind,
 		)
 		if lookupErr != nil {
 			return cerr.InternalError(fmt.Errorf("merchant product eligibility: %w", lookupErr))
 		}
+
 		return nil
 	})
 	return enabled, err

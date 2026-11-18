@@ -85,15 +85,18 @@ WHERE status IN ('created','prepared','starting','requires_action','reconciling'
 -- Legacy single-installment payment creation must respect batch ownership.
 -- Without this guard an old API path could create a second PaymentAttempt
 -- while the new CollectionPayment v2 snapshot holds an active installment.
-CREATE OR REPLACE FUNCTION bnpl.reject_claimed_installment_payment_attempt()
-RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE OR REPLACE FUNCTION bnpl.reject_claimed_installment_payment_attempt ()
+    RETURNS TRIGGER
+    LANGUAGE plpgsql
+    SET search_path = pg_catalog, bnpl
+    AS $body$
 BEGIN
     -- Use the same installment row lock as repayment batch creation.
     -- This closes the READ COMMITTED race in which a legacy attempt could
     -- otherwise be inserted while the batch is taking its snapshot.
-    PERFORM 1 FROM bnpl.installments WHERE id = NEW.installment_id FOR UPDATE;
+    PERFORM 1 FROM installments WHERE id = NEW.installment_id FOR UPDATE;
     IF EXISTS (
-       SELECT 1 FROM bnpl.repayment_batch_installment_claims
+       SELECT 1 FROM repayment_batch_installment_claims
        WHERE installment_id = NEW.installment_id
     ) THEN
         RAISE EXCEPTION 'installment already reserved for a repayment batch'
@@ -102,12 +105,13 @@ BEGIN
     END IF;
     RETURN NEW;
 END
-$$;
+$body$;
 
 DROP TRIGGER IF EXISTS trg_payment_attempt_repayment_batch_claim ON payment_attempts;
 CREATE TRIGGER trg_payment_attempt_repayment_batch_claim
-BEFORE INSERT ON payment_attempts FOR EACH ROW
-EXECUTE FUNCTION bnpl.reject_claimed_installment_payment_attempt();
+    BEFORE INSERT ON payment_attempts
+    FOR EACH ROW
+    EXECUTE FUNCTION bnpl.reject_claimed_installment_payment_attempt ();
 
 
 -- First StartCollectionPayment parameters are immutable across retries.
@@ -139,3 +143,17 @@ CREATE TABLE IF NOT EXISTS merchant_credit_product_eligibilities (
 -- An explicit monthly approval can be provisioned through the merchant
 -- administration integration. Never infer it from the presence of a credit
 -- account or the ability to process four installments.
+
+-- Reviewed Runtime ACL for product-aware relations introduced above.
+-- DELETE/TRUNCATE remain denied for the bnpl login; claim release is owner-side.
+GRANT SELECT, INSERT ON bnpl.repayment_batches TO bnpl;
+GRANT UPDATE (financial_collection_payment_id, last_reason_code, next_reconciliation_at, snapshot_revision, start_fingerprint, start_idempotency_key, status, updated_at, version) ON bnpl.repayment_batches TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.repayment_batch_installment_claims TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.merchant_credit_product_eligibilities TO bnpl;
+GRANT UPDATE (enabled, updated_at) ON bnpl.merchant_credit_product_eligibilities TO bnpl;
+
+-- Product selection mutates only credit_kind (+ updated_at already granted).
+GRANT UPDATE (credit_kind) ON bnpl.checkout_sessions TO bnpl;
+GRANT EXECUTE ON FUNCTION bnpl.reject_claimed_installment_payment_attempt () TO bnpl;

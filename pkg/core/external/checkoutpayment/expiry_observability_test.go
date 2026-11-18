@@ -64,12 +64,15 @@ func (l *expiryRecordingLogger) recordLog(level string, event corelog.Event, fie
 	if event != nil {
 		msg = event.Message()
 	}
+
 	for _, f := range fields {
 		if f == nil {
 			continue
 		}
+
 		attrs = append(attrs, f.Key(), f.Value())
 	}
+
 	*l.records = append(*l.records, expiryLogRecord{level: level, msg: msg, args: attrs})
 }
 

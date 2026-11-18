@@ -1,22 +1,25 @@
 syntax = "proto3";
 
 package parstis.financial.common.v1;
-option go_package = "github.com/parstis/bnpl-backend/gen/proto/financial/common/v1;financialcommonv1";
-option java_multiple_files = true;
-option java_package = "ir.parstis.financial.contracts.common.v1";
-option java_outer_classname = "FinancialCommonProto";
 
-// Financial public primitives from FC Educational Handoff 0.3.
-// source_service and FinancialScope are derived by FC, never caller-supplied.
+option go_package = "github.com/parstis/bnpl-backend/gen/proto/financial/common/v1;financialcommonv1";
+
+// Stable public Financial wire primitives only.
+// FinancialScope, operation statuses, request envelopes, and economics stay
+// capability-specific and must not be added here.
 message Money {
   int64 amount_minor = 1;
   string currency = 2;
 }
+
+// Opaque upstream business provenance. source_service is transport-authenticated
+// and intentionally absent from the public message.
 message BusinessSourceReference {
   string type = 1;
   string id = 2;
   optional int64 version = 3;
 }
+
 message PaymentReturnUrls {
   string success_url = 1;
   string failure_url = 2;

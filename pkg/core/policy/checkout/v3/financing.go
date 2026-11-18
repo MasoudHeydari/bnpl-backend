@@ -16,16 +16,20 @@ func (p policyV3) EvaluateFinancing(input checkout.FinancingInput) checkout.Fina
 	if input.CreditAccount.LimitAmountMinor < input.CreditAccount.ExposureAmountMinor {
 		return denyFinancing(result, model.NoAvailableCreditDecisionReason)
 	}
+
 	result.AvailableCreditMinor = input.CreditAccount.AvailableAmountMinor()
 	if result.Outcome == model.DeniedDecisionOutcome {
 		return result
 	}
+
 	if input.RequestedAmountMinor == 0 || input.RequestedAmountMinor > p.Terms().MaxFinancedAmountMinor {
 		return denyFinancing(result, model.RequestedAmountExceedsSupportedRangeDecisionReason)
 	}
+
 	if result.AvailableCreditMinor < input.RequestedAmountMinor {
 		return denyFinancing(result, model.NoAvailableCreditDecisionReason)
 	}
+
 	result.Outcome = model.ApprovedDecisionOutcome
 	result.ReasonCodes = []string{model.ApprovedFullFinancingDecisionReason}
 	result.FinancedAmountMinor = input.RequestedAmountMinor

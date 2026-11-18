@@ -23,5 +23,6 @@ func monthlyPreviousCycleBlocked(
 	if err != nil {
 		return false, cerr.InternalError(fmt.Errorf("compute monthly credit cycle boundary: %w", err))
 	}
+
 	return q.HasUnpaidMonthlyCycleBefore(ctx, customerID, currency, cutoff)
 }

@@ -14,10 +14,10 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	paymentv1 "github.com/parstis/bnpl-backend/gen/proto/checkoutpayment/v1"
-	collectionobligationv1 "github.com/parstis/bnpl-backend/gen/proto/collectionobligation/v1"
-	commonv1 "github.com/parstis/bnpl-backend/gen/proto/common/v1"
-	merchantentitlementv1 "github.com/parstis/bnpl-backend/gen/proto/merchantentitlement/v1"
+	paymentv1 "github.com/parstis/bnpl-backend/gen/proto/financial/payment/v1"
+	collectionobligationv1 "github.com/parstis/bnpl-backend/gen/proto/financial/collectionobligation/v1"
+	financialcommonv1 "github.com/parstis/bnpl-backend/gen/proto/financial/common/v1"
+	merchantentitlementv1 "github.com/parstis/bnpl-backend/gen/proto/financial/merchantentitlement/v1"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/circuitbreaker"
 	extcheckoutpayment "github.com/parstis/bnpl-backend/pkg/core/external/checkoutpayment"
@@ -106,7 +106,7 @@ func (c *Client) CreateCheckoutPayment(
 
 	sourceVersion := normalized.SourceVersion
 	request := &paymentv1.CreateCheckoutPaymentRequest{
-		Source: &commonv1.BusinessSourceReference{
+		Source: &financialcommonv1.BusinessSourceReference{
 			Type:    normalized.SourceType,
 			Id:      normalized.SourceID,
 			Version: sourceVersion,
@@ -120,12 +120,12 @@ func (c *Client) CreateCheckoutPayment(
 			// Empty string is intentional for platform payees (FC contract).
 			PartyId: normalized.PayeeID,
 		},
-		PaymentAmount: &commonv1.Money{
+		PaymentAmount: &financialcommonv1.Money{
 			AmountMinor: normalized.AmountMinor,
 			Currency:    normalized.Currency,
 		},
 		ProviderCode: resolveProviderCode(normalized.ProviderCode, c.defaultProviderCode),
-		ReturnUrls: &commonv1.PaymentReturnUrls{
+		ReturnUrls: &financialcommonv1.PaymentReturnUrls{
 			SuccessUrl: normalized.SuccessReturnURL,
 			FailureUrl: normalized.FailureReturnURL,
 			CancelUrl:  normalized.CancelReturnURL,
@@ -178,7 +178,7 @@ func (c *Client) GetPaymentStatus(
 
 	sourceVersion := input.SourceVersion
 	request := &paymentv1.GetPaymentStatusRequest{
-		Source: &commonv1.BusinessSourceReference{
+		Source: &financialcommonv1.BusinessSourceReference{
 			Type:    input.SourceType,
 			Id:      input.SourceID,
 			Version: sourceVersion,
@@ -249,14 +249,14 @@ func (c *Client) PrepareCollectionObligation(
 
 	sourceVersion := input.SourceVersion
 	req := &collectionobligationv1.PrepareCollectionObligationRequest{
-		Source: &commonv1.BusinessSourceReference{
+		Source: &financialcommonv1.BusinessSourceReference{
 			Type:    input.SourceType,
 			Id:      input.SourceID,
 			Version: sourceVersion,
 		},
 		MerchantId:  input.ExternalMerchantID,
 		CustomerId:  input.ExternalCustomerID,
-		Amount:      &commonv1.Money{AmountMinor: input.AmountMinor, Currency: input.Currency},
+		Amount:      &financialcommonv1.Money{AmountMinor: input.AmountMinor, Currency: input.Currency},
 		Application: application,
 	}
 
@@ -329,7 +329,7 @@ func (c *Client) RecordMerchantEntitlement(
 
 	sourceVersion := input.SourceVersion
 	req := &merchantentitlementv1.RecordMerchantEntitlementRequest{
-		Source: &commonv1.BusinessSourceReference{
+		Source: &financialcommonv1.BusinessSourceReference{
 			Type:    input.SourceType,
 			Id:      input.SourceID,
 			Version: sourceVersion,

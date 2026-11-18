@@ -45,6 +45,7 @@ func ListReconciliationDue[Q postgres.Queryer](
 	if limit < 1 {
 		return nil, cerr.InvalidArgument(fmt.Errorf("reconciliation batch size must be positive"))
 	}
+
 	const query = `SELECT` + columns + ` FROM repayment_batches
 	WHERE next_reconciliation_at <= $1
 	AND status IN ('created','prepared','starting','requires_action','reconciling','accounting_pending')
@@ -91,6 +92,7 @@ func Create[Q postgres.Queryer](
 	if err != nil {
 		return repo.RepaymentBatchRow{}, err
 	}
+
 	// Revalidate the customer-selected snapshot against authoritative BNPL
 	// installment and contract rows under locks. FC still verifies its own
 	// receivables and registered distribution relationships independently.
@@ -98,9 +100,11 @@ func Create[Q postgres.Queryer](
 	if err := json.Unmarshal(row.Snapshot, &plan); err != nil {
 		return repo.RepaymentBatchRow{}, err
 	}
+
 	if err := plan.Validate(); err != nil {
 		return repo.RepaymentBatchRow{}, err
 	}
+
 	if plan.ID != row.ID || plan.CustomerID != row.CustomerID || plan.TotalMinor != row.TotalAmountMinor ||
 		plan.Currency != row.Currency || len(plan.Items) != len(installments) {
 		return repo.RepaymentBatchRow{}, cerr.InvalidArgument(fmt.Errorf("batch snapshot identity or total mismatch"))
@@ -147,10 +151,12 @@ func Create[Q postgres.Queryer](
 	if err != nil {
 		return repo.RepaymentBatchRow{}, fmt.Errorf("load repayment business location: %w", err)
 	}
+
 	due, err := installmentrp.ListDueUnpaidByCustomerID(ctx, q, row.CustomerID, row.CreatedAt)
 	if err != nil {
 		return repo.RepaymentBatchRow{}, err
 	}
+
 	if err := repaymentselection.RequireAllOverdueInstallments(
 		seen, due, row.CreatedAt, location,
 	); err != nil {
@@ -164,10 +170,12 @@ func Create[Q postgres.Queryer](
 		if _, checked := schedules[item.ContractID]; checked {
 			continue
 		}
+
 		schedule, err := installmentrp.LockByContractID(ctx, q, item.ContractID)
 		if err != nil {
 			return repo.RepaymentBatchRow{}, err
 		}
+
 		if err := repaymentselection.RequireConsecutiveInstallments(
 			seen, schedule,
 		); err != nil {
@@ -184,18 +192,22 @@ func Create[Q postgres.Queryer](
 		if id.IsZero() {
 			return repo.RepaymentBatchRow{}, cerr.InvalidArgument(fmt.Errorf("missing installment id"))
 		}
+
 		if _, ok := seen[id]; ok {
 			return repo.RepaymentBatchRow{}, cerr.InvalidArgument(fmt.Errorf("duplicate installment claim"))
 		}
+
 		seen[id] = struct{}{}
 		item := plan.Items[index]
 		if item.InstallmentID != id {
 			return repo.RepaymentBatchRow{}, cerr.InvalidArgument(fmt.Errorf("installment order mismatch"))
 		}
+
 		actual, err := postgres.QueryOne[lockedInstallment](ctx, q, "lock selected installment", lock, id)
 		if err != nil {
 			return repo.RepaymentBatchRow{}, err
 		}
+
 		if actual.CustomerID != plan.CustomerID || actual.ContractID != item.ContractID ||
 			actual.CreditAccountID != item.CreditAccountID || actual.CreditKind != item.CreditKind ||
 			actual.ExternalMerchantID != item.MerchantID {
@@ -209,16 +221,20 @@ func Create[Q postgres.Queryer](
 				principal += component.GrossMinor
 			}
 		}
+
 		if principal != actual.PrincipalAmountMinor {
 			return repo.RepaymentBatchRow{}, cerr.Conflict(fmt.Errorf("batch principal differs from installment"))
 		}
+
 		blocked, err := postgres.QueryOne[blockingRow](ctx, q, "check active installment payment", blocking, id)
 		if err != nil {
 			return repo.RepaymentBatchRow{}, err
 		}
+
 		if blocked.Blocked {
 			return repo.RepaymentBatchRow{}, cerr.Conflict(fmt.Errorf("an unresolved payment already owns installment"))
 		}
+
 		if _, err := q.Exec(ctx, claim, id, stored.ID, row.CreatedAt); err != nil {
 			return repo.RepaymentBatchRow{}, fmt.Errorf("reserve installment for batch: %w", postgres.MapError(err))
 		}
@@ -235,6 +251,7 @@ func Advance[Q postgres.Queryer](
 	if !status.IsValid() || expectedVersion < 1 || revision < 0 || at.IsZero() {
 		return repo.RepaymentBatchRow{}, cerr.InvalidArgument(fmt.Errorf("invalid batch transition"))
 	}
+
 	const query = `
 	UPDATE repayment_batches SET
 		status=$3,
@@ -256,6 +273,7 @@ func Advance[Q postgres.Queryer](
 	if cerr.IsCode(err, cerr.CodeResourceNotFound) {
 		return repo.RepaymentBatchRow{}, cerr.Conflict(fmt.Errorf("repayment batch state or FC identity changed"))
 	}
+
 	return row, err
 }
 
@@ -273,6 +291,7 @@ func ReleaseClaims[Q postgres.Queryer](ctx context.Context, q Q, id uuid.UUID) e
 	if err != nil {
 		return fmt.Errorf("release batch installment claims: %w", postgres.MapError(err))
 	}
+
 	return nil
 }
 
@@ -284,6 +303,7 @@ func BindStart[Q postgres.Queryer](
 	if id == uuid.Nil || key == "" || fingerprint == "" || at.IsZero() {
 		return repo.RepaymentBatchRow{}, cerr.InvalidArgument(fmt.Errorf("invalid initial collection Start intent"))
 	}
+
 	const query = `
 UPDATE repayment_batches SET
 	status='starting',
@@ -301,5 +321,6 @@ RETURNING` + columns
 	if cerr.IsCode(err, cerr.CodeResourceNotFound) {
 		return repo.RepaymentBatchRow{}, cerr.Conflict(fmt.Errorf("collection Start intent conflicts with existing operation"))
 	}
+
 	return row, err
 }

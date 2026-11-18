@@ -330,6 +330,7 @@ func (uc *UseCase) ensureFinancialCoreInstallmentPayment(
 		if markErr != nil {
 			return model.PaymentAttempt{}, errors.Join(err, markErr)
 		}
+
 		if locallyCanceled {
 			return model.PaymentAttempt{}, financialSessionCreateRetryBudgetExhaustedError()
 		}
@@ -357,6 +358,7 @@ func (uc *UseCase) ensureFinancialCoreInstallmentPayment(
 		if markErr != nil {
 			return model.PaymentAttempt{}, errors.Join(mapped, markErr)
 		}
+
 		if locallyCanceled {
 			return model.PaymentAttempt{}, financialSessionCreateRetryBudgetExhaustedError()
 		}
@@ -533,6 +535,7 @@ func (uc *UseCase) finalizeFailedSessionCreateAttempt(
 			if lockErr != nil {
 				return lockErr
 			}
+
 			if locked.State != model.CreatedPaymentAttemptState {
 				return nil
 			}
@@ -555,6 +558,7 @@ func (uc *UseCase) finalizeFailedSessionCreateAttempt(
 				if cerr.IsCode(clearErr, cerr.CodeConflict) {
 					return nil
 				}
+
 				return clearErr
 			}
 
@@ -564,12 +568,14 @@ func (uc *UseCase) finalizeFailedSessionCreateAttempt(
 			if cancelErr == nil {
 				locallyCanceled = true
 			}
+
 			return cancelErr
 		})
 	})
 	if err != nil {
 		return false, err
 	}
+
 	return locallyCanceled, nil
 }
 

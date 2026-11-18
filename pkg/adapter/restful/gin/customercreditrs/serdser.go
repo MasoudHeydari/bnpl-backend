@@ -45,6 +45,7 @@ func toCreditSummaryResponse(output customercredituc.Output) creditSummaryRespon
 			resp.CreditUsage.Status = "allowed"
 		}
 	}
+
 	switch output.Status {
 	case customercredituc.SummaryStatusExpired:
 		resp.ExpiresAt = output.ExpiresAt
@@ -85,6 +86,7 @@ func toAllCreditSummariesResponse(output customercredituc.AllSummariesOutput) al
 		Status:  output.Status,
 		Credits: make([]creditProductResponse, 0, len(output.Credits)),
 	}
+
 	for _, item := range output.Credits {
 		summary := toCreditSummaryResponse(item)
 		// A uniform product array must identify pay-in-four as well as monthly.
@@ -93,6 +95,7 @@ func toAllCreditSummariesResponse(output customercredituc.AllSummariesOutput) al
 		switch item.Status {
 		case customercredituc.SummaryStatusActive:
 			application.Status = "assigned"
+
 		case customercredituc.SummaryStatusExpired:
 			application.Status = "reassessment_required"
 		}
@@ -151,6 +154,7 @@ func toGetInput(c *gin.Context) (customercredituc.Input, bool) {
 		serdser.SerValidationErr(c, "credit_kind", "validation.credit_kind_invalid")
 		return customercredituc.Input{}, false
 	}
+
 	return customercredituc.Input{
 		SubjectID:  authCtx.SubjectID,
 		MobileE164: mobile,

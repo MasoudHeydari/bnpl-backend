@@ -211,6 +211,7 @@ func (uc *UseCase) CreatePaymentAttempt(
 					if cash.Kind != model.PositiveCashObligation {
 						return cerr.NewPublic(cerr.CodeConflict, "error.installment_financial_adjustment_required", fmt.Errorf("installment %s has %s cash economics", installmentRow.ID, cash.Kind), cerr.Details{})
 					}
+
 					payableAmount := cash.AmountMinor
 
 					if amountErr := model.ValidatePositiveAmountMinor(payableAmount); amountErr != nil {

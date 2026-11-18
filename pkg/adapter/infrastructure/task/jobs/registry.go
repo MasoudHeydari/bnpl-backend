@@ -120,6 +120,7 @@ func (r Registry) Resolve(handler string) (coretask.Job, error) {
 		if r.repaymentBatchUC == nil {
 			return nil, fmt.Errorf("%s: repayment batch reconciliation is not configured", op)
 		}
+
 		return func(ctx context.Context) error { return r.repaymentBatchUC.ReconcileDue(ctx, 100) }, nil
 
 	case "payment_attempt_expiration":

@@ -33,6 +33,7 @@ func (uc *UseCase) AssignInitialLimit(ctx context.Context, input AssignInitialLi
 	switch model.EffectiveCreditKind(input.CreditKind) {
 	case model.PayNextMonthCreditKind:
 		return uc.assignMonthlyCreditLimit(ctx, input)
+
 	case model.PayIn4CreditKind:
 		// The existing v1/v2 installment limit flow remains unchanged.
 	default:

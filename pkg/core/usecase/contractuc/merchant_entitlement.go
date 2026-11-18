@@ -232,7 +232,7 @@ func (uc *UseCase) recordMerchantEntitlement(
 		)
 	}
 
-	// Financial Core v2 returns only merchant_entitlement_id. Existing-receivable
+	// Financial Core (FC target draft) returns only merchant_entitlement_id. Existing-receivable
 	// collection targets that entitlement; receivable_id is no longer a separate
 	// public response field. Persist the entitlement id in both bindings so
 	// legacy receivable-gated paths remain durable until they are retired.

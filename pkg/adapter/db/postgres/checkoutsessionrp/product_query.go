@@ -18,6 +18,7 @@ func SetCreditKindBeforeDecision[Q postgres.Queryer](
 	if !kind.IsValid() {
 		return model.CheckoutSession{}, cerr.InvalidArgument(fmt.Errorf("invalid checkout credit kind %q", kind))
 	}
+
 	const query = `
 UPDATE checkout_sessions SET credit_kind = $2, updated_at = $3
 WHERE id = $1 AND status = 'open' AND decision_id IS NULL AND contract_id IS NULL
@@ -29,8 +30,10 @@ RETURNING` + checkoutSessionColumns
 		if cerr.IsCode(err, cerr.CodeResourceNotFound) {
 			return model.CheckoutSession{}, cerr.Conflict(fmt.Errorf("checkout credit kind is immutable after decision"))
 		}
+
 		return model.CheckoutSession{}, err
 	}
+
 	return row, nil
 }
 
@@ -43,6 +46,7 @@ func SelectCreditKindBeforeDecision[Q postgres.Queryer](
 	if !kind.IsValid() {
 		return model.CheckoutSession{}, cerr.InvalidArgument(fmt.Errorf("invalid credit kind %q", kind))
 	}
+
 	const query = `
 UPDATE checkout_sessions
 SET credit_kind = $2,
@@ -58,5 +62,6 @@ RETURNING` + checkoutSessionColumns
 	if err != nil && cerr.IsCode(err, cerr.CodeResourceNotFound) {
 		return model.CheckoutSession{}, cerr.Conflict(fmt.Errorf("checkout product selection is no longer allowed"))
 	}
+
 	return updated, err
 }

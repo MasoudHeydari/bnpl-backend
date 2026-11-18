@@ -19,6 +19,7 @@ func IsCreditKindEnabled[Q postgres.Queryer](
 	if id.IsZero() || !kind.IsValid() {
 		return false, cerr.InvalidArgument(fmt.Errorf("invalid merchant or credit kind"))
 	}
+
 	type result struct {
 		Enabled bool `db:"enabled"`
 	}
@@ -35,6 +36,7 @@ SELECT COALESCE(
 	if err != nil {
 		return false, err
 	}
+
 	return value.Enabled, nil
 }
 
@@ -47,6 +49,7 @@ func SetCreditKindEnabled[Q postgres.Queryer](
 	if id.IsZero() || !kind.IsValid() || at.IsZero() {
 		return cerr.InvalidArgument(fmt.Errorf("invalid merchant product permission"))
 	}
+
 	const query = `
 INSERT INTO merchant_credit_product_eligibilities(
  merchant_profile_id,credit_kind,enabled,updated_at
@@ -58,5 +61,6 @@ DO UPDATE SET enabled=EXCLUDED.enabled,updated_at=EXCLUDED.updated_at
 	if err != nil {
 		return fmt.Errorf("set merchant credit product permission: %w", postgres.MapError(err))
 	}
+
 	return nil
 }

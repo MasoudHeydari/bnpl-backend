@@ -298,7 +298,10 @@ func (uc *UseCase) prepareMerchantFunding(
 				return err
 			}
 
-			if _, err := validateCashObligations(ctx, uc.installmentCharge.Tx(tx), installments); err != nil {
+			// Bind only on paths that validate cash obligations; early resume
+			// returns above must not require installmentCharge.Tx expectations.
+			installmentChargeQ := uc.installmentCharge.Tx(tx)
+			if _, err := validateCashObligations(ctx, installmentChargeQ, installments); err != nil {
 				return err
 			}
 
@@ -433,6 +436,7 @@ func (uc *UseCase) finalizeMerchantFundingActivation(
 			if err := uc.lockActivationCustomer(ctx, tx, prepared.Contract.ID); err != nil {
 				return err
 			}
+
 			contractQ := uc.contract.Tx(tx)
 			creditAccountQ := uc.creditAccount.Tx(tx)
 			installmentQ := uc.installment.Tx(tx)

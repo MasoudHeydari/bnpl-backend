@@ -45,6 +45,9 @@ func TestSuccessMessageKeys_AreLocalizedInEnglishAndPersian(t *testing.T) {
 		SuccessMessageContractAlreadyExists,
 		SuccessMessageContractCreated,
 		SuccessMessageUnpaidInstallmentsListed,
+		SuccessMessageRepaymentBatchRetrieved,
+		SuccessMessageRepaymentBatchStarted,
+		SuccessMessageRepaymentBatchCreated,
 	}
 
 	for _, locale := range []resti18n.Locale{resti18n.LocaleENUS, resti18n.LocaleFAIR} {

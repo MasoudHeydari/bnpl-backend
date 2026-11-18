@@ -67,10 +67,13 @@ func newExpirationFixture(t *testing.T) *expirationFixture {
 	require.NoError(t, err)
 
 	baseline := strings.SplitN(string(ddl), "-- MANAGED DATABASE PERMISSIONS: canonical initial grants (pre-release)", 2)[0]
-	baseline = strings.ReplaceAll(baseline, "SET search_path TO bnpl;", "SET search_path TO "+schema+";")
-	baseline = strings.ReplaceAll(baseline, "bnpl.", schema+".")
-	baseline = strings.ReplaceAll(baseline, "pg_catalog, bnpl", "pg_catalog, "+schema)
+	baseline = rewriteIntegrationSchemaSQL(baseline, schema)
 	_, err = pool.Exec(ctx, baseline)
+	require.NoError(t, err)
+
+	upgrade, err := os.ReadFile("../migrationsrp/001_credit_kind_upgrade.sql")
+	require.NoError(t, err)
+	_, err = pool.Exec(ctx, rewriteIntegrationSchemaSQL(string(upgrade), schema))
 	require.NoError(t, err)
 
 	merchant, account, decision := uuid.New(), uuid.New(), uuid.New()
@@ -294,4 +297,11 @@ func TestMarkSubmittedFromExpired_PreservesFinancialIdentity(t *testing.T) {
 	require.Equal(t, sessionID, *submitted.FinancialPaymentSessionID)
 	require.False(t, submitted.FinancialOutcomeResolved)
 	require.NoError(t, tx.Commit(f.ctx))
+}
+
+func rewriteIntegrationSchemaSQL(sql, schema string) string {
+	out := strings.ReplaceAll(sql, "SET search_path TO bnpl;", "SET search_path TO "+schema+";")
+	out = strings.ReplaceAll(out, "bnpl.", schema+".")
+	out = strings.ReplaceAll(out, "pg_catalog, bnpl", "pg_catalog, "+schema)
+	return out
 }

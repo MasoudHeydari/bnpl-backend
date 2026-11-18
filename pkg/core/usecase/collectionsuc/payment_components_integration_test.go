@@ -83,7 +83,7 @@ func TestPostgreSQLRepayment_RejectsSecondPaymentAfterPaid(t *testing.T) {
 	var externalSubjectID model.ExternalSubjectID
 	require.NoError(t, f.pool.Pool.QueryRow(f.ctx, `SELECT contract_id FROM installments WHERE id=$1`, installment).Scan(&contract))
 	require.NoError(t, f.pool.Pool.QueryRow(f.ctx, `SELECT external_subject_id FROM customer_profiles WHERE id=$1`, customer).Scan(&externalSubjectID))
-	uc, e := installmentrepaymentuc.New(f.pool, customerprofilerp.New(), merchantprofilerp.New(), contractrp.New(), installmentrp.New(), installmentchargerp.New(), paymentattemptrp.New(), outboxrp.New(), aggregateCheckoutClient{t: t, now: f.now}, f.clk, lognoop.New(), "bnpl.audit.events.v1", uuidgen.New(), "https://pay.example.com/return")
+	uc, e := installmentrepaymentuc.New(f.pool, customerprofilerp.New(), merchantprofilerp.New(), contractrp.New(), installmentrp.New(), installmentchargerp.New(), paymentattemptrp.New(), outboxrp.New(), aggregateCheckoutClient{t: t, now: f.now}, f.clk, lognoop.New(), "bnpl.audit.events.v1", uuidgen.New(), "https://pay.example.com/return", newInstallmentRepaymentObserver())
 	require.NoError(t, e)
 	input := installmentrepaymentuc.CreatePaymentAttemptInput{TenantID: model.TenantID(uuid.New()), ContextID: model.ContextID(uuid.New()), ContractID: contract, InstallmentID: model.InstallmentID(installment), ExternalSubjectID: externalSubjectID, IdempotencyKey: uuid.NewString(), Channel: model.GatewayPaymentChannel}
 	ctx := trace.WithTraceID(trace.WithCorrelationID(f.ctx, uuid.NewString()), uuid.NewString())
@@ -147,7 +147,7 @@ func testFullCommandSettlement(t *testing.T, restricted bool) {
 	if restricted {
 		useRestrictedRuntime(t, f)
 	}
-	command, e := installmentrepaymentuc.New(f.pool, customerprofilerp.New(), merchantprofilerp.New(), contractrp.New(), installmentrp.New(), installmentchargerp.New(), paymentattemptrp.New(), outboxrp.New(), aggregateCheckoutClient{t: t, now: f.now, amount: 110}, f.clk, lognoop.New(), "bnpl.audit.events.v1", uuidgen.New(), "https://pay.example.com/return")
+	command, e := installmentrepaymentuc.New(f.pool, customerprofilerp.New(), merchantprofilerp.New(), contractrp.New(), installmentrp.New(), installmentchargerp.New(), paymentattemptrp.New(), outboxrp.New(), aggregateCheckoutClient{t: t, now: f.now, amount: 110}, f.clk, lognoop.New(), "bnpl.audit.events.v1", uuidgen.New(), "https://pay.example.com/return", newInstallmentRepaymentObserver())
 	require.NoError(t, e)
 	ctx := trace.WithTraceID(trace.WithCorrelationID(f.ctx, uuid.NewString()), uuid.NewString())
 	request := installmentrepaymentuc.CreatePaymentAttemptInput{TenantID: model.TenantID(uuid.New()), ContextID: model.ContextID(uuid.New()), ContractID: contract, InstallmentID: model.InstallmentID(target), ExternalSubjectID: externalSubjectID, IdempotencyKey: uuid.NewString(), Channel: model.GatewayPaymentChannel}

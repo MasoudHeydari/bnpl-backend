@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	customerv1 "github.com/parstis/bnpl-backend/gen/proto/customer/v1"
+	customerv1 "github.com/parstis/bnpl-backend/gen/proto/customer/reference/v1"
 	cbnoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/circuitbreaker/noop"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"

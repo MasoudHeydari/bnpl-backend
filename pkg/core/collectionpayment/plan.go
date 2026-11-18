@@ -1,5 +1,3 @@
-// Package collectionpayment defines FC-independent, immutable BNPL
-// collection assessments. Financial Core owns all monetary truth.
 package collectionpayment
 
 import (
@@ -175,6 +173,7 @@ func (p Plan) Validate() error {
 	if p.ID == uuid.Nil || p.CustomerID.IsZero() || p.ExternalCustomerID.IsZero() || !p.Currency.IsValid() {
 		return fmt.Errorf("%s: invalid batch or customer identity", op)
 	}
+
 	if len(p.Items) == 0 || strings.TrimSpace(p.Description) == "" {
 		return fmt.Errorf("%s: items and description are required", op)
 	}
@@ -193,15 +192,18 @@ func (p Plan) Validate() error {
 		if _, ok := installments[item.InstallmentID]; ok {
 			return fmt.Errorf("%s: duplicate installment", op)
 		}
+
 		installments[item.InstallmentID] = struct{}{}
 		if err := uniqueID(seen, item.ID); err != nil {
 			return err
 		}
+
 		shares := make(map[uuid.UUID]struct{}, len(item.FundingShares))
 		for _, share := range item.FundingShares {
 			if err := uniqueID(seen, share.ID); err != nil {
 				return err
 			}
+
 			if strings.TrimSpace(share.FinancialRelationshipID) == "" ||
 				strings.TrimSpace(share.Funder.Type) == "" {
 				return fmt.Errorf("%s: unprovisioned funding relationship", op)
@@ -218,12 +220,15 @@ func (p Plan) Validate() error {
 			if err := uniqueID(seen, component.ID); err != nil {
 				return err
 			}
+
 			if !component.Kind.IsValid() || component.GrossMinor == 0 || component.GrossMinor > math.MaxInt64 {
 				return fmt.Errorf("%s: invalid component kind or gross", op)
 			}
+
 			if err := validateAssessment(component.Assessment); err != nil {
 				return err
 			}
+
 			if component.Kind == TaxComponent {
 				if component.TaxContext == nil || component.TaxContext.TaxCode == "" ||
 					component.TaxContext.TreatmentReference == "" ||
@@ -240,23 +245,28 @@ func (p Plan) Validate() error {
 			if component.Kind == PrincipalComponent && len(component.Adjustments) > 0 {
 				return fmt.Errorf("%s: previously recognized principal cannot be adjusted", op)
 			}
+
 			var deductions uint64
 			for _, adjustment := range component.Adjustments {
 				if err := uniqueID(seen, adjustment.ID); err != nil {
 					return err
 				}
+
 				if adjustment.Kind != "discount" && adjustment.Kind != "waiver" {
 					return fmt.Errorf("%s: invalid adjustment kind", op)
 				}
+
 				if err := validateAssessment(adjustment.Assessment); err != nil {
 					return err
 				}
+
 				var err error
 				deductions, err = checkedAdd(deductions, adjustment.AmountMinor)
 				if err != nil {
 					return err
 				}
 			}
+
 			if deductions > component.GrossMinor || component.NetMinor != component.GrossMinor-deductions {
 				return fmt.Errorf("%s: net amount mismatch", op)
 			}
@@ -266,6 +276,7 @@ func (p Plan) Validate() error {
 				if err := uniqueID(seen, allocation.ID); err != nil {
 					return err
 				}
+
 				if !allocation.Purpose.IsValid() || strings.TrimSpace(allocation.RuleReference) == "" ||
 					strings.TrimSpace(allocation.RuleVersion) == "" ||
 					strings.TrimSpace(allocation.BeneficiaryType) == "" || allocation.AmountMinor == 0 {
@@ -276,19 +287,23 @@ func (p Plan) Validate() error {
 						return fmt.Errorf("%s: allocation funding share belongs to another item", op)
 					}
 				}
+
 				if allocation.Purpose == ReceivableRecoveryPurpose &&
 					strings.TrimSpace(allocation.EntitlementReference) == "" {
 					return fmt.Errorf("%s: receivable recovery needs FC entitlement reference", op)
 				}
+
 				var err error
 				allocated, err = checkedAdd(allocated, allocation.AmountMinor)
 				if err != nil {
 					return err
 				}
 			}
+
 			if allocated != component.NetMinor {
 				return fmt.Errorf("%s: component allocation sum mismatch", op)
 			}
+
 			var err error
 			total, err = checkedAdd(total, component.NetMinor)
 			if err != nil {
@@ -296,9 +311,11 @@ func (p Plan) Validate() error {
 			}
 		}
 	}
+
 	if total == 0 || total != p.TotalMinor {
 		return fmt.Errorf("%s: positive payment amount must equal all net components", op)
 	}
+
 	return nil
 }
 
@@ -306,9 +323,11 @@ func uniqueID(seen map[uuid.UUID]struct{}, id uuid.UUID) error {
 	if id == uuid.Nil {
 		return fmt.Errorf("immutable id is required")
 	}
+
 	if _, exists := seen[id]; exists {
 		return fmt.Errorf("duplicate immutable id %s", id)
 	}
+
 	seen[id] = struct{}{}
 	return nil
 }
@@ -317,6 +336,7 @@ func checkedAdd(a, b uint64) (uint64, error) {
 	if a > math.MaxInt64 || b > math.MaxInt64 || b > math.MaxInt64-a {
 		return 0, fmt.Errorf("collection amount exceeds int64 minor units")
 	}
+
 	return a + b, nil
 }
 
@@ -326,5 +346,6 @@ func validateAssessment(a Assessment) error {
 		strings.TrimSpace(a.PolicyVersion) == "" || a.AssessedAt.IsZero() {
 		return fmt.Errorf("assessment source, policy and time are required")
 	}
+
 	return nil
 }

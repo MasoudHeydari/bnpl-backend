@@ -16,6 +16,7 @@ func validateProduct(kind model.CreditKind) error {
 	if !kind.IsValid() {
 		return cerr.InvalidArgument(fmt.Errorf("unsupported credit kind %q", kind))
 	}
+
 	return nil
 }
 
@@ -25,6 +26,7 @@ func GetByCustomerIDCurrencyAndKind[Q postgres.Queryer](
 	if err := validateProduct(kind); err != nil {
 		return model.CreditAccount{}, err
 	}
+
 	const query = `SELECT` + creditAccountColumns + `
 FROM credit_accounts
 WHERE customer_id = $1 AND currency = $2 AND credit_kind = $3
@@ -38,6 +40,7 @@ func LockByCustomerIDCurrencyAndKind[Q postgres.Queryer](
 	if err := validateProduct(kind); err != nil {
 		return model.CreditAccount{}, err
 	}
+
 	const query = `SELECT` + creditAccountColumns + `
 FROM credit_accounts
 WHERE customer_id = $1 AND currency = $2 AND credit_kind = $3
@@ -62,9 +65,11 @@ func CreateWithLimitForKind[Q postgres.Queryer](
 	if err := validateProduct(kind); err != nil {
 		return model.CreditAccount{}, err
 	}
+
 	if err := postgres.RequiredTimes(map[string]time.Time{"effective_from": effectiveFrom, "created_at": createdAt, "updated_at": updatedAt}); err != nil {
 		return model.CreditAccount{}, err
 	}
+
 	const query = `
 INSERT INTO credit_accounts(
  customer_id,currency,credit_kind,limit_amount_minor,exposure_amount_minor,status,
@@ -77,6 +82,7 @@ RETURNING` + creditAccountColumns
 		return model.CreditAccount{}, cerr.Conflict(fmt.Errorf("credit account already exists for customer, currency and kind"),
 			map[string]any{"customer_id": customerID, "currency": currency, "credit_kind": kind})
 	}
+
 	return row, err
 }
 
@@ -86,6 +92,7 @@ func ExpireDueByCustomerIDCurrencyAndKind[Q postgres.Queryer](
 	if err := validateProduct(kind); err != nil {
 		return err
 	}
+
 	const query = `
 UPDATE credit_accounts SET status='expired',version=version+1,updated_at=$4
 WHERE customer_id=$1 AND currency=$2 AND credit_kind=$3
@@ -95,6 +102,7 @@ WHERE customer_id=$1 AND currency=$2 AND credit_kind=$3
 	if err != nil {
 		return fmt.Errorf("expire product credit account: %w", postgres.MapError(err))
 	}
+
 	return nil
 }
 
@@ -108,6 +116,7 @@ func HasUnpaidMonthlyCycleBefore[Q postgres.Queryer](
 	if cutoff.IsZero() {
 		return false, cerr.InvalidArgument(fmt.Errorf("monthly cutoff is required"))
 	}
+
 	type result struct {
 		Blocked bool `db:"blocked"`
 	}
@@ -129,5 +138,6 @@ SELECT EXISTS(
 	if err != nil {
 		return false, err
 	}
+
 	return row.Blocked, nil
 }

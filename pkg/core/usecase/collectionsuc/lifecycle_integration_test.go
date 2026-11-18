@@ -114,10 +114,16 @@ func newCollectionsFixture(t *testing.T, locations ...*time.Location) *collectio
 	// Financial triggers and Collections constraints are part of the complete
 	// pre-release baseline; never replay old migrations in fresh fixtures.
 	baseline := strings.SplitN(string(ddl), "-- MANAGED DATABASE PERMISSIONS: canonical initial grants (pre-release)", 2)[0]
-	baseline = strings.ReplaceAll(baseline, "SET search_path TO bnpl;", "SET search_path TO "+schema+";")
-	baseline = strings.ReplaceAll(baseline, "bnpl.", schema+".")
-	baseline = strings.ReplaceAll(baseline, "pg_catalog, bnpl", "pg_catalog, "+schema)
+	baseline = rewriteFixtureSchemaSQL(baseline, schema)
 	_, err = pool.Pool.Exec(ctx, baseline)
+	require.NoError(t, err)
+
+	// Product-aware columns (credit_kind, merchant product eligibility, …)
+	// ship as the first post-baseline upgrade and are required by credit
+	// account / checkout session repository adapters.
+	upgrade, err := os.ReadFile("../../../adapter/db/postgres/migrationsrp/001_credit_kind_upgrade.sql")
+	require.NoError(t, err)
+	_, err = pool.Pool.Exec(ctx, rewriteFixtureSchemaSQL(string(upgrade), schema))
 	require.NoError(t, err)
 
 	now := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
@@ -790,7 +796,7 @@ func TestPostgreSQLCollections_ReconciledSettlementTriggersRecovery(t *testing.T
 	f.exec(t, `UPDATE payment_attempts SET state='reconciliation_required',reconciliation_reason='financial_core_status_still_unknown',reconciliation_requested_at=$2,reconciliation_attempt_count=1 WHERE id=$1`, attempt, f.now)
 	_, e := f.uc.AssessCustomer(f.ctx, customer)
 	require.NoError(t, e)
-	uc, e := reconciliationuc.New(f.pool, result, inboxrp.New(), outboxrp.New(), paymentattemptrp.New(), contractrp.New(), installmentrp.New(), installmentchargerp.New(), creditaccountrp.New(), sha256fingerprint.New(), uuidgen.New(), "fc.reconciliation.acks", "bnpl.audit.events.v1", time.Second, time.Minute, f.clk, lognoop.New())
+	uc, e := reconciliationuc.New(f.pool, result, inboxrp.New(), outboxrp.New(), paymentattemptrp.New(), contractrp.New(), installmentrp.New(), installmentchargerp.New(), creditaccountrp.New(), sha256fingerprint.New(), uuidgen.New(), "fc.reconciliation.acks", "bnpl.audit.events.v1", time.Second, time.Minute, f.clk, lognoop.New(), newFinancialCorePaymentReconciliationObserver())
 	require.NoError(t, e)
 	paidAt := f.now.Add(-time.Minute)
 	message := reconciliationuc.ProcessInput{EventID: uuid.NewString(), EventType: reconciliationevent.ReconciliationResultEventType, EventVersion: "1", SourceService: "financial-core", RawPayload: json.RawMessage(`{"resolved":true}`), Data: reconciliationevent.ResultEventData{RequestEventID: reconciliationevent.RequestEventID(attempt, 1), BNPLPaymentAttemptID: attempt, ReconciliationGeneration: 1, Status: reconciliationevent.SucceededResultStatus, FinancialPaymentIntentID: &input.PaymentIntentID, PaidAt: &paidAt, AmountMinor: 100, Currency: "IRR", OccurredAt: f.now}}
@@ -858,6 +864,7 @@ VALUES ($1, 'principal', $2, 100, 'debit')
 		time.Minute,
 		5,
 		adapterclock.NewFixed(f.now, time.UTC),
+		newPaymentAttemptReconciliationObserver(),
 	)
 	require.NoError(t, err)
 	require.NoError(t, reconUC.ProcessDue(f.ctx))
@@ -980,7 +987,7 @@ func TestPostgreSQLCollections_ReconciliationNotFoundKeepsFinancialFreeze(t *tes
 	var attempt model.PaymentAttemptID
 	require.NoError(t, f.pool.Pool.QueryRow(f.ctx, `SELECT id FROM payment_attempts WHERE installment_id=$1`, installment).Scan(&attempt))
 	f.exec(t, `UPDATE payment_attempts SET state='reconciliation_required',reconciliation_reason='financial_core_status_still_unknown',reconciliation_requested_at=$2,reconciliation_attempt_count=1 WHERE id=$1`, attempt, f.now)
-	uc, e := reconciliationuc.New(f.pool, result, inboxrp.New(), outboxrp.New(), paymentattemptrp.New(), contractrp.New(), installmentrp.New(), installmentchargerp.New(), creditaccountrp.New(), sha256fingerprint.New(), uuidgen.New(), "fc.reconciliation.acks", "bnpl.audit.events.v1", time.Second, time.Minute, f.clk, lognoop.New())
+	uc, e := reconciliationuc.New(f.pool, result, inboxrp.New(), outboxrp.New(), paymentattemptrp.New(), contractrp.New(), installmentrp.New(), installmentchargerp.New(), creditaccountrp.New(), sha256fingerprint.New(), uuidgen.New(), "fc.reconciliation.acks", "bnpl.audit.events.v1", time.Second, time.Minute, f.clk, lognoop.New(), newFinancialCorePaymentReconciliationObserver())
 	require.NoError(t, e)
 	message := reconciliationuc.ProcessInput{EventID: uuid.NewString(), EventType: reconciliationevent.ReconciliationResultEventType, EventVersion: "1", SourceService: "financial-core", RawPayload: json.RawMessage(`{"absent":true}`), Data: reconciliationevent.ResultEventData{RequestEventID: reconciliationevent.RequestEventID(attempt, 1), BNPLPaymentAttemptID: attempt, ReconciliationGeneration: 1, Status: reconciliationevent.NotFoundResultStatus, AmountMinor: 100, Currency: "IRR", OccurredAt: f.now}}
 	got, e := uc.Process(f.ctx, message)
@@ -1317,4 +1324,12 @@ WHERE i.id=$1`, installment).Scan(&contractID, &externalCustomerID))
 	require.NoError(t, againErr)
 	require.Equal(t, 0, again.CreatedCount)
 	require.Equal(t, 1, f.scalar(t, `SELECT count(*) FROM repayment_reminders WHERE customer_id=$1`, customer))
+}
+
+
+func rewriteFixtureSchemaSQL(sql, schema string) string {
+	out := strings.ReplaceAll(sql, "SET search_path TO bnpl;", "SET search_path TO "+schema+";")
+	out = strings.ReplaceAll(out, "bnpl.", schema+".")
+	out = strings.ReplaceAll(out, "pg_catalog, bnpl", "pg_catalog, "+schema)
+	return out
 }

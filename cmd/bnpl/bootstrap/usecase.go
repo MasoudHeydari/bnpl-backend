@@ -163,6 +163,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 	if err != nil {
 		return UseCases{}, err
 	}
+
 	collectionsUseCase, err := collectionsuc.New(
 		a.Pool,
 		a.Repos.CustomerProfile,
@@ -183,6 +184,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize collections use case: %w", op, err)
 	}
+
 	collectionsUseCase.WithAssessmentFailureObserver(func(ctx context.Context, customerID model.CustomerID, err error) {
 		a.Infrastructure.Logger.With("customer_id", customerID.String(), "error", err.Error()).Error(corelog.Msg("collections customer assessment failed"))
 	})
@@ -283,6 +285,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize contract cancellation saga definition: %w", op, err)
 	}
+
 	cancellationSagaDefinition = cancellationSagaDefinition.(*contractuc.CancellationSagaDefinition).
 		WithCustomerSynchronization(a.Repos.CustomerProfile)
 
@@ -451,6 +454,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize financial core payment result use case: %w", op, err)
 	}
+
 	financialCorePaymentResultUseCase.WithCollectionsCoordination(a.Repos.CustomerProfile, func(ctx context.Context, id model.CustomerID) error {
 		_, err := collectionsUseCase.AssessCustomer(ctx, id)
 		return err
@@ -549,6 +553,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize customer credit use case: %w", op, err)
 	}
+
 	customerCreditUseCase.WithMonthlyLimitPolicy(initialcreditcatalog.MonthlyRef())
 
 	merchantUseCase := merchantuc.New(
@@ -652,6 +657,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize repayment reminder use case: %w", op, err)
 	}
+
 	repaymentReminderUseCase.WithDefaultNotifications(collectionsUseCase)
 
 	postedApplier, err := repaymentbatchuc.NewDefaultPostedApplier(
@@ -666,6 +672,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize batch posted applier: %w", op, err)
 	}
+
 	repaymentBatchUseCase, err := repaymentbatchuc.New(
 		a.Pool, a.Repos.RepaymentBatch, a.External.CollectionPaymentClient,
 		postedApplier, a.Infrastructure.Clock,
@@ -673,6 +680,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize repayment batch use case: %w", op, err)
 	}
+
 	repaymentBatchUseCase.WithCustomerProfile(a.Repos.CustomerProfile)
 	repaymentBatchUseCase.WithPlanCreation(
 		a.Repos.Installment, a.Repos.Contract, a.Repos.CreditAccount,

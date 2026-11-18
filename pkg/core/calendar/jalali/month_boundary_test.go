@@ -10,6 +10,7 @@ func TestStartOfFollowingTehranMonth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	for _, tc := range []struct {
 		name string
 		from Date
@@ -25,9 +26,11 @@ func TestStartOfFollowingTehranMonth(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			if got := FromTime(next.In(loc)); got != tc.want {
 				t.Fatalf("next=%+v want=%+v", got, tc.want)
 			}
+
 			if next.In(loc).Hour() != 0 || next.In(loc).Minute() != 0 {
 				t.Fatalf("cutoff not midnight: %v", next)
 			}

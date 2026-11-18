@@ -21,9 +21,10 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Stable public Financial wire primitives only.
-// FinancialScope, operation statuses, request envelopes, and economics stay
-// capability-specific and must not be added here.
+// Shared BNPL platform wire primitives for non-Financial Core services
+// (notification, customer reference adapters, and future BNPL-owned contracts).
+// Financial Core public primitives live under financial/common/v1 and must not
+// be imported from here.
 type Money struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AmountMinor   int64                  `protobuf:"varint,1,opt,name=amount_minor,json=amountMinor,proto3" json:"amount_minor,omitempty"`
@@ -76,8 +77,6 @@ func (x *Money) GetCurrency() string {
 	return ""
 }
 
-// Opaque upstream business provenance. source_service is transport-authenticated
-// and intentionally absent from the public message.
 type BusinessSourceReference struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Type          string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`

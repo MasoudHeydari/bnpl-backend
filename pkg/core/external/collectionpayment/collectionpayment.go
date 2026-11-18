@@ -1,4 +1,4 @@
-// Package collectionpayment is the domain-facing port to Financial Core v2.
+// Package collectionpayment is the domain-facing port to Financial Core CollectionPayment v1 (FC target draft).
 // It exposes no transport, provider credentials, FC ledger accounts or HTTP.
 package collectionpayment
 
@@ -118,6 +118,7 @@ func VerifyPostedAllocations(plan collectionpayment.Plan, result Result) error {
 	if err := plan.Validate(); err != nil {
 		return fmt.Errorf("%s: invalid plan: %w", op, err)
 	}
+
 	if !result.IsAuthoritativelySettled() || result.SourceID != plan.ID ||
 		result.SnapshotRevision < 1 {
 		return fmt.Errorf("%s: FC result is not an authoritative match", op)
@@ -141,6 +142,7 @@ func VerifyPostedAllocations(plan collectionpayment.Plan, result Result) error {
 	if len(expected) != len(result.PostedAllocations) {
 		return fmt.Errorf("%s: posted allocation count mismatch", op)
 	}
+
 	seen := make(map[uuid.UUID]struct{}, len(result.PostedAllocations))
 	for _, actual := range result.PostedAllocations {
 		exp, ok := expected[actual.AllocationID]
@@ -152,6 +154,7 @@ func VerifyPostedAllocations(plan collectionpayment.Plan, result Result) error {
 		if _, duplicate := seen[actual.AllocationID]; duplicate {
 			return fmt.Errorf("%s: duplicate posted allocation", op)
 		}
+
 		seen[actual.AllocationID] = struct{}{}
 	}
 	return nil

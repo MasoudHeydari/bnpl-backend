@@ -121,6 +121,7 @@ func TestGetExternal_ProjectsOnlyHostedPageFields(t *testing.T) {
 		AmountMinor:          150000000,
 		Currency:             model.IRRCurrency,
 		EvaluationGeneration: 1,
+		SupportedCreditKinds: []model.CreditKind{model.PayIn4CreditKind},
 		Verification: ExternalVerification{
 			Type:        VerificationTypeSMSOTP,
 			Destination: "0912***4567",
@@ -236,7 +237,8 @@ func TestStartExternal_LinkedContractCannotStart(t *testing.T) {
 	h.expectPool(1, 0)
 
 	linked := h.session(withContract(h.contractID))
-	h.sessionCQ.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(linked, nil).Once()
+	// Product selection locks first and rejects linked contracts before offer load.
+	h.expectSelectCreditKindNoop(linked)
 
 	_, err := h.uc.StartExternal(h.ctx, h.startExternalInput(1))
 	requireCerr(t, err, cerr.CodeConflict, "error.checkout_session_cannot_continue_in_its_current_state")
@@ -251,6 +253,7 @@ func TestStartExternal_StaleGenerationDoesNotPrepareAgain(t *testing.T) {
 	h.expectPool(1, 0)
 
 	current := h.session(withGeneration(2))
+	h.expectSelectCreditKindNoop(current)
 	h.sessionCQ.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(current, nil).Once()
 
 	_, err := h.uc.StartExternal(h.ctx, h.startExternalInput(1))
@@ -265,9 +268,7 @@ func TestStartExternal_InternalOriginIsNotFound(t *testing.T) {
 	h := newHarness(t)
 	h.expectPool(1, 0)
 
-	h.sessionCQ.EXPECT().
-		GetByPublicToken(h.ctx, h.publicToken).
-		Return(h.session(withOrigin(model.InternalCheckoutSessionOrigin)), nil).Once()
+	h.expectSelectCreditKindNoop(h.session(withOrigin(model.InternalCheckoutSessionOrigin)))
 
 	_, err := h.uc.StartExternal(h.ctx, h.startExternalInput(1))
 	requireCerr(t, err, cerr.CodeResourceNotFound, "error.checkout_session_not_found")
@@ -281,8 +282,8 @@ func TestStartExternal_ElapsedSessionIsExpiredBeforeAnyNetworkCall(t *testing.T)
 	h.expectPool(1, 0)
 
 	elapsed := h.session(withExpiresAt(h.now.Add(-time.Second)))
-	h.sessionCQ.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(elapsed, nil).Once()
-	h.expectProjectApprovedOffer(elapsed)
+	// Expiry is detected on the product-selection lock, before offer projection.
+	h.expectSelectCreditKindNoop(elapsed)
 
 	_, err := h.uc.StartExternal(h.ctx, h.startExternalInput(1))
 	requireCerr(t, err, cerr.CodeConflict, "error.checkout_session_expired")

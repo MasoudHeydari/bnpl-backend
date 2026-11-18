@@ -22,6 +22,7 @@ func TestRepaymentSelectionRequiresAllOverdueProducts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	due := time.Date(2026, time.November, 5, 23, 59, 59, 0, loc)
 	monthly := monthlyTestInstallment(1, model.DueInstallmentStatus, due)
 	monthly.GracePeriodDays = 0
@@ -31,10 +32,12 @@ func TestRepaymentSelectionRequiresAllOverdueProducts(t *testing.T) {
 	if err := requireAllOverdueInstallments(selection, []model.Installment{monthly, four}, now, loc); err == nil {
 		t.Fatal("repayment skipped another overdue installment")
 	}
+
 	selection[four.ID] = struct{}{}
 	if err := requireAllOverdueInstallments(selection, []model.Installment{monthly, four}, now, loc); err != nil {
 		t.Fatal(err)
 	}
+
 	before := time.Date(2026, time.November, 5, 20, 0, 0, 0, loc)
 	delete(selection, monthly.ID)
 	if err := requireAllOverdueInstallments(selection, []model.Installment{monthly, four}, before, loc); err != nil {
@@ -53,6 +56,7 @@ func TestRepaymentSelectionRequiresConsecutiveUnpaidInstallments(t *testing.T) {
 	if err := requireConsecutiveInstallments(skip, all); err == nil {
 		t.Fatal("later installment skipped unpaid second installment")
 	}
+
 	valid := map[model.InstallmentID]struct{}{second.ID: {}, third.ID: {}}
 	if err := requireConsecutiveInstallments(valid, all); err != nil {
 		t.Fatal(err)

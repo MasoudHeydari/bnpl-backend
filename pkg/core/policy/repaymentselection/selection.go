@@ -26,6 +26,7 @@ func RequireAllOverdueInstallments(
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -42,15 +43,18 @@ func RequireConsecutiveInstallments(
 		if !installment.Status.IsActive() {
 			continue
 		}
+
 		_, chosen := selected[installment.ID]
 		if chosen && unselectedEarlier {
 			return cerr.Conflict(fmt.Errorf(
 				"repayment cannot skip an earlier unpaid installment",
 			))
 		}
+
 		if !chosen {
 			unselectedEarlier = true
 		}
 	}
+
 	return nil
 }

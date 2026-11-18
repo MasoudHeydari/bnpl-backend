@@ -33,19 +33,23 @@ func TestMonthlyDueDateAlwaysFifthOfFollowingJalaliMonth(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			parts := jalali.FromTime(due.In(location))
 			if parts != tc.next {
 				t.Fatalf("due=%+v want=%+v", parts, tc.next)
 			}
+
 			if due.Hour() != 23 || due.Minute() != 59 || due.Second() != 59 {
 				t.Fatalf("due time=%s want 23:59:59", due)
 			}
+
 			schedule, err := policy.BuildInstallmentSchedule(checkout.ScheduleInput{
 				Now: anchor, FinancedAmountMinor: 10000, InstallmentCount: 1,
 			})
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			if len(schedule.Installments) != 1 || !schedule.Installments[0].DueAt.Equal(due) {
 				t.Fatalf("invalid monthly schedule: %+v", schedule)
 			}
@@ -58,6 +62,7 @@ func TestMonthlyFinancingCannotUseAnotherAccountsCredit(t *testing.T) {
 	if err := checkout.ValidateTerms(policy.Terms()); err != nil {
 		t.Fatal(err)
 	}
+
 	credit := model.CreditAccount{LimitAmountMinor: 1000, ExposureAmountMinor: 750, CreditKind: model.PayNextMonthCreditKind}
 	financed := policy.EvaluateFinancing(checkout.FinancingInput{
 		RequestedAmountMinor: 300, CreditAccount: credit,
@@ -66,6 +71,7 @@ func TestMonthlyFinancingCannotUseAnotherAccountsCredit(t *testing.T) {
 	if financed.Outcome != model.DeniedDecisionOutcome {
 		t.Fatalf("monthly financed past available limit: %+v", financed)
 	}
+
 	financed = policy.EvaluateFinancing(checkout.FinancingInput{
 		RequestedAmountMinor: 200, CreditAccount: credit,
 		Eligibility: checkout.EligibilityResult{Outcome: model.ApprovedDecisionOutcome},

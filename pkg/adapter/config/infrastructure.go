@@ -1099,7 +1099,7 @@ type ScheduledTasks struct {
 	// PaymentAttemptReconciliation schedules payment attempt reconciliation work.
 	PaymentAttemptReconciliation TaskDefinition `yaml:"payment_attempt_reconciliation"`
 
-	// RepaymentBatchReconciliation polls authoritative Financial Core v2
+	// RepaymentBatchReconciliation polls authoritative Financial Core (FC target draft)
 	// collection state using durable BNPL snapshots, not shared Kafka topics.
 	RepaymentBatchReconciliation TaskDefinition `yaml:"repayment_batch_reconciliation"`
 

@@ -222,6 +222,7 @@ func DueAtForInstallmentOrder(terms Terms, now time.Time, order int) (time.Time,
 		if terms.ActivationMode != ActivationAfterMerchantFunding || order != 1 {
 			return time.Time{}, fmt.Errorf("%s: monthly due rule supports one merchant-funded installment", op)
 		}
+
 		return nextJalaliFifth(now)
 	}
 
@@ -326,6 +327,7 @@ func ValidateTerms(terms Terms) error {
 	switch terms.DueDateRule {
 	case "", DueByCadence:
 		// Existing schedules retain their historical cadence rules.
+
 	case DueNextJalaliMonthFifth:
 		if terms.InstallmentCount != 1 ||
 			terms.ActivationMode != ActivationAfterMerchantFunding ||
@@ -346,18 +348,21 @@ func ValidateTerms(terms Terms) error {
 
 	switch terms.FinancingMode {
 	case PartialWithUpfrontFinancing, FullFinancingOnly:
+
 	default:
 		return fmt.Errorf("%s: unknown financing mode %q", op, terms.FinancingMode)
 	}
 
 	switch terms.ActivationMode {
 	case ActivationAfterInitialPayment, ActivationAfterMerchantFunding:
+
 	default:
 		return fmt.Errorf("%s: unknown activation mode %q", op, terms.ActivationMode)
 	}
 
 	switch terms.ScheduleAnchor {
 	case ScheduleFromDecision, ScheduleFromContractActivation:
+
 	default:
 		return fmt.Errorf("%s: unknown schedule anchor %q", op, terms.ScheduleAnchor)
 	}

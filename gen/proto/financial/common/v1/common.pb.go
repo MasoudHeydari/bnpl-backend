@@ -21,8 +21,9 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Financial public primitives from FC Educational Handoff 0.3.
-// source_service and FinancialScope are derived by FC, never caller-supplied.
+// Stable public Financial wire primitives only.
+// FinancialScope, operation statuses, request envelopes, and economics stay
+// capability-specific and must not be added here.
 type Money struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AmountMinor   int64                  `protobuf:"varint,1,opt,name=amount_minor,json=amountMinor,proto3" json:"amount_minor,omitempty"`
@@ -75,6 +76,8 @@ func (x *Money) GetCurrency() string {
 	return ""
 }
 
+// Opaque upstream business provenance. source_service is transport-authenticated
+// and intentionally absent from the public message.
 type BusinessSourceReference struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Type          string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
@@ -215,8 +218,7 @@ const file_financial_common_v1_common_proto_rawDesc = "" +
 	"\vfailure_url\x18\x02 \x01(\tR\n" +
 	"failureUrl\x12\x1d\n" +
 	"\n" +
-	"cancel_url\x18\x03 \x01(\tR\tcancelUrlB\x93\x01\n" +
-	"(ir.parstis.financial.contracts.common.v1B\x14FinancialCommonProtoP\x01ZOgithub.com/parstis/bnpl-backend/gen/proto/financial/common/v1;financialcommonv1b\x06proto3"
+	"cancel_url\x18\x03 \x01(\tR\tcancelUrlBQZOgithub.com/parstis/bnpl-backend/gen/proto/financial/common/v1;financialcommonv1b\x06proto3"
 
 var (
 	file_financial_common_v1_common_proto_rawDescOnce sync.Once

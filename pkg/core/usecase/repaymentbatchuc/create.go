@@ -36,7 +36,7 @@ type FinancialInstructions struct {
 }
 
 // FinancialInstructionsResolver supplies only financial terms; BNPL owns
-// customer, contract, installment, merchant and product identity. The FC v2
+// customer, contract, installment, merchant and product identity. The FC CollectionPayment v1 (target draft)
 // handoff does not yet publish a concrete RPC for this provisioning step.
 type FinancialInstructionsResolver interface {
 	Resolve(ctx context.Context, obligations []Obligation) ([]FinancialInstructions, error)
@@ -74,10 +74,12 @@ func (uc *UseCase) newID() (uuid.UUID, error) {
 	if uc.idGenerator == nil {
 		return uuid.Nil, cerr.ServiceUnavailable(fmt.Errorf("repayment ID generator unavailable"))
 	}
+
 	id, err := uuid.Parse(uc.idGenerator.Generate())
 	if err != nil || id == uuid.Nil {
 		return uuid.Nil, cerr.InternalError(fmt.Errorf("repayment ID generator returned invalid UUID"))
 	}
+
 	return id, nil
 }
 
@@ -85,6 +87,7 @@ func sameInstallmentSelection(plan collectionpayment.Plan, requested []model.Ins
 	if len(plan.Items) != len(requested) {
 		return false
 	}
+
 	a := make([]string, 0, len(plan.Items))
 	b := make([]string, 0, len(requested))
 	for _, item := range plan.Items {
@@ -122,9 +125,11 @@ func (uc *UseCase) CreateForCustomer(
 		if id.IsZero() {
 			return repo.RepaymentBatchRow{}, cerr.InvalidArgument(fmt.Errorf("%s: empty installment id", op))
 		}
+
 		if _, exists := unique[id]; exists {
 			return repo.RepaymentBatchRow{}, cerr.InvalidArgument(fmt.Errorf("%s: duplicate installment id", op))
 		}
+
 		unique[id] = struct{}{}
 	}
 	if uc.customer == nil || uc.installments == nil || uc.contracts == nil ||
@@ -139,26 +144,39 @@ func (uc *UseCase) CreateForCustomer(
 		obligations []Obligation
 	)
 	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
+		customerQ := uc.customer.Conn(conn)
+		batchesQ := uc.batches.Conn(conn)
+		installmentsQ := uc.installments.Conn(conn)
+		contractsQ := uc.contracts.Conn(conn)
+		accountsQ := uc.accounts.Conn(conn)
+		merchantsQ := uc.merchants.Conn(conn)
+		chargesQ := uc.charges.Conn(conn)
+
 		var loadErr error
-		profile, loadErr = uc.customer.Conn(conn).GetByExternalSubjectID(ctx, subject)
+		profile, loadErr = customerQ.GetByExternalSubjectID(ctx, subject)
 		if loadErr != nil {
 			return loadErr
 		}
+
 		if !profile.IsActive() {
 			return cerr.Conflict(fmt.Errorf("%s: customer profile is not active", op))
 		}
-		existing, loadErr = uc.batches.Conn(conn).GetByCustomerAndIdempotencyKey(ctx, profile.ID, key)
+
+		existing, loadErr = batchesQ.GetByCustomerAndIdempotencyKey(ctx, profile.ID, key)
 		if loadErr == nil {
 			plan, decodeErr := planFromRow(existing)
 			if decodeErr != nil {
 				return decodeErr
 			}
+
 			if !sameInstallmentSelection(plan, selected) {
 				return cerr.Conflict(fmt.Errorf("%s: idempotency key already used for another installment selection", op))
 			}
+
 			replayed = true
 			return nil
 		}
+
 		if !cerr.IsCode(loadErr, cerr.CodeResourceNotFound) {
 			return loadErr
 		}
@@ -166,12 +184,13 @@ func (uc *UseCase) CreateForCustomer(
 		// Selection is customer-wide, not product-scoped: overdue debt from
 		// either credit product must be part of the same atomic payment.
 		now := uc.clock.Now()
-		due, dueErr := uc.installments.Conn(conn).ListDueUnpaidByCustomerID(
+		due, dueErr := installmentsQ.ListDueUnpaidByCustomerID(
 			ctx, profile.ID, now,
 		)
 		if dueErr != nil {
 			return dueErr
 		}
+
 		if err := requireAllOverdueInstallments(
 			unique, due, now, uc.clock.BusinessLocation(),
 		); err != nil {
@@ -181,18 +200,20 @@ func (uc *UseCase) CreateForCustomer(
 		obligations = make([]Obligation, 0, len(selected))
 		contractSchedules := make(map[model.ContractID][]model.Installment)
 		for _, id := range selected {
-			installment, getErr := uc.installments.Conn(conn).GetByID(ctx, id)
+			installment, getErr := installmentsQ.GetByID(ctx, id)
 			if getErr != nil {
 				return getErr
 			}
+
 			if !installment.Status.IsActive() || installment.ContractID == nil ||
 				installment.CustomerID != profile.ID {
 				return cerr.Conflict(fmt.Errorf("%s: selected installment is not payable by customer", op))
 			}
-			contract, getErr := uc.contracts.Conn(conn).GetByID(ctx, *installment.ContractID)
+			contract, getErr := contractsQ.GetByID(ctx, *installment.ContractID)
 			if getErr != nil {
 				return getErr
 			}
+
 			if contract.CustomerID != profile.ID || contract.Status != model.ActiveContractStatus ||
 				contract.Currency != installment.Currency {
 				return cerr.Conflict(fmt.Errorf("%s: contract is not a payable customer obligation", op))
@@ -201,41 +222,51 @@ func (uc *UseCase) CreateForCustomer(
 			// installment of their contract, without gaps or partial items.
 			schedule, loaded := contractSchedules[contract.ID]
 			if !loaded {
-				schedule, getErr = uc.installments.Conn(conn).ListByContractID(ctx, contract.ID)
+				schedule, getErr = installmentsQ.ListByContractID(ctx, contract.ID)
 				if getErr != nil {
 					return getErr
 				}
+
 				contractSchedules[contract.ID] = schedule
 			}
+
 			if err := requireConsecutiveInstallments(unique, schedule); err != nil {
 				return err
 			}
-			account, getErr := uc.accounts.Conn(conn).GetByID(ctx, contract.CreditAccountID)
+
+			account, getErr := accountsQ.GetByID(ctx, contract.CreditAccountID)
 			if getErr != nil {
 				return getErr
 			}
+
 			if account.CustomerID != profile.ID || account.Currency != installment.Currency {
 				return cerr.Conflict(fmt.Errorf("%s: credit account/contract identity mismatch", op))
 			}
-			merchant, getErr := uc.merchants.Conn(conn).GetByID(ctx, contract.MerchantProfileID)
+
+			merchant, getErr := merchantsQ.GetByID(ctx, contract.MerchantProfileID)
 			if getErr != nil {
 				return getErr
 			}
-			chargeRows, getErr := uc.charges.Conn(conn).ListByInstallmentIDs(ctx, []model.InstallmentID{id})
+
+			chargeRows, getErr := chargesQ.ListByInstallmentIDs(ctx, []model.InstallmentID{id})
 			if getErr != nil {
 				return getErr
 			}
+
 			payable, ok, getErr := model.CustomerPayableAmount(installment, chargeRows)
 			if getErr != nil {
 				return getErr
 			}
+
 			if !ok || payable == 0 {
 				return cerr.Conflict(fmt.Errorf("%s: installment has no payable amount", op))
 			}
+
 			if contract.FinancialMerchantEntitlementID == nil ||
 				*contract.FinancialMerchantEntitlementID == "" {
 				return cerr.ServiceUnavailable(fmt.Errorf("%s: existing entitlement is not bound by FC", op))
 			}
+
 			obligations = append(obligations, Obligation{
 				Installment:   installment,
 				Contract:      contract,
@@ -250,11 +281,13 @@ func (uc *UseCase) CreateForCustomer(
 	if err != nil {
 		return repo.RepaymentBatchRow{}, err
 	}
+
 	if replayed {
 		// A retry never produces new item IDs or a second FC source. Reconcile
 		// handles a previously lost Prepare response using the persisted ID.
 		return existing, nil
 	}
+
 	if uc.instructions == nil {
 		return repo.RepaymentBatchRow{}, cerr.ServiceUnavailable(fmt.Errorf("%s: FC financial provisioning resolver is not configured", op))
 	}
@@ -264,6 +297,7 @@ func (uc *UseCase) CreateForCustomer(
 	if err != nil {
 		return repo.RepaymentBatchRow{}, fmt.Errorf("%s: resolve authorized financial instructions: %w", op, err)
 	}
+
 	if len(instructions) != len(obligations) {
 		return repo.RepaymentBatchRow{}, cerr.InternalError(fmt.Errorf("%s: incorrect number of FC instructions", op))
 	}
@@ -272,6 +306,7 @@ func (uc *UseCase) CreateForCustomer(
 	if err != nil {
 		return repo.RepaymentBatchRow{}, err
 	}
+
 	plan := collectionpayment.Plan{
 		ID: batchID, CustomerID: profile.ID,
 		ExternalCustomerID: profile.ExternalCustomerID,
@@ -283,10 +318,12 @@ func (uc *UseCase) CreateForCustomer(
 		if inst.Currency != plan.Currency {
 			return repo.RepaymentBatchRow{}, cerr.Conflict(fmt.Errorf("%s: mixed currencies cannot share a collection", op))
 		}
+
 		itemID, idErr := uc.newID()
 		if idErr != nil {
 			return repo.RepaymentBatchRow{}, idErr
 		}
+
 		resolved := instructions[i]
 		item := collectionpayment.Item{
 			ID: itemID, InstallmentID: inst.ID,
@@ -311,17 +348,21 @@ func (uc *UseCase) CreateForCustomer(
 				}
 				principal += comp.GrossMinor
 			}
+
 			if comp.NetMinor > ^uint64(0)-net {
 				return repo.RepaymentBatchRow{}, cerr.InvalidArgument(fmt.Errorf("%s: collection item amount overflow", op))
 			}
+
 			net += comp.NetMinor
 		}
 		if principal != inst.PrincipalAmountMinor || net != obligation.PayableMinor {
 			return repo.RepaymentBatchRow{}, cerr.Conflict(fmt.Errorf("%s: FC instructions do not match installment payable amount", op))
 		}
+
 		if obligation.PayableMinor > ^uint64(0)-plan.TotalMinor {
 			return repo.RepaymentBatchRow{}, cerr.InvalidArgument(fmt.Errorf("%s: aggregate amount overflow", op))
 		}
+
 		plan.TotalMinor += obligation.PayableMinor
 		plan.Items = append(plan.Items, item)
 	}
@@ -336,6 +377,7 @@ func (uc *UseCase) CreateForCustomer(
 	if loadErr == nil {
 		return row, nil
 	}
+
 	if prepareErr != nil {
 		// Two concurrent requests may both miss the preflight idempotency
 		// lookup. The unique (customer,idempotency_key) index selects one
@@ -344,8 +386,9 @@ func (uc *UseCase) CreateForCustomer(
 		// alternate FC source or allocate the installment twice.
 		var winner repo.RepaymentBatchRow
 		recoveryErr := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
+			batchesQ := uc.batches.Conn(conn)
 			var err error
-			winner, err = uc.batches.Conn(conn).GetByCustomerAndIdempotencyKey(ctx, profile.ID, key)
+			winner, err = batchesQ.GetByCustomerAndIdempotencyKey(ctx, profile.ID, key)
 			return err
 		})
 		if recoveryErr == nil {
@@ -353,12 +396,16 @@ func (uc *UseCase) CreateForCustomer(
 			if err != nil {
 				return repo.RepaymentBatchRow{}, err
 			}
+
 			if !sameInstallmentSelection(winnerPlan, selected) {
 				return repo.RepaymentBatchRow{}, cerr.Conflict(fmt.Errorf("%s: idempotency key reused for another installment selection", op))
 			}
+
 			return winner, nil
 		}
+
 		return repo.RepaymentBatchRow{}, prepareErr
 	}
+
 	return repo.RepaymentBatchRow{}, loadErr
 }

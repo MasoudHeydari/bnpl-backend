@@ -34,8 +34,9 @@ type External struct {
 	// CheckoutPaymentClient creates checkout payment sessions with Financial Core.
 	CheckoutPaymentClient extcheckoutpayment.Client
 
-	// CollectionPaymentClient implements FC v2 aggregate repayment RPCs.
-	// Its noop mode fails closed instead of fabricating a paid result.
+	// CollectionPaymentClient implements FC CollectionPayment v1 (target draft)
+	// aggregate repayment RPCs. Its noop mode fails closed instead of fabricating
+	// a paid result.
 	CollectionPaymentClient extcollection.Client
 
 	// CustomerResolver maps a merchant-asserted mobile to a Customer Reference
@@ -122,13 +123,14 @@ func (a *App) NewExternal() (_ External, err error) {
 		external.closers = append(external.closers, checkoutPaymentCloser)
 	}
 
-	// CollectionPayment v2 uses the same already-configured Financial Core
+	// CollectionPayment v1 (FC target draft) uses the same already-configured Financial Core
 	// transport security as CheckoutPayment. Keep the client optional at the
 	// provider level; the old Kafka-dependent flows remain intact until the
 	// durable query-based replacement is fully cut over.
 	switch a.Config.External.FinancialCore.Provider {
 	case "noop":
 		external.CollectionPaymentClient = collectionnoop.New()
+
 	case "grpc":
 		financialConfig := a.Config.External.FinancialCore.GRPC
 		conn, dialErr := checkoutgrpc.Dial(financialConfig.Address, financialConfig.Insecure, checkoutgrpc.TLSConfig{
@@ -140,13 +142,14 @@ func (a *App) NewExternal() (_ External, err error) {
 		if dialErr != nil {
 			return External{}, fmt.Errorf("%s: dial collection payment service: %w", op, dialErr)
 		}
+
 		external.closers = append(external.closers, conn)
 		external.CollectionPaymentClient, err = collectiongrpc.New(conn, financialConfig.Timeout)
 		if err != nil {
-			return External{}, fmt.Errorf("%s: initialize collection payment v2 client: %w", op, err)
+			return External{}, fmt.Errorf("%s: initialize collection payment v1 client: %w", op, err)
 		}
 	default:
-		return External{}, fmt.Errorf("%s: unsupported Financial Core provider for collection payment v2: %q", op, a.Config.External.FinancialCore.Provider)
+		return External{}, fmt.Errorf("%s: unsupported Financial Core provider for collection payment v1: %q", op, a.Config.External.FinancialCore.Provider)
 	}
 
 	var customerCloser io.Closer

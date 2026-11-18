@@ -81,12 +81,14 @@ func (rs *resource) Get(c *gin.Context) {
 			serdser.SerErr(c, err)
 			return
 		}
+
 		code := serdser.SuccessCodeCustomerCreditRetrieved
 		message := serdser.SuccessMessageCustomerCreditSummaryReturned
 		if output.Status == customercredituc.AllCreditNotAssigned {
 			code = serdser.SuccessCodeCustomerCreditNotAssigned
 			message = serdser.SuccessMessageCustomerCreditNotAssigned
 		}
+
 		serdser.Ser(c, http.StatusOK, code, message, toAllCreditSummariesResponse(output))
 		return
 	}

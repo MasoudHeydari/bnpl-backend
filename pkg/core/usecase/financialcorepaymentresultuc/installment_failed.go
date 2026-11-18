@@ -60,6 +60,7 @@ func (uc *UseCase) applyTerminalInstallmentPaymentResult(
 					attempt, now, output,
 				)
 			}
+
 			return resolveErr
 		}
 
@@ -69,6 +70,7 @@ func (uc *UseCase) applyTerminalInstallmentPaymentResult(
 		if input.PaymentStatus == model.FailedFinancialPaymentResultStatus {
 			reasonCode = "financial_core_failed"
 		}
+
 		if err := uc.insertPaymentAttemptCanceledAudit(
 			ctx, outboxQ, input, paymentAttemptTerminalAuditFacts{
 				InboxID:       inboxID,
@@ -83,6 +85,7 @@ func (uc *UseCase) applyTerminalInstallmentPaymentResult(
 		); err != nil {
 			return err
 		}
+
 		return uc.finishTerminalInbox(
 			ctx, inboxQ, inboxID, ProcessResultCancellationRecorded, now, output,
 		)

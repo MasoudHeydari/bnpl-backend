@@ -35,6 +35,7 @@ func Register(router *gin.RouterGroup, uc *repaymentbatchuc.UseCase, opts Regist
 	if uc == nil {
 		return
 	}
+
 	auth := middleware.AuthContext()
 	rs := &resource{uc: uc, providerCode: opts.ProviderCode, urls: extcollection.ReturnURLs{
 		Success: opts.ReturnURL, Failure: opts.ReturnURL, Cancel: opts.ReturnURL,
@@ -62,11 +63,13 @@ func input(c *gin.Context) (uuid.UUID, permission.AuthContext, bool) {
 		serdser.SerErr(c, cerr.Unauthorized(fmt.Errorf("authenticated customer is required")))
 		return uuid.Nil, permission.AuthContext{}, false
 	}
+
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil || id == uuid.Nil {
 		serdser.SerValidationErr(c, "id", "validation.repayment_batch_id_invalid")
 		return uuid.Nil, permission.AuthContext{}, false
 	}
+
 	return id, auth, true
 }
 
@@ -121,14 +124,25 @@ func (rs *resource) Get(c *gin.Context) {
 	if !ok {
 		return
 	}
+
 	row, err := rs.uc.RequireCustomerBatch(c.Request.Context(), auth.SubjectID.AsExternalSubjectID(), id)
 	if err != nil {
 		serdser.SerErr(c, err)
 		return
 	}
-	serdser.Ser(c, http.StatusOK, "REPAYMENT_BATCH_RETRIEVED",
-		"success.repayment_batch_retrieved",
-		statusResponse{ID: row.ID, Status: string(row.Status), TotalAmountMinor: row.TotalAmountMinor, Currency: string(row.Currency)})
+
+	serdser.Ser(
+		c,
+		http.StatusOK,
+		"REPAYMENT_BATCH_RETRIEVED",
+		serdser.SuccessMessageRepaymentBatchRetrieved,
+		statusResponse{
+			ID:               row.ID,
+			Status:           string(row.Status),
+			TotalAmountMinor: row.TotalAmountMinor,
+			Currency:         string(row.Currency),
+		},
+	)
 }
 
 //	@Summary		Start repayment batch
@@ -183,24 +197,36 @@ func (rs *resource) Start(c *gin.Context) {
 	if !ok {
 		return
 	}
+
 	key := c.GetHeader(header.IdempotencyKey)
 	if key == "" || len(key) > 256 {
 		serdser.SerValidationErr(c, header.IdempotencyKey, "validation.idempotency_key_header_required")
 		return
 	}
+
 	if rs.providerCode == "" || !rs.urls.IsComplete() {
 		serdser.SerErr(c, cerr.InternalError(fmt.Errorf("repayment provider/return URL are not configured")))
 		return
 	}
+
 	result, err := rs.uc.StartForCustomer(c.Request.Context(), auth.SubjectID.AsExternalSubjectID(),
 		id, key, rs.providerCode, rs.urls)
 	if err != nil {
 		serdser.SerErr(c, err)
 		return
 	}
-	serdser.Ser(c, http.StatusAccepted, "REPAYMENT_BATCH_STARTED",
-		"success.repayment_batch_started",
-		startResponse{ID: id, Status: string(result.Status), RedirectURL: result.PaymentLink})
+
+	serdser.Ser(
+		c,
+		http.StatusAccepted,
+		"REPAYMENT_BATCH_STARTED",
+		serdser.SuccessMessageRepaymentBatchStarted,
+		startResponse{
+			ID:          id,
+			Status:      string(result.Status),
+			RedirectURL: result.PaymentLink,
+		},
+	)
 }
 
 // Create takes only BNPL installment IDs. The server loads authoritative
@@ -267,15 +293,18 @@ func (rs *resource) Create(c *gin.Context) {
 		serdser.SerErr(c, cerr.Unauthorized(fmt.Errorf("authenticated customer required")))
 		return
 	}
+
 	key := c.GetHeader(header.IdempotencyKey)
 	if key == "" || len(key) > 256 {
 		serdser.SerValidationErr(c, header.IdempotencyKey, "validation.idempotency_key_header_required")
 		return
 	}
+
 	var req createRequest
 	if !serdser.Bind(c, &req, binding.JSON) {
 		return
 	}
+
 	ids := make([]model.InstallmentID, 0, len(req.InstallmentIDs))
 	for _, raw := range req.InstallmentIDs {
 		id, err := model.ParseInstallmentID(raw)
@@ -283,8 +312,10 @@ func (rs *resource) Create(c *gin.Context) {
 			serdser.SerValidationErr(c, "installment_ids", "validation.installment_id_invalid")
 			return
 		}
+
 		ids = append(ids, id)
 	}
+
 	row, err := rs.uc.CreateForCustomer(
 		c.Request.Context(), auth.SubjectID.AsExternalSubjectID(), ids, key,
 	)
@@ -292,8 +323,17 @@ func (rs *resource) Create(c *gin.Context) {
 		serdser.SerErr(c, err)
 		return
 	}
-	serdser.Ser(c, http.StatusAccepted, "REPAYMENT_BATCH_CREATED",
-		"success.repayment_batch_created",
-		statusResponse{ID: row.ID, Status: string(row.Status),
-			TotalAmountMinor: row.TotalAmountMinor, Currency: string(row.Currency)})
+
+	serdser.Ser(
+		c,
+		http.StatusAccepted,
+		"REPAYMENT_BATCH_CREATED",
+		serdser.SuccessMessageRepaymentBatchCreated,
+		statusResponse{
+			ID:               row.ID,
+			Status:           string(row.Status),
+			TotalAmountMinor: row.TotalAmountMinor,
+			Currency:         string(row.Currency),
+		},
+	)
 }

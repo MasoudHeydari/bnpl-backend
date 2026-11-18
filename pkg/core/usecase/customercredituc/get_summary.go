@@ -57,17 +57,21 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 				if err = accountQ.ExpireDueByCustomerIDAndCurrency(ctx, profile.ID, currency, now); err != nil {
 					return err
 				}
+
 				account, err = accountQ.GetByCustomerIDAndCurrency(ctx, profile.ID, currency)
 			} else {
 				products, ok := accountQ.(repo.CreditAccountProductTxQueryer)
 				if !ok {
 					return cerr.InternalError(fmt.Errorf("credit account product repository is unavailable"))
 				}
+
 				if err = products.ExpireDueByCustomerIDCurrencyAndKind(ctx, profile.ID, currency, kind, now); err != nil {
 					return err
 				}
+
 				account, err = products.GetByCustomerIDCurrencyAndKind(ctx, profile.ID, currency, kind)
 			}
+
 			if err != nil {
 				if cerr.IsCode(err, cerr.CodeResourceNotFound) {
 					output = zeroSummary(profile.ID, currency)
@@ -105,6 +109,7 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 					return err
 				}
 			}
+
 			output = summaryFromAccount(account, newCreditBlocked || monthlyBlocked)
 			output.CreditKind = kind
 			if newCreditBlocked {
@@ -151,6 +156,7 @@ func summaryFromAccount(account model.CreditAccount, newCreditBlocked bool) Outp
 	if status != SummaryStatusActive && !newCreditBlocked {
 		usage = CreditUsage{Status: "unavailable"}
 	}
+
 	return Output{
 		CreditUsage:          usage,
 		CustomerID:           account.CustomerID,

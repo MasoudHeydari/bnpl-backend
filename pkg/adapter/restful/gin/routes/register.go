@@ -98,6 +98,7 @@ func Register(
 			ReturnURL:    opts.RepaymentBatchReturnURL,
 		})
 	}
+
 	customerrs.Register(v1, customerAccountUseCase, opts.Customer)
 	customercreditrs.Register(v1, customerCreditUseCase, opts.CustomerCredit)
 

@@ -75,19 +75,24 @@ func (r *Registry) ForCreditKind(kind model.CreditKind) (Policy, error) {
 	if !kind.IsValid() {
 		return nil, fmt.Errorf("%s: unsupported credit kind %q", op, kind)
 	}
+
 	var selected Policy
 	for _, p := range r.All() {
 		if model.EffectiveCreditKind(p.Terms().CreditKind) != kind {
 			continue
 		}
+
 		if selected != nil {
 			return nil, fmt.Errorf("%s: ambiguous policies for credit kind %q", op, kind)
 		}
+
 		selected = p
 	}
+
 	if selected == nil {
 		return nil, fmt.Errorf("%s: no policy for credit kind %q: %w", op, kind, ErrPolicyNotFound)
 	}
+
 	return selected, nil
 }
 
