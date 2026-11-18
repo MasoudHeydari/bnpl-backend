@@ -24,7 +24,7 @@
 | [authenticate.md](authenticate.md) | احراز هویت Partner با Terminal ID + API Key |
 | [issuance-scrub.md](issuance-scrub.md) | پاک‌سازی ciphertext کلیدهای قابل‌Replay |
 
-اسکریپت smoke (بدون حذف این مستندات): [`scripts/merchant-terminal/`](../../../scripts/merchant-terminal/).
+اسکریپت smoke (بدون حذف این مستندات): [`scripts/test/merchant-terminal/`](../../../scripts/test/merchant-terminal/).
 
 ## مفاهیم مشترک
 

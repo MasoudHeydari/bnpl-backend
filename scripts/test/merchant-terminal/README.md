@@ -12,17 +12,17 @@ Non-interactive script that exercises panel terminal APIs and partner authentica
 
 Each HTTP call prints a colored **REQUEST** (headers + body) then **RESPONSE** block.
 
-Docs for each flow stay under [`doc/integration/merchant-terminal/`](../../doc/integration/merchant-terminal/).
+Docs for each flow stay under [`doc/integration/merchant-terminal/`](../../../doc/integration/merchant-terminal/).
 
 ## Run
 
 BNPL must be reachable (local compose / `make run`). Prefer the **app port**, not Envoy:
 
 ```bash
-./scripts/merchant-terminal/run_terminal_lifecycle_flow.sh
+./scripts/test/merchant-terminal/run_terminal_lifecycle_flow.sh
 ```
 
-Or export the same vars and run `python3 scripts/merchant-terminal/terminal_lifecycle_flow.py`.
+Or export the same vars and run `python3 scripts/test/merchant-terminal/terminal_lifecycle_flow.py`.
 
 ## Why direct BNPL (not Envoy)
 
@@ -44,4 +44,4 @@ TTY output is colorized (JSON keys/strings/numbers, HTTP status, steps). Disable
 
 ## Side effects
 
-If the merchant already has a terminal (e.g. Damz used by checkout-flow), the script **rotates** credentials and prints the new `terminal_id` / `api_key`. Update `scripts/checkout-flow/run_hosted_confirm_flow.sh` afterward if you still need that key.
+If the merchant already has a terminal (e.g. Damz used by checkout-flow), the script **rotates** credentials and prints the new `terminal_id` / `api_key`. Update `scripts/test/checkout-flow/run_hosted_confirm_flow.sh` afterward if you still need that key.

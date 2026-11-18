@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT"
 
 # Fill these before running.
@@ -26,4 +26,4 @@ if [[ "$BNPL_TERMINAL_ID" == "..." || "$BNPL_API_KEY" == "..." || "$BNPL_EXTERNA
 	exit 1
 fi
 
-exec python3 "$ROOT/scripts/checkout-flow/hosted_confirm_flow.py"
+exec python3 "$ROOT/scripts/test/checkout-flow/hosted_confirm_flow.py"

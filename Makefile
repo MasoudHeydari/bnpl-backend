@@ -131,7 +131,7 @@ test:
 test-integration:
 	@INTEGRATION_CONTAINER_ENGINE="$(INTEGRATION_CONTAINER_ENGINE)" \
 		INTEGRATION_POSTGRES_IMAGE="$(INTEGRATION_POSTGRES_IMAGE)" \
-		bash scripts/testing/run-integration-tests.sh \
+		bash scripts/test/testing/run-integration-tests.sh \
 		$(GOTESTSUM) --format $(GOTESTSUM_FORMAT) -- \
 		-tags="$(DEVELOPMENT_BUILD_TAGS) integration" -count=1 -timeout=15m -p 1 $(GO_TEST_PACKAGES)
 

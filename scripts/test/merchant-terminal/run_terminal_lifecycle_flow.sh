@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT"
 
 # Hit BNPL app directly so synthetic panel X-Auth-* headers are trusted.
@@ -21,4 +21,4 @@ if [[ -z "${BNPL_CA_CERT:-}" && -f "${HOME}/.local/share/mkcert/rootCA.pem" ]]; 
 fi
 # export BNPL_SSL_INSECURE=1
 
-exec python3 "$ROOT/scripts/merchant-terminal/terminal_lifecycle_flow.py"
+exec python3 "$ROOT/scripts/test/merchant-terminal/terminal_lifecycle_flow.py"

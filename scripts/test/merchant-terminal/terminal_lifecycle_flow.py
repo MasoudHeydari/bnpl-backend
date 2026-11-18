@@ -41,7 +41,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 from lib import cli_style  # noqa: E402
 from lib.api_client import APIClient  # noqa: E402
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 DEFAULT_EXTERNAL_MERCHANT_ID = "1e7c3dd4-0e8b-4ec1-aede-2a119f3ffecc"
 DEFAULT_MANAGE_PERM = "bnpl:merchant-terminals:manage:merchant"

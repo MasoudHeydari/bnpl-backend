@@ -14,10 +14,10 @@ Interactive smoke script:
 Edit credentials in `run_hosted_confirm_flow.sh`, then:
 
 ```bash
-./scripts/checkout-flow/run_hosted_confirm_flow.sh
+./scripts/test/checkout-flow/run_hosted_confirm_flow.sh
 ```
 
-Or export the same vars yourself and run `python3 scripts/checkout-flow/hosted_confirm_flow.py`.
+Or export the same vars yourself and run `python3 scripts/test/checkout-flow/hosted_confirm_flow.py`.
 
 Required env:
 
