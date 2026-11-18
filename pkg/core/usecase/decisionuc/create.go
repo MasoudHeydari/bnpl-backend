@@ -580,7 +580,7 @@ func loadCurrentCreditAccount(
 		err     error
 	)
 	switch kind {
-	case model.PayIn4CreditKind:
+	case model.PayInInstallmentsCreditKind:
 		account, err = accountQ.GetByCustomerIDAndCurrency(ctx, customerID, currency)
 
 	case model.PayNextMonthCreditKind:

@@ -63,9 +63,11 @@ type partnerCreateResponse struct {
 }
 
 type creditKindPreviewSchema struct {
-	Kind      model.CreditKind               `json:"kind" enums:"pay_in_4,pay_next_month"`
-	Available bool                           `json:"available" example:"true"`
-	Reason    *creditKindPreviewReasonSchema `json:"reason,omitempty"`
+	Kind             model.CreditKind               `json:"kind" enums:"pay_in_installments,pay_next_month"`
+	Available        bool                           `json:"available" example:"true"`
+	Reason           *creditKindPreviewReasonSchema `json:"reason,omitempty"`
+	RepaymentPlan    model.RepaymentPlanKind        `json:"repayment_plan,omitempty" enums:"pay_in_3,pay_in_4"`
+	InstallmentCount int                            `json:"installment_count,omitempty" example:"3"`
 }
 
 type creditKindPreviewReasonSchema struct {
@@ -74,13 +76,13 @@ type creditKindPreviewReasonSchema struct {
 }
 
 type selectCreditKindRequest struct {
-	CreditKind model.CreditKind `json:"credit_kind" binding:"required" enums:"pay_in_4,pay_next_month"`
+	CreditKind model.CreditKind `json:"credit_kind" binding:"required" enums:"pay_in_installments,pay_next_month"`
 }
 
 type selectCreditKindResponse struct {
 	CheckoutSessionID string                      `json:"checkout_session_id" example:"cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"`
 	Status            model.CheckoutSessionStatus `json:"status" enums:"open,confirming,processing,completed,canceled,expired,unavailable"`
-	CreditKind        model.CreditKind            `json:"credit_kind" enums:"pay_in_4,pay_next_month"`
+	CreditKind        model.CreditKind            `json:"credit_kind" enums:"pay_in_installments,pay_next_month"`
 	ExpiresAt         time.Time                   `json:"expires_at"`
 	Offer             *OfferSchema                `json:"offer,omitempty"`
 }
@@ -301,8 +303,10 @@ func toCreditKindPreviews(previews []checkoutsessionuc.CreditKindPreview) []cred
 	out := make([]creditKindPreviewSchema, 0, len(previews))
 	for _, preview := range previews {
 		item := creditKindPreviewSchema{
-			Kind:      preview.Kind,
-			Available: preview.Available,
+			Kind:             preview.Kind,
+			Available:        preview.Available,
+			RepaymentPlan:    preview.RepaymentPlan,
+			InstallmentCount: preview.InstallmentCount,
 		}
 		if preview.Reason != nil {
 			item.Reason = &creditKindPreviewReasonSchema{
@@ -351,6 +355,7 @@ func toOfferResponse(offer checkoutsessionuc.Offer) OfferSchema {
 
 	resp := OfferSchema{
 		Outcome:                        offer.Outcome,
+		CreditKind:                     offer.CreditKind,
 		AvailableCreditMinor:           &offer.AvailableCreditMinor,
 		RequestedAmountMinor:           &offer.RequestedAmountMinor,
 		ApprovedFinancedAmountMinor:    &offer.ApprovedFinancedAmountMinor,
@@ -361,6 +366,11 @@ func toOfferResponse(offer checkoutsessionuc.Offer) OfferSchema {
 		PayableNowAmountMinor:          &offer.PayableNowAmountMinor,
 		TotalPayableAmountMinor:        &offer.TotalPayableAmountMinor,
 		Installments:                   installments,
+	}
+
+	if offer.RepaymentPlan != "" {
+		plan := offer.RepaymentPlan
+		resp.RepaymentPlan = &plan
 	}
 
 	if offer.CheckoutAction != nil {

@@ -121,7 +121,7 @@ func TestGetExternal_ProjectsOnlyHostedPageFields(t *testing.T) {
 		AmountMinor:          150000000,
 		Currency:             model.IRRCurrency,
 		EvaluationGeneration: 1,
-		SupportedCreditKinds: []model.CreditKind{model.PayIn4CreditKind},
+		SupportedCreditKinds: []model.CreditKind{model.PayInInstallmentsCreditKind},
 		Verification: ExternalVerification{
 			Type:        VerificationTypeSMSOTP,
 			Destination: "0912***4567",

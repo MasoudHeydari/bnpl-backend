@@ -22,7 +22,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Returns the effective eligibility of pay_in_4 and pay_next_month for a merchant.\npay_in_4 is enabled unless explicitly disabled (legacy compatibility); pay_next_month is disabled unless explicitly enabled.\nRequires bnpl:merchants:read:any. merchant_profile_id is the internal BNPL merchant profile id (merchant_profiles.id).",
+                "description": "Returns the effective eligibility of pay_in_installments and pay_next_month for a merchant.\npay_in_installments is enabled unless explicitly disabled (legacy compatibility); pay_next_month is disabled unless explicitly enabled.\nRequires bnpl:merchants:read:any. merchant_profile_id is the internal BNPL merchant profile id (merchant_profiles.id).",
                 "produces": [
                     "application/json"
                 ],
@@ -241,7 +241,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Sets whether a merchant may offer pay_in_4 or pay_next_month. pay_next_month stays disabled until explicitly enabled here.\nIdempotent: repeating the same desired state returns 200 with changed=false and records no audit event.\nOnly ACTIVE merchants can be changed (409 otherwise). Existing contracts are not affected.\nRequires bnpl:merchants:credit-kinds:update:any. A real change writes audit action merchant_credit_kind.set_enabled.",
+                "description": "Sets whether a merchant may offer pay_in_installments or pay_next_month. pay_next_month stays disabled until explicitly enabled here.\nIdempotent: repeating the same desired state returns 200 with changed=false and records no audit event.\nOnly ACTIVE merchants can be changed (409 otherwise). Existing contracts are not affected.\nRequires bnpl:merchants:credit-kinds:update:any. A real change writes audit action merchant_credit_kind.set_enabled.",
                 "consumes": [
                     "application/json"
                 ],
@@ -263,7 +263,7 @@ const docTemplate = `{
                     },
                     {
                         "enum": [
-                            "pay_in_4",
+                            "pay_in_installments",
                             "pay_next_month"
                         ],
                         "type": "string",
@@ -2942,7 +2942,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Without credit_kind returns pay_in_4 and pay_next_month in one response, even when not assigned.\nWith credit_kind returns the legacy single-product response for backward compatibility.\nResolves x-auth-mobile-number through Customer Reference Service (ACTIVE only); CRS customer_id is customer_profiles.external_customer_id.\nBNPL resolves or provisions the local customer profile automatically when missing. Profile provisioning is idempotent and does not assign initial credit.\nRequires an authenticated customer subject plus gateway-injected mobile; no BNPL profile eligibility or credit limit precondition applies.\nNo request body.\nAvailable credit = effective current credit limit minus active committed financed exposure.\nActive financed exposure is persisted on the customer CreditAccount as outstanding principal from activated contracts.\nCheckout decisions, installment offers, and pre-activation contracts (payment_pending) do not reduce available credit.\nCredit is consumed only when a contract becomes active under its persisted checkout policy.\nWhen no credit limit has been assigned (customer never assessed), data contains only status not_assigned and meta.code is CUSTOMER_CREDIT_NOT_ASSIGNED — clients must initiate credit assessment, not treat this as a zero balance.\nWhen a historical limit exists but is not currently usable (including time-expired), data contains only status expired and expires_at; meta.code is CUSTOMER_CREDIT_EXPIRED — clients must trigger reassessment.\nFor an active limit, limit_amount_minor is the governed total capacity and available_amount_minor is remaining usable credit; both are integer minor-unit amounts in the response currency.",
+                "description": "Without credit_kind returns pay_in_installments and pay_next_month in one response, even when not assigned.\nWith credit_kind returns the legacy single-product response for backward compatibility.\nResolves x-auth-mobile-number through Customer Reference Service (ACTIVE only); CRS customer_id is customer_profiles.external_customer_id.\nBNPL resolves or provisions the local customer profile automatically when missing. Profile provisioning is idempotent and does not assign initial credit.\nRequires an authenticated customer subject plus gateway-injected mobile; no BNPL profile eligibility or credit limit precondition applies.\nNo request body.\nAvailable credit = effective current credit limit minus active committed financed exposure.\nActive financed exposure is persisted on the customer CreditAccount as outstanding principal from activated contracts.\nCheckout decisions, installment offers, and pre-activation contracts (payment_pending) do not reduce available credit.\nCredit is consumed only when a contract becomes active under its persisted checkout policy.\nWhen no credit limit has been assigned (customer never assessed), data contains only status not_assigned and meta.code is CUSTOMER_CREDIT_NOT_ASSIGNED — clients must initiate credit assessment, not treat this as a zero balance.\nWhen a historical limit exists but is not currently usable (including time-expired), data contains only status expired and expires_at; meta.code is CUSTOMER_CREDIT_EXPIRED — clients must trigger reassessment.\nFor an active limit, limit_amount_minor is the governed total capacity and available_amount_minor is remaining usable credit; both are integer minor-unit amounts in the response currency.",
                 "produces": [
                     "application/json"
                 ],
@@ -3132,7 +3132,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "enum": [
-                            "pay_in_4",
+                            "pay_in_installments",
                             "pay_next_month"
                         ],
                         "type": "string",
@@ -7677,7 +7677,7 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "enum": [
-                            "pay_in_4",
+                            "pay_in_installments",
                             "pay_next_month"
                         ],
                         "$ref": "#/definitions/model.CreditKind"
@@ -7857,6 +7857,17 @@ const docTemplate = `{
                 "checkout_action": {
                     "$ref": "#/definitions/checkoutsessionrs.CheckoutActionSchema"
                 },
+                "credit_kind": {
+                    "enum": [
+                        "pay_in_installments",
+                        "pay_next_month"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.CreditKind"
+                        }
+                    ]
+                },
                 "currency": {
                     "$ref": "#/definitions/model.Currency"
                 },
@@ -7885,6 +7896,17 @@ const docTemplate = `{
                 },
                 "payable_now_amount_minor": {
                     "type": "integer"
+                },
+                "repayment_plan": {
+                    "enum": [
+                        "pay_in_3",
+                        "pay_in_4"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.RepaymentPlanKind"
+                        }
+                    ]
                 },
                 "requested_amount_minor": {
                     "type": "integer"
@@ -7988,7 +8010,7 @@ const docTemplate = `{
             "properties": {
                 "credit_kind": {
                     "enum": [
-                        "pay_in_4",
+                        "pay_in_installments",
                         "pay_next_month"
                     ],
                     "allOf": [
@@ -8008,7 +8030,7 @@ const docTemplate = `{
                 },
                 "credit_kind": {
                     "enum": [
-                        "pay_in_4",
+                        "pay_in_installments",
                         "pay_next_month"
                     ],
                     "allOf": [
@@ -8193,7 +8215,7 @@ const docTemplate = `{
                 },
                 "message": {
                     "type": "string",
-                    "example": "error.credit_kind_not_enabled"
+                    "example": "This merchant does not offer the selected credit kind."
                 }
             }
         },
@@ -8204,9 +8226,13 @@ const docTemplate = `{
                     "type": "boolean",
                     "example": true
                 },
+                "installment_count": {
+                    "type": "integer",
+                    "example": 3
+                },
                 "kind": {
                     "enum": [
-                        "pay_in_4",
+                        "pay_in_installments",
                         "pay_next_month"
                     ],
                     "allOf": [
@@ -8217,6 +8243,17 @@ const docTemplate = `{
                 },
                 "reason": {
                     "$ref": "#/definitions/checkoutsessionrs.creditKindPreviewReasonSchema"
+                },
+                "repayment_plan": {
+                    "enum": [
+                        "pay_in_3",
+                        "pay_in_4"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.RepaymentPlanKind"
+                        }
+                    ]
                 }
             }
         },
@@ -8237,6 +8274,17 @@ const docTemplate = `{
                 },
                 "checkout_action": {
                     "$ref": "#/definitions/checkoutsessionrs.CheckoutActionSchema"
+                },
+                "credit_kind": {
+                    "enum": [
+                        "pay_in_installments",
+                        "pay_next_month"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.CreditKind"
+                        }
+                    ]
                 },
                 "currency": {
                     "$ref": "#/definitions/model.Currency"
@@ -8266,6 +8314,17 @@ const docTemplate = `{
                 },
                 "payable_now_amount_minor": {
                     "type": "integer"
+                },
+                "repayment_plan": {
+                    "enum": [
+                        "pay_in_3",
+                        "pay_in_4"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.RepaymentPlanKind"
+                        }
+                    ]
                 },
                 "requested_amount_minor": {
                     "type": "integer"
@@ -8548,7 +8607,7 @@ const docTemplate = `{
                 "credit_kind": {
                     "description": "Kept absent on legacy responses; supplied for monthly credit inquiries.",
                     "enum": [
-                        "pay_in_4",
+                        "pay_in_installments",
                         "pay_next_month"
                     ],
                     "allOf": [
@@ -8680,6 +8739,17 @@ const docTemplate = `{
                     "type": "string",
                     "example": "2026-08-09T12:00:00Z"
                 },
+                "credit_kind": {
+                    "enum": [
+                        "pay_in_installments",
+                        "pay_next_month"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.CreditKind"
+                        }
+                    ]
+                },
                 "currency": {
                     "allOf": [
                         {
@@ -8705,6 +8775,17 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid",
                     "example": "8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c"
+                },
+                "repayment_plan": {
+                    "enum": [
+                        "pay_in_3",
+                        "pay_in_4"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.RepaymentPlanKind"
+                        }
+                    ]
                 },
                 "requested_amount_minor": {
                     "type": "integer",
@@ -8736,6 +8817,17 @@ const docTemplate = `{
                     "type": "string",
                     "example": "2026-08-09T12:00:00Z"
                 },
+                "credit_kind": {
+                    "enum": [
+                        "pay_in_installments",
+                        "pay_next_month"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.CreditKind"
+                        }
+                    ]
+                },
                 "currency": {
                     "allOf": [
                         {
@@ -8743,6 +8835,10 @@ const docTemplate = `{
                         }
                     ],
                     "example": "IRR"
+                },
+                "installment_count": {
+                    "type": "integer",
+                    "example": 4
                 },
                 "installments": {
                     "type": "array",
@@ -8752,6 +8848,17 @@ const docTemplate = `{
                 },
                 "next_payable_installment": {
                     "$ref": "#/definitions/customerrs.nextPayableInstallmentResponse"
+                },
+                "repayment_plan": {
+                    "enum": [
+                        "pay_in_3",
+                        "pay_in_4"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.RepaymentPlanKind"
+                        }
+                    ]
                 },
                 "requested_amount_minor": {
                     "type": "integer",
@@ -9903,7 +10010,7 @@ const docTemplate = `{
                 },
                 "credit_kind": {
                     "enum": [
-                        "pay_in_4",
+                        "pay_in_installments",
                         "pay_next_month"
                     ],
                     "allOf": [
@@ -9940,7 +10047,7 @@ const docTemplate = `{
             "properties": {
                 "credit_kind": {
                     "enum": [
-                        "pay_in_4",
+                        "pay_in_installments",
                         "pay_next_month"
                     ],
                     "allOf": [
@@ -10260,11 +10367,11 @@ const docTemplate = `{
         "model.CreditKind": {
             "type": "string",
             "enum": [
-                "pay_in_4",
+                "pay_in_installments",
                 "pay_next_month"
             ],
             "x-enum-varnames": [
-                "PayIn4CreditKind",
+                "PayInInstallmentsCreditKind",
                 "PayNextMonthCreditKind"
             ]
         },
@@ -10410,6 +10517,17 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "POSPurchaseChannel",
                 "OnlinePurchaseChannel"
+            ]
+        },
+        "model.RepaymentPlanKind": {
+            "type": "string",
+            "enum": [
+                "pay_in_3",
+                "pay_in_4"
+            ],
+            "x-enum-varnames": [
+                "PayIn3RepaymentPlan",
+                "PayIn4RepaymentPlan"
             ]
         },
         "model.RiskTier": {

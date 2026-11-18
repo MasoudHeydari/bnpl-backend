@@ -24,7 +24,7 @@ type GetSingleSuccessSchema struct {
 // Get handles GET /api/v1/customer-credit.
 //
 //	@Summary		Get all independently assigned credit products
-//	@Description	Without credit_kind returns pay_in_4 and pay_next_month in one response, even when not assigned.
+//	@Description	Without credit_kind returns pay_in_installments and pay_next_month in one response, even when not assigned.
 //	@Description	With credit_kind returns the legacy single-product response for backward compatibility.
 //	@Description	Resolves x-auth-mobile-number through Customer Reference Service (ACTIVE only); CRS customer_id is customer_profiles.external_customer_id.
 //	@Description	BNPL resolves or provisions the local customer profile automatically when missing. Profile provisioning is idempotent and does not assign initial credit.

@@ -67,6 +67,7 @@ type UseCase struct {
 	decisionRepo               repo.Decision
 	checkoutDecisionAllocation repo.CheckoutDecisionAllocation
 	checkoutPolicies           *checkout.Registry
+	policyAssignment           repo.PolicyAssignment
 	decision                   decisionCreator
 	contractUC                 contractCreator
 	lifecycle                  *LifecycleOutbox
@@ -125,6 +126,7 @@ func New(
 	decisionRepo repo.Decision,
 	checkoutDecisionAllocation repo.CheckoutDecisionAllocation,
 	checkoutPolicies *checkout.Registry,
+	policyAssignment repo.PolicyAssignment,
 	decision *decisionuc.UseCase,
 	contractUC *contractuc.UseCase,
 	outbox repo.Outbox,
@@ -200,6 +202,10 @@ func New(
 
 	if checkoutPolicies == nil {
 		return nil, fmt.Errorf("%s: checkout policy registry is required", op)
+	}
+
+	if policyAssignment == nil {
+		return nil, fmt.Errorf("%s: policy assignment repository is required", op)
 	}
 
 	if decision == nil {
@@ -307,6 +313,7 @@ func New(
 		decisionRepo:               decisionRepo,
 		checkoutDecisionAllocation: checkoutDecisionAllocation,
 		checkoutPolicies:           checkoutPolicies,
+		policyAssignment:           policyAssignment,
 		decision:                   decision,
 		contractUC:                 contractUC,
 		lifecycle:                  lifecycle,

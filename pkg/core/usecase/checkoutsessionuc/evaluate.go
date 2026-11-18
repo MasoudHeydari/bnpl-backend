@@ -8,6 +8,8 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/event/checkoutlifecycle"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
+	"github.com/parstis/bnpl-backend/pkg/core/policy"
+	"github.com/parstis/bnpl-backend/pkg/core/policy/checkout"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/decisionuc"
 )
@@ -87,7 +89,20 @@ func (uc *UseCase) evaluateSession(
 		return model.CheckoutSession{}, Offer{}, err
 	}
 
-	offer := offerFromDecision(output)
+	selectedPolicy, policyErr := uc.checkoutPolicies.Resolve(policy.Ref{
+		ID:      output.Decision.PolicyID,
+		Version: output.Decision.PolicyVersion,
+	})
+	if policyErr != nil {
+		return model.CheckoutSession{}, Offer{}, fmt.Errorf(
+			"%s: resolve decision policy: %w", op, policyErr,
+		)
+	}
+
+	offer, offerErr := offerFromDecision(output, selectedPolicy.Terms())
+	if offerErr != nil {
+		return model.CheckoutSession{}, Offer{}, offerErr
+	}
 
 	status := model.OpenCheckoutSessionStatus
 	eventType := ""
@@ -349,12 +364,14 @@ func (uc *UseCase) recordEvaluation(
 //
 // Reason codes are dropped deliberately. A denied checkout reports only that
 // financing is unavailable — no credit balances or installment schedule.
-func offerFromDecision(output decisionuc.CreateOutput) Offer {
+func offerFromDecision(output decisionuc.CreateOutput, terms checkout.Terms) (Offer, error) {
+	const op = "checkoutsessionuc.offerFromDecision"
+
 	outcome := offerOutcome(output.Decision.Outcome)
 	if outcome == DeniedOfferOutcome {
 		return Offer{
 			Outcome: DeniedOfferOutcome,
-		}
+		}, nil
 	}
 
 	offer := Offer{
@@ -369,8 +386,12 @@ func offerFromDecision(output decisionuc.CreateOutput) Offer {
 		Installments:                   []OfferInstallment{},
 	}
 
+	if err := attachOfferFinancingIdentity(&offer, terms); err != nil {
+		return Offer{}, fmt.Errorf("%s: %w", op, err)
+	}
+
 	if output.InstallmentOffer == nil {
-		return offer
+		return offer, nil
 	}
 
 	schedule := output.InstallmentOffer
@@ -389,7 +410,22 @@ func offerFromDecision(output decisionuc.CreateOutput) Offer {
 
 	offer.Installments = installments
 
-	return offer
+	return offer, nil
+}
+
+func attachOfferFinancingIdentity(offer *Offer, terms checkout.Terms) error {
+	offer.CreditKind = model.EffectiveCreditKind(terms.CreditKind)
+
+	plan, ok, err := checkout.RepaymentPlan(terms)
+	if err != nil {
+		return err
+	}
+
+	if ok {
+		offer.RepaymentPlan = plan
+	}
+
+	return nil
 }
 
 // offerOutcome maps persisted decision outcomes onto the two-value checkout

@@ -68,12 +68,20 @@ func (r *Registry) Resolve(ref policy.Ref) (Policy, error) {
 }
 
 // ForCreditKind selects the one explicitly registered product policy.
-// Existing installment variants are selected by customer PolicyAssignment
-// instead; this lookup is intentionally reserved for the monthly product.
+// Installment variants (pay_in_3 / pay_in_4) share one credit kind and are
+// selected by customer PolicyAssignment instead; this lookup is reserved for
+// the monthly product.
 func (r *Registry) ForCreditKind(kind model.CreditKind) (Policy, error) {
 	const op = "checkout.Registry.ForCreditKind"
 	if !kind.IsValid() {
 		return nil, fmt.Errorf("%s: unsupported credit kind %q", op, kind)
+	}
+
+	if model.EffectiveCreditKind(kind) == model.PayInInstallmentsCreditKind {
+		return nil, fmt.Errorf(
+			"%s: installment policies are selected by PolicyAssignment, not credit kind alone",
+			op,
+		)
 	}
 
 	var selected Policy

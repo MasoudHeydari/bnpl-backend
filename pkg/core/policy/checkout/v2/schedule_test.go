@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/parstis/bnpl-backend/pkg/core/calendar/jalali"
+	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/policy/checkout"
 	v2 "github.com/parstis/bnpl-backend/pkg/core/policy/checkout/v2"
 )
@@ -15,7 +16,12 @@ func TestTerms_ThreeInstallmentsStartingOneJalaliMonthAfterAnchor(t *testing.T) 
 	t.Parallel()
 
 	terms := v2.New().Terms()
+	require.Equal(t, model.PayInInstallmentsCreditKind, terms.CreditKind)
 	require.Equal(t, 3, terms.InstallmentCount)
+	plan, ok, err := checkout.RepaymentPlan(terms)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, model.PayIn3RepaymentPlan, plan)
 	require.Equal(t, checkout.CadenceJalaliMonth, terms.Repayment.Cadence.Unit)
 	require.Equal(t, uint(1), terms.Repayment.Cadence.Every)
 	require.Equal(t, checkout.FullFinancingOnly, terms.FinancingMode)

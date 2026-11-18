@@ -181,7 +181,7 @@ func TestSetCreditKindEnabled_EnablesMonthlyAndWritesAudit(t *testing.T) {
 	require.Equal(t, true, event.Data.Changes[0].After)
 }
 
-func TestSetCreditKindEnabled_DisablesPayIn4(t *testing.T) {
+func TestSetCreditKindEnabled_DisablesPayInInstallments(t *testing.T) {
 	t.Parallel()
 
 	h := newCreditKindHarness(t)
@@ -190,11 +190,11 @@ func TestSetCreditKindEnabled_DisablesPayIn4(t *testing.T) {
 	h.expectConnTx()
 	h.merchantTx.EXPECT().LockByID(testifymock.Anything, merchant.ID).Return(merchant, nil).Once()
 	h.merchantTx.EXPECT().
-		IsCreditKindEnabled(testifymock.Anything, merchant.ID, model.PayIn4CreditKind).
+		IsCreditKindEnabled(testifymock.Anything, merchant.ID, model.PayInInstallmentsCreditKind).
 		Return(true, nil).
 		Once()
 	h.merchantTx.EXPECT().
-		SetCreditKindEnabled(testifymock.Anything, merchant.ID, model.PayIn4CreditKind, false, h.now).
+		SetCreditKindEnabled(testifymock.Anything, merchant.ID, model.PayInInstallmentsCreditKind, false, h.now).
 		Return(nil).
 		Once()
 	h.idGenerator.EXPECT().Generate().Return("event-2").Once()
@@ -203,7 +203,7 @@ func TestSetCreditKindEnabled_DisablesPayIn4(t *testing.T) {
 	output, err := h.uc.SetCreditKindEnabled(creditKindContext(), merchantuc.SetCreditKindEnabledInput{
 		ActorSubjectID:    model.SubjectID(uuid.New()),
 		MerchantProfileID: merchant.ID,
-		CreditKind:        model.PayIn4CreditKind,
+		CreditKind:        model.PayInInstallmentsCreditKind,
 		Enabled:           false,
 	})
 	require.NoError(t, err)
@@ -217,19 +217,19 @@ func TestSetCreditKindEnabled_IdempotentWhenStateUnchanged(t *testing.T) {
 	h := newCreditKindHarness(t)
 	merchant := activeMerchant()
 
-	// Legacy pay_in_4 is enabled by default, so enabling it again is a no-op:
+	// Legacy pay_in_installments is enabled by default, so enabling it again is a no-op:
 	// no SetCreditKindEnabled call and no audit outbox message.
 	h.expectConnTx()
 	h.merchantTx.EXPECT().LockByID(testifymock.Anything, merchant.ID).Return(merchant, nil).Once()
 	h.merchantTx.EXPECT().
-		IsCreditKindEnabled(testifymock.Anything, merchant.ID, model.PayIn4CreditKind).
+		IsCreditKindEnabled(testifymock.Anything, merchant.ID, model.PayInInstallmentsCreditKind).
 		Return(true, nil).
 		Once()
 
 	output, err := h.uc.SetCreditKindEnabled(creditKindContext(), merchantuc.SetCreditKindEnabledInput{
 		ActorSubjectID:    model.SubjectID(uuid.New()),
 		MerchantProfileID: merchant.ID,
-		CreditKind:        model.PayIn4CreditKind,
+		CreditKind:        model.PayInInstallmentsCreditKind,
 		Enabled:           true,
 	})
 	require.NoError(t, err)
@@ -338,7 +338,7 @@ func TestListCreditKinds_DefaultsBothKindsDisabled(t *testing.T) {
 	h.merchantProfile.EXPECT().Conn(h.conn).Return(h.merchantConn).Once()
 	h.merchantConn.EXPECT().GetByID(testifymock.Anything, merchant.ID).Return(merchant, nil).Once()
 	h.merchantConn.EXPECT().
-		IsCreditKindEnabled(testifymock.Anything, merchant.ID, model.PayIn4CreditKind).
+		IsCreditKindEnabled(testifymock.Anything, merchant.ID, model.PayInInstallmentsCreditKind).
 		Return(false, nil).
 		Once()
 	h.merchantConn.EXPECT().
@@ -351,7 +351,7 @@ func TestListCreditKinds_DefaultsBothKindsDisabled(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, []merchantuc.CreditKindEligibility{
-		{CreditKind: model.PayIn4CreditKind, Enabled: false},
+		{CreditKind: model.PayInInstallmentsCreditKind, Enabled: false},
 		{CreditKind: model.PayNextMonthCreditKind, Enabled: false},
 	}, output.CreditKinds)
 }

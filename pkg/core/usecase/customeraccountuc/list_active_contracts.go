@@ -2,9 +2,11 @@ package customeraccountuc
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
+	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/pagination"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
@@ -57,12 +59,25 @@ func (uc *UseCase) ListActiveContracts(ctx context.Context, input ListActiveCont
 
 			contracts = make([]ActiveContract, 0, len(rows))
 			for _, row := range rows {
+				creditKind, repaymentPlan, identityErr := model.FinancingIdentityFromInstallmentCount(
+					row.InstallmentCount,
+				)
+				if identityErr != nil {
+					return fmt.Errorf(
+						"customeraccountuc.ListActiveContracts: contract %s financing identity: %w",
+						row.ID,
+						identityErr,
+					)
+				}
+
 				contracts = append(contracts, ActiveContract{
 					ID:                      row.ID,
 					MerchantProfileID:       row.MerchantProfileID,
 					MerchantBranchProfileID: row.MerchantBranchProfileID,
 					RequestedAmountMinor:    row.RequestedAmountMinor,
 					Currency:                row.Currency,
+					CreditKind:              creditKind,
+					RepaymentPlan:           repaymentPlan,
 					InstallmentCount:        row.InstallmentCount,
 					Status:                  row.Status,
 					CreatedAt:               row.CreatedAt,

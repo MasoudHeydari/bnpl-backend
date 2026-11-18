@@ -229,7 +229,7 @@ definitions:
         items:
           $ref: '#/definitions/model.CreditKind'
           enum:
-          - pay_in_4
+          - pay_in_installments
           - pay_next_month
         type: array
       verification:
@@ -352,6 +352,12 @@ definitions:
         type: integer
       checkout_action:
         $ref: '#/definitions/checkoutsessionrs.CheckoutActionSchema'
+      credit_kind:
+        allOf:
+        - $ref: '#/definitions/model.CreditKind'
+        enum:
+        - pay_in_installments
+        - pay_next_month
       currency:
         $ref: '#/definitions/model.Currency'
       installment_count:
@@ -370,6 +376,12 @@ definitions:
         - denied
       payable_now_amount_minor:
         type: integer
+      repayment_plan:
+        allOf:
+        - $ref: '#/definitions/model.RepaymentPlanKind'
+        enum:
+        - pay_in_3
+        - pay_in_4
       requested_amount_minor:
         type: integer
       required_down_payment_amount_minor:
@@ -442,7 +454,7 @@ definitions:
         allOf:
         - $ref: '#/definitions/model.CreditKind'
         enum:
-        - pay_in_4
+        - pay_in_installments
         - pay_next_month
     required:
     - credit_kind
@@ -456,7 +468,7 @@ definitions:
         allOf:
         - $ref: '#/definitions/model.CreditKind'
         enum:
-        - pay_in_4
+        - pay_in_installments
         - pay_next_month
       expires_at:
         type: string
@@ -578,7 +590,7 @@ definitions:
         example: CREDIT_KIND_DISABLED
         type: string
       message:
-        example: error.credit_kind_not_enabled
+        example: This merchant does not offer the selected credit kind.
         type: string
     type: object
   checkoutsessionrs.creditKindPreviewSchema:
@@ -586,14 +598,23 @@ definitions:
       available:
         example: true
         type: boolean
+      installment_count:
+        example: 3
+        type: integer
       kind:
         allOf:
         - $ref: '#/definitions/model.CreditKind'
         enum:
-        - pay_in_4
+        - pay_in_installments
         - pay_next_month
       reason:
         $ref: '#/definitions/checkoutsessionrs.creditKindPreviewReasonSchema'
+      repayment_plan:
+        allOf:
+        - $ref: '#/definitions/model.RepaymentPlanKind'
+        enum:
+        - pay_in_3
+        - pay_in_4
     type: object
   checkoutsessionrs.hostedExternalMerchantResponse:
     properties:
@@ -607,6 +628,12 @@ definitions:
         type: integer
       checkout_action:
         $ref: '#/definitions/checkoutsessionrs.CheckoutActionSchema'
+      credit_kind:
+        allOf:
+        - $ref: '#/definitions/model.CreditKind'
+        enum:
+        - pay_in_installments
+        - pay_next_month
       currency:
         $ref: '#/definitions/model.Currency'
       installment_count:
@@ -625,6 +652,12 @@ definitions:
         - denied
       payable_now_amount_minor:
         type: integer
+      repayment_plan:
+        allOf:
+        - $ref: '#/definitions/model.RepaymentPlanKind'
+        enum:
+        - pay_in_3
+        - pay_in_4
       requested_amount_minor:
         type: integer
       required_down_payment_amount_minor:
@@ -810,7 +843,7 @@ definitions:
         description: Kept absent on legacy responses; supplied for monthly credit
           inquiries.
         enum:
-        - pay_in_4
+        - pay_in_installments
         - pay_next_month
       credit_usage:
         $ref: '#/definitions/customercredituc.CreditUsage'
@@ -894,6 +927,12 @@ definitions:
       created_at:
         example: "2026-08-09T12:00:00Z"
         type: string
+      credit_kind:
+        allOf:
+        - $ref: '#/definitions/model.CreditKind'
+        enum:
+        - pay_in_installments
+        - pay_next_month
       currency:
         allOf:
         - $ref: '#/definitions/model.Currency'
@@ -912,6 +951,12 @@ definitions:
         example: 8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c
         format: uuid
         type: string
+      repayment_plan:
+        allOf:
+        - $ref: '#/definitions/model.RepaymentPlanKind'
+        enum:
+        - pay_in_3
+        - pay_in_4
       requested_amount_minor:
         example: 150000000
         type: integer
@@ -932,16 +977,31 @@ definitions:
       created_at:
         example: "2026-08-09T12:00:00Z"
         type: string
+      credit_kind:
+        allOf:
+        - $ref: '#/definitions/model.CreditKind'
+        enum:
+        - pay_in_installments
+        - pay_next_month
       currency:
         allOf:
         - $ref: '#/definitions/model.Currency'
         example: IRR
+      installment_count:
+        example: 4
+        type: integer
       installments:
         items:
           $ref: '#/definitions/customerrs.contractInstallmentResponse'
         type: array
       next_payable_installment:
         $ref: '#/definitions/customerrs.nextPayableInstallmentResponse'
+      repayment_plan:
+        allOf:
+        - $ref: '#/definitions/model.RepaymentPlanKind'
+        enum:
+        - pay_in_3
+        - pay_in_4
       requested_amount_minor:
         example: 150000000
         type: integer
@@ -1712,7 +1772,7 @@ definitions:
         allOf:
         - $ref: '#/definitions/model.CreditKind'
         enum:
-        - pay_in_4
+        - pay_in_installments
         - pay_next_month
         example: pay_next_month
       enabled:
@@ -1736,7 +1796,7 @@ definitions:
         allOf:
         - $ref: '#/definitions/model.CreditKind'
         enum:
-        - pay_in_4
+        - pay_in_installments
         - pay_next_month
         example: pay_next_month
       enabled:
@@ -1968,11 +2028,11 @@ definitions:
     - RevokedCreditAccountStatus
   model.CreditKind:
     enum:
-    - pay_in_4
+    - pay_in_installments
     - pay_next_month
     type: string
     x-enum-varnames:
-    - PayIn4CreditKind
+    - PayInInstallmentsCreditKind
     - PayNextMonthCreditKind
   model.Currency:
     enum:
@@ -2088,6 +2148,14 @@ definitions:
     x-enum-varnames:
     - POSPurchaseChannel
     - OnlinePurchaseChannel
+  model.RepaymentPlanKind:
+    enum:
+    - pay_in_3
+    - pay_in_4
+    type: string
+    x-enum-varnames:
+    - PayIn3RepaymentPlan
+    - PayIn4RepaymentPlan
   model.RiskTier:
     enum:
     - low
@@ -2394,8 +2462,8 @@ paths:
   /api/v1/admin/merchants/{merchant_profile_id}/credit-kinds:
     get:
       description: |-
-        Returns the effective eligibility of pay_in_4 and pay_next_month for a merchant.
-        pay_in_4 is enabled unless explicitly disabled (legacy compatibility); pay_next_month is disabled unless explicitly enabled.
+        Returns the effective eligibility of pay_in_installments and pay_next_month for a merchant.
+        pay_in_installments is enabled unless explicitly disabled (legacy compatibility); pay_next_month is disabled unless explicitly enabled.
         Requires bnpl:merchants:read:any. merchant_profile_id is the internal BNPL merchant profile id (merchant_profiles.id).
       parameters:
       - description: Internal merchant profile UUID
@@ -2551,7 +2619,7 @@ paths:
       consumes:
       - application/json
       description: |-
-        Sets whether a merchant may offer pay_in_4 or pay_next_month. pay_next_month stays disabled until explicitly enabled here.
+        Sets whether a merchant may offer pay_in_installments or pay_next_month. pay_next_month stays disabled until explicitly enabled here.
         Idempotent: repeating the same desired state returns 200 with changed=false and records no audit event.
         Only ACTIVE merchants can be changed (409 otherwise). Existing contracts are not affected.
         Requires bnpl:merchants:credit-kinds:update:any. A real change writes audit action merchant_credit_kind.set_enabled.
@@ -2564,7 +2632,7 @@ paths:
         type: string
       - description: Credit kind
         enum:
-        - pay_in_4
+        - pay_in_installments
         - pay_next_month
         in: path
         name: credit_kind
@@ -4500,7 +4568,7 @@ paths:
   /api/v1/customer-credit:
     get:
       description: |-
-        Without credit_kind returns pay_in_4 and pay_next_month in one response, even when not assigned.
+        Without credit_kind returns pay_in_installments and pay_next_month in one response, even when not assigned.
         With credit_kind returns the legacy single-product response for backward compatibility.
         Resolves x-auth-mobile-number through Customer Reference Service (ACTIVE only); CRS customer_id is customer_profiles.external_customer_id.
         BNPL resolves or provisions the local customer profile automatically when missing. Profile provisioning is idempotent and does not assign initial credit.
@@ -4646,7 +4714,7 @@ paths:
       - description: 'Optional: select one legacy credit kind; omitted assigns both
           independent products'
         enum:
-        - pay_in_4
+        - pay_in_installments
         - pay_next_month
         in: query
         name: credit_kind

@@ -33,6 +33,7 @@ error.payment_already_in_progress_for_credit_account: "Another payment is alread
 error.credit_kind_invalid: "Credit kind is invalid."
 error.credit_kind_not_enabled: "This merchant does not offer the selected credit kind."
 error.credit_kind_required: "Credit kind must be selected before continuing."
+error.checkout_upfront_payment_unavailable: "This installment arrangement requires an upfront payment that is not available yet."
 error.customer_not_found: "Customer was not found for this checkout."
 error.credit_not_assigned: "Customer credit has not been assigned."
 error.credit_account_unusable: "Credit account is not available for a new purchase."

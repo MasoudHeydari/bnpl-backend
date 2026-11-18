@@ -33,6 +33,7 @@ error.payment_already_in_progress_for_credit_account: "یک پرداخت دیگ�
 error.credit_kind_invalid: "نوع اعتبار انتخاب‌شده نامعتبر است."
 error.credit_kind_not_enabled: "این پذیرنده محصول اعتبار انتخاب‌شده را ارائه نمی‌دهد."
 error.credit_kind_required: "قبل از ادامه باید نوع اعتبار انتخاب شود."
+error.checkout_upfront_payment_unavailable: "این برنامه بازپرداخت به پرداخت اولیه نیاز دارد که فعلاً در دسترس نیست."
 error.customer_not_found: "مشتری برای این تسویه پیدا نشد."
 error.credit_not_assigned: "اعتبار مشتری هنوز تخصیص داده نشده است."
 error.credit_account_unusable: "اعتبار شما در حال حاضر برای خرید جدید قابل استفاده نیست."

@@ -11,7 +11,7 @@ import (
 
 // creditKindAdminKinds is the stable response order of administered products.
 var creditKindAdminKinds = []model.CreditKind{
-	model.PayIn4CreditKind,
+	model.PayInInstallmentsCreditKind,
 	model.PayNextMonthCreditKind,
 }
 

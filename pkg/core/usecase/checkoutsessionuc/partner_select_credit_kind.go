@@ -16,7 +16,7 @@ type SelectCreditKindInput struct {
 	Token model.CheckoutSessionToken
 	// ExternalMerchantID must match the terminal-authenticated merchant.
 	ExternalMerchantID model.ExternalMerchantID
-	// CreditKind is the customer-selected kind (pay_in_4 or pay_next_month).
+	// CreditKind is the customer-selected kind (pay_in_installments or pay_next_month).
 	CreditKind model.CreditKind
 }
 

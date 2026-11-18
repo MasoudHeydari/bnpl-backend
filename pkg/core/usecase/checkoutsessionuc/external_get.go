@@ -67,7 +67,7 @@ func (uc *UseCase) GetExternal(ctx context.Context, input GetExternalInput) (Get
 			// installment and monthly provisioning are always readable here.
 			supported := []model.CreditKind{}
 			for _, kind := range []model.CreditKind{
-				model.PayIn4CreditKind, model.PayNextMonthCreditKind,
+				model.PayInInstallmentsCreditKind, model.PayNextMonthCreditKind,
 			} {
 				enabled, err := merchantQ.IsCreditKindEnabled(ctx, merchant.ID, kind)
 				if err != nil {

@@ -11,8 +11,8 @@ import (
 // ListCreditKinds handles GET /api/v1/admin/merchants/{merchant_profile_id}/credit-kinds.
 //
 //	@Summary		List merchant credit kind eligibility (admin)
-//	@Description	Returns the effective eligibility of pay_in_4 and pay_next_month for a merchant.
-//	@Description	pay_in_4 is enabled unless explicitly disabled (legacy compatibility); pay_next_month is disabled unless explicitly enabled.
+//	@Description	Returns the effective eligibility of pay_in_installments and pay_next_month for a merchant.
+//	@Description	pay_in_installments is enabled unless explicitly disabled (legacy compatibility); pay_next_month is disabled unless explicitly enabled.
 //	@Description	Requires bnpl:merchants:read:any. merchant_profile_id is the internal BNPL merchant profile id (merchant_profiles.id).
 //	@Tags			Merchant Credit Products Admin
 //	@Produce		json

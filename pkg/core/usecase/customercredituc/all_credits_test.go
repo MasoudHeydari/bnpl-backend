@@ -15,7 +15,7 @@ func TestAggregateCreditStatus(t *testing.T) {
 		{
 			name: "neither assigned",
 			items: []Output{
-				{CreditKind: model.PayIn4CreditKind, Status: SummaryStatusNotAssigned},
+				{CreditKind: model.PayInInstallmentsCreditKind, Status: SummaryStatusNotAssigned},
 				{CreditKind: model.PayNextMonthCreditKind, Status: SummaryStatusNotAssigned},
 			},
 			want: AllCreditNotAssigned,
@@ -23,7 +23,7 @@ func TestAggregateCreditStatus(t *testing.T) {
 		{
 			name: "only installments assigned",
 			items: []Output{
-				{CreditKind: model.PayIn4CreditKind, Status: SummaryStatusActive},
+				{CreditKind: model.PayInInstallmentsCreditKind, Status: SummaryStatusActive},
 				{CreditKind: model.PayNextMonthCreditKind, Status: SummaryStatusNotAssigned},
 			},
 			want: AllCreditPartiallyAssigned,
@@ -31,7 +31,7 @@ func TestAggregateCreditStatus(t *testing.T) {
 		{
 			name: "expired is not silently omitted",
 			items: []Output{
-				{CreditKind: model.PayIn4CreditKind, Status: SummaryStatusExpired},
+				{CreditKind: model.PayInInstallmentsCreditKind, Status: SummaryStatusExpired},
 				{CreditKind: model.PayNextMonthCreditKind, Status: SummaryStatusNotAssigned},
 			},
 			want: AllCreditPartiallyAssigned,
@@ -39,7 +39,7 @@ func TestAggregateCreditStatus(t *testing.T) {
 		{
 			name: "both assigned",
 			items: []Output{
-				{CreditKind: model.PayIn4CreditKind, Status: SummaryStatusActive},
+				{CreditKind: model.PayInInstallmentsCreditKind, Status: SummaryStatusActive},
 				{CreditKind: model.PayNextMonthCreditKind, Status: SummaryStatusActive},
 			},
 			want: AllCreditAssigned,

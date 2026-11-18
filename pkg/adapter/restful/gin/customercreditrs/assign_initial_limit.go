@@ -17,7 +17,7 @@ import (
 //	@Description	The customer profile is created automatically when it does not exist; the profile primary key is assigned by the database.
 //	@Description	Requires an authenticated customer subject plus gateway-injected mobile. No request body.
 //	@Description	Returns 201 when a new limit is created, and 200 for already-assigned or denied outcomes.
-//	@Param			credit_kind	query	string	false	"Optional: select one legacy credit kind; omitted assigns both independent products" Enums(pay_in_4,pay_next_month)
+//	@Param			credit_kind	query	string	false	"Optional: select one legacy credit kind; omitted assigns both independent products" Enums(pay_in_installments,pay_next_month)
 //	@Tags			Credit Limits
 //	@Produce		json
 //	@Param			x-auth-subject-id		header		string							true	"Authenticated Identity Service subject UUID"															format(uuid)

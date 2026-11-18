@@ -25,7 +25,7 @@ type creditSummaryResponse struct {
 	AvailableAmountMinor *uint64                      `json:"available_amount_minor,omitempty" example:"4000000"`
 	Currency             model.Currency               `json:"currency,omitempty" example:"IRR"`
 	// Kept absent on legacy responses; supplied for monthly credit inquiries.
-	CreditKind model.CreditKind               `json:"credit_kind,omitempty" enums:"pay_in_4,pay_next_month"`
+	CreditKind model.CreditKind               `json:"credit_kind,omitempty" enums:"pay_in_installments,pay_next_month"`
 	Status     customercredituc.SummaryStatus `json:"status" example:"active"`
 	ExpiresAt  *time.Time                     `json:"expires_at,omitempty" example:"2027-08-09T12:00:00Z"`
 }

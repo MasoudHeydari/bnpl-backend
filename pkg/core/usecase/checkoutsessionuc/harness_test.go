@@ -128,7 +128,22 @@ func (f *fakeDecisionCreator) Create(
 ) (decisionuc.CreateOutput, error) {
 	f.calls = append(f.calls, input)
 
-	return f.output, f.err
+	out := f.output
+	// evaluateSession resolves the Decision's immutable Checkout Policy to
+	// project credit_kind / repayment_plan. Unit fixtures that omit policy
+	// identity still need a registered catalog Ref.
+	if out.Decision.PolicyID == "" || out.Decision.PolicyVersion == "" {
+		ref := checkoutcatalog.DefaultRef()
+		if out.Decision.PolicyID == "" {
+			out.Decision.PolicyID = ref.ID
+		}
+
+		if out.Decision.PolicyVersion == "" {
+			out.Decision.PolicyVersion = ref.Version
+		}
+	}
+
+	return out, f.err
 }
 
 func (f *fakeDecisionCreator) RevalidateCheckoutOffer(
@@ -206,6 +221,7 @@ type harness struct {
 	storeID               model.ExternalOnlineStoreID
 	confirmationAttemptID model.ConfirmationAttemptID
 	idGenerator           *mock.IdentifierGenerator
+	policyAssignmentCQ    *mock.PolicyAssignmentConnQueryer
 }
 
 func newHarness(t *testing.T) *harness {
@@ -304,7 +320,7 @@ func newHarness(t *testing.T) *harness {
 	// CreatePartner on_create still prepares the immutable Decision unless a
 	// test opts into dual-product selection.
 	h.merchantCQ.EXPECT().
-		IsCreditKindEnabled(testifymock.Anything, testifymock.Anything, model.PayIn4CreditKind).
+		IsCreditKindEnabled(testifymock.Anything, testifymock.Anything, model.PayInInstallmentsCreditKind).
 		Return(true, nil).
 		Maybe()
 	h.merchantCQ.EXPECT().
@@ -312,7 +328,7 @@ func newHarness(t *testing.T) *harness {
 		Return(false, nil).
 		Maybe()
 	h.merchantTx.EXPECT().
-		IsCreditKindEnabled(testifymock.Anything, testifymock.Anything, model.PayIn4CreditKind).
+		IsCreditKindEnabled(testifymock.Anything, testifymock.Anything, model.PayInInstallmentsCreditKind).
 		Return(true, nil).
 		Maybe()
 	h.merchantTx.EXPECT().
@@ -388,6 +404,21 @@ func newHarness(t *testing.T) *harness {
 
 	creditAccountRepo := &harnessCreditAccountRepo{conn: mock.NewCreditAccountConnQueryer(t)}
 
+	policyAssignmentRepo := mock.NewPolicyAssignment(t)
+	h.policyAssignmentCQ = mock.NewPolicyAssignmentConnQueryer(t)
+	policyAssignmentRepo.EXPECT().Conn(h.conn).Return(h.policyAssignmentCQ).Maybe()
+	// Ordinary customers have no trusted assignment; preview falls back to catalog default (v1).
+	h.policyAssignmentCQ.EXPECT().
+		GetActive(
+			testifymock.Anything,
+			model.CustomerPolicySubjectType,
+			testifymock.Anything,
+			model.CheckoutPolicyFamily,
+			testifymock.Anything,
+		).
+		Return(model.PolicyAssignment{}, cerr.ResourceNotFound(nil)).
+		Maybe()
+
 	h.uc = &UseCase{
 		pool:                       h.pool,
 		checkoutSession:            sessionRepo,
@@ -402,6 +433,7 @@ func newHarness(t *testing.T) *harness {
 		decisionRepo:               decisionRepo,
 		checkoutDecisionAllocation: allocationRepo,
 		checkoutPolicies:           checkoutPolicies,
+		policyAssignment:           policyAssignmentRepo,
 		decision:                   h.decisions,
 		contractUC:                 h.contracts,
 		lifecycle:                  lifecycle,
@@ -547,7 +579,7 @@ func (h *harness) expectStartExternalPrepareLoad() {
 	h.t.Helper()
 
 	prepared := h.session(func(s *model.CheckoutSession) {
-		s.CreditKind = model.PayIn4CreditKind
+		s.CreditKind = model.PayInInstallmentsCreditKind
 	})
 	h.expectSelectedCreditKindForStart(prepared)
 }
@@ -601,7 +633,7 @@ func (h *harness) session(mods ...func(*model.CheckoutSession)) model.CheckoutSe
 		MerchantState:           "cart-42",
 		RequestedAmountMinor:    150000000,
 		Currency:                model.IRRCurrency,
-		CreditKind:              model.PayIn4CreditKind,
+		CreditKind:              model.PayInInstallmentsCreditKind,
 		Status:                  model.OpenCheckoutSessionStatus,
 		DecisionID:              &decisionID,
 		EvaluationGeneration:    1,

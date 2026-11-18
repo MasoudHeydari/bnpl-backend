@@ -11,7 +11,7 @@ import (
 // SetCreditKind handles PUT /api/v1/admin/merchants/{merchant_profile_id}/credit-kinds/{credit_kind}.
 //
 //	@Summary		Enable or disable a merchant credit kind (admin)
-//	@Description	Sets whether a merchant may offer pay_in_4 or pay_next_month. pay_next_month stays disabled until explicitly enabled here.
+//	@Description	Sets whether a merchant may offer pay_in_installments or pay_next_month. pay_next_month stays disabled until explicitly enabled here.
 //	@Description	Idempotent: repeating the same desired state returns 200 with changed=false and records no audit event.
 //	@Description	Only ACTIVE merchants can be changed (409 otherwise). Existing contracts are not affected.
 //	@Description	Requires bnpl:merchants:credit-kinds:update:any. A real change writes audit action merchant_credit_kind.set_enabled.
@@ -19,7 +19,7 @@ import (
 //	@Accept			json
 //	@Produce		json
 //	@Param			merchant_profile_id	path		string							true	"Internal merchant profile UUID"	format(uuid)
-//	@Param			credit_kind			path		string							true	"Credit kind"	Enums(pay_in_4, pay_next_month)
+//	@Param			credit_kind			path		string							true	"Credit kind"	Enums(pay_in_installments, pay_next_month)
 //	@Param			x-auth-subject-id	header		string				true	"Authenticated administrator subject UUID issued by Identity Service"	format(uuid)
 //	@Param			x-auth-tenant-id	header		string				true	"Authenticated tenant UUID"	format(uuid)
 //	@Param			x-auth-context-id	header		string				true	"Authenticated business-context UUID"	format(uuid)

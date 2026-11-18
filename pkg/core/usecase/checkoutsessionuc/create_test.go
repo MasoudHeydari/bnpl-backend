@@ -496,9 +496,14 @@ func TestCreatePartner_CreditLimitMissing_SurfacesInCreditKindsPreview(t *testin
 		byKind[preview.Kind] = preview
 	}
 
-	require.False(t, byKind[model.PayIn4CreditKind].Available)
-	require.NotNil(t, byKind[model.PayIn4CreditKind].Reason)
-	require.Equal(t, "CREDIT_NOT_ASSIGNED", byKind[model.PayIn4CreditKind].Reason.Code)
+	installments := byKind[model.PayInInstallmentsCreditKind]
+	require.False(t, installments.Available)
+	require.NotNil(t, installments.Reason)
+	// Ordinary catalog default is Checkout Policy v1 (pay_in_4), which requires
+	// upfront payment and stays unavailable while the launch rule is FullFinancingOnly.
+	require.Equal(t, "CHECKOUT_UPFRONT_PAYMENT_UNAVAILABLE", installments.Reason.Code)
+	require.Equal(t, model.PayIn4RepaymentPlan, installments.RepaymentPlan)
+	require.Equal(t, 4, installments.InstallmentCount)
 	require.False(t, byKind[model.PayNextMonthCreditKind].Available)
 	require.NotNil(t, byKind[model.PayNextMonthCreditKind].Reason)
 	require.Equal(t, "MERCHANT_CREDIT_KIND_DISABLED", byKind[model.PayNextMonthCreditKind].Reason.Code)

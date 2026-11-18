@@ -246,7 +246,7 @@ func (uc *UseCase) createOrReplaySessionTx(
 	}
 
 	// Credit kind stays NULL until Partner SelectCreditKind. Do not default
-	// Partner Create to pay_in_4.
+	// Partner Create to pay_in_installments.
 	return created, CreateResultCreated, nil
 }
 

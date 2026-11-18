@@ -55,6 +55,8 @@ type OfferInstallmentSchema struct {
 // A denied offer carries only outcome; every financing field is omitted.
 type OfferSchema struct {
 	Outcome                        checkoutsessionuc.OfferOutcome `json:"outcome" enums:"approved,denied"`
+	CreditKind                     model.CreditKind               `json:"credit_kind,omitempty" enums:"pay_in_installments,pay_next_month"`
+	RepaymentPlan                  *model.RepaymentPlanKind       `json:"repayment_plan,omitempty" enums:"pay_in_3,pay_in_4"`
 	AvailableCreditMinor           *uint64                        `json:"available_credit_minor,omitempty"`
 	RequestedAmountMinor           *uint64                        `json:"requested_amount_minor,omitempty"`
 	ApprovedFinancedAmountMinor    *uint64                        `json:"approved_financed_amount_minor,omitempty"`

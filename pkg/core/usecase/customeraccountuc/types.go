@@ -31,6 +31,11 @@ type ActiveContract struct {
 	RequestedAmountMinor uint64
 	// Currency is the ISO currency for monetary amounts.
 	Currency model.Currency
+	// CreditKind identifies the independent credit account that financed the contract.
+	CreditKind model.CreditKind
+	// RepaymentPlan identifies the installment arrangement derived from the
+	// contractual installment count. Empty for monthly credit.
+	RepaymentPlan model.RepaymentPlanKind
 	// InstallmentCount is the number of installments in the schedule.
 	InstallmentCount int
 	// Status is the current lifecycle status.
@@ -102,6 +107,13 @@ type GetContractInstallmentsOutput struct {
 	RequestedAmountMinor uint64
 	// Currency is the ISO currency for monetary amounts.
 	Currency model.Currency
+	// CreditKind identifies the independent credit account that financed the contract.
+	CreditKind model.CreditKind
+	// RepaymentPlan identifies the installment arrangement derived from the
+	// contractual installment count. Empty for monthly credit.
+	RepaymentPlan model.RepaymentPlanKind
+	// InstallmentCount is the number of installments in the schedule.
+	InstallmentCount int
 	// Status is the current lifecycle status.
 	Status model.ContractStatus
 	// CreatedAt is when the record was created.

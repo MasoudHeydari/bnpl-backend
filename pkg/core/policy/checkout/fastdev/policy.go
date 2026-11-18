@@ -5,6 +5,7 @@ package fastdev
 import (
 	"time"
 
+	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/policy"
 	"github.com/parstis/bnpl-backend/pkg/core/policy/checkout"
 )
@@ -42,6 +43,7 @@ func (policyFastDev) Ref() policy.Ref {
 // Terms returns the hard-coded Development fast-cadence terms.
 func (policyFastDev) Terms() checkout.Terms {
 	return checkout.Terms{
+		CreditKind:                    model.PayInInstallmentsCreditKind,
 		InstallmentCount:              installmentCount,
 		DecisionTTL:                   decisionTTL,
 		MaxFinancedAmountMinor:        maxFinancedAmountMinor,

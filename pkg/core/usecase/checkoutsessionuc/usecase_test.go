@@ -46,6 +46,7 @@ type newDeps struct {
 	decisionRepo               repo.Decision
 	checkoutDecisionAllocation repo.CheckoutDecisionAllocation
 	checkoutPolicies           *checkout.Registry
+	policyAssignment           repo.PolicyAssignment
 	decision                   *decisionuc.UseCase
 	contractUC                 *contractuc.UseCase
 	outbox                     repo.Outbox
@@ -194,6 +195,11 @@ func (d newDeps) newUseCase(t *testing.T) (*UseCase, error) {
 		creditAccount = mock.NewCreditAccount(t)
 	}
 
+	policyAssignment := d.policyAssignment
+	if policyAssignment == nil {
+		policyAssignment = mock.NewPolicyAssignment(t)
+	}
+
 	return New(
 		d.pool,
 		d.checkoutSession,
@@ -208,6 +214,7 @@ func (d newDeps) newUseCase(t *testing.T) (*UseCase, error) {
 		d.decisionRepo,
 		d.checkoutDecisionAllocation,
 		d.checkoutPolicies,
+		policyAssignment,
 		d.decision,
 		d.contractUC,
 		d.outbox,

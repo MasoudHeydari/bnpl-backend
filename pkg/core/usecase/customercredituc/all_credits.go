@@ -21,7 +21,7 @@ const (
 )
 
 var supportedCreditKinds = [...]model.CreditKind{
-	model.PayIn4CreditKind,
+	model.PayInInstallmentsCreditKind,
 	model.PayNextMonthCreditKind,
 }
 

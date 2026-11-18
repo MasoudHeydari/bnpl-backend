@@ -53,7 +53,7 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 
 			currency := selectedPolicy.Terms().Currency
 			var account model.CreditAccount
-			if kind == model.PayIn4CreditKind {
+			if kind == model.PayInInstallmentsCreditKind {
 				if err = accountQ.ExpireDueByCustomerIDAndCurrency(ctx, profile.ID, currency, now); err != nil {
 					return err
 				}

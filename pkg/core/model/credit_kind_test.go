@@ -2,22 +2,83 @@ package model
 
 import "testing"
 
-func TestCreditKindValidityAndIsolation(t *testing.T) {
-	for _, kind := range []CreditKind{PayIn4CreditKind, PayNextMonthCreditKind} {
+func TestCreditKindIsValid(t *testing.T) {
+	t.Parallel()
+
+	for _, kind := range []CreditKind{PayInInstallmentsCreditKind, PayNextMonthCreditKind} {
 		if !kind.IsValid() {
-			t.Fatalf("valid credit kind %q rejected", kind)
+			t.Fatalf("%q should be valid", kind)
 		}
 	}
 
-	if CreditKind("unknown").IsValid() || CreditKind("").IsValid() {
-		t.Fatal("invalid product kind accepted")
+	if CreditKind("pay_in_4").IsValid() {
+		t.Fatal("pay_in_4 must not be a valid CreditKind")
 	}
 
-	if got := EffectiveCreditKind(""); got != PayIn4CreditKind {
-		t.Fatalf("legacy credit kind = %q, want %q", got, PayIn4CreditKind)
+	if CreditKind("pay_in_3").IsValid() {
+		t.Fatal("pay_in_3 must not be a valid CreditKind")
+	}
+}
+
+func TestEffectiveCreditKindDefaultsToInstallments(t *testing.T) {
+	t.Parallel()
+
+	if got := EffectiveCreditKind(""); got != PayInInstallmentsCreditKind {
+		t.Fatalf("legacy credit kind = %q, want %q", got, PayInInstallmentsCreditKind)
 	}
 
 	if got := EffectiveCreditKind(PayNextMonthCreditKind); got != PayNextMonthCreditKind {
-		t.Fatalf("explicit credit kind changed to %q", got)
+		t.Fatalf("monthly credit kind = %q, want %q", got, PayNextMonthCreditKind)
+	}
+}
+
+func TestRepaymentPlanKindIsValid(t *testing.T) {
+	t.Parallel()
+
+	for _, kind := range []RepaymentPlanKind{PayIn3RepaymentPlan, PayIn4RepaymentPlan} {
+		if !kind.IsValid() {
+			t.Fatalf("%q should be valid", kind)
+		}
+	}
+
+	if RepaymentPlanKind("pay_in_installments").IsValid() {
+		t.Fatal("pay_in_installments must not be a valid RepaymentPlanKind")
+	}
+}
+
+func TestRepaymentPlanFromInstallmentCount(t *testing.T) {
+	t.Parallel()
+
+	got, err := RepaymentPlanFromInstallmentCount(3)
+	if err != nil || got != PayIn3RepaymentPlan {
+		t.Fatalf("count 3 = %q (%v), want %q", got, err, PayIn3RepaymentPlan)
+	}
+
+	got, err = RepaymentPlanFromInstallmentCount(4)
+	if err != nil || got != PayIn4RepaymentPlan {
+		t.Fatalf("count 4 = %q (%v), want %q", got, err, PayIn4RepaymentPlan)
+	}
+
+	if _, err := RepaymentPlanFromInstallmentCount(1); err == nil {
+		t.Fatal("count 1 must not map to a repayment plan")
+	}
+}
+
+func TestFinancingIdentityFromInstallmentCount(t *testing.T) {
+	t.Parallel()
+
+	kind, plan, err := FinancingIdentityFromInstallmentCount(3)
+	if err != nil || kind != PayInInstallmentsCreditKind || plan != PayIn3RepaymentPlan {
+		t.Fatalf("count 3 = %q/%q (%v)", kind, plan, err)
+	}
+
+	kind, plan, err = FinancingIdentityFromInstallmentCount(4)
+	if err != nil || kind != PayInInstallmentsCreditKind || plan != PayIn4RepaymentPlan {
+		t.Fatalf("count 4 = %q/%q (%v)", kind, plan, err)
+	}
+
+	kind, plan, err = FinancingIdentityFromInstallmentCount(1)
+	if err != nil || kind != PayNextMonthCreditKind || plan != "" {
+		t.Fatalf("count 1 = %q/%q (%v)", kind, plan, err)
 	}
 }

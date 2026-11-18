@@ -338,6 +338,13 @@ type Offer struct {
 	// Outcome reports whether BNPL can finance this checkout.
 	Outcome OfferOutcome
 
+	// CreditKind identifies the independent credit account used for this offer.
+	CreditKind model.CreditKind
+
+	// RepaymentPlan identifies the installment arrangement derived from the
+	// governing Checkout Policy. Empty for monthly credit.
+	RepaymentPlan model.RepaymentPlanKind
+
 	// AvailableCreditMinor is the evaluation-time available credit in minor units.
 	AvailableCreditMinor uint64
 

@@ -17,7 +17,7 @@ func lockCheckoutCreditAccount(
 	customerID model.CustomerID, currency model.Currency, kind model.CreditKind,
 ) (model.CreditAccount, error) {
 	switch model.EffectiveCreditKind(kind) {
-	case model.PayIn4CreditKind:
+	case model.PayInInstallmentsCreditKind:
 		return q.LockByCustomerIDAndCurrency(ctx, customerID, currency)
 
 	case model.PayNextMonthCreditKind:

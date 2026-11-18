@@ -34,7 +34,7 @@ func (uc *UseCase) AssignInitialLimit(ctx context.Context, input AssignInitialLi
 	case model.PayNextMonthCreditKind:
 		return uc.assignMonthlyCreditLimit(ctx, input)
 
-	case model.PayIn4CreditKind:
+	case model.PayInInstallmentsCreditKind:
 		// The existing v1/v2 installment limit flow remains unchanged.
 	default:
 		return AssignInitialLimitOutput{}, cerr.InvalidArgument(fmt.Errorf("%s: invalid credit_kind %q", op, input.CreditKind))

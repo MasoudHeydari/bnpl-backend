@@ -111,7 +111,7 @@ var (
 	MerchantsCreditProductsUpdateAny = permission(
 		"bnpl:merchants:credit-kinds:update:any",
 		"Update any BNPL merchant credit kind eligibility",
-		"Allows an administrator to enable or disable BNPL credit kinds (pay_in_4, pay_next_month) for a merchant.",
+		"Allows an administrator to enable or disable BNPL credit kinds (pay_in_installments, pay_next_month) for a merchant.",
 	)
 	StoresReadAny = permission(
 		"bnpl:stores:read:any",

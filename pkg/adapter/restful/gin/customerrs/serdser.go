@@ -58,6 +58,9 @@ type getResponse struct {
 	ContractID             model.ContractID                `json:"contract_id" example:"3fa85f64-5717-4562-b3fc-2c963f66afa6" format:"uuid"`
 	RequestedAmountMinor   uint64                          `json:"requested_amount_minor" example:"150000000"`
 	Currency               model.Currency                  `json:"currency" example:"IRR"`
+	CreditKind             model.CreditKind                `json:"credit_kind" enums:"pay_in_installments,pay_next_month"`
+	RepaymentPlan          model.RepaymentPlanKind         `json:"repayment_plan,omitempty" enums:"pay_in_3,pay_in_4"`
+	InstallmentCount       int                             `json:"installment_count" example:"4"`
 	Status                 model.ContractStatus            `json:"status" example:"active" enums:"active,canceling"`
 	CreatedAt              time.Time                       `json:"created_at" example:"2026-08-09T12:00:00Z"`
 	NextPayableInstallment *nextPayableInstallmentResponse `json:"next_payable_installment,omitempty"`
@@ -94,6 +97,9 @@ func toGetResponse(output customeraccountuc.GetContractInstallmentsOutput) getRe
 		ContractID:             output.ContractID,
 		RequestedAmountMinor:   output.RequestedAmountMinor,
 		Currency:               output.Currency,
+		CreditKind:             output.CreditKind,
+		RepaymentPlan:          output.RepaymentPlan,
+		InstallmentCount:       output.InstallmentCount,
 		Status:                 output.Status,
 		CreatedAt:              output.CreatedAt,
 		NextPayableInstallment: nextPayable,

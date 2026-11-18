@@ -207,6 +207,10 @@ func offerFromPersistedDecision(
 		Installments:                   make([]OfferInstallment, 0, len(installments)),
 	}
 
+	if err := attachOfferFinancingIdentity(&offer, selected.Terms()); err != nil {
+		return Offer{}, err
+	}
+
 	for _, row := range installments {
 		offer.Installments = append(offer.Installments, OfferInstallment{
 			InstallmentOrder: row.InstallmentOrder,

@@ -50,7 +50,7 @@ func TestPlanRejectsPrincipalWaiverAndDuplicateItems(t *testing.T) {
 		Currency: model.IRRCurrency, TotalMinor: 1000, Description: "repayment",
 		Items: []Item{{
 			ID: uuid.New(), InstallmentID: installment, ContractID: contract,
-			CreditAccountID: account, CreditKind: model.PayIn4CreditKind,
+			CreditAccountID: account, CreditKind: model.PayInInstallmentsCreditKind,
 			MerchantID: merchant, MerchantEntitlementID: "entitlement-registered",
 			FundingShares: []FundingShare{{
 				ID: share, Model: FundingPlatform,

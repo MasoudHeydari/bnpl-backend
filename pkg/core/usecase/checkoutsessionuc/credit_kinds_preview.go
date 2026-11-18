@@ -3,9 +3,14 @@ package checkoutsessionuc
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
+	"github.com/parstis/bnpl-backend/pkg/core/policy"
+	"github.com/parstis/bnpl-backend/pkg/core/policy/checkout"
+	"github.com/parstis/bnpl-backend/pkg/core/policy/checkout/businessrule"
+	checkoutcatalog "github.com/parstis/bnpl-backend/pkg/core/policy/checkout/catalog"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
@@ -20,18 +25,23 @@ type CreditKindPreviewReason struct {
 // CreditKindPreview describes one credit kind for Partner Create without
 // creating a Decision or reserving exposure.
 type CreditKindPreview struct {
-	Kind      model.CreditKind
-	Available bool
-	Reason    *CreditKindPreviewReason
+	Kind             model.CreditKind
+	Available        bool
+	Reason           *CreditKindPreviewReason
+	RepaymentPlan    model.RepaymentPlanKind
+	InstallmentCount int
 }
 
 var previewCreditKinds = []model.CreditKind{
-	model.PayIn4CreditKind,
+	model.PayInInstallmentsCreditKind,
 	model.PayNextMonthCreditKind,
 }
 
 // buildCreditKindsPreview evaluates both supported credit kinds read-only.
-// It never creates Decisions, Contracts, or claims exposure.
+// It never creates Decisions, Contracts, or claims exposure. Installment
+// repayment-plan metadata reflects the customer's governing Checkout Policy
+// (assignment or catalog default). Launch business-rule mismatches (for
+// example ordinary four-installment upfront checkout) are reported unavailable.
 func (uc *UseCase) buildCreditKindsPreview(
 	ctx context.Context,
 	session model.CheckoutSession,
@@ -42,6 +52,25 @@ func (uc *UseCase) buildCreditKindsPreview(
 
 	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 		merchantQ := uc.merchantProfile.Conn(conn)
+		customerQ := uc.customerProfile.Conn(conn)
+		assignmentQ := uc.policyAssignment.Conn(conn)
+
+		var (
+			externalCustomerID model.ExternalCustomerID
+			hasCustomer        bool
+		)
+
+		if session.CustomerID != nil && !session.CustomerID.IsZero() {
+			profile, profileErr := customerQ.GetByID(ctx, *session.CustomerID)
+			if profileErr != nil {
+				return fmt.Errorf("%s: load customer profile: %w", op, profileErr)
+			}
+
+			externalCustomerID = profile.ExternalCustomerID
+			hasCustomer = true
+		}
+
+		now := uc.clock.Now().UTC()
 
 		for _, kind := range previewCreditKinds {
 			preview := CreditKindPreview{Kind: kind}
@@ -61,10 +90,43 @@ func (uc *UseCase) buildCreditKindsPreview(
 				continue
 			}
 
-			if session.CustomerID == nil || session.CustomerID.IsZero() {
+			if !hasCustomer {
 				preview.Reason = &CreditKindPreviewReason{
 					Code:       "CUSTOMER_NOT_RESOLVED",
 					MessageKey: "error.customer_not_found",
+				}
+				previews = append(previews, preview)
+
+				continue
+			}
+
+			selected, policyErr := uc.resolvePreviewCheckoutPolicy(
+				ctx,
+				assignmentQ,
+				externalCustomerID,
+				kind,
+				now,
+			)
+			if policyErr != nil {
+				return fmt.Errorf("%s: resolve policy for %s: %w", op, kind, policyErr)
+			}
+
+			terms := selected.Terms()
+			preview.InstallmentCount = terms.InstallmentCount
+
+			plan, ok, planErr := checkout.RepaymentPlan(terms)
+			if planErr != nil {
+				return fmt.Errorf("%s: repayment plan for %s: %w", op, kind, planErr)
+			}
+
+			if ok {
+				preview.RepaymentPlan = plan
+			}
+
+			if err := businessrule.Active().ValidatePolicyTerms(terms); err != nil {
+				preview.Reason = &CreditKindPreviewReason{
+					Code:       "CHECKOUT_UPFRONT_PAYMENT_UNAVAILABLE",
+					MessageKey: "error.checkout_upfront_payment_unavailable",
 				}
 				previews = append(previews, preview)
 
@@ -95,7 +157,6 @@ func (uc *UseCase) buildCreditKindsPreview(
 				return fmt.Errorf("%s: load credit account for %s: %w", op, kind, err)
 			}
 
-			now := uc.clock.Now().UTC()
 			if !account.IsUsableAt(now) {
 				preview.Reason = &CreditKindPreviewReason{
 					Code:       "CREDIT_ACCOUNT_UNUSABLE",
@@ -127,4 +188,44 @@ func (uc *UseCase) buildCreditKindsPreview(
 	}
 
 	return previews, nil
+}
+
+func (uc *UseCase) resolvePreviewCheckoutPolicy(
+	ctx context.Context,
+	assignmentQ repo.PolicyAssignmentQueryer,
+	externalCustomerID model.ExternalCustomerID,
+	kind model.CreditKind,
+	now time.Time,
+) (checkout.Policy, error) {
+	const op = "checkoutsessionuc.UseCase.resolvePreviewCheckoutPolicy"
+
+	if model.EffectiveCreditKind(kind) == model.PayNextMonthCreditKind {
+		selected, err := uc.checkoutPolicies.ForCreditKind(model.PayNextMonthCreditKind)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", op, err)
+		}
+
+		return selected, nil
+	}
+
+	ref := checkoutcatalog.DefaultRef()
+	assignment, err := assignmentQ.GetActive(
+		ctx,
+		model.CustomerPolicySubjectType,
+		externalCustomerID.String(),
+		model.CheckoutPolicyFamily,
+		now,
+	)
+	if err == nil {
+		ref = policy.Ref{ID: assignment.PolicyID, Version: assignment.PolicyVersion}
+	} else if !cerr.IsCode(err, cerr.CodeResourceNotFound) {
+		return nil, fmt.Errorf("%s: load active assignment: %w", op, err)
+	}
+
+	selected, err := uc.checkoutPolicies.Resolve(ref)
+	if err != nil {
+		return nil, fmt.Errorf("%s: resolve policy %s: %w", op, ref, err)
+	}
+
+	return selected, nil
 }

@@ -111,6 +111,8 @@ type contractResponse struct {
 	MerchantBranchProfileID *model.MerchantBranchProfileID `json:"merchant_branch_profile_id,omitempty" format:"uuid"`
 	RequestedAmountMinor    uint64                         `json:"requested_amount_minor" example:"150000000"`
 	Currency                model.Currency                 `json:"currency" example:"IRR"`
+	CreditKind              model.CreditKind               `json:"credit_kind" enums:"pay_in_installments,pay_next_month"`
+	RepaymentPlan           model.RepaymentPlanKind        `json:"repayment_plan,omitempty" enums:"pay_in_3,pay_in_4"`
 	InstallmentCount        int                            `json:"installment_count" example:"4"`
 	Status                  model.ContractStatus           `json:"status" example:"active" enums:"active,canceling"`
 	CreatedAt               time.Time                      `json:"created_at" example:"2026-08-09T12:00:00Z"`
@@ -125,6 +127,8 @@ func toActiveContractsKeysetPage(output customeraccountuc.ListActiveContractsOut
 			MerchantBranchProfileID: item.MerchantBranchProfileID,
 			RequestedAmountMinor:    item.RequestedAmountMinor,
 			Currency:                item.Currency,
+			CreditKind:              item.CreditKind,
+			RepaymentPlan:           item.RepaymentPlan,
 			InstallmentCount:        item.InstallmentCount,
 			Status:                  item.Status,
 			CreatedAt:               item.CreatedAt,

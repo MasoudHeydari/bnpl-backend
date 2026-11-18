@@ -37,7 +37,7 @@ type hostedExternalGetResponse struct {
 	AmountMinor          uint64                             `json:"amount_minor" example:"120000000"`
 	Currency             model.Currency                     `json:"currency" example:"IRR"`
 	EvaluationGeneration int                                `json:"evaluation_generation" example:"1"`
-	SupportedCreditKinds []model.CreditKind                 `json:"supported_credit_kinds" enums:"pay_in_4,pay_next_month"`
+	SupportedCreditKinds []model.CreditKind                 `json:"supported_credit_kinds" enums:"pay_in_installments,pay_next_month"`
 	Offer                *hostedExternalOfferSchema         `json:"offer,omitempty"`
 	Verification         hostedExternalVerificationResponse `json:"verification"`
 	ExpiresAt            time.Time                          `json:"expires_at"`
@@ -48,6 +48,8 @@ type hostedExternalGetResponse struct {
 // the public checkout token is a locator, not authorization to read credit.
 type hostedExternalOfferSchema struct {
 	Outcome                        checkoutsessionuc.OfferOutcome `json:"outcome" enums:"approved,denied"`
+	CreditKind                     model.CreditKind               `json:"credit_kind,omitempty" enums:"pay_in_installments,pay_next_month"`
+	RepaymentPlan                  *model.RepaymentPlanKind       `json:"repayment_plan,omitempty" enums:"pay_in_3,pay_in_4"`
 	RequestedAmountMinor           *uint64                        `json:"requested_amount_minor,omitempty"`
 	ApprovedFinancedAmountMinor    *uint64                        `json:"approved_financed_amount_minor,omitempty"`
 	RequiredDownPaymentAmountMinor *uint64                        `json:"required_down_payment_amount_minor,omitempty"`
@@ -155,6 +157,8 @@ func toHostedExternalOfferResponse(offer checkoutsessionuc.Offer) hostedExternal
 
 	return hostedExternalOfferSchema{
 		Outcome:                        full.Outcome,
+		CreditKind:                     full.CreditKind,
+		RepaymentPlan:                  full.RepaymentPlan,
 		RequestedAmountMinor:           full.RequestedAmountMinor,
 		ApprovedFinancedAmountMinor:    full.ApprovedFinancedAmountMinor,
 		RequiredDownPaymentAmountMinor: full.RequiredDownPaymentAmountMinor,

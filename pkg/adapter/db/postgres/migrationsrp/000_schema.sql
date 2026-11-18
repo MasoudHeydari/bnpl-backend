@@ -584,7 +584,7 @@ CREATE TABLE IF NOT EXISTS credit_accounts (
     currency text NOT NULL,
     -- Independently governed financing product for this capacity/exposure row.
     -- Pay-in-four and pay-next-month never share one account balance.
-    credit_kind text NOT NULL DEFAULT 'pay_in_4',
+    credit_kind text NOT NULL DEFAULT 'pay_in_installments',
     limit_amount_minor bigint NOT NULL DEFAULT 0,
     exposure_amount_minor bigint NOT NULL DEFAULT 0,
     status text NOT NULL,
@@ -598,7 +598,7 @@ CREATE TABLE IF NOT EXISTS credit_accounts (
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT uq_credit_accounts_customer_currency_kind UNIQUE (customer_id, currency, credit_kind),
-    CONSTRAINT chk_credit_accounts_credit_kind CHECK (credit_kind IN ('pay_in_4', 'pay_next_month')),
+    CONSTRAINT chk_credit_accounts_credit_kind CHECK (credit_kind IN ('pay_in_installments', 'pay_next_month')),
     CONSTRAINT chk_credit_accounts_status CHECK (status IN ('active', 'expired', 'revoked')),
     CONSTRAINT chk_credit_accounts_amounts CHECK (limit_amount_minor >= 0 AND exposure_amount_minor >= 0),
     CONSTRAINT chk_credit_accounts_currency CHECK (currency IN ('IRR', 'EUR', 'USD')),
@@ -1176,7 +1176,7 @@ CREATE TABLE IF NOT EXISTS checkout_sessions (
     CONSTRAINT chk_checkout_sessions_text_lengths CHECK (char_length(idempotency_key) BETWEEN 1 AND 256 AND char_length(merchant_order_id) BETWEEN 1 AND 256 AND char_length(customer_reference) <= 256 AND char_length(return_destination) BETWEEN 1 AND 64 AND char_length(return_url) BETWEEN 1 AND 2048 AND char_length(merchant_state) <= 256),
     CONSTRAINT chk_checkout_sessions_return_destination_format CHECK (return_destination ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
     CONSTRAINT chk_checkout_sessions_cancellation_reason CHECK (cancellation_reason IS NULL OR cancellation_reason IN ('customer_canceled', 'merchant_canceled')),
-    CONSTRAINT chk_checkout_sessions_credit_kind CHECK (credit_kind IS NULL OR credit_kind IN ('pay_in_4', 'pay_next_month')),
+    CONSTRAINT chk_checkout_sessions_credit_kind CHECK (credit_kind IS NULL OR credit_kind IN ('pay_in_installments', 'pay_next_month')),
     CONSTRAINT chk_checkout_sessions_evaluation_generation CHECK (evaluation_generation >= 1),
     CONSTRAINT chk_checkout_sessions_contract_link CHECK ((status NOT IN ('processing', 'completed') OR contract_id IS NOT NULL) AND (status <> 'unavailable' OR contract_id IS NULL)),
     CONSTRAINT chk_checkout_sessions_completed_at CHECK ((status = 'completed') = (completed_at IS NOT NULL) AND (completed_at IS NULL OR completed_at >= created_at)),
@@ -1646,7 +1646,7 @@ CREATE TABLE IF NOT EXISTS merchant_credit_kind_eligibilities (
     enabled boolean NOT NULL,
     updated_at timestamptz NOT NULL,
     PRIMARY KEY (merchant_profile_id, credit_kind),
-    CONSTRAINT chk_merchant_credit_kind CHECK (credit_kind IN ('pay_in_4', 'pay_next_month'))
+    CONSTRAINT chk_merchant_credit_kind CHECK (credit_kind IN ('pay_in_installments', 'pay_next_month'))
 );
 
 -- -----------------------------------------------------------------------------

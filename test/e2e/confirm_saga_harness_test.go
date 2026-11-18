@@ -284,6 +284,7 @@ func newConfirmSagaHarness(t *testing.T, opts confirmSagaHarnessOptions) *confir
 		repos.Decision,
 		repos.CheckoutDecisionAllocation,
 		checkoutPolicies,
+		repos.PolicyAssignment,
 		decisionUC,
 		contractUC,
 		repos.Outbox,

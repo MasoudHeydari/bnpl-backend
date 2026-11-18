@@ -12,7 +12,7 @@ type SetCreditKindEnabledInput struct {
 	ActorSubjectID model.SubjectID
 	// MerchantProfileID is the internal merchant profile primary key.
 	MerchantProfileID model.MerchantProfileID
-	// CreditKind selects pay_in_4 or pay_next_month.
+	// CreditKind selects pay_in_installments or pay_next_month.
 	CreditKind model.CreditKind
 	// Enabled is the desired eligibility state.
 	Enabled bool
@@ -50,6 +50,6 @@ type CreditKindEligibility struct {
 type ListCreditKindsOutput struct {
 	// MerchantProfileID is the internal merchant profile primary key.
 	MerchantProfileID model.MerchantProfileID
-	// CreditKinds lists pay_in_4 followed by pay_next_month.
+	// CreditKinds lists pay_in_installments followed by pay_next_month.
 	CreditKinds []CreditKindEligibility
 }

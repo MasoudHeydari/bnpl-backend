@@ -10,7 +10,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 )
 
-// IsCreditKindEnabled is fail-closed: both pay_in_4 and pay_next_month are
+// IsCreditKindEnabled is fail-closed: both pay_in_installments and pay_next_month are
 // disabled until an administrator writes an explicit enabled row. Explicit
 // disabled rows remain disabled.
 func IsCreditKindEnabled[Q postgres.Queryer](

@@ -451,7 +451,7 @@ func TestCreate_Denied_NoInstallments_ReturnsReasonCodes(t *testing.T) {
 	deps.customerProfileTx.EXPECT().LockByExternalSubjectID(ctx, externalSubjectID).Return(customerProfile, nil).Once()
 	deps.merchantBranchProfileTx.EXPECT().LockByPosGpsID(ctx, posGpsID).Return(branch, nil).Once()
 	deps.merchantProfileTx.EXPECT().LockByMerchantID(ctx, branch.ExternalMerchantID).Return(merchantProfile, nil).Once()
-	deps.expectMerchantCreditKindEnabled(ctx, merchantProfile.ID, model.PayIn4CreditKind)
+	deps.expectMerchantCreditKindEnabled(ctx, merchantProfile.ID, model.PayInInstallmentsCreditKind)
 	deps.creditAccountTx.EXPECT().GetByCustomerIDAndCurrency(
 		ctx, customerProfile.ID, model.IRRCurrency,
 	).Return(model.CreditAccount{}, cerr.ResourceNotFound(errors.New("no credit account"))).Once()
@@ -592,7 +592,7 @@ func TestCreate_Approved_CreatesInstallmentsAndAudit(t *testing.T) {
 	deps.customerProfileTx.EXPECT().LockByExternalSubjectID(ctx, externalSubjectID).Return(customerProfile, nil).Once()
 	deps.merchantBranchProfileTx.EXPECT().LockByPosGpsID(ctx, posGpsID).Return(branch, nil).Once()
 	deps.merchantProfileTx.EXPECT().LockByMerchantID(ctx, branch.ExternalMerchantID).Return(merchantProfile, nil).Once()
-	deps.expectMerchantCreditKindEnabled(ctx, merchantProfile.ID, model.PayIn4CreditKind)
+	deps.expectMerchantCreditKindEnabled(ctx, merchantProfile.ID, model.PayInInstallmentsCreditKind)
 	deps.creditAccountTx.EXPECT().GetByCustomerIDAndCurrency(
 		ctx, customerProfile.ID, model.IRRCurrency,
 	).Return(creditAccount, nil).Once()
@@ -751,7 +751,7 @@ func TestCreate_InstallmentCreateFailure_RollsBack(t *testing.T) {
 	deps.customerProfileTx.EXPECT().LockByExternalSubjectID(ctx, externalSubjectID).Return(customerProfile, nil).Once()
 	deps.merchantBranchProfileTx.EXPECT().LockByPosGpsID(ctx, posGpsID).Return(branch, nil).Once()
 	deps.merchantProfileTx.EXPECT().LockByMerchantID(ctx, branch.ExternalMerchantID).Return(merchantProfile, nil).Once()
-	deps.expectMerchantCreditKindEnabled(ctx, merchantProfile.ID, model.PayIn4CreditKind)
+	deps.expectMerchantCreditKindEnabled(ctx, merchantProfile.ID, model.PayInInstallmentsCreditKind)
 	deps.creditAccountTx.EXPECT().GetByCustomerIDAndCurrency(
 		ctx, customerProfile.ID, model.IRRCurrency,
 	).Return(creditAccount, nil).Once()

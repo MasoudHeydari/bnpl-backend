@@ -66,7 +66,7 @@ func GetByCustomerIDAndCurrency[Q postgres.Queryer](
 FROM credit_accounts
 WHERE customer_id = $1
   AND currency = $2
-  AND credit_kind = 'pay_in_4'
+  AND credit_kind = 'pay_in_installments'
 `
 	return postgres.QueryOne[model.CreditAccount](
 		ctx,
@@ -121,7 +121,7 @@ func LockByCustomerIDAndCurrency[Q postgres.Queryer](
 FROM credit_accounts
 WHERE customer_id = $1
   AND currency = $2
-  AND credit_kind = 'pay_in_4'
+  AND credit_kind = 'pay_in_installments'
 FOR UPDATE
 `
 	return postgres.QueryOne[model.CreditAccount](
@@ -170,7 +170,7 @@ INSERT INTO credit_accounts (
 	created_at,
 	updated_at
 )
-VALUES ($1, $2, 'pay_in_4', $3, 0, 'active', $4, $5, $6, NULL, 1, $7, $8)
+VALUES ($1, $2, 'pay_in_installments', $3, 0, 'active', $4, $5, $6, NULL, 1, $7, $8)
 RETURNING` + creditAccountColumns
 
 	account, err := postgres.QueryOne[model.CreditAccount](
@@ -254,7 +254,7 @@ SET
 	updated_at = $3
 WHERE customer_id = $1
   AND currency = $2
-  AND credit_kind = 'pay_in_4'
+  AND credit_kind = 'pay_in_installments'
   AND status = 'active'
   AND expires_at IS NOT NULL
   AND expires_at <= $3
@@ -352,7 +352,7 @@ FROM credit_transactions ct
 JOIN credit_accounts ca ON ca.id = ct.credit_account_id
 WHERE ca.customer_id = $1
   AND ca.currency = $2
-  AND ca.credit_kind = 'pay_in_4'
+  AND ca.credit_kind = 'pay_in_installments'
   AND ct.type = 'limit_set'
 `
 	type result struct {

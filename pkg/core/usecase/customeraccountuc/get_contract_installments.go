@@ -92,10 +92,20 @@ func (uc *UseCase) GetContractInstallments(
 				}
 			}
 
+			creditKind, repaymentPlan, identityErr := model.FinancingIdentityFromInstallmentCount(
+				contract.InstallmentCount,
+			)
+			if identityErr != nil {
+				return fmt.Errorf("%s: financing identity: %w", op, identityErr)
+			}
+
 			output = GetContractInstallmentsOutput{
 				ContractID:           contract.ID,
 				RequestedAmountMinor: contract.RequestedAmountMinor,
 				Currency:             contract.Currency,
+				CreditKind:           creditKind,
+				RepaymentPlan:        repaymentPlan,
+				InstallmentCount:     contract.InstallmentCount,
 				Status:               contract.Status,
 				CreatedAt:            contract.CreatedAt,
 				NextPayable:          nextPayable,

@@ -419,6 +419,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Repos.Decision,
 		a.Repos.CheckoutDecisionAllocation,
 		checkoutPolicies,
+		a.Repos.PolicyAssignment,
 		decisionUseCase,
 		contractUseCase,
 		a.Repos.Outbox,

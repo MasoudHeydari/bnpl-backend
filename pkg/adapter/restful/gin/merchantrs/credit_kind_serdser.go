@@ -20,7 +20,7 @@ type setCreditKindRequest struct {
 }
 
 type creditKindResponse struct {
-	CreditKind model.CreditKind `json:"credit_kind" example:"pay_next_month" enums:"pay_in_4,pay_next_month"`
+	CreditKind model.CreditKind `json:"credit_kind" example:"pay_next_month" enums:"pay_in_installments,pay_next_month"`
 	Enabled    bool             `json:"enabled" example:"true"`
 }
 
@@ -31,7 +31,7 @@ type listCreditKindsResponse struct {
 
 type setCreditKindResponse struct {
 	MerchantProfileID model.MerchantProfileID `json:"merchant_profile_id" example:"8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c" format:"uuid"`
-	CreditKind        model.CreditKind        `json:"credit_kind" example:"pay_next_month" enums:"pay_in_4,pay_next_month"`
+	CreditKind        model.CreditKind        `json:"credit_kind" example:"pay_next_month" enums:"pay_in_installments,pay_next_month"`
 	Enabled           bool                    `json:"enabled" example:"true"`
 	Changed           bool                    `json:"changed" example:"true"`
 }
