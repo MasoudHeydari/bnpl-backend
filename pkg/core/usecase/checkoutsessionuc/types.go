@@ -603,6 +603,13 @@ type StartExternalOutput struct {
 
 	// Offer is the financing terms bound to EvaluationGeneration.
 	Offer Offer
+
+	// ReconfirmRequired is true when the client presented a stale generation for
+	// the same credit product. The response still carries the authoritative
+	// generation and offer so the client can refresh without a hard Conflict.
+	// Legitimate product selection that itself advances the generation returns
+	// false with the new offer.
+	ReconfirmRequired bool
 }
 
 // ConfirmExternalInput carries the hosted external Confirm & Pay request.

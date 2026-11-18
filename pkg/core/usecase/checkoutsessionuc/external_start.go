@@ -92,10 +92,10 @@ func (uc *UseCase) StartExternal(
 		return StartExternalOutput{}, err
 	}
 
-	// Apply the customer-selected product while the checkout is still open.
-	// A product change advances evaluation_generation, fencing concurrent
-	// Decision creation on the previous credit account.
-	if _, err := uc.selectExternalCreditKindForStart(ctx, input.Token, input.CreditKind); err != nil {
+	// A legitimate product switch advances evaluation_generation on the server;
+	// that must not be treated as a stale-client reconfirm failure.
+	_, productChanged, err := uc.selectExternalCreditKindForStart(ctx, input.Token, input.CreditKind)
+	if err != nil {
 		return StartExternalOutput{}, err
 	}
 
@@ -115,15 +115,16 @@ func (uc *UseCase) StartExternal(
 		)
 	}
 
+	reconfirmRequired := false
 	if prepared.EvaluationGeneration != input.EvaluationGeneration {
-		return StartExternalOutput{}, checkoutOfferReconfirmRequiredError(
-			fmt.Errorf(
-				"%s: displayed generation %d does not match current %d",
-				op,
-				input.EvaluationGeneration,
-				prepared.EvaluationGeneration,
-			),
-		)
+		if productChanged {
+			// Server-advanced generation after an explicit product selection is
+			// authoritative; return the new offer without soft reconfirm.
+			input.EvaluationGeneration = prepared.EvaluationGeneration
+		} else {
+			// Same product, stale generation: soft reconfirm with refreshed offer.
+			reconfirmRequired = true
+		}
 	}
 
 	if prepared.Status != model.OpenCheckoutSessionStatus {
@@ -155,14 +156,25 @@ func (uc *UseCase) StartExternal(
 		return StartExternalOutput{}, err
 	}
 
-	if offer.Outcome != ApprovedOfferOutcome {
+	// Product-scoped denials keep the session open with a denied offer so the
+	// customer can select another eligible product. Session-terminal denials
+	// already moved status to unavailable above.
+	if offer.Outcome != ApprovedOfferOutcome && !reconfirmRequired {
+		if prepared.Status == model.OpenCheckoutSessionStatus {
+			return StartExternalOutput{
+				Session:              prepared,
+				EvaluationGeneration: prepared.EvaluationGeneration,
+				Offer:                offer,
+			}, nil
+		}
+
 		return StartExternalOutput{}, checkoutSessionNotContinuableError(
 			fmt.Errorf("%s: offer outcome is %q", op, offer.Outcome),
 		)
 	}
 
 	now := uc.clock.Now().UTC()
-	if offer.OfferExpiresAt != nil && !offer.OfferExpiresAt.After(now) {
+	if offer.OfferExpiresAt != nil && !offer.OfferExpiresAt.After(now) && offer.Outcome == ApprovedOfferOutcome {
 		return StartExternalOutput{}, checkoutSessionExpiredError()
 	}
 
@@ -174,6 +186,7 @@ func (uc *UseCase) StartExternal(
 		Session:              prepared,
 		EvaluationGeneration: prepared.EvaluationGeneration,
 		Offer:                offer,
+		ReconfirmRequired:    reconfirmRequired,
 	}, nil
 }
 

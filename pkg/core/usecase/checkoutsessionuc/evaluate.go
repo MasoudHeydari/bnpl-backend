@@ -92,7 +92,12 @@ func (uc *UseCase) evaluateSession(
 	status := model.OpenCheckoutSessionStatus
 	eventType := ""
 
-	if offer.Outcome == DeniedOfferOutcome {
+	// Product-scoped denials keep the checkout open so the customer can select
+	// another eligible financing product on the same merchant order. Session-
+	// terminal denials (collections default, identity/merchant structural
+	// rejection) still move to unavailable.
+	if offer.Outcome == DeniedOfferOutcome &&
+		isSessionTerminalDecisionDenial(output.Decision.ReasonCodes) {
 		status = model.UnavailableCheckoutSessionStatus
 		eventType = checkoutlifecycle.EventTypeUnavailable
 	}
@@ -126,6 +131,52 @@ func (uc *UseCase) evaluateSession(
 	}
 
 	return updated, offer, nil
+}
+
+// isSessionTerminalDecisionDenial reports whether a denied Decision should
+// invalidate the entire checkout rather than only the selected credit product.
+func isSessionTerminalDecisionDenial(reasonCodes []string) bool {
+	if len(reasonCodes) == 0 {
+		// Fail closed: unknown denial reasons terminalize the session.
+		return true
+	}
+
+	for _, code := range reasonCodes {
+		switch code {
+		case model.MerchantCreditKindNotEnabledDecisionReason,
+			model.MonthlyPreviousCycleUnpaidDecisionReason,
+			model.NoAvailableCreditDecisionReason,
+			model.CreditLimitNotActiveDecisionReason,
+			model.CreditLimitExpiredDecisionReason,
+			model.RequestedAmountExceedsMerchantLimitDecisionReason,
+			model.RequestedAmountExceedsSupportedRangeDecisionReason,
+			model.InstallmentCountNotSupportedDecisionReason,
+			model.FinancedAmountTooSmallForInstallmentCountDecisionReason:
+			// Product or capacity scoped to the selected credit_kind / offer.
+			continue
+
+		case model.CreditLimitMissingDecisionReason,
+			model.CollectionsDefaultBlocksNewCreditDecisionReason,
+			model.CollectionsGracePeriodExceededDecisionReason,
+			model.CustomerProfileNotActiveDecisionReason,
+			model.MerchantProfileNotActiveDecisionReason,
+			model.MerchantBranchProfileRequiredDecisionReason,
+			model.MerchantBranchProfileNotActiveDecisionReason,
+			model.MerchantBranchDoesNotBelongToMerchantDecisionReason,
+			model.CurrencyNotSupportedDecisionReason,
+			model.MerchantAmountCurrencyMismatchDecisionReason,
+			model.JurisdictionMismatchDecisionReason:
+			// CreditLimitMissing is session-terminal because Hosted Checkout must
+			// prompt identity verification rather than product switching.
+			return true
+
+		default:
+			// Unknown reason codes are session-terminal until explicitly reviewed.
+			return true
+		}
+	}
+
+	return false
 }
 
 // prepareEvaluationGeneration bumps the generation when the currently linked

@@ -224,8 +224,12 @@ func TestStartExternal_DeniedOfferNeverIssuesOTP(t *testing.T) {
 	prepared := h.session()
 	h.expectProjectDeniedOffer(prepared)
 
-	_, err := h.uc.StartExternal(h.ctx, h.startExternalInput(1))
-	requireCerr(t, err, cerr.CodeConflict, "error.checkout_session_cannot_continue_in_its_current_state")
+	// Product-scoped denials keep the checkout open so another eligible product
+	// can be selected. START still never issues OTP.
+	got, err := h.uc.StartExternal(h.ctx, h.startExternalInput(1))
+	require.NoError(t, err)
+	require.Equal(t, DeniedOfferOutcome, got.Offer.Outcome)
+	require.Equal(t, model.OpenCheckoutSessionStatus, got.Session.Status)
 	require.Empty(t, h.notificationCalls)
 	require.Empty(t, h.identityCalls)
 }
@@ -250,14 +254,19 @@ func TestStartExternal_StaleGenerationDoesNotPrepareAgain(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	h.expectPool(1, 0)
+	// Product-selection lock + prepare probe + offer projection.
+	h.expectPool(3, 0)
 
 	current := h.session(withGeneration(2))
 	h.expectSelectCreditKindNoop(current)
 	h.sessionCQ.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(current, nil).Once()
+	h.expectProjectApprovedOffer(current)
 
-	_, err := h.uc.StartExternal(h.ctx, h.startExternalInput(1))
-	requireCerr(t, err, cerr.CodeConflict, "error.checkout_offer_reconfirm_required")
+	got, err := h.uc.StartExternal(h.ctx, h.startExternalInput(1))
+	require.NoError(t, err)
+	require.True(t, got.ReconfirmRequired)
+	require.Equal(t, 2, got.EvaluationGeneration)
+	require.Equal(t, ApprovedOfferOutcome, got.Offer.Outcome)
 	require.Empty(t, h.notificationCalls)
 	require.Empty(t, h.identityCalls)
 }

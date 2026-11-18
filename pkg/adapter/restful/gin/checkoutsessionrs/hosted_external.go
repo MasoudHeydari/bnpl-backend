@@ -68,6 +68,9 @@ type hostedExternalStartResponse struct {
 	Status            model.CheckoutSessionStatus `json:"status" enums:"open,unavailable"`
 	// EvaluationGeneration versions the offer. Send it back unchanged on OTP and Confirm.
 	EvaluationGeneration int `json:"evaluation_generation" example:"1"`
+	// ReconfirmRequired is true when the client presented a stale generation for
+	// the same product; offer and evaluation_generation are authoritative.
+	ReconfirmRequired bool `json:"reconfirm_required" example:"false"`
 	// Offer is the financing terms bound to evaluation_generation.
 	Offer *hostedExternalOfferSchema `json:"offer,omitempty"`
 }
@@ -136,6 +139,7 @@ func toHostedExternalStartResponse(output checkoutsessionuc.StartExternalOutput)
 		CheckoutSessionID:    output.Session.PublicToken.String(),
 		Status:               output.Session.Status,
 		EvaluationGeneration: output.EvaluationGeneration,
+		ReconfirmRequired:    output.ReconfirmRequired,
 	}
 
 	if output.Offer.Outcome != "" {

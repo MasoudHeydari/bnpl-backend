@@ -11,32 +11,39 @@ import (
 
 // selectExternalCreditKindForStart records only a customer's intent; OTP at
 // Confirm remains required to authorize the selected financing offer.
+//
+// When a previous Decision was a product-scoped denial, the generation is
+// bumped and decision_id cleared so the customer can evaluate another eligible
+// product without abandoning the merchant checkout.
+//
+// productChanged is true when the caller requested a different credit_kind than
+// the durable session held. START uses that to avoid treating a server-advanced
+// evaluation_generation as a stale-client reconfirm failure.
 func (uc *UseCase) selectExternalCreditKindForStart(
 	ctx context.Context, token model.CheckoutSessionToken, kind model.CreditKind,
-) (model.CheckoutSession, error) {
+) (session model.CheckoutSession, productChanged bool, err error) {
 	const op = "checkoutsessionuc.UseCase.selectExternalCreditKindForStart"
-	var selected model.CheckoutSession
-	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
+
+	err = uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
 			checkoutSessionQ := uc.checkoutSession.Tx(tx)
-			session, err := uc.lockExternalSession(ctx, tx, token)
-			if err != nil {
-				return err
+			locked, lockErr := uc.lockExternalSession(ctx, tx, token)
+			if lockErr != nil {
+				return lockErr
 			}
 
-			if session.Status != model.OpenCheckoutSessionStatus || session.ContractID != nil {
-				return checkoutSessionNotContinuableError(fmt.Errorf("checkout status %q", session.Status))
+			if locked.Status != model.OpenCheckoutSessionStatus || locked.ContractID != nil {
+				return checkoutSessionNotContinuableError(fmt.Errorf("checkout status %q", locked.Status))
 			}
 
 			now := uc.clock.Now().UTC()
-			if session.IsExpiredAt(now) {
+			if locked.IsExpiredAt(now) {
 				return checkoutSessionExpiredError()
 			}
 
-			// An omitted kind never silently switches an already-selected
-			// monthly product back to the legacy installment product.
-			if kind == "" || model.EffectiveCreditKind(session.CreditKind) == kind {
-				selected = session
+			effectiveKind := model.EffectiveCreditKind(locked.CreditKind)
+			if kind == "" || effectiveKind == kind {
+				session = locked
 				return nil
 			}
 
@@ -44,8 +51,46 @@ func (uc *UseCase) selectExternalCreditKindForStart(
 				return validationError("INVALID", "credit_kind", "error.credit_kind_invalid")
 			}
 
-			if session.DecisionID != nil {
-				return cerr.Conflict(fmt.Errorf("%s: checkout credit kind cannot change after Decision preparation", op))
+			productChanged = true
+
+			if locked.DecisionID != nil && !locked.DecisionID.IsZero() {
+				decisionQ := uc.decisionRepo.Tx(tx)
+				decision, getErr := decisionQ.GetByID(ctx, *locked.DecisionID)
+				if getErr != nil {
+					return getErr
+				}
+
+				if decision.Outcome != model.DeniedDecisionOutcome ||
+					isSessionTerminalDecisionDenial(decision.ReasonCodes) {
+					return cerr.Conflict(fmt.Errorf(
+						"%s: checkout credit kind cannot change after Decision preparation",
+						op,
+					))
+				}
+
+				// Clear product-scoped denial in the same TX before selecting.
+				bumped, bumpErr := checkoutSessionQ.BumpEvaluationGenerationCAS(
+					ctx,
+					locked.ID,
+					locked.EvaluationGeneration,
+					locked.DecisionID,
+					now,
+				)
+				if bumpErr != nil {
+					return bumpErr
+				}
+
+				locked = bumped
+			}
+
+			merchantQ := uc.merchantProfile.Tx(tx)
+			enabled, enableErr := merchantQ.IsCreditKindEnabled(ctx, locked.MerchantProfileID, kind)
+			if enableErr != nil {
+				return enableErr
+			}
+
+			if !enabled {
+				return validationError("INVALID", "credit_kind", "error.credit_kind_not_enabled")
 			}
 
 			productQ, ok := checkoutSessionQ.(repo.CheckoutSessionProductTxQueryer)
@@ -53,9 +98,14 @@ func (uc *UseCase) selectExternalCreditKindForStart(
 				return cerr.InternalError(fmt.Errorf("%s: product-aware checkout repository unavailable", op))
 			}
 
-			selected, err = productQ.SelectCreditKindBeforeDecision(ctx, session.ID, kind, now)
-			return err
+			selected, selectErr := productQ.SelectCreditKindBeforeDecision(ctx, locked.ID, kind, now)
+			if selectErr != nil {
+				return selectErr
+			}
+
+			session = selected
+			return nil
 		})
 	})
-	return selected, err
+	return session, productChanged, err
 }
