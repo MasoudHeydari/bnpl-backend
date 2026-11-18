@@ -37,9 +37,7 @@ func TestCreatePartner_LocalIranianPhoneCanonicalizesBeforePersist(t *testing.T)
 	unbound := created
 	bound := created
 	bound.CustomerID = &h.customerID
-	linked := bound
-	linked.DecisionID = &h.decisionID
-	h.expectExternalOfferPreparation(unbound, bound, linked)
+	h.expectPartnerCreateCustomerBind(unbound, bound)
 
 	input := h.partnerRequest()
 	input.CustomerPhone = "09121234567"
@@ -72,9 +70,7 @@ func TestCreatePartner_E164IranianPhoneSameCanonical(t *testing.T) {
 	unbound := created
 	bound := created
 	bound.CustomerID = &h.customerID
-	linked := bound
-	linked.DecisionID = &h.decisionID
-	h.expectExternalOfferPreparation(unbound, bound, linked)
+	h.expectPartnerCreateCustomerBind(unbound, bound)
 
 	input := h.partnerRequest()
 	input.CustomerPhone = "+989121234567"
@@ -147,7 +143,8 @@ func TestCreatePartner_IdempotentReplayDifferentRawSameCanonical(t *testing.T) {
 	h.sessionTx.EXPECT().
 		LockByMerchantIdempotencyKey(h.ctx, h.merchantPID, testAttemptKey).
 		Return(existing, nil).Once()
-	h.expectPreparedExternalOfferReload(existing)
+	// replay: already bound; preview only
+	_ = existing
 
 	input := h.partnerRequest()
 	input.CustomerPhone = "09121234567"
@@ -177,7 +174,8 @@ func TestCreatePartner_IdempotentReplayReverseRawForms(t *testing.T) {
 	h.sessionTx.EXPECT().
 		LockByMerchantIdempotencyKey(h.ctx, h.merchantPID, testAttemptKey).
 		Return(existing, nil).Once()
-	h.expectPreparedExternalOfferReload(existing)
+	// replay: already bound; preview only
+	_ = existing
 
 	input := h.partnerRequest()
 	input.CustomerPhone = "+989121234567"
@@ -255,7 +253,8 @@ func TestCreatePartner_ConflictRecoveryCanonicalizesBeforePhoneCompare(t *testin
 	h.sessionCQ.EXPECT().
 		GetByMerchantIdempotencyKey(h.ctx, h.merchantPID, testAttemptKey).
 		Return(existing, nil).Once()
-	h.expectPreparedExternalOfferReload(existing)
+	// replay: already bound; preview only
+	_ = existing
 
 	input := h.partnerRequest()
 	input.CustomerPhone = "09121234567"
@@ -386,7 +385,8 @@ func TestCreatePartner_IdempotentReplayAfterOriginationDisabled(t *testing.T) {
 	h.sessionTx.EXPECT().
 		LockByMerchantIdempotencyKey(h.ctx, h.merchantPID, testAttemptKey).
 		Return(existing, nil).Once()
-	h.expectPreparedExternalOfferReload(existing)
+	// replay: already bound; preview only
+	_ = existing
 
 	output, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
 	require.NoError(t, err)
@@ -524,7 +524,8 @@ func TestCreatePartner_ConflictRecoveryDoesNotRequireOriginationAdmission(t *tes
 	h.sessionCQ.EXPECT().
 		GetByMerchantIdempotencyKey(h.ctx, h.merchantPID, testAttemptKey).
 		Return(existing, nil).Once()
-	h.expectPreparedExternalOfferReload(existing)
+	// replay: already bound; preview only
+	_ = existing
 
 	output, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
 	require.NoError(t, err)

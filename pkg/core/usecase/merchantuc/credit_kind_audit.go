@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	// setCreditProductEnabledAuditAction is the audit action for eligibility changes.
-	setCreditProductEnabledAuditAction = "merchant_credit_product.set_enabled"
+	// setCreditKindEnabledAuditAction is the audit action for eligibility changes.
+	setCreditKindEnabledAuditAction = "merchant_credit_kind.set_enabled"
 
 	// merchantProfileResourceType is the audit resource type for merchant profiles.
 	merchantProfileResourceType = "merchant_profile"
@@ -21,15 +21,15 @@ const (
 
 // insertSetEnabledAuditOutbox records an eligibility change in the same
 // transaction that wrote it.
-func (uc *CreditProductUseCase) insertSetEnabledAuditOutbox(
+func (uc *CreditKindUseCase) insertSetEnabledAuditOutbox(
 	ctx context.Context,
 	outboxQ repo.OutboxTxQueryer,
 	profile model.MerchantProfile,
-	input SetCreditProductEnabledInput,
+	input SetCreditKindEnabledInput,
 	previous bool,
 	now time.Time,
 ) error {
-	const op = "merchantuc.CreditProductUseCase.insertSetEnabledAuditOutbox"
+	const op = "merchantuc.CreditKindUseCase.insertSetEnabledAuditOutbox"
 
 	correlationID, traceID, err := audit.EnvelopeIDsFromContext(ctx)
 	if err != nil {
@@ -75,7 +75,7 @@ func buildSetEnabledAuditEvent(
 	correlationID string,
 	traceID string,
 	profile model.MerchantProfile,
-	input SetCreditProductEnabledInput,
+	input SetCreditKindEnabledInput,
 	previous bool,
 	now time.Time,
 ) (audit.Event, error) {
@@ -90,14 +90,14 @@ func buildSetEnabledAuditEvent(
 		now,
 		audit.EventData{
 			Actor:  audit.Actor{Type: audit.OperatorActorType, ID: &actorID},
-			Action: setCreditProductEnabledAuditAction,
+			Action: setCreditKindEnabledAuditAction,
 			Resource: audit.Resource{
 				Type: merchantProfileResourceType,
 				ID:   profile.ID.String(),
 			},
 			Outcome: audit.SucceededOutcome,
 			Changes: []audit.FieldChange{{
-				Field:  "credit_product." + string(input.CreditKind) + ".enabled",
+				Field:  "credit_kind." + string(input.CreditKind) + ".enabled",
 				Before: previous,
 				After:  input.Enabled,
 			}},

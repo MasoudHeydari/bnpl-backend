@@ -5,33 +5,22 @@ import (
 	"fmt"
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
-	"github.com/parstis/bnpl-backend/pkg/core/repo"
-
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 )
 
 // CreatePartner creates a CheckoutSession for any merchant authenticated by
-// terminal credentials, then optionally prepares the financing offer.
+// terminal credentials, resolves the merchant-asserted phone through CRS,
+// binds the BNPL customer when usable, and returns a read-only dual credit-kind
+// eligibility preview. The Merchant website selects a kind afterward via
+// SelectCreditKind.
 //
-// Offer preparation timing follows the trusted
-// merchant_branch_profiles.offer_preparation_mode snapshotted onto the session
-// at create time:
-//   - on_create: resolve the merchant-asserted phone through the Customer
-//     Reference Service, bind the customer, prepare/replay the Decision/Offer,
-//     and return the Offer to the merchant together with the checkout URL.
-//   - on_start: persist the handoff only; offer preparation and OTP happen on
-//     the unified customer START path.
+// Create never sends OTP, creates a Decision/Contract/PaymentAttempt, or calls
+// Financial Core for money movement. Offer preparation runs after Partner
+// SelectCreditKind (and Hosted START when still deferred).
 //
-// Create never sends OTP, creates a Contract, creates a PaymentAttempt, or
-// calls Financial Core for money movement. OTP remains mandatory on Confirm for
-// every merchant type.
-//
-// Phone financing rejections (CRS miss/suspend or missing BNPL profile) and
-// missing credit assessment return public Forbidden errors after the session is
-// terminalized. Other denied Decisions keep unavailable + denied Offer
-// semantics. Transient dependency failures return semantic errors; an
-// idempotent retry resumes preparation on the same session when mode is
-// on_create.
+// Phone financing rejections (CRS miss/suspend or missing BNPL profile)
+// terminalize the session and return a public Forbidden error. Credit-kind
+// unavailability is reported in CreditKinds, not as a create failure.
 func (uc *UseCase) CreatePartner(
 	ctx context.Context,
 	input CreatePartnerInput,
@@ -40,6 +29,11 @@ func (uc *UseCase) CreatePartner(
 		uc.observer.SessionInputRejected(ctx, "invalid_input")
 		return CreatePartnerOutput{}, err
 	}
+
+	// Partner Create must not accept a credit-kind selection. Selection is a
+	// separate authenticated Partner command after the merchant UI presents
+	// the eligibility preview.
+	input.CreditKind = ""
 
 	uc.observer.SessionCreateRequested(ctx, input.ExternalMerchantID)
 
@@ -63,73 +57,97 @@ func (uc *UseCase) CreatePartner(
 
 	uc.observer.HostedHandoffPrepared(ctx, session.ID)
 
-	output := CreatePartnerOutput{
+	bound, bindErr := uc.ensureExternalCustomerBoundForPreview(ctx, session)
+	if bindErr != nil {
+		return CreatePartnerOutput{}, bindErr
+	}
+
+	previews, previewErr := uc.buildCreditKindsPreview(ctx, bound)
+	if previewErr != nil {
+		return CreatePartnerOutput{}, previewErr
+	}
+
+	return CreatePartnerOutput{
 		Result:      result,
-		Session:     session,
-		CheckoutURL: uc.hostedCheckoutURL(session.PublicToken),
-	}
-
-	// Preserve on_create behavior for merchants supporting only pay-in-four.
-	// When monthly is also enabled, the customer must choose at Hosted START
-	// before the immutable Decision is created. Replays retain prior offers.
-	if session.EffectiveOfferPreparationMode() != model.OfferPreparationOnCreate {
-		return output, nil
-	}
-
-	if input.CreditKind == "" && session.DecisionID == nil {
-		monthlyEnabled, eligibilityErr := uc.merchantAllowsMonthlyCredit(ctx, session)
-		if eligibilityErr != nil {
-			return CreatePartnerOutput{}, eligibilityErr
-		}
-
-		if monthlyEnabled {
-			return output, nil
-		}
-	}
-
-	uc.observer.OfferPreparationStarted(ctx, session.ID)
-
-	prepared, offer, prepErr := uc.prepareExternalOffer(ctx, session)
-	if prepErr != nil {
-		uc.observer.OfferPreparationFailed(ctx, session.ID, "offer_preparation_failed")
-		return CreatePartnerOutput{}, prepErr
-	}
-
-	output.Session = prepared
-
-	if offer.Outcome != "" {
-		output.Offer = &offer
-
-		var decisionID model.DecisionID
-		if prepared.DecisionID != nil {
-			decisionID = *prepared.DecisionID
-		}
-
-		uc.observer.OfferPrepared(ctx, prepared.ID, decisionID)
-	}
-
-	return output, nil
+		Session:     bound,
+		CheckoutURL: uc.hostedCheckoutURL(bound.PublicToken),
+		CreditKinds: previews,
+	}, nil
 }
 
-// merchantAllowsMonthlyCredit reads the merchant's product provisioning for
-// the revolving monthly product. MerchantProfileQueryer embeds eligibility,
-// so this never silently falls back to pay-in-four authorization.
-func (uc *UseCase) merchantAllowsMonthlyCredit(
-	ctx context.Context, session model.CheckoutSession,
-) (bool, error) {
-	var enabled bool
-	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
-		merchantQ := uc.merchantProfile.Conn(conn)
+// ensureExternalCustomerBoundForPreview resolves CRS and binds the customer
+// without creating a Decision. Used by Partner Create so eligibility preview
+// can inspect credit accounts. SelectCreditKind prepares the offer later.
+func (uc *UseCase) ensureExternalCustomerBoundForPreview(
+	ctx context.Context,
+	session model.CheckoutSession,
+) (model.CheckoutSession, error) {
+	const op = "checkoutsessionuc.UseCase.ensureExternalCustomerBoundForPreview"
 
-		var lookupErr error
-		enabled, lookupErr = merchantQ.IsCreditKindEnabled(
-			ctx, session.MerchantProfileID, model.PayNextMonthCreditKind,
+	if session.Origin != model.ExternalPartnerCheckoutSessionOrigin {
+		return model.CheckoutSession{}, cerr.InternalError(
+			fmt.Errorf("%s: expected external partner origin, got %q", op, session.Origin),
 		)
-		if lookupErr != nil {
-			return cerr.InternalError(fmt.Errorf("merchant product eligibility: %w", lookupErr))
+	}
+
+	if !session.Status.AllowsCustomerContinuation() {
+		if session.Status == model.UnavailableCheckoutSessionStatus && session.CustomerID == nil {
+			return session, checkoutCreditPurchaseUnavailableForPhoneError(
+				fmt.Errorf("%s: replay of phone financing rejection", op),
+			)
 		}
 
-		return nil
-	})
-	return enabled, err
+		return session, nil
+	}
+
+	if session.CustomerID != nil && !session.CustomerID.IsZero() {
+		return session, nil
+	}
+
+	now := uc.clock.Now().UTC()
+	if session.IsExpiredAt(now) {
+		expired, err := uc.persistExternalExpired(ctx, session.PublicToken)
+		if err != nil {
+			return model.CheckoutSession{}, err
+		}
+
+		return expired, checkoutSessionExpiredError()
+	}
+
+	phone, err := uc.decryptCustomerPhone(session)
+	if err != nil {
+		return model.CheckoutSession{}, err
+	}
+
+	externalCustomerID, usable, err := uc.resolveExternalCustomerID(ctx, session, phone)
+	if err != nil {
+		return model.CheckoutSession{}, err
+	}
+
+	if !usable {
+		unavailable, unavailableErr := uc.persistExternalUnavailable(ctx, session.PublicToken)
+		if unavailableErr != nil {
+			return model.CheckoutSession{}, unavailableErr
+		}
+
+		return unavailable, checkoutCreditPurchaseUnavailableForPhoneError(
+			fmt.Errorf("%s: customer reference did not yield a usable customer", op),
+		)
+	}
+
+	bound, err := uc.bindExternalCustomer(ctx, session.PublicToken, externalCustomerID)
+	if err != nil {
+		if isCreditPurchaseUnavailableForPhone(err) {
+			unavailable, unavailableErr := uc.persistExternalUnavailable(ctx, session.PublicToken)
+			if unavailableErr != nil {
+				return model.CheckoutSession{}, unavailableErr
+			}
+
+			return unavailable, err
+		}
+
+		return model.CheckoutSession{}, err
+	}
+
+	return bound, nil
 }

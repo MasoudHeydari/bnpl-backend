@@ -8,7 +8,7 @@ import (
 )
 
 // MerchantProductEligibilityQueryer returns the merchant's specifically
-// authorized credit products. An absent monthly eligibility is a DENIAL,
+// authorized credit kinds. An absent monthly eligibility is a DENIAL,
 // not implicit permission to reuse installment credit.
 type MerchantProductEligibilityQueryer interface {
 	IsCreditKindEnabled(context.Context, model.MerchantProfileID, model.CreditKind) (bool, error)

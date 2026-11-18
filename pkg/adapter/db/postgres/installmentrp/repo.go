@@ -391,6 +391,14 @@ func (q txQueryer) ClaimDueOverdueEligible(
 	return ClaimDueOverdueEligible(ctx, q.Tx, now, limit)
 }
 
+func (q txQueryer) ClaimOverdueForLateFee(
+	ctx context.Context,
+	now time.Time,
+	limit int,
+) ([]model.Installment, error) {
+	return ClaimOverdueForLateFee(ctx, q.Tx, now, limit)
+}
+
 func (q txQueryer) MarkOverdue(
 	ctx context.Context,
 	installmentID model.InstallmentID,

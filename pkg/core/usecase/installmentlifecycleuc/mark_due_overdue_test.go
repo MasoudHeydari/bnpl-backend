@@ -77,6 +77,7 @@ func (d markDueOverdueDeps) newUseCase(batchDue, batchOverdue int) *UseCase {
 		d.idGenerator,
 		batchDue,
 		batchOverdue,
+		batchOverdue,
 		metricsnoop.New(),
 		d.observer,
 	)
@@ -340,7 +341,7 @@ func TestMarkOverdueDueInstallments_MarkOverdueConflictIsIdempotent(t *testing.T
 func TestNew_BatchSizeValidation(t *testing.T) {
 	t.Parallel()
 
-	newUC := func(markDueBatchSize, markOverdueBatchSize int) (*UseCase, error) {
+	newUC := func(markDueBatchSize, markOverdueBatchSize, assessLateFeeBatchSize int) (*UseCase, error) {
 		return New(
 			mock.NewPool(t),
 			mock.NewInstallment(t),
@@ -351,6 +352,7 @@ func TestNew_BatchSizeValidation(t *testing.T) {
 			mock.NewIDGenerator(t),
 			markDueBatchSize,
 			markOverdueBatchSize,
+			assessLateFeeBatchSize,
 			metricsnoop.New(),
 			mock.NewInstallmentLifecycleObserver(t),
 		)
@@ -359,16 +361,17 @@ func TestNew_BatchSizeValidation(t *testing.T) {
 	t.Run("valid batch sizes", func(t *testing.T) {
 		t.Parallel()
 
-		uc, err := newUC(100, 50)
+		uc, err := newUC(100, 50, 25)
 		require.NoError(t, err)
 		require.Equal(t, 100, uc.MarkDueBatchSize)
 		require.Equal(t, 50, uc.MarkOverdueBatchSize)
+		require.Equal(t, 25, uc.AssessLateFeeBatchSize)
 	})
 
 	t.Run("zero mark due batch size rejected", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := newUC(0, 1)
+		_, err := newUC(0, 1, 1)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "mark due batch size")
 	})
@@ -376,8 +379,16 @@ func TestNew_BatchSizeValidation(t *testing.T) {
 	t.Run("zero mark overdue batch size rejected", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := newUC(1, 0)
+		_, err := newUC(1, 0, 1)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "mark overdue batch size")
+	})
+
+	t.Run("zero assess late fee batch size rejected", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := newUC(1, 1, 0)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "assess late fee batch size")
 	})
 }

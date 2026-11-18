@@ -8,7 +8,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
-// SetCreditProductEnabled enables or disables a credit product for a merchant.
+// SetCreditKindEnabled enables or disables a credit kind for a merchant.
 //
 // The operation is an authorized administration command: the transport layer
 // must have required permission.MerchantsCreditProductsUpdateAny. It runs in a
@@ -16,43 +16,41 @@ import (
 // the same merchant serialize.
 //
 // Semantics:
-//   - pay_in_4 keeps legacy compatibility: it is effectively enabled while no
-//     explicit row exists. pay_next_month is effectively disabled until it is
-//     explicitly enabled here.
+//   - Both credit kinds are disabled until explicitly enabled here.
 //   - Only ACTIVE merchants can be changed; other lifecycle states are rejected
 //     with a conflict.
 //   - Idempotent: requesting the effective state again performs no write and
 //     emits no audit event (Changed=false).
 //   - A real change writes the audit outbox message (action
-//     merchant_credit_product.set_enabled) in the same transaction.
+//     merchant_credit_kind.set_enabled) in the same transaction.
 //
 // Existing contracts and Financial Core accounting are not affected.
-func (uc *CreditProductUseCase) SetCreditProductEnabled(
+func (uc *CreditKindUseCase) SetCreditKindEnabled(
 	ctx context.Context,
-	input SetCreditProductEnabledInput,
-) (SetCreditProductEnabledOutput, error) {
-	const op = "merchantuc.CreditProductUseCase.SetCreditProductEnabled"
+	input SetCreditKindEnabledInput,
+) (SetCreditKindEnabledOutput, error) {
+	const op = "merchantuc.CreditKindUseCase.SetCreditKindEnabled"
 
 	if input.ActorSubjectID.IsZero() {
-		return SetCreditProductEnabledOutput{}, cerr.InvalidArgument(
+		return SetCreditKindEnabledOutput{}, cerr.InvalidArgument(
 			fmt.Errorf("%s: actor subject id is required", op),
 		)
 	}
 
 	if input.MerchantProfileID.IsZero() {
-		return SetCreditProductEnabledOutput{}, cerr.InvalidArgument(
+		return SetCreditKindEnabledOutput{}, cerr.InvalidArgument(
 			fmt.Errorf("%s: merchant profile id is required", op),
 		)
 	}
 
 	if !input.CreditKind.IsValid() {
-		return SetCreditProductEnabledOutput{}, cerr.InvalidArgument(
+		return SetCreditKindEnabledOutput{}, cerr.InvalidArgument(
 			fmt.Errorf("%s: credit kind %q is not supported", op, input.CreditKind),
 		)
 	}
 
 	now := uc.clock.Now().UTC()
-	output := SetCreditProductEnabledOutput{
+	output := SetCreditKindEnabledOutput{
 		MerchantProfileID: input.MerchantProfileID,
 		CreditKind:        input.CreditKind,
 		Enabled:           input.Enabled,
@@ -74,7 +72,7 @@ func (uc *CreditProductUseCase) SetCreditProductEnabled(
 
 			if !profile.Status.IsActive() {
 				return cerr.Conflict(fmt.Errorf(
-					"%s: merchant status %q does not allow credit product changes", op, profile.Status,
+					"%s: merchant status %q does not allow credit kind changes", op, profile.Status,
 				))
 			}
 
@@ -103,7 +101,7 @@ func (uc *CreditProductUseCase) SetCreditProductEnabled(
 		})
 	})
 	if err != nil {
-		return SetCreditProductEnabledOutput{}, err
+		return SetCreditKindEnabledOutput{}, err
 	}
 
 	return output, nil

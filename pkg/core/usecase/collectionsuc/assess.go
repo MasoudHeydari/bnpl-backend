@@ -232,7 +232,7 @@ func (uc *UseCase) AssertNewCreditAllowed(
 		return fmt.Errorf("%s: evaluate live obligations: %w", op, evalErr)
 	}
 
-	if evaluation.IsDefaultEligible {
+	if evaluation.BlocksNewCredit || evaluation.IsDefaultEligible {
 		return newCreditUsageRestrictedError()
 	}
 
@@ -504,7 +504,7 @@ func (uc *UseCase) openEpisode(
 		model.CustomerProfileDecisionTargetType,
 		profile.ID.UUID(),
 		model.RestrictedDecisionOutcome,
-		[]string{model.CollectionsGracePeriodExceededDecisionReason},
+		[]string{model.CollectionsDefaultEligibilityReachedDecisionReason},
 		uc.policies.Current.ID(),
 		uc.policies.Current.Version(),
 		profile.Jurisdiction,
@@ -539,6 +539,7 @@ func (uc *UseCase) openEpisode(
 			DueAt:             row.Installment.DueAt,
 			GracePeriodDays:   row.Installment.GracePeriodDays,
 			OverdueEligibleAt: uc.policies.Current.Boundary(row.Installment),
+			DefaultEligibleAt: uc.policies.Current.DefaultBoundary(row.Installment),
 		})
 	}
 

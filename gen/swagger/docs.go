@@ -15,7 +15,7 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/api/v1/admin/merchants/{merchant_profile_id}/credit-products": {
+        "/api/v1/admin/merchants/{merchant_profile_id}/credit-kinds": {
             "get": {
                 "security": [
                     {
@@ -29,7 +29,7 @@ const docTemplate = `{
                 "tags": [
                     "Merchant Credit Products Admin"
                 ],
-                "summary": "List merchant credit product eligibility (admin)",
+                "summary": "List merchant credit kind eligibility (admin)",
                 "parameters": [
                     {
                         "type": "string",
@@ -92,9 +92,9 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Credit product eligibility returned",
+                        "description": "Credit kind eligibility returned",
                         "schema": {
-                            "$ref": "#/definitions/merchantrs.ListCreditProductsSuccessSchema"
+                            "$ref": "#/definitions/merchantrs.ListCreditKindsSuccessSchema"
                         },
                         "headers": {
                             "X-Correlation-Id": {
@@ -234,14 +234,14 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/merchants/{merchant_profile_id}/credit-products/{credit_kind}": {
+        "/api/v1/admin/merchants/{merchant_profile_id}/credit-kinds/{credit_kind}": {
             "put": {
                 "security": [
                     {
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Sets whether a merchant may offer pay_in_4 or pay_next_month. pay_next_month stays disabled until explicitly enabled here.\nIdempotent: repeating the same desired state returns 200 with changed=false and records no audit event.\nOnly ACTIVE merchants can be changed (409 otherwise). Existing contracts are not affected.\nRequires bnpl:merchants:credit-products:update:any. A real change writes audit action merchant_credit_product.set_enabled.",
+                "description": "Sets whether a merchant may offer pay_in_4 or pay_next_month. pay_next_month stays disabled until explicitly enabled here.\nIdempotent: repeating the same desired state returns 200 with changed=false and records no audit event.\nOnly ACTIVE merchants can be changed (409 otherwise). Existing contracts are not affected.\nRequires bnpl:merchants:credit-kinds:update:any. A real change writes audit action merchant_credit_kind.set_enabled.",
                 "consumes": [
                     "application/json"
                 ],
@@ -251,7 +251,7 @@ const docTemplate = `{
                 "tags": [
                     "Merchant Credit Products Admin"
                 ],
-                "summary": "Enable or disable a merchant credit product (admin)",
+                "summary": "Enable or disable a merchant credit kind (admin)",
                 "parameters": [
                     {
                         "type": "string",
@@ -267,7 +267,7 @@ const docTemplate = `{
                             "pay_next_month"
                         ],
                         "type": "string",
-                        "description": "Credit product",
+                        "description": "Credit kind",
                         "name": "credit_kind",
                         "in": "path",
                         "required": true
@@ -298,7 +298,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "bnpl:merchants:credit-products:update:any",
+                        "example": "bnpl:merchants:credit-kinds:update:any",
                         "description": "Comma-separated gateway permissions",
                         "name": "x-auth-permissions",
                         "in": "header",
@@ -328,7 +328,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/merchantrs.SetCreditProductRequestSchema"
+                            "$ref": "#/definitions/merchantrs.SetCreditKindRequestSchema"
                         }
                     }
                 ],
@@ -336,7 +336,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Eligibility set (changed=false when already in the requested state)",
                         "schema": {
-                            "$ref": "#/definitions/merchantrs.SetCreditProductSuccessSchema"
+                            "$ref": "#/definitions/merchantrs.SetCreditKindSuccessSchema"
                         },
                         "headers": {
                             "X-Correlation-Id": {
@@ -5162,7 +5162,7 @@ const docTemplate = `{
                         "TerminalID": []
                     }
                 ],
-                "description": "Creates an idempotent merchant checkout handoff authenticated by terminal credentials (X-Terminal-Id, X-API-Key). Requires customer_phone. JWT and gateway Subject/Tenant/Context headers are not required.\nOffer preparation timing follows the trusted merchant_branch_profiles.offer_preparation_mode for the selected external_online_store_id (on_create returns the Offer; on_start returns handoff metadata only). The mode is snapshotted onto the CheckoutSession. Every customer must complete BNPL SMS OTP on the unified token Confirm path.",
+                "description": "Creates an idempotent merchant checkout handoff authenticated by terminal credentials (X-Terminal-Id, X-API-Key). Requires customer_phone. JWT and gateway Subject/Tenant/Context headers are not required.\nReturns a dual credit_kinds eligibility preview. The merchant website selects a kind via POST .../credit-kind before Hosted START. Create itself does not prepare financing offers.",
                 "consumes": [
                     "application/json"
                 ],
@@ -5623,6 +5623,219 @@ const docTemplate = `{
                         "description": "Success",
                         "schema": {
                             "$ref": "#/definitions/checkoutsessionrs.CancelSuccessSchema"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/partner/checkout-sessions/{checkout_session_id}/credit-kind": {
+            "post": {
+                "security": [
+                    {
+                        "TerminalAPIKey": [],
+                        "TerminalID": []
+                    }
+                ],
+                "description": "Records the merchant-site credit-kind selection for an open Partner checkout. Idempotent for the same kind. Hosted START cannot override this selection.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Checkout Sessions"
+                ],
+                "summary": "Select partner checkout credit kind",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Public numeric terminal identifier of the partner",
+                        "name": "X-Terminal-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Secret API key of the partner terminal",
+                        "name": "X-API-Key",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Trace-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Correlation-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Public checkout session token (cs_\u003c64 hex\u003e)",
+                        "name": "checkout_session_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Selected credit kind",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/checkoutsessionrs.SelectCreditKindRequestSchema"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Credit kind selected",
+                        "schema": {
+                            "$ref": "#/definitions/checkoutsessionrs.SelectCreditKindSuccessSchema"
                         },
                         "headers": {
                             "X-Correlation-Id": {
@@ -7561,18 +7774,6 @@ const docTemplate = `{
         "checkoutsessionrs.HostedExternalStartRequestSchema": {
             "type": "object",
             "properties": {
-                "credit_kind": {
-                    "description": "Customer-selected product. An omitted field replays the current choice.",
-                    "enum": [
-                        "pay_in_4",
-                        "pay_next_month"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/model.CreditKind"
-                        }
-                    ]
-                },
                 "evaluation_generation": {
                     "description": "EvaluationGeneration is the offer version returned by GET, when known.",
                     "type": "integer",
@@ -7707,11 +7908,18 @@ const docTemplate = `{
                 "checkout_url": {
                     "type": "string"
                 },
+                "credit_kinds": {
+                    "description": "CreditKinds is the dual-kind eligibility preview for the merchant UI.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/checkoutsessionrs.creditKindPreviewSchema"
+                    }
+                },
                 "expires_at": {
                     "type": "string"
                 },
                 "offer": {
-                    "description": "Offer is present only when the session's snapshotted branch\noffer_preparation_mode is on_create. Omitted for on_start.",
+                    "description": "Offer is present only after Partner SelectCreditKind when preparation\nmode is on_create (Create itself does not prepare offers).",
                     "allOf": [
                         {
                             "$ref": "#/definitions/checkoutsessionrs.OfferSchema"
@@ -7766,6 +7974,78 @@ const docTemplate = `{
             "properties": {
                 "data": {
                     "$ref": "#/definitions/checkoutsessionrs.ReturnDestinationResponseSchema"
+                },
+                "meta": {
+                    "$ref": "#/definitions/serdser.SuccessMetaNoPagination"
+                }
+            }
+        },
+        "checkoutsessionrs.SelectCreditKindRequestSchema": {
+            "type": "object",
+            "required": [
+                "credit_kind"
+            ],
+            "properties": {
+                "credit_kind": {
+                    "enum": [
+                        "pay_in_4",
+                        "pay_next_month"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.CreditKind"
+                        }
+                    ]
+                }
+            }
+        },
+        "checkoutsessionrs.SelectCreditKindResponseSchema": {
+            "type": "object",
+            "properties": {
+                "checkout_session_id": {
+                    "type": "string",
+                    "example": "cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+                },
+                "credit_kind": {
+                    "enum": [
+                        "pay_in_4",
+                        "pay_next_month"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.CreditKind"
+                        }
+                    ]
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "offer": {
+                    "$ref": "#/definitions/checkoutsessionrs.OfferSchema"
+                },
+                "status": {
+                    "enum": [
+                        "open",
+                        "confirming",
+                        "processing",
+                        "completed",
+                        "canceled",
+                        "expired",
+                        "unavailable"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.CheckoutSessionStatus"
+                        }
+                    ]
+                }
+            }
+        },
+        "checkoutsessionrs.SelectCreditKindSuccessSchema": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/checkoutsessionrs.SelectCreditKindResponseSchema"
                 },
                 "meta": {
                     "$ref": "#/definitions/serdser.SuccessMetaNoPagination"
@@ -7901,6 +8181,42 @@ const docTemplate = `{
                         }
                     ],
                     "example": "payment_pending"
+                }
+            }
+        },
+        "checkoutsessionrs.creditKindPreviewReasonSchema": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "CREDIT_KIND_DISABLED"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "error.credit_kind_not_enabled"
+                }
+            }
+        },
+        "checkoutsessionrs.creditKindPreviewSchema": {
+            "type": "object",
+            "properties": {
+                "available": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "kind": {
+                    "enum": [
+                        "pay_in_4",
+                        "pay_next_month"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.CreditKind"
+                        }
+                    ]
+                },
+                "reason": {
+                    "$ref": "#/definitions/checkoutsessionrs.creditKindPreviewReasonSchema"
                 }
             }
         },
@@ -8796,6 +9112,10 @@ const docTemplate = `{
                     "type": "string",
                     "example": "2026-09-09T12:00:00Z"
                 },
+                "grace_period_days": {
+                    "type": "integer",
+                    "example": 4
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid",
@@ -8804,6 +9124,10 @@ const docTemplate = `{
                 "installment_order": {
                     "type": "integer",
                     "example": 2
+                },
+                "late_fee_amount_minor": {
+                    "type": "integer",
+                    "example": 0
                 },
                 "merchant_branch_profile_id": {
                     "type": "string",
@@ -8816,6 +9140,10 @@ const docTemplate = `{
                 },
                 "paid_at": {
                     "type": "string"
+                },
+                "principal_amount_minor": {
+                    "type": "integer",
+                    "example": 25000000
                 },
                 "status": {
                     "enum": [
@@ -9366,27 +9694,27 @@ const docTemplate = `{
                 }
             }
         },
-        "merchantrs.ListCreditProductsSchema": {
+        "merchantrs.ListCreditKindsSchema": {
             "type": "object",
             "properties": {
+                "credit_kinds": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/merchantrs.creditKindResponse"
+                    }
+                },
                 "merchant_profile_id": {
                     "type": "string",
                     "format": "uuid",
                     "example": "8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c"
-                },
-                "products": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/merchantrs.creditProductResponse"
-                    }
                 }
             }
         },
-        "merchantrs.ListCreditProductsSuccessSchema": {
+        "merchantrs.ListCreditKindsSuccessSchema": {
             "type": "object",
             "properties": {
                 "data": {
-                    "$ref": "#/definitions/merchantrs.ListCreditProductsSchema"
+                    "$ref": "#/definitions/merchantrs.ListCreditKindsSchema"
                 },
                 "meta": {
                     "$ref": "#/definitions/serdser.SuccessMetaNoPagination"
@@ -9557,7 +9885,7 @@ const docTemplate = `{
                 }
             }
         },
-        "merchantrs.SetCreditProductRequestSchema": {
+        "merchantrs.SetCreditKindRequestSchema": {
             "type": "object",
             "properties": {
                 "enabled": {
@@ -9566,7 +9894,7 @@ const docTemplate = `{
                 }
             }
         },
-        "merchantrs.SetCreditProductSchema": {
+        "merchantrs.SetCreditKindSchema": {
             "type": "object",
             "properties": {
                 "changed": {
@@ -9596,18 +9924,18 @@ const docTemplate = `{
                 }
             }
         },
-        "merchantrs.SetCreditProductSuccessSchema": {
+        "merchantrs.SetCreditKindSuccessSchema": {
             "type": "object",
             "properties": {
                 "data": {
-                    "$ref": "#/definitions/merchantrs.SetCreditProductSchema"
+                    "$ref": "#/definitions/merchantrs.SetCreditKindSchema"
                 },
                 "meta": {
                     "$ref": "#/definitions/serdser.SuccessMetaNoPagination"
                 }
             }
         },
-        "merchantrs.creditProductResponse": {
+        "merchantrs.creditKindResponse": {
             "type": "object",
             "properties": {
                 "credit_kind": {

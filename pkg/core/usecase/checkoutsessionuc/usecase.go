@@ -59,6 +59,7 @@ type UseCase struct {
 	merchantProfile            repo.MerchantProfile
 	merchantBranchProfile      repo.MerchantBranchProfile
 	customerProfile            repo.CustomerProfile
+	creditAccount              repo.CreditAccount
 	contract                   repo.Contract
 	paymentAttempt             repo.PaymentAttempt
 	installment                repo.Installment
@@ -116,6 +117,7 @@ func New(
 	merchantProfile repo.MerchantProfile,
 	merchantBranchProfile repo.MerchantBranchProfile,
 	customerProfile repo.CustomerProfile,
+	creditAccount repo.CreditAccount,
 	contract repo.Contract,
 	paymentAttempt repo.PaymentAttempt,
 	installment repo.Installment,
@@ -166,6 +168,10 @@ func New(
 
 	if customerProfile == nil {
 		return nil, fmt.Errorf("%s: customer profile repository is required", op)
+	}
+
+	if creditAccount == nil {
+		return nil, fmt.Errorf("%s: credit account repository is required", op)
 	}
 
 	if contract == nil {
@@ -293,6 +299,7 @@ func New(
 		merchantProfile:            merchantProfile,
 		merchantBranchProfile:      merchantBranchProfile,
 		customerProfile:            customerProfile,
+		creditAccount:              creditAccount,
 		contract:                   contract,
 		paymentAttempt:             paymentAttempt,
 		installment:                installment,

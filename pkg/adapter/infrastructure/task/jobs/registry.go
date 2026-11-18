@@ -113,6 +113,9 @@ func (r Registry) Resolve(handler string) (coretask.Job, error) {
 	case "installment_mark_overdue":
 		return installmentjob.MarkOverdue(r.logger, r.installmentlifecycleuc), nil
 
+	case "installment_assess_late_fees":
+		return installmentjob.AssessLateFees(r.logger, r.installmentlifecycleuc), nil
+
 	case "payment_attempt_reconciliation":
 		return paymentattemptjob.Reconciliation(r.paymentattemptreconciliationuc), nil
 

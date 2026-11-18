@@ -13,7 +13,7 @@ import (
 //
 //	@Summary		Create partner checkout session
 //	@Description	Creates an idempotent merchant checkout handoff authenticated by terminal credentials (X-Terminal-Id, X-API-Key). Requires customer_phone. JWT and gateway Subject/Tenant/Context headers are not required.
-//	@Description	Offer preparation timing follows the trusted merchant_branch_profiles.offer_preparation_mode for the selected external_online_store_id (on_create returns the Offer; on_start returns handoff metadata only). The mode is snapshotted onto the CheckoutSession. Every customer must complete BNPL SMS OTP on the unified token Confirm path.
+//	@Description	Returns a dual credit_kinds eligibility preview. The merchant website selects a kind via POST .../credit-kind before Hosted START. Create itself does not prepare financing offers.
 //	@Tags			Checkout Sessions
 //	@Accept			json
 //	@Produce		json

@@ -80,6 +80,8 @@ func (q txQueryer) Create(
 	availableCreditMinor uint64,
 	currency model.Currency,
 	installmentCount int,
+	businessRuleID string,
+	businessRuleVersion string,
 	expiresAt time.Time,
 	createdAt time.Time,
 ) (model.CheckoutDecisionAllocation, error) {
@@ -100,6 +102,8 @@ func (q txQueryer) Create(
 		availableCreditMinor,
 		currency,
 		installmentCount,
+		businessRuleID,
+		businessRuleVersion,
 		expiresAt,
 		createdAt,
 	)

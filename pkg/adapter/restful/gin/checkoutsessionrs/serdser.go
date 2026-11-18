@@ -55,9 +55,34 @@ type partnerCreateResponse struct {
 	Status            model.CheckoutSessionStatus `json:"status" enums:"open,confirming,processing,completed,canceled,expired,unavailable"`
 	CheckoutURL       string                      `json:"checkout_url"`
 	ExpiresAt         time.Time                   `json:"expires_at"`
-	// Offer is present only when the session's snapshotted branch
-	// offer_preparation_mode is on_create. Omitted for on_start.
+	// Offer is present only after Partner SelectCreditKind when preparation
+	// mode is on_create (Create itself does not prepare offers).
 	Offer *OfferSchema `json:"offer,omitempty"`
+	// CreditKinds is the dual-kind eligibility preview for the merchant UI.
+	CreditKinds []creditKindPreviewSchema `json:"credit_kinds"`
+}
+
+type creditKindPreviewSchema struct {
+	Kind      model.CreditKind               `json:"kind" enums:"pay_in_4,pay_next_month"`
+	Available bool                           `json:"available" example:"true"`
+	Reason    *creditKindPreviewReasonSchema `json:"reason,omitempty"`
+}
+
+type creditKindPreviewReasonSchema struct {
+	Code    string `json:"code" example:"CREDIT_KIND_DISABLED"`
+	Message string `json:"message" example:"This merchant does not offer the selected credit kind." i18n:"localized"`
+}
+
+type selectCreditKindRequest struct {
+	CreditKind model.CreditKind `json:"credit_kind" binding:"required" enums:"pay_in_4,pay_next_month"`
+}
+
+type selectCreditKindResponse struct {
+	CheckoutSessionID string                      `json:"checkout_session_id" example:"cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"`
+	Status            model.CheckoutSessionStatus `json:"status" enums:"open,confirming,processing,completed,canceled,expired,unavailable"`
+	CreditKind        model.CreditKind            `json:"credit_kind" enums:"pay_in_4,pay_next_month"`
+	ExpiresAt         time.Time                   `json:"expires_at"`
+	Offer             *OfferSchema                `json:"offer,omitempty"`
 }
 
 // statusResponse is the authoritative merchant inquiry projection.
@@ -260,6 +285,43 @@ func toPartnerCreateResponse(output checkoutsessionuc.CreatePartnerOutput) partn
 		CheckoutSessionID: output.Session.PublicToken.String(),
 		Status:            output.Session.Status,
 		CheckoutURL:       output.CheckoutURL,
+		ExpiresAt:         output.Session.ExpiresAt,
+		CreditKinds:       toCreditKindPreviews(output.CreditKinds),
+	}
+
+	if output.Offer != nil {
+		offer := toOfferResponse(*output.Offer)
+		resp.Offer = &offer
+	}
+
+	return resp
+}
+
+func toCreditKindPreviews(previews []checkoutsessionuc.CreditKindPreview) []creditKindPreviewSchema {
+	out := make([]creditKindPreviewSchema, 0, len(previews))
+	for _, preview := range previews {
+		item := creditKindPreviewSchema{
+			Kind:      preview.Kind,
+			Available: preview.Available,
+		}
+		if preview.Reason != nil {
+			item.Reason = &creditKindPreviewReasonSchema{
+				Code:    preview.Reason.Code,
+				Message: preview.Reason.MessageKey,
+			}
+		}
+
+		out = append(out, item)
+	}
+
+	return out
+}
+
+func toSelectCreditKindResponse(output checkoutsessionuc.SelectCreditKindOutput) selectCreditKindResponse {
+	resp := selectCreditKindResponse{
+		CheckoutSessionID: output.Session.PublicToken.String(),
+		Status:            output.Session.Status,
+		CreditKind:        output.Session.CreditKind,
 		ExpiresAt:         output.Session.ExpiresAt,
 	}
 

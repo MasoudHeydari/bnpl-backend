@@ -53,3 +53,7 @@ func (Policy) Version() string { return PolicyVersion }
 
 // Boundary applies calendar-day v2 contractual grace.
 func (p Policy) Boundary(i model.Installment) time.Time { return i.OverdueEligibleAt(p.location) }
+
+// DefaultBoundary matches Boundary for frozen historical v2 episodes (default
+// at grace end). Launch default@90 lives on v3.
+func (p Policy) DefaultBoundary(i model.Installment) time.Time { return p.Boundary(i) }

@@ -393,3 +393,43 @@ func TestValidateGeneratedSchedule_NormalCustomerInitialDeadline(t *testing.T) {
 		50,
 	))
 }
+
+func TestDueAtForInstallmentOrder_NextJalaliMonthFirst(t *testing.T) {
+	t.Parallel()
+
+	tehran, err := time.LoadLocation("Asia/Tehran")
+	require.NoError(t, err)
+
+	terms := checkoutv2.New().Terms()
+	terms.CreditKind = "pay_next_month"
+	terms.DueDateRule = checkout.DueNextJalaliMonthFirst
+	terms.InstallmentCount = 1
+	require.NoError(t, checkout.ValidateTerms(terms))
+
+	cases := []struct {
+		name   string
+		anchor jalali.Date
+		want   jalali.Date
+	}{
+		{"first day rolls to next month", jalali.Date{Year: 1405, Month: 1, Day: 1}, jalali.Date{Year: 1405, Month: 2, Day: 1}},
+		{"mid month", jalali.Date{Year: 1405, Month: 3, Day: 15}, jalali.Date{Year: 1405, Month: 4, Day: 1}},
+		{"year boundary", jalali.Date{Year: 1405, Month: 12, Day: 29}, jalali.Date{Year: 1406, Month: 1, Day: 1}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			anchor := tc.anchor.ToTime(time.Date(2026, time.March, 21, 10, 0, 0, 0, tehran), tehran)
+			due, err := checkout.DueAtForInstallmentOrder(terms, anchor, 1)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, jalali.FromTime(due.In(tehran)))
+			require.Equal(t, 23, due.In(tehran).Hour())
+			require.Equal(t, 59, due.In(tehran).Minute())
+			require.Equal(t, 59, due.In(tehran).Second())
+		})
+	}
+
+	_, err = checkout.DueAtForInstallmentOrder(terms, time.Now(), 2)
+	require.Error(t, err)
+}

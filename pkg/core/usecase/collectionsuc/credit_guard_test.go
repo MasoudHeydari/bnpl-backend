@@ -8,6 +8,7 @@ import (
 
 	"github.com/parstis/bnpl-backend/pkg/core/policy/collections"
 	collectionsv1 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v1"
+	collectionsv3 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v3"
 
 	"github.com/google/uuid"
 	testifymock "github.com/stretchr/testify/mock"
@@ -130,6 +131,82 @@ func TestAssertNewCreditAllowed_LiveDefaultDoesNotMutateCollections(t *testing.T
 	require.True(t, cerr.IsCode(err, cerr.CodeConflict))
 }
 
+func TestAssertNewCreditAllowed_DueBlocksWithoutDefault(t *testing.T) {
+	t.Parallel()
+
+	pool := mock.NewPool(t)
+	tx := mock.NewTx(t)
+	clk := mock.NewClock(t)
+	customerProfile := mock.NewCustomerProfile(t)
+	installment := mock.NewInstallment(t)
+	decision := mock.NewDecision(t)
+	defaultEpisode := mock.NewDefaultEpisode(t)
+	customerRestriction := mock.NewCustomerRestriction(t)
+	collectionsCase := mock.NewCollectionsCase(t)
+	outbox := mock.NewOutbox(t)
+
+	customerID := model.CustomerID(uuid.New())
+	contractID := model.ContractID(uuid.New())
+	installmentID := model.InstallmentID(uuid.New())
+	loc := time.UTC
+	dueAt := time.Date(2026, 11, 1, 12, 0, 0, 0, loc)
+	now := dueAt.Add(2 * time.Hour) // due, still inside grace for v3
+
+	restrictionTx := mock.NewCustomerRestrictionTxQueryer(t)
+	customerRestriction.EXPECT().Tx(tx).Return(restrictionTx).Once()
+	restrictionTx.EXPECT().
+		ListActiveByCustomerID(testifymock.Anything, customerID).
+		Return(nil, nil).
+		Once()
+
+	episodeTx := mock.NewDefaultEpisodeTxQueryer(t)
+	defaultEpisode.EXPECT().Tx(tx).Return(episodeTx).Once()
+	episodeTx.EXPECT().
+		GetActiveByCustomerID(testifymock.Anything, customerID).
+		Return(model.DefaultEpisode{}, cerr.ResourceNotFound(errors.New("none"))).
+		Once()
+
+	installmentTx := mock.NewInstallmentTxQueryer(t)
+	installment.EXPECT().Tx(tx).Return(installmentTx).Once()
+	installmentTx.EXPECT().
+		ListCollectionsObligationsByCustomerID(testifymock.Anything, customerID).
+		Return([]repo.CollectionsObligation{{
+			Installment: model.Installment{
+				ID:              installmentID,
+				ContractID:      &contractID,
+				CustomerID:      customerID,
+				DueAt:           dueAt,
+				GracePeriodDays: 4,
+				Status:          model.DueInstallmentStatus,
+			},
+			HasUnresolvedPayment: false,
+		}}, nil).
+		Once()
+
+	uc, err := collectionsuc.New(
+		pool,
+		customerProfile,
+		installment,
+		decision,
+		defaultEpisode,
+		customerRestriction,
+		collectionsCase,
+		outbox,
+		clk,
+		mock.NewIdentifierGenerator(t),
+		sha256fingerprint.New(),
+		metricsnoop.New(),
+		"bnpl.audit.events.v1",
+		10,
+		v3Policies(loc),
+	)
+	require.NoError(t, err)
+
+	err = uc.AssertNewCreditAllowed(context.Background(), tx, customerID, now)
+	require.Error(t, err)
+	require.True(t, cerr.IsCode(err, cerr.CodeConflict))
+}
+
 func TestAssessBatchOutcomeLabel(t *testing.T) {
 	t.Parallel()
 
@@ -141,5 +218,10 @@ func TestAssessBatchOutcomeLabel(t *testing.T) {
 
 func testPolicies() *collections.Registry {
 	r, _ := collections.NewRegistry(collectionsv1.New())
+	return r
+}
+
+func v3Policies(loc *time.Location) *collections.Registry {
+	r, _ := collections.NewRegistry(collectionsv3.New(loc), collectionsv1.New())
 	return r
 }

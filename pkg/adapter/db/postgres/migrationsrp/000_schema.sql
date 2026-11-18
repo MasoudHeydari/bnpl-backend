@@ -806,6 +806,15 @@ CREATE INDEX IF NOT EXISTS idx_installment_charges_offered_installment_id ON ins
 WHERE
     charge_status = 'offered';
 
+-- One late_fee charge per installment per overdue business date (due_at stores
+-- midnight of that business day). Canceled rows do not consume the slot.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_installment_charges_late_fee_business_date
+ON installment_charges (installment_id, due_at)
+WHERE
+    charge_type = 'late_fee'
+    AND due_at IS NOT NULL
+    AND charge_status <> 'canceled';
+
 -- -----------------------------------------------------------------------------
 -- Payment Attempts
 -- -----------------------------------------------------------------------------
@@ -977,6 +986,9 @@ CREATE TABLE IF NOT EXISTS checkout_decision_allocations (
     available_credit_minor bigint NOT NULL DEFAULT 0,
     currency text NOT NULL,
     installment_count integer NOT NULL,
+    -- Checkout Business Rule (build-time catalog) that governed this decision.
+    business_rule_id text NOT NULL,
+    business_rule_version text NOT NULL,
     expires_at timestamptz NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT chk_checkout_decision_allocations_amounts CHECK (requested_amount_minor >= 0 AND approved_financed_amount_minor >= 0 AND upfront_amount_minor >= 0 AND available_credit_minor >= 0),
@@ -984,7 +996,8 @@ CREATE TABLE IF NOT EXISTS checkout_decision_allocations (
     CONSTRAINT chk_checkout_decision_allocations_purchase_channel CHECK (purchase_channel IN ('pos', 'online')),
     CONSTRAINT chk_checkout_decision_allocations_merchant_order_id CHECK (merchant_order_id IS NULL OR char_length(merchant_order_id) BETWEEN 1 AND 256),
     CONSTRAINT chk_checkout_decision_allocations_currency CHECK (currency IN ('IRR', 'EUR', 'USD')),
-    CONSTRAINT chk_checkout_decision_allocations_checkout_key CHECK (char_length(checkout_key) BETWEEN 1 AND 256)
+    CONSTRAINT chk_checkout_decision_allocations_checkout_key CHECK (char_length(checkout_key) BETWEEN 1 AND 256),
+    CONSTRAINT chk_checkout_decision_allocations_business_rule CHECK (char_length(business_rule_id) BETWEEN 1 AND 128 AND char_length(business_rule_version) BETWEEN 1 AND 64)
 );
 
 CREATE INDEX IF NOT EXISTS idx_checkout_decision_allocations_customer_id ON checkout_decision_allocations (customer_id);
@@ -1138,9 +1151,10 @@ CREATE TABLE IF NOT EXISTS checkout_sessions (
     updated_at timestamptz NOT NULL DEFAULT now(),
     -- Who canceled the checkout when status becomes canceled.
     cancellation_reason text NULL,
-    -- Selected financing product for this checkout; mutable only while no
-    -- Decision is linked. Product-scoped denial does not clear this value.
-    credit_kind text NOT NULL DEFAULT 'pay_in_4',
+    -- Selected financing credit kind; NULL until Partner SelectCreditKind.
+    -- Mutable only while no Decision is linked. Product-scoped denial does not
+    -- clear this value.
+    credit_kind text NULL,
     -- Increments when a new Decision evaluation is required (e.g. expired offer).
     evaluation_generation integer NOT NULL DEFAULT 1,
     CONSTRAINT fk_checkout_sessions_merchant_profile FOREIGN KEY (merchant_profile_id) REFERENCES merchant_profiles (id),
@@ -1162,7 +1176,7 @@ CREATE TABLE IF NOT EXISTS checkout_sessions (
     CONSTRAINT chk_checkout_sessions_text_lengths CHECK (char_length(idempotency_key) BETWEEN 1 AND 256 AND char_length(merchant_order_id) BETWEEN 1 AND 256 AND char_length(customer_reference) <= 256 AND char_length(return_destination) BETWEEN 1 AND 64 AND char_length(return_url) BETWEEN 1 AND 2048 AND char_length(merchant_state) <= 256),
     CONSTRAINT chk_checkout_sessions_return_destination_format CHECK (return_destination ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
     CONSTRAINT chk_checkout_sessions_cancellation_reason CHECK (cancellation_reason IS NULL OR cancellation_reason IN ('customer_canceled', 'merchant_canceled')),
-    CONSTRAINT chk_checkout_sessions_credit_kind CHECK (credit_kind IN ('pay_in_4', 'pay_next_month')),
+    CONSTRAINT chk_checkout_sessions_credit_kind CHECK (credit_kind IS NULL OR credit_kind IN ('pay_in_4', 'pay_next_month')),
     CONSTRAINT chk_checkout_sessions_evaluation_generation CHECK (evaluation_generation >= 1),
     CONSTRAINT chk_checkout_sessions_contract_link CHECK ((status NOT IN ('processing', 'completed') OR contract_id IS NOT NULL) AND (status <> 'unavailable' OR contract_id IS NULL)),
     CONSTRAINT chk_checkout_sessions_completed_at CHECK ((status = 'completed') = (completed_at IS NOT NULL) AND (completed_at IS NULL OR completed_at >= created_at)),
@@ -1624,15 +1638,15 @@ CREATE TABLE IF NOT EXISTS repayment_batch_settlement_allocations (
 CREATE INDEX IF NOT EXISTS idx_batch_settlement_alloc_settlement
 ON repayment_batch_settlement_allocations (settlement_id);
 
--- Merchant-level credit-product eligibility is independent from Funding/FC
--- monetary provisioning. Monthly credit is fail-closed until explicitly enabled.
-CREATE TABLE IF NOT EXISTS merchant_credit_product_eligibilities (
+-- Merchant-level credit-kind eligibility is independent from Funding/FC
+-- monetary provisioning. Both kinds are fail-closed until explicitly enabled.
+CREATE TABLE IF NOT EXISTS merchant_credit_kind_eligibilities (
     merchant_profile_id uuid NOT NULL REFERENCES merchant_profiles (id),
     credit_kind text NOT NULL,
     enabled boolean NOT NULL,
     updated_at timestamptz NOT NULL,
     PRIMARY KEY (merchant_profile_id, credit_kind),
-    CONSTRAINT chk_merchant_credit_product_kind CHECK (credit_kind IN ('pay_in_4', 'pay_next_month'))
+    CONSTRAINT chk_merchant_credit_kind CHECK (credit_kind IN ('pay_in_4', 'pay_next_month'))
 );
 
 -- -----------------------------------------------------------------------------
@@ -1714,6 +1728,7 @@ CREATE TABLE IF NOT EXISTS default_episode_triggers (
     due_at timestamptz NOT NULL,
     grace_period_days integer NOT NULL,
     overdue_eligible_at timestamptz NOT NULL,
+    default_eligible_at timestamptz NOT NULL,
     PRIMARY KEY (episode_id, installment_id),
     CONSTRAINT default_episode_triggers_grace_nonnegative CHECK (grace_period_days >= 0)
 );
@@ -2588,8 +2603,8 @@ GRANT SELECT, INSERT ON bnpl.repayment_batch_settlements TO bnpl;
 
 GRANT SELECT, INSERT ON bnpl.repayment_batch_settlement_allocations TO bnpl;
 
-GRANT SELECT, INSERT ON bnpl.merchant_credit_product_eligibilities TO bnpl;
+GRANT SELECT, INSERT ON bnpl.merchant_credit_kind_eligibilities TO bnpl;
 
-GRANT UPDATE (enabled, updated_at) ON bnpl.merchant_credit_product_eligibilities TO bnpl;
+GRANT UPDATE (enabled, updated_at) ON bnpl.merchant_credit_kind_eligibilities TO bnpl;
 
 GRANT EXECUTE ON FUNCTION bnpl.guard_installment_charge (), bnpl.guard_installment_settlement (), bnpl.guard_payment_attempt_freeze (), bnpl.guard_payment_items (), bnpl.verify_payment_snapshot_commit (), bnpl.reject_claimed_installment_payment_attempt () TO bnpl;

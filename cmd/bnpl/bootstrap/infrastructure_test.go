@@ -64,6 +64,7 @@ func noopTestConfig() *config.Config {
 			Installment: config.Installment{
 				MarkDueBatchSize:                      100,
 				MarkOverdueBatchSize:                  100,
+				AssessLateFeeBatchSize:                100,
 				InstallmentPaymentRequestsDestination: "bnpl.installment_payment_requests",
 			},
 			PaymentAttemptReconciliation: config.PaymentAttemptReconciliation{

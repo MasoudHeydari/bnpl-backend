@@ -44,18 +44,33 @@ type Evaluation struct {
 	HasUnresolvedAdjustment bool
 	// HasUnresolvedCancellation blocks new credit without claiming debt settlement.
 	HasUnresolvedCancellation bool
+
+	// BlocksNewCredit is true when at least one applicable unsettled installment
+	// has reached its contractual due instant (now >= DueAt).
+	BlocksNewCredit bool
+
+	// IsOverdueEligible is true when at least one applicable unsettled
+	// installment has crossed its overdue (grace-end) boundary.
+	IsOverdueEligible bool
+
 	// IsDefaultEligible is true when at least one applicable outstanding
-	// installment has crossed its grace boundary.
+	// installment has crossed its default-entry boundary.
 	IsDefaultEligible bool
 
 	// IsRecovered is true when the customer is currently in default and every
 	// installment whose due date has arrived is fully settled.
 	IsRecovered bool
 
-	// TriggerInstallmentIDs lists installments that justify default entry.
+	// TriggerInstallmentIDs lists installments that justify default entry
+	// (default-eligible only).
 	TriggerInstallmentIDs []model.InstallmentID
 
-	// UnsettledDueInstallmentIDs lists due obligations that block recovery.
+	// OverdueInstallmentIDs lists installments past the overdue boundary that
+	// are not yet default-eligible.
+	OverdueInstallmentIDs []model.InstallmentID
+
+	// UnsettledDueInstallmentIDs lists due obligations that block new credit
+	// and Option A recovery (every installment with due_at <= now unsettled).
 	UnsettledDueInstallmentIDs []model.InstallmentID
 
 	// HasPaymentUncertainty is true when an unsettled due obligation has a
@@ -74,7 +89,10 @@ type Policy interface {
 	ID() string
 	Version() string
 	Evaluate([]ObligationFact, time.Time, bool) Evaluation
+	// Boundary is the overdue (grace-end) instant for an installment.
 	Boundary(model.Installment) time.Time
+	// DefaultBoundary is the default-entry instant for an installment.
+	DefaultBoundary(model.Installment) time.Time
 }
 
 // Registry selects current entry rules and preserves opening-policy recovery.
@@ -108,8 +126,35 @@ func (r *Registry) Resolve(id, version string) (Policy, error) {
 	return p, nil
 }
 
+// DefaultEligibleAt returns the first default-eligible instant: midnight on the
+// calendar day defaultAfterDays after OverdueEligibleAt, in the business location.
+func DefaultEligibleAt(
+	dueAt time.Time,
+	graceDays uint,
+	defaultAfterDays uint,
+	loc *time.Location,
+) time.Time {
+	if loc == nil {
+		loc = time.UTC
+	}
+
+	overdueAt := model.Installment{
+		DueAt:           dueAt,
+		GracePeriodDays: graceDays,
+	}.OverdueEligibleAt(loc)
+
+	overdueLocal := overdueAt.In(loc)
+	return time.Date(
+		overdueLocal.Year(),
+		overdueLocal.Month(),
+		overdueLocal.Day(),
+		0, 0, 0, 0,
+		loc,
+	).AddDate(0, 0, int(defaultAfterDays)).UTC()
+}
+
 // Evaluate applies shared debt/recovery predicates using the selected version
-// only for its contractual boundary. It is specific to Collections.
+// only for its contractual boundaries. It is specific to Collections.
 func Evaluate(p Policy, facts []ObligationFact, now time.Time, currentlyDefaulted bool) Evaluation {
 	now = now.UTC()
 	out := Evaluation{
@@ -118,6 +163,7 @@ func Evaluate(p Policy, facts []ObligationFact, now time.Time, currentlyDefaulte
 	}
 
 	triggers := make([]model.InstallmentID, 0)
+	overdueOnly := make([]model.InstallmentID, 0)
 	unsettledDue := make([]model.InstallmentID, 0)
 
 	for _, fact := range facts {
@@ -138,22 +184,33 @@ func Evaluate(p Policy, facts []ObligationFact, now time.Time, currentlyDefaulte
 		if fact.HasUnresolvedCancellation {
 			out.HasUnresolvedCancellation = true
 		}
+
 		dueAt := fact.DueAt.UTC()
-		overdueEligibleAt := p.Boundary(model.Installment{DueAt: dueAt, GracePeriodDays: fact.GracePeriodDays})
+		installment := model.Installment{DueAt: dueAt, GracePeriodDays: fact.GracePeriodDays}
+		overdueEligibleAt := p.Boundary(installment)
+		defaultEligibleAt := p.DefaultBoundary(installment)
 
 		if fact.HasUnresolvedAdjustment {
 			out.HasUnresolvedAdjustment = true
 		}
 
-		if !fact.HasUnresolvedAdjustment && !fact.IsFullySettled && !now.Before(overdueEligibleAt) {
-			triggers = append(triggers, fact.InstallmentID)
+		unsettled := !fact.IsFullySettled
+
+		if unsettled && !dueAt.After(now) {
+			unsettledDue = append(unsettledDue, fact.InstallmentID)
+			out.BlocksNewCredit = true
 			if fact.HasUnresolvedPayment || fact.HasUnresolvedCancellation || fact.HasUnresolvedAdjustment {
 				out.HasPaymentUncertainty = true
 			}
 		}
 
-		if !dueAt.After(now) && !fact.IsFullySettled {
-			unsettledDue = append(unsettledDue, fact.InstallmentID)
+		if unsettled && !fact.HasUnresolvedAdjustment && !now.Before(overdueEligibleAt) {
+			if !now.Before(defaultEligibleAt) {
+				triggers = append(triggers, fact.InstallmentID)
+			} else {
+				overdueOnly = append(overdueOnly, fact.InstallmentID)
+			}
+
 			if fact.HasUnresolvedPayment || fact.HasUnresolvedCancellation || fact.HasUnresolvedAdjustment {
 				out.HasPaymentUncertainty = true
 			}
@@ -163,12 +220,17 @@ func Evaluate(p Policy, facts []ObligationFact, now time.Time, currentlyDefaulte
 	sort.Slice(triggers, func(i, j int) bool {
 		return triggers[i].String() < triggers[j].String()
 	})
+	sort.Slice(overdueOnly, func(i, j int) bool {
+		return overdueOnly[i].String() < overdueOnly[j].String()
+	})
 	sort.Slice(unsettledDue, func(i, j int) bool {
 		return unsettledDue[i].String() < unsettledDue[j].String()
 	})
 
 	out.TriggerInstallmentIDs = triggers
+	out.OverdueInstallmentIDs = overdueOnly
 	out.UnsettledDueInstallmentIDs = unsettledDue
+	out.IsOverdueEligible = len(triggers) > 0 || len(overdueOnly) > 0
 	out.IsDefaultEligible = len(triggers) > 0
 
 	if currentlyDefaulted {

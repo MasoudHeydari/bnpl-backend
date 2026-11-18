@@ -100,7 +100,7 @@ var privileges = []TablePrivilegePolicy{
 		UpdateColumns: []string{},
 	},
 	{
-		Schema: "bnpl", Table: "merchant_credit_product_eligibilities", Migration: PrivilegeMigration,
+		Schema: "bnpl", Table: "merchant_credit_kind_eligibilities", Migration: PrivilegeMigration,
 		Description:   "Merchant product provisioning independent from FC entitlements.",
 		Operations:    []Operation{SelectOperation, InsertOperation},
 		UpdateColumns: []string{"enabled", "updated_at"},
@@ -108,7 +108,7 @@ var privileges = []TablePrivilegePolicy{
 }
 
 // PrivilegeMigrationSHA256 fingerprints the reviewed baseline privilege grants.
-const PrivilegeMigrationSHA256 = "sha256:ad09c12975839651be660966357b5edad66f78098d4f001eef7bcdf6125827ed"
+const PrivilegeMigrationSHA256 = "sha256:d4b5834035af6d41200493c57f9af1f6982b4114bf50fe99a3c32c10e023ebe1"
 
 const PermissionHistoryMigration = "000_schema.sql"
 const PermissionHistoryMigrationSHA256 = "sha256:b9cc06a580a24f2173980bd1655692cfe02160e40f3863d96b39a9820fd421df"

@@ -45,7 +45,7 @@ func (a *App) RegisterRoutes(e *gin.Engine) error {
 			RepaymentBatchProviderCode: a.Config.External.FinancialCore.CheckoutPaymentProviderCode,
 			RepaymentBatchReturnURL:    a.Config.External.FinancialCore.PaymentReturnURL,
 			Merchant: merchantrs.RegisterOptions{
-				CreditProduct: a.UseCases.MerchantCreditProduct,
+				CreditKind: a.UseCases.MerchantCreditKind,
 			},
 			Health: healthrs.RegisterOptions{
 				Enabled: a.Config.Usecases.Health.Enabled,

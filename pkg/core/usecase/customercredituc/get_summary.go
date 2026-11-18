@@ -150,7 +150,9 @@ func summaryFromAccount(account model.CreditAccount, newCreditBlocked bool) Outp
 
 	usage := CreditUsage{Status: "allowed"}
 	if newCreditBlocked {
-		usage = CreditUsage{Status: "restricted", Reason: "collections_default"}
+		// Reason is overwritten by the caller with the public restriction reason
+		// (collections_due, collections_default, credit_usage_restricted, …).
+		usage = CreditUsage{Status: "restricted"}
 	}
 
 	if status != SummaryStatusActive && !newCreditBlocked {

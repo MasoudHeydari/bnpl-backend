@@ -125,6 +125,10 @@ type DefaultEpisodeTrigger struct {
 	// GracePeriodDays is the contractual grace snapshot.
 	GracePeriodDays uint `db:"grace_period_days" json:"grace_period_days"`
 
-	// OverdueEligibleAt is the first default-eligible instant for the trigger.
+	// OverdueEligibleAt is the grace-end / overdue-eligible instant snapshot.
 	OverdueEligibleAt time.Time `db:"overdue_eligible_at" json:"overdue_eligible_at"`
+
+	// DefaultEligibleAt is the first default-entry instant for the trigger.
+	// For historical v1/v2 openings this equals OverdueEligibleAt.
+	DefaultEligibleAt time.Time `db:"default_eligible_at" json:"default_eligible_at"`
 }

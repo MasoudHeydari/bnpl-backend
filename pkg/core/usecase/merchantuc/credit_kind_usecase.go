@@ -8,11 +8,11 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
-// CreditProductUseCase administers which BNPL credit products a merchant may
+// CreditKindUseCase administers which BNPL credit kinds a merchant may
 // offer. It is an administration surface: callers must be authorized by the
 // transport layer (permission.MerchantsCreditProductsUpdateAny for writes and
 // permission.MerchantsReadAny for reads) before invoking it.
-type CreditProductUseCase struct {
+type CreditKindUseCase struct {
 	pool             repo.Pool
 	merchantProfile  repo.MerchantProfile
 	outbox           repo.Outbox
@@ -21,16 +21,16 @@ type CreditProductUseCase struct {
 	auditDestination string
 }
 
-// NewCreditProduct constructs the merchant credit product administration use case.
-func NewCreditProduct(
+// NewCreditKind constructs the merchant credit kind administration use case.
+func NewCreditKind(
 	pool repo.Pool,
 	merchantProfile repo.MerchantProfile,
 	outbox repo.Outbox,
 	clk clock.Clock,
 	idGenerator identifier.Generator,
 	auditDestination string,
-) (*CreditProductUseCase, error) {
-	const op = "merchantuc.NewCreditProduct"
+) (*CreditKindUseCase, error) {
+	const op = "merchantuc.NewCreditKind"
 
 	if pool == nil {
 		return nil, fmt.Errorf("%s: pool is required", op)
@@ -56,7 +56,7 @@ func NewCreditProduct(
 		return nil, fmt.Errorf("%s: audit destination is required", op)
 	}
 
-	return &CreditProductUseCase{
+	return &CreditKindUseCase{
 		pool:             pool,
 		merchantProfile:  merchantProfile,
 		outbox:           outbox,

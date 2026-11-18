@@ -16,9 +16,9 @@ const (
 
 	installmentCount = 1
 	decisionTTL      = 15 * time.Minute
-	// Monthly installments become overdue at Tehran midnight on the sixth.
-	// Their fifth-day deadline has no additional grace days.
-	gracePeriodDays        = uint(0)
+	// Monthly installments are due at the end of day 1 of the following Jalali
+	// month (Asia/Tehran) and receive four grace days before overdue.
+	gracePeriodDays        = uint(4)
 	maxFinancedAmountMinor = uint64(2_000_000_000)
 	reminderLeadDays       = uint(3)
 )
@@ -33,7 +33,7 @@ func (policyV3) Ref() policy.Ref { return policy.Ref{ID: policyID, Version: poli
 func (policyV3) Terms() checkout.Terms {
 	return checkout.Terms{
 		CreditKind:                    model.PayNextMonthCreditKind,
-		DueDateRule:                   checkout.DueNextJalaliMonthFifth,
+		DueDateRule:                   checkout.DueNextJalaliMonthFirst,
 		InstallmentCount:              installmentCount,
 		DecisionTTL:                   decisionTTL,
 		MaxFinancedAmountMinor:        maxFinancedAmountMinor,

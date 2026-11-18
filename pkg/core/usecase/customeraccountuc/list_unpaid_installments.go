@@ -92,12 +92,11 @@ func (uc *UseCase) ListUnpaidInstallments(
 				}
 				installments = make([]UnpaidInstallment, 0, len(rows))
 				for _, row := range rows {
-					item, mapErr := toUnpaidInstallment(row)
+					item, mapErr := toUnpaidInstallment(row, pageCharges[row.ID])
 					if mapErr != nil {
 						return mapErr
 					}
 
-					item.CustomerPayableAmountMinor = customerPayableView(row, pageCharges[row.ID])
 					installments = append(installments, item)
 				}
 
@@ -318,7 +317,10 @@ func uniqueInstallmentIDs(ids []model.InstallmentID) []model.InstallmentID {
 	return out
 }
 
-func toUnpaidInstallment(row model.Installment) (UnpaidInstallment, error) {
+func toUnpaidInstallment(
+	row model.Installment,
+	charges []model.InstallmentCharge,
+) (UnpaidInstallment, error) {
 	const op = "customeraccountuc.toUnpaidInstallment"
 
 	if row.ContractID == nil || row.ContractID.IsZero() {
@@ -333,17 +335,38 @@ func toUnpaidInstallment(row model.Installment) (UnpaidInstallment, error) {
 		))
 	}
 
+	var lateFees uint64
+	for _, charge := range charges {
+		if charge.ChargeType != model.LateFeeInstallmentChargeType {
+			continue
+		}
+
+		if charge.ChargeStatus == model.CanceledInstallmentChargeStatus {
+			continue
+		}
+
+		if charge.PayerType != model.CustomerInstallmentChargePayerType {
+			continue
+		}
+
+		lateFees += charge.AmountMinor
+	}
+
 	return UnpaidInstallment{
-		ID:                      row.ID,
-		ContractID:              *row.ContractID,
-		MerchantProfileID:       row.MerchantProfileID,
-		MerchantBranchProfileID: row.MerchantBranchProfileID,
-		InstallmentOrder:        row.InstallmentOrder,
-		TotalAmountMinor:        row.TotalAmountMinor,
-		Currency:                row.Currency,
-		DueAt:                   row.DueAt,
-		Status:                  row.Status,
-		PaidAt:                  row.PaidAt,
+		CustomerPayableAmountMinor: customerPayableView(row, charges),
+		ID:                         row.ID,
+		ContractID:                 *row.ContractID,
+		MerchantProfileID:          row.MerchantProfileID,
+		MerchantBranchProfileID:    row.MerchantBranchProfileID,
+		InstallmentOrder:           row.InstallmentOrder,
+		PrincipalAmountMinor:       row.PrincipalAmountMinor,
+		TotalAmountMinor:           row.TotalAmountMinor,
+		LateFeeAmountMinor:         lateFees,
+		Currency:                   row.Currency,
+		DueAt:                      row.DueAt,
+		GracePeriodDays:            row.GracePeriodDays,
+		Status:                     row.Status,
+		PaidAt:                     row.PaidAt,
 	}, nil
 }
 

@@ -44,6 +44,12 @@ func protectedRoutePermissions() []protectedRoutePermission {
 		},
 		{
 			Method:      http.MethodPost,
+			GinPath:     "/api/v1/partner/checkout-sessions/" + uuid.NewString() + "/credit-kind",
+			SwaggerPath: "/api/v1/partner/checkout-sessions/{checkout_session_id}/credit-kind",
+			Permission:  permission.CheckoutSessionsCreateMerchant,
+		},
+		{
+			Method:      http.MethodPost,
 			GinPath:     "/api/v1/partner/checkout-sessions/" + uuid.NewString() + "/cancel",
 			SwaggerPath: "/api/v1/partner/checkout-sessions/{checkout_session_id}/cancel",
 			Permission:  permission.CheckoutSessionsCreateMerchant,
@@ -159,14 +165,14 @@ func protectedRoutePermissions() []protectedRoutePermission {
 		},
 		{
 			Method:      http.MethodGet,
-			GinPath:     "/api/v1/admin/merchants/" + uuid.NewString() + "/credit-products",
-			SwaggerPath: "/api/v1/admin/merchants/{merchant_profile_id}/credit-products",
+			GinPath:     "/api/v1/admin/merchants/" + uuid.NewString() + "/credit-kinds",
+			SwaggerPath: "/api/v1/admin/merchants/{merchant_profile_id}/credit-kinds",
 			Permission:  permission.MerchantsReadAny,
 		},
 		{
 			Method:      http.MethodPut,
-			GinPath:     "/api/v1/admin/merchants/" + uuid.NewString() + "/credit-products/pay_next_month",
-			SwaggerPath: "/api/v1/admin/merchants/{merchant_profile_id}/credit-products/{credit_kind}",
+			GinPath:     "/api/v1/admin/merchants/" + uuid.NewString() + "/credit-kinds/pay_next_month",
+			SwaggerPath: "/api/v1/admin/merchants/{merchant_profile_id}/credit-kinds/{credit_kind}",
 			Permission:  permission.MerchantsCreditProductsUpdateAny,
 		},
 		{

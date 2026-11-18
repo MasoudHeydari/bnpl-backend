@@ -276,6 +276,7 @@ func newConfirmSagaHarness(t *testing.T, opts confirmSagaHarnessOptions) *confir
 		repos.MerchantProfile,
 		repos.MerchantBranchProfile,
 		repos.CustomerProfile,
+		repos.CreditAccount,
 		repos.Contract,
 		repos.PaymentAttempt,
 		repos.Installment,

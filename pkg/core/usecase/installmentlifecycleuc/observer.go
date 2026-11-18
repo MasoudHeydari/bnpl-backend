@@ -10,6 +10,9 @@ const (
 	// SweepMarkOverdue is the due-to-overdue transition sweep.
 	SweepMarkOverdue = "mark_overdue"
 
+	// SweepAssessLateFees is the overdue late-fee assessment sweep.
+	SweepAssessLateFees = "assess_late_fees"
+
 	// SweepExpireOffered is the unattached offered installment expiry sweep.
 	SweepExpireOffered = "expire_offered"
 )

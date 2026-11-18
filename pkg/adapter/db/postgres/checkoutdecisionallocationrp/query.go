@@ -25,6 +25,8 @@ const checkoutDecisionAllocationColumns = `
 	available_credit_minor,
 	currency,
 	installment_count,
+	business_rule_id,
+	business_rule_version,
 	expires_at,
 	created_at
 `
@@ -47,6 +49,8 @@ func Create[Q postgres.Queryer](
 	availableCreditMinor uint64,
 	currency model.Currency,
 	installmentCount int,
+	businessRuleID string,
+	businessRuleVersion string,
 	expiresAt time.Time,
 	createdAt time.Time,
 ) (model.CheckoutDecisionAllocation, error) {
@@ -73,10 +77,12 @@ INSERT INTO checkout_decision_allocations (
 	available_credit_minor,
 	currency,
 	installment_count,
+	business_rule_id,
+	business_rule_version,
 	expires_at,
 	created_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 RETURNING` + checkoutDecisionAllocationColumns
 
 	return postgres.QueryOne[model.CheckoutDecisionAllocation](
@@ -98,6 +104,8 @@ RETURNING` + checkoutDecisionAllocationColumns
 		availableCreditMinor,
 		currency,
 		installmentCount,
+		businessRuleID,
+		businessRuleVersion,
 		expiresAt,
 		createdAt,
 	)

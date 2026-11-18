@@ -9,34 +9,33 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
-// creditProductKinds is the stable response order of administered products.
-var creditProductKinds = []model.CreditKind{
+// creditKindAdminKinds is the stable response order of administered products.
+var creditKindAdminKinds = []model.CreditKind{
 	model.PayIn4CreditKind,
 	model.PayNextMonthCreditKind,
 }
 
-// ListCreditProducts returns the effective eligibility of every credit product
-// for a merchant, applying the same defaults checkout uses (pay_in_4 enabled
-// when absent, pay_next_month disabled unless explicitly enabled).
+// ListCreditKinds returns the effective eligibility of every credit kind for a
+// merchant. Both kinds are disabled until explicitly enabled.
 //
 // The transport layer must have required permission.MerchantsReadAny. The
-// result always contains one entry per product, so an unconfigured merchant is
-// a successful response rather than not-found.
-func (uc *CreditProductUseCase) ListCreditProducts(
+// result always contains one entry per kind, so an unconfigured merchant is a
+// successful response rather than not-found.
+func (uc *CreditKindUseCase) ListCreditKinds(
 	ctx context.Context,
-	input ListCreditProductsInput,
-) (ListCreditProductsOutput, error) {
-	const op = "merchantuc.CreditProductUseCase.ListCreditProducts"
+	input ListCreditKindsInput,
+) (ListCreditKindsOutput, error) {
+	const op = "merchantuc.CreditKindUseCase.ListCreditKinds"
 
 	if input.MerchantProfileID.IsZero() {
-		return ListCreditProductsOutput{}, cerr.InvalidArgument(
+		return ListCreditKindsOutput{}, cerr.InvalidArgument(
 			fmt.Errorf("%s: merchant profile id is required", op),
 		)
 	}
 
-	output := ListCreditProductsOutput{
+	output := ListCreditKindsOutput{
 		MerchantProfileID: input.MerchantProfileID,
-		Products:          make([]CreditProductEligibility, 0, len(creditProductKinds)),
+		CreditKinds:       make([]CreditKindEligibility, 0, len(creditKindAdminKinds)),
 	}
 
 	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
@@ -51,13 +50,13 @@ func (uc *CreditProductUseCase) ListCreditProducts(
 			return fmt.Errorf("%s: get merchant profile: %w", op, err)
 		}
 
-		for _, kind := range creditProductKinds {
+		for _, kind := range creditKindAdminKinds {
 			enabled, err := merchantProfileQ.IsCreditKindEnabled(ctx, profile.ID, kind)
 			if err != nil {
 				return fmt.Errorf("%s: read eligibility for %s: %w", op, kind, err)
 			}
 
-			output.Products = append(output.Products, CreditProductEligibility{
+			output.CreditKinds = append(output.CreditKinds, CreditKindEligibility{
 				CreditKind: kind,
 				Enabled:    enabled,
 			})
@@ -66,7 +65,7 @@ func (uc *CreditProductUseCase) ListCreditProducts(
 		return nil
 	})
 	if err != nil {
-		return ListCreditProductsOutput{}, err
+		return ListCreditKindsOutput{}, err
 	}
 
 	return output, nil

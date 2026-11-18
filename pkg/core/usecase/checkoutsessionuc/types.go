@@ -69,8 +69,9 @@ type CheckoutSessionRequest struct {
 	// Currency is the currency of RequestedAmountMinor.
 	Currency model.Currency
 
-	// CreditKind selects exactly one credit product per checkout. Empty retains
-	// the legacy installment product for existing merchants.
+	// CreditKind is unused on Partner Create (selection is Partner
+	// SelectCreditKind). Kept on the shared request struct for internal
+	// callers; empty leaves checkout_sessions.credit_kind unset.
 	CreditKind model.CreditKind
 }
 
@@ -115,8 +116,12 @@ type CreatePartnerOutput struct {
 	// CheckoutURL is the hosted BNPL page the merchant redirects the browser to.
 	CheckoutURL string
 
-	// Offer is set when preparation ran at Create (on_create). Nil for on_start.
+	// Offer is set only when a prior selection already prepared a Decision
+	// (idempotent replay). Partner Create itself does not prepare offers.
 	Offer *Offer
+
+	// CreditKinds is the merchant-safe dual-kind eligibility preview.
+	CreditKinds []CreditKindPreview
 }
 
 // StartInput carries an authenticated customer's request to evaluate a checkout.
@@ -408,7 +413,7 @@ func (r CheckoutSessionRequest) validate() error {
 		return currencyInvalidError()
 	}
 
-	if !model.EffectiveCreditKind(r.CreditKind).IsValid() {
+	if r.CreditKind != "" && !r.CreditKind.IsValid() {
 		return validationError("INVALID", "credit_kind", "error.credit_kind_invalid")
 	}
 
@@ -560,10 +565,6 @@ type StartExternalInput struct {
 	// Token is the public checkout session token from the hosted URL.
 	Token model.CheckoutSessionToken
 
-	// CreditKind is selected by the hosted customer, not by the merchant.
-	// Omission preserves the previously selected product on retries.
-	CreditKind model.CreditKind
-
 	// EvaluationGeneration is the offer version presented by GET, or zero when
 	// the client has not yet seen a prepared offer (deferred preparation).
 	EvaluationGeneration int
@@ -572,10 +573,6 @@ type StartExternalInput struct {
 func (i StartExternalInput) validate() error {
 	if err := validateCheckoutSessionToken(i.Token); err != nil {
 		return err
-	}
-
-	if i.CreditKind != "" && !i.CreditKind.IsValid() {
-		return validationError("INVALID", "credit_kind", "error.credit_kind_invalid")
 	}
 
 	if i.EvaluationGeneration < 0 {

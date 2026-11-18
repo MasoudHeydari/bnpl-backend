@@ -36,6 +36,7 @@ func TestRegistry_Resolve_KnownHandlers(t *testing.T) {
 		"saga_executor",
 		"installment_mark_due",
 		"installment_mark_overdue",
+		"installment_assess_late_fees",
 		"payment_attempt_reconciliation",
 		"merchant_terminal_issuance_scrub",
 	}

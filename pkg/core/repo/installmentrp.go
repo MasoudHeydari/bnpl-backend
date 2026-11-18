@@ -240,6 +240,14 @@ type InstallmentTxQueryer interface {
 		limit int,
 	) ([]model.Installment, error)
 
+	// ClaimOverdueForLateFee locks overdue unsettled installments that are not
+	// frozen by an active non-terminal payment attempt or repayment-batch claim.
+	ClaimOverdueForLateFee(
+		ctx context.Context,
+		now time.Time,
+		limit int,
+	) ([]model.Installment, error)
+
 	// MarkOverdue transitions a due installment to overdue.
 	MarkOverdue(
 		ctx context.Context,

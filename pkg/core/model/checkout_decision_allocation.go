@@ -50,6 +50,12 @@ type CheckoutDecisionAllocation struct {
 	// InstallmentCount is the number of installments in the approved schedule.
 	InstallmentCount int `db:"installment_count" json:"installment_count"`
 
+	// BusinessRuleID identifies the Checkout Business Rule that governed this decision.
+	BusinessRuleID string `db:"business_rule_id" json:"business_rule_id"`
+
+	// BusinessRuleVersion identifies the exact Checkout Business Rule version.
+	BusinessRuleVersion string `db:"business_rule_version" json:"business_rule_version"`
+
 	// ExpiresAt is when this allocation decision expires.
 	ExpiresAt time.Time `db:"expires_at" json:"expires_at"`
 

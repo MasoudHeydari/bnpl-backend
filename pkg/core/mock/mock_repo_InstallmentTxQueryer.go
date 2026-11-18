@@ -193,6 +193,80 @@ func (_c *InstallmentTxQueryer_ClaimDueOverdueEligible_Call) RunAndReturn(run fu
 	return _c
 }
 
+// ClaimOverdueForLateFee provides a mock function for the type InstallmentTxQueryer
+func (_mock *InstallmentTxQueryer) ClaimOverdueForLateFee(ctx context.Context, now time.Time, limit int) ([]model.Installment, error) {
+	ret := _mock.Called(ctx, now, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ClaimOverdueForLateFee")
+	}
+
+	var r0 []model.Installment
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, time.Time, int) ([]model.Installment, error)); ok {
+		return returnFunc(ctx, now, limit)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, time.Time, int) []model.Installment); ok {
+		r0 = returnFunc(ctx, now, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]model.Installment)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, time.Time, int) error); ok {
+		r1 = returnFunc(ctx, now, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// InstallmentTxQueryer_ClaimOverdueForLateFee_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClaimOverdueForLateFee'
+type InstallmentTxQueryer_ClaimOverdueForLateFee_Call struct {
+	*mock.Call
+}
+
+// ClaimOverdueForLateFee is a helper method to define mock.On call
+//   - ctx context.Context
+//   - now time.Time
+//   - limit int
+func (_e *InstallmentTxQueryer_Expecter) ClaimOverdueForLateFee(ctx any, now any, limit any) *InstallmentTxQueryer_ClaimOverdueForLateFee_Call {
+	return &InstallmentTxQueryer_ClaimOverdueForLateFee_Call{Call: _e.mock.On("ClaimOverdueForLateFee", ctx, now, limit)}
+}
+
+func (_c *InstallmentTxQueryer_ClaimOverdueForLateFee_Call) Run(run func(ctx context.Context, now time.Time, limit int)) *InstallmentTxQueryer_ClaimOverdueForLateFee_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 time.Time
+		if args[1] != nil {
+			arg1 = args[1].(time.Time)
+		}
+		var arg2 int
+		if args[2] != nil {
+			arg2 = args[2].(int)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *InstallmentTxQueryer_ClaimOverdueForLateFee_Call) Return(installments []model.Installment, err error) *InstallmentTxQueryer_ClaimOverdueForLateFee_Call {
+	_c.Call.Return(installments, err)
+	return _c
+}
+
+func (_c *InstallmentTxQueryer_ClaimOverdueForLateFee_Call) RunAndReturn(run func(ctx context.Context, now time.Time, limit int) ([]model.Installment, error)) *InstallmentTxQueryer_ClaimOverdueForLateFee_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ClaimScheduledDue provides a mock function for the type InstallmentTxQueryer
 func (_mock *InstallmentTxQueryer) ClaimScheduledDue(ctx context.Context, now time.Time, limit int) ([]model.Installment, error) {
 	ret := _mock.Called(ctx, now, limit)

@@ -10,6 +10,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/policy"
 	"github.com/parstis/bnpl-backend/pkg/core/policy/checkout"
+	"github.com/parstis/bnpl-backend/pkg/core/policy/checkout/businessrule"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
@@ -681,6 +682,7 @@ func (uc *UseCase) persistCheckoutDecision(
 	output *CreateOutput,
 ) error {
 	expiresAt := now.Add(selectedPolicy.Terms().DecisionTTL)
+	businessRule := businessrule.Active()
 
 	decision, err := decisionQ.Create(
 		ctx,
@@ -722,6 +724,8 @@ func (uc *UseCase) persistCheckoutDecision(
 		availableCreditMinor,
 		input.Currency,
 		installmentCount,
+		businessRule.ID(),
+		businessRule.Version(),
 		expiresAt,
 		now,
 	)
@@ -765,6 +769,7 @@ func (uc *UseCase) persistCheckoutDecisionWithAllocation(
 	output *CreateOutput,
 ) error {
 	expiresAt := now.Add(selectedPolicy.Terms().DecisionTTL)
+	businessRule := businessrule.Active()
 
 	decision, err := decisionQ.Create(
 		ctx,
@@ -808,6 +813,8 @@ func (uc *UseCase) persistCheckoutDecisionWithAllocation(
 		evaluation.AvailableCreditMinor,
 		input.Currency,
 		installmentCount,
+		businessRule.ID(),
+		businessRule.Version(),
 		expiresAt,
 		now,
 	)

@@ -82,7 +82,7 @@ type Terms struct {
 	CreditKind model.CreditKind
 
 	// DueDateRule overrides recurrence when a single-due monthly product
-	// is payable on the fifth of the following Jalali month.
+	// is payable on the first of the following Jalali month.
 	DueDateRule DueDateRule
 
 	// InstallmentCount is the fixed number of installments this version

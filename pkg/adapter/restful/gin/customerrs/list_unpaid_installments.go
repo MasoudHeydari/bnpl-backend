@@ -118,9 +118,12 @@ type unpaidInstallmentResponse struct {
 	MerchantProfileID       model.MerchantProfileID        `json:"merchant_profile_id" example:"8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c" format:"uuid"`
 	MerchantBranchProfileID *model.MerchantBranchProfileID `json:"merchant_branch_profile_id,omitempty" format:"uuid"`
 	InstallmentOrder        int                            `json:"installment_order" example:"2"`
+	PrincipalAmountMinor    uint64                         `json:"principal_amount_minor" example:"25000000"`
 	TotalAmountMinor        uint64                         `json:"total_amount_minor" example:"25000000"`
+	LateFeeAmountMinor      uint64                         `json:"late_fee_amount_minor" example:"0"`
 	Currency                model.Currency                 `json:"currency" example:"IRR"`
 	DueAt                   time.Time                      `json:"due_at" example:"2026-09-09T12:00:00Z"`
+	GracePeriodDays         uint                           `json:"grace_period_days" example:"4"`
 	Status                  model.InstallmentStatus        `json:"status" example:"due" enums:"scheduled,due,overdue"`
 	PaidAt                  *time.Time                     `json:"paid_at,omitempty"`
 }
@@ -177,9 +180,12 @@ func toUnpaidInstallmentsListData(
 			MerchantProfileID:          item.MerchantProfileID,
 			MerchantBranchProfileID:    item.MerchantBranchProfileID,
 			InstallmentOrder:           item.InstallmentOrder,
+			PrincipalAmountMinor:       item.PrincipalAmountMinor,
 			TotalAmountMinor:           item.TotalAmountMinor,
+			LateFeeAmountMinor:         item.LateFeeAmountMinor,
 			Currency:                   item.Currency,
 			DueAt:                      item.DueAt,
+			GracePeriodDays:            item.GracePeriodDays,
 			Status:                     item.Status,
 			PaidAt:                     item.PaidAt,
 		})

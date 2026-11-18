@@ -294,14 +294,6 @@ definitions:
     type: object
   checkoutsessionrs.HostedExternalStartRequestSchema:
     properties:
-      credit_kind:
-        allOf:
-        - $ref: '#/definitions/model.CreditKind'
-        description: Customer-selected product. An omitted field replays the current
-          choice.
-        enum:
-        - pay_in_4
-        - pay_next_month
       evaluation_generation:
         description: EvaluationGeneration is the offer version returned by GET, when
           known.
@@ -395,14 +387,20 @@ definitions:
         type: string
       checkout_url:
         type: string
+      credit_kinds:
+        description: CreditKinds is the dual-kind eligibility preview for the merchant
+          UI.
+        items:
+          $ref: '#/definitions/checkoutsessionrs.creditKindPreviewSchema'
+        type: array
       expires_at:
         type: string
       offer:
         allOf:
         - $ref: '#/definitions/checkoutsessionrs.OfferSchema'
         description: |-
-          Offer is present only when the session's snapshotted branch
-          offer_preparation_mode is on_create. Omitted for on_start.
+          Offer is present only after Partner SelectCreditKind when preparation
+          mode is on_create (Create itself does not prepare offers).
       status:
         allOf:
         - $ref: '#/definitions/model.CheckoutSessionStatus'
@@ -435,6 +433,51 @@ definitions:
     properties:
       data:
         $ref: '#/definitions/checkoutsessionrs.ReturnDestinationResponseSchema'
+      meta:
+        $ref: '#/definitions/serdser.SuccessMetaNoPagination'
+    type: object
+  checkoutsessionrs.SelectCreditKindRequestSchema:
+    properties:
+      credit_kind:
+        allOf:
+        - $ref: '#/definitions/model.CreditKind'
+        enum:
+        - pay_in_4
+        - pay_next_month
+    required:
+    - credit_kind
+    type: object
+  checkoutsessionrs.SelectCreditKindResponseSchema:
+    properties:
+      checkout_session_id:
+        example: cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+        type: string
+      credit_kind:
+        allOf:
+        - $ref: '#/definitions/model.CreditKind'
+        enum:
+        - pay_in_4
+        - pay_next_month
+      expires_at:
+        type: string
+      offer:
+        $ref: '#/definitions/checkoutsessionrs.OfferSchema'
+      status:
+        allOf:
+        - $ref: '#/definitions/model.CheckoutSessionStatus'
+        enum:
+        - open
+        - confirming
+        - processing
+        - completed
+        - canceled
+        - expired
+        - unavailable
+    type: object
+  checkoutsessionrs.SelectCreditKindSuccessSchema:
+    properties:
+      data:
+        $ref: '#/definitions/checkoutsessionrs.SelectCreditKindResponseSchema'
       meta:
         $ref: '#/definitions/serdser.SuccessMetaNoPagination'
     type: object
@@ -528,6 +571,29 @@ definitions:
         allOf:
         - $ref: '#/definitions/model.ContractStatus'
         example: payment_pending
+    type: object
+  checkoutsessionrs.creditKindPreviewReasonSchema:
+    properties:
+      code:
+        example: CREDIT_KIND_DISABLED
+        type: string
+      message:
+        example: error.credit_kind_not_enabled
+        type: string
+    type: object
+  checkoutsessionrs.creditKindPreviewSchema:
+    properties:
+      available:
+        example: true
+        type: boolean
+      kind:
+        allOf:
+        - $ref: '#/definitions/model.CreditKind'
+        enum:
+        - pay_in_4
+        - pay_next_month
+      reason:
+        $ref: '#/definitions/checkoutsessionrs.creditKindPreviewReasonSchema'
     type: object
   checkoutsessionrs.hostedExternalMerchantResponse:
     properties:
@@ -1113,12 +1179,18 @@ definitions:
       due_at:
         example: "2026-09-09T12:00:00Z"
         type: string
+      grace_period_days:
+        example: 4
+        type: integer
       id:
         example: 0a1b2c3d-4e5f-6789-abcd-ef0123456789
         format: uuid
         type: string
       installment_order:
         example: 2
+        type: integer
+      late_fee_amount_minor:
+        example: 0
         type: integer
       merchant_branch_profile_id:
         format: uuid
@@ -1129,6 +1201,9 @@ definitions:
         type: string
       paid_at:
         type: string
+      principal_amount_minor:
+        example: 25000000
+        type: integer
       status:
         allOf:
         - $ref: '#/definitions/model.InstallmentStatus'
@@ -1495,21 +1570,21 @@ definitions:
       meta:
         $ref: '#/definitions/serdser.SuccessMetaNoPagination'
     type: object
-  merchantrs.ListCreditProductsSchema:
+  merchantrs.ListCreditKindsSchema:
     properties:
+      credit_kinds:
+        items:
+          $ref: '#/definitions/merchantrs.creditKindResponse'
+        type: array
       merchant_profile_id:
         example: 8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c
         format: uuid
         type: string
-      products:
-        items:
-          $ref: '#/definitions/merchantrs.creditProductResponse'
-        type: array
     type: object
-  merchantrs.ListCreditProductsSuccessSchema:
+  merchantrs.ListCreditKindsSuccessSchema:
     properties:
       data:
-        $ref: '#/definitions/merchantrs.ListCreditProductsSchema'
+        $ref: '#/definitions/merchantrs.ListCreditKindsSchema'
       meta:
         $ref: '#/definitions/serdser.SuccessMetaNoPagination'
     type: object
@@ -1622,13 +1697,13 @@ definitions:
       meta:
         $ref: '#/definitions/serdser.SuccessMeta'
     type: object
-  merchantrs.SetCreditProductRequestSchema:
+  merchantrs.SetCreditKindRequestSchema:
     properties:
       enabled:
         example: true
         type: boolean
     type: object
-  merchantrs.SetCreditProductSchema:
+  merchantrs.SetCreditKindSchema:
     properties:
       changed:
         example: true
@@ -1648,14 +1723,14 @@ definitions:
         format: uuid
         type: string
     type: object
-  merchantrs.SetCreditProductSuccessSchema:
+  merchantrs.SetCreditKindSuccessSchema:
     properties:
       data:
-        $ref: '#/definitions/merchantrs.SetCreditProductSchema'
+        $ref: '#/definitions/merchantrs.SetCreditKindSchema'
       meta:
         $ref: '#/definitions/serdser.SuccessMetaNoPagination'
     type: object
-  merchantrs.creditProductResponse:
+  merchantrs.creditKindResponse:
     properties:
       credit_kind:
         allOf:
@@ -2316,7 +2391,7 @@ info:
   title: BNPL Backend API
   version: "1.0"
 paths:
-  /api/v1/admin/merchants/{merchant_profile_id}/credit-products:
+  /api/v1/admin/merchants/{merchant_profile_id}/credit-kinds:
     get:
       description: |-
         Returns the effective eligibility of pay_in_4 and pay_next_month for a merchant.
@@ -2369,7 +2444,7 @@ paths:
       - application/json
       responses:
         "200":
-          description: Credit product eligibility returned
+          description: Credit kind eligibility returned
           headers:
             X-Correlation-Id:
               description: 'Always set: reuse inbound value or generate'
@@ -2381,7 +2456,7 @@ paths:
               description: 'Always set: reuse inbound value or generate'
               type: string
           schema:
-            $ref: '#/definitions/merchantrs.ListCreditProductsSuccessSchema'
+            $ref: '#/definitions/merchantrs.ListCreditKindsSuccessSchema'
         "400":
           description: Bad Request
           headers:
@@ -2468,10 +2543,10 @@ paths:
             $ref: '#/definitions/serdser.ErrorResponse'
       security:
       - PermissionAuth: []
-      summary: List merchant credit product eligibility (admin)
+      summary: List merchant credit kind eligibility (admin)
       tags:
       - Merchant Credit Products Admin
-  /api/v1/admin/merchants/{merchant_profile_id}/credit-products/{credit_kind}:
+  /api/v1/admin/merchants/{merchant_profile_id}/credit-kinds/{credit_kind}:
     put:
       consumes:
       - application/json
@@ -2479,7 +2554,7 @@ paths:
         Sets whether a merchant may offer pay_in_4 or pay_next_month. pay_next_month stays disabled until explicitly enabled here.
         Idempotent: repeating the same desired state returns 200 with changed=false and records no audit event.
         Only ACTIVE merchants can be changed (409 otherwise). Existing contracts are not affected.
-        Requires bnpl:merchants:credit-products:update:any. A real change writes audit action merchant_credit_product.set_enabled.
+        Requires bnpl:merchants:credit-kinds:update:any. A real change writes audit action merchant_credit_kind.set_enabled.
       parameters:
       - description: Internal merchant profile UUID
         format: uuid
@@ -2487,7 +2562,7 @@ paths:
         name: merchant_profile_id
         required: true
         type: string
-      - description: Credit product
+      - description: Credit kind
         enum:
         - pay_in_4
         - pay_next_month
@@ -2514,7 +2589,7 @@ paths:
         required: true
         type: string
       - description: Comma-separated gateway permissions
-        example: bnpl:merchants:credit-products:update:any
+        example: bnpl:merchants:credit-kinds:update:any
         in: header
         name: x-auth-permissions
         required: true
@@ -2536,7 +2611,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/merchantrs.SetCreditProductRequestSchema'
+          $ref: '#/definitions/merchantrs.SetCreditKindRequestSchema'
       produces:
       - application/json
       responses:
@@ -2554,7 +2629,7 @@ paths:
               description: 'Always set: reuse inbound value or generate'
               type: string
           schema:
-            $ref: '#/definitions/merchantrs.SetCreditProductSuccessSchema'
+            $ref: '#/definitions/merchantrs.SetCreditKindSuccessSchema'
         "400":
           description: Bad Request
           headers:
@@ -2655,7 +2730,7 @@ paths:
             $ref: '#/definitions/serdser.ErrorResponse'
       security:
       - PermissionAuth: []
-      summary: Enable or disable a merchant credit product (admin)
+      summary: Enable or disable a merchant credit kind (admin)
       tags:
       - Merchant Credit Products Admin
   /api/v1/checkout-decisions:
@@ -6051,7 +6126,7 @@ paths:
       - application/json
       description: |-
         Creates an idempotent merchant checkout handoff authenticated by terminal credentials (X-Terminal-Id, X-API-Key). Requires customer_phone. JWT and gateway Subject/Tenant/Context headers are not required.
-        Offer preparation timing follows the trusted merchant_branch_profiles.offer_preparation_mode for the selected external_online_store_id (on_create returns the Offer; on_start returns handoff metadata only). The mode is snapshotted onto the CheckoutSession. Every customer must complete BNPL SMS OTP on the unified token Confirm path.
+        Returns a dual credit_kinds eligibility preview. The merchant website selects a kind via POST .../credit-kind before Hosted START. Create itself does not prepare financing offers.
       parameters:
       - description: Public numeric terminal identifier of the partner
         in: header
@@ -6468,6 +6543,154 @@ paths:
       - TerminalAPIKey: []
         TerminalID: []
       summary: Cancel partner checkout session
+      tags:
+      - Checkout Sessions
+  /api/v1/partner/checkout-sessions/{checkout_session_id}/credit-kind:
+    post:
+      consumes:
+      - application/json
+      description: Records the merchant-site credit-kind selection for an open Partner
+        checkout. Idempotent for the same kind. Hosted START cannot override this
+        selection.
+      parameters:
+      - description: Public numeric terminal identifier of the partner
+        in: header
+        name: X-Terminal-Id
+        required: true
+        type: string
+      - description: Secret API key of the partner terminal
+        in: header
+        name: X-API-Key
+        required: true
+        type: string
+      - description: Optional; reused when present otherwise generated. Always returned.
+        in: header
+        name: X-Trace-Id
+        type: string
+      - description: Optional; reused when present otherwise generated. Always returned.
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Optional; reused when present otherwise generated. Always returned.
+        in: header
+        name: X-Correlation-Id
+        type: string
+      - description: Public checkout session token (cs_<64 hex>)
+        in: path
+        name: checkout_session_id
+        required: true
+        type: string
+      - description: Selected credit kind
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/checkoutsessionrs.SelectCreditKindRequestSchema'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Credit kind selected
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/checkoutsessionrs.SelectCreditKindSuccessSchema'
+        "400":
+          description: Bad Request
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "401":
+          description: Unauthorized
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "403":
+          description: Forbidden
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "404":
+          description: Not Found
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "409":
+          description: Conflict
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+      security:
+      - TerminalAPIKey: []
+        TerminalID: []
+      summary: Select partner checkout credit kind
       tags:
       - Checkout Sessions
   /api/v1/partner/return-destinations/{destination_name}:

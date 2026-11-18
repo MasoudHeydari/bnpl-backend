@@ -139,12 +139,18 @@ type UnpaidInstallment struct {
 	MerchantBranchProfileID *model.MerchantBranchProfileID
 	// InstallmentOrder is the 1-based order of the installment in the schedule.
 	InstallmentOrder int
+	// PrincipalAmountMinor is the installment principal in minor units.
+	PrincipalAmountMinor uint64
 	// TotalAmountMinor is the total amount in minor currency units.
 	TotalAmountMinor uint64
+	// LateFeeAmountMinor is the sum of non-canceled customer late_fee charges.
+	LateFeeAmountMinor uint64
 	// Currency is the ISO currency for monetary amounts.
 	Currency model.Currency
 	// DueAt is when the installment becomes due.
 	DueAt time.Time
+	// GracePeriodDays is the contractual grace snapshot.
+	GracePeriodDays uint
 	// Status is the current lifecycle status.
 	Status model.InstallmentStatus
 	// PaidAt is when payment occurred, if applicable.

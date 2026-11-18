@@ -28,7 +28,8 @@ const triggerColumns = `
 	installment_id,
 	due_at,
 	grace_period_days,
-	overdue_eligible_at
+	overdue_eligible_at,
+	default_eligible_at
 `
 
 // GetActiveByCustomerID returns the active default episode for a customer.
@@ -189,9 +190,10 @@ INSERT INTO default_episode_triggers (
 	installment_id,
 	due_at,
 	grace_period_days,
-	overdue_eligible_at
+	overdue_eligible_at,
+	default_eligible_at
 ) VALUES (
-	$1, $2, $3, $4, $5
+	$1, $2, $3, $4, $5, $6
 )
 `
 
@@ -208,6 +210,7 @@ INSERT INTO default_episode_triggers (
 			trigger.DueAt.UTC(),
 			int(trigger.GracePeriodDays),
 			trigger.OverdueEligibleAt.UTC(),
+			trigger.DefaultEligibleAt.UTC(),
 		)
 		if execErr != nil {
 			return model.DefaultEpisode{}, cerr.InternalError(fmt.Errorf(

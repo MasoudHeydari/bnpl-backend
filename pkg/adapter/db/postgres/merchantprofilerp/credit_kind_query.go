@@ -10,9 +10,9 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 )
 
-// IsCreditKindEnabled defaults legacy installment credit to enabled when no
-// explicit policy row exists, but NEVER defaults monthly credit to enabled.
-// Explicit disabled rows override either default.
+// IsCreditKindEnabled is fail-closed: both pay_in_4 and pay_next_month are
+// disabled until an administrator writes an explicit enabled row. Explicit
+// disabled rows remain disabled.
 func IsCreditKindEnabled[Q postgres.Queryer](
 	ctx context.Context, q Q, id model.MerchantProfileID, kind model.CreditKind,
 ) (bool, error) {
@@ -25,13 +25,13 @@ func IsCreditKindEnabled[Q postgres.Queryer](
 	}
 	const query = `
 SELECT COALESCE(
-  (SELECT enabled FROM merchant_credit_product_eligibilities
+  (SELECT enabled FROM merchant_credit_kind_eligibilities
    WHERE merchant_profile_id=$1 AND credit_kind=$2),
-  $3::boolean
+  false
 ) AS enabled`
 	value, err := postgres.QueryOne[result](
-		ctx, q, "check merchant credit product", query,
-		id, kind, kind == model.PayIn4CreditKind,
+		ctx, q, "check merchant credit kind", query,
+		id, kind,
 	)
 	if err != nil {
 		return false, err
@@ -47,11 +47,11 @@ func SetCreditKindEnabled[Q postgres.Queryer](
 	kind model.CreditKind, enabled bool, at time.Time,
 ) error {
 	if id.IsZero() || !kind.IsValid() || at.IsZero() {
-		return cerr.InvalidArgument(fmt.Errorf("invalid merchant product permission"))
+		return cerr.InvalidArgument(fmt.Errorf("invalid merchant credit kind permission"))
 	}
 
 	const query = `
-INSERT INTO merchant_credit_product_eligibilities(
+INSERT INTO merchant_credit_kind_eligibilities(
  merchant_profile_id,credit_kind,enabled,updated_at
 ) VALUES($1,$2,$3,$4)
 ON CONFLICT(merchant_profile_id,credit_kind)
@@ -59,7 +59,7 @@ DO UPDATE SET enabled=EXCLUDED.enabled,updated_at=EXCLUDED.updated_at
 `
 	_, err := q.Exec(ctx, query, id, kind, enabled, at)
 	if err != nil {
-		return fmt.Errorf("set merchant credit product permission: %w", postgres.MapError(err))
+		return fmt.Errorf("set merchant credit kind permission: %w", postgres.MapError(err))
 	}
 
 	return nil

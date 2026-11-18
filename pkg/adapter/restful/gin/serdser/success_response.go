@@ -58,12 +58,12 @@ const (
 	// SuccessCodeMerchantProfileRetrieved indicates that the merchant profile was returned.
 	SuccessCodeMerchantProfileRetrieved SuccessCode = "MERCHANT_PROFILE_RETRIEVED"
 
-	// SuccessCodeMerchantCreditProductsListed indicates that a merchant's credit product eligibility was listed.
-	SuccessCodeMerchantCreditProductsListed SuccessCode = "MERCHANT_CREDIT_PRODUCTS_LISTED"
+	// SuccessCodeMerchantCreditKindsListed indicates that a merchant's credit kind eligibility was listed.
+	SuccessCodeMerchantCreditKindsListed SuccessCode = "MERCHANT_CREDIT_KINDS_LISTED"
 
-	// SuccessCodeMerchantCreditProductUpdated indicates that a merchant credit product was enabled or disabled
+	// SuccessCodeMerchantCreditKindUpdated indicates that a merchant credit kind was enabled or disabled
 	// (or already had the requested state).
-	SuccessCodeMerchantCreditProductUpdated SuccessCode = "MERCHANT_CREDIT_PRODUCT_UPDATED"
+	SuccessCodeMerchantCreditKindUpdated SuccessCode = "MERCHANT_CREDIT_KIND_UPDATED"
 
 	// SuccessCodeInstallmentPaymentsListed indicates that installment payment history was listed.
 	SuccessCodeInstallmentPaymentsListed SuccessCode = "INSTALLMENT_PAYMENTS_LISTED"
@@ -114,6 +114,10 @@ const (
 	// SuccessCodeCheckoutOTPRequested indicates a hosted OTP was issued or an
 	// active challenge was returned idempotently.
 	SuccessCodeCheckoutOTPRequested SuccessCode = "CHECKOUT_OTP_REQUESTED"
+
+	// SuccessCodeCheckoutCreditKindSelected indicates Partner SelectCreditKind
+	// recorded the merchant-chosen financing kind.
+	SuccessCodeCheckoutCreditKindSelected SuccessCode = "CHECKOUT_CREDIT_KIND_SELECTED"
 
 	// SuccessCodeMerchantReturnDestinationUpserted indicates a return destination was saved.
 	SuccessCodeMerchantReturnDestinationUpserted SuccessCode = "MERCHANT_RETURN_DESTINATION_UPSERTED"
@@ -186,6 +190,9 @@ var (
 	// SuccessMessageCheckoutOTPRequested reports a successful hosted OTP
 	// issuance (or idempotent active challenge).
 	SuccessMessageCheckoutOTPRequested = SuccessMessageKey{value: "success.checkout_otp_requested"}
+	// SuccessMessageCheckoutCreditKindSelected reports a successful Partner
+	// credit-kind selection.
+	SuccessMessageCheckoutCreditKindSelected = SuccessMessageKey{value: "success.checkout_credit_kind_selected"}
 	// SuccessMessageMerchantReturnDestinationUpserted reports a saved return destination.
 	SuccessMessageMerchantReturnDestinationUpserted = SuccessMessageKey{value: "success.merchant_return_destination_upserted"}
 	// SuccessMessageMerchantWebhookDestinationUpserted reports a saved webhook destination.
@@ -217,10 +224,10 @@ var (
 	SuccessMessageMerchantBranchesListed = SuccessMessageKey{value: "success.merchant_branches_listed"}
 	// SuccessMessageMerchantProfileReturned reports a successful merchant-profile lookup.
 	SuccessMessageMerchantProfileReturned = SuccessMessageKey{value: "success.merchant_profile_returned"}
-	// SuccessMessageMerchantCreditProductsListed reports a successful merchant credit product eligibility listing.
-	SuccessMessageMerchantCreditProductsListed = SuccessMessageKey{value: "success.merchant_credit_products_listed"}
-	// SuccessMessageMerchantCreditProductUpdated reports a successful merchant credit product eligibility update.
-	SuccessMessageMerchantCreditProductUpdated = SuccessMessageKey{value: "success.merchant_credit_product_updated"}
+	// SuccessMessageMerchantCreditKindsListed reports a successful merchant credit kind eligibility listing.
+	SuccessMessageMerchantCreditKindsListed = SuccessMessageKey{value: "success.merchant_credit_kinds_listed"}
+	// SuccessMessageMerchantCreditKindUpdated reports a successful merchant credit kind eligibility update.
+	SuccessMessageMerchantCreditKindUpdated = SuccessMessageKey{value: "success.merchant_credit_kind_updated"}
 	// SuccessMessageMerchantSalesListed reports a successful merchant-sales listing.
 	SuccessMessageMerchantSalesListed = SuccessMessageKey{value: "success.merchant_sales_listed"}
 	// SuccessMessageContractAlreadyExists reports an idempotently reused contract.

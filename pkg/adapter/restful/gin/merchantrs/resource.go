@@ -10,14 +10,14 @@ import (
 
 type resource struct {
 	merchant      *merchantuc.UseCase
-	creditProduct *merchantuc.CreditProductUseCase
+	creditKind *merchantuc.CreditKindUseCase
 }
 
 // RegisterOptions configures merchant route registration.
 type RegisterOptions struct {
-	// CreditProduct enables the admin merchant credit product eligibility
+	// CreditKind enables the admin merchant credit kind eligibility
 	// routes. When nil those routes are not registered.
-	CreditProduct *merchantuc.CreditProductUseCase
+	CreditKind *merchantuc.CreditKindUseCase
 }
 
 // Register attaches merchant routes to the API RouterGroup provided by wiring
@@ -32,7 +32,7 @@ func Register(
 		return
 	}
 
-	rs := &resource{merchant: merchant, creditProduct: opts.CreditProduct}
+	rs := &resource{merchant: merchant, creditKind: opts.CreditKind}
 	authMW := middleware.AuthContext()
 	router.GET(
 		"/merchant",
@@ -50,16 +50,16 @@ func Register(
 		rs.ListSales,
 	)
 
-	if opts.CreditProduct != nil {
+	if opts.CreditKind != nil {
 		router.GET(
-			"/admin/merchants/:merchant_profile_id/credit-products",
+			"/admin/merchants/:merchant_profile_id/credit-kinds",
 			authMW.RequireAny(permission.MerchantsReadAny),
-			rs.ListCreditProducts,
+			rs.ListCreditKinds,
 		)
 		router.PUT(
-			"/admin/merchants/:merchant_profile_id/credit-products/:credit_kind",
+			"/admin/merchants/:merchant_profile_id/credit-kinds/:credit_kind",
 			authMW.RequireAny(permission.MerchantsCreditProductsUpdateAny),
-			rs.SetCreditProduct,
+			rs.SetCreditKind,
 		)
 	}
 }

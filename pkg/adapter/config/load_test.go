@@ -51,6 +51,7 @@ usecases:
   installment:
     mark_due_batch_size: 100
     mark_overdue_batch_size: 100
+    assess_late_fee_batch_size: 100
   contract:
     payment_result_processing_grace_period: 5m
     expiry_batch_size: 100

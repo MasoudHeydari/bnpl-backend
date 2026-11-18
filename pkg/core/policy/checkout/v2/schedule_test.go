@@ -21,6 +21,8 @@ func TestTerms_ThreeInstallmentsStartingOneJalaliMonthAfterAnchor(t *testing.T) 
 	require.Equal(t, checkout.FullFinancingOnly, terms.FinancingMode)
 	require.Equal(t, checkout.ActivationAfterMerchantFunding, terms.ActivationMode)
 	require.Equal(t, checkout.ScheduleFromContractActivation, terms.ScheduleAnchor)
+	require.Equal(t, uint(4), terms.Repayment.GracePeriodDays)
+	require.NoError(t, checkout.ValidateTerms(terms))
 }
 
 func TestBuildInstallmentSchedule_DueAtOneTwoThreeJalaliMonthsAfterPurchase(t *testing.T) {

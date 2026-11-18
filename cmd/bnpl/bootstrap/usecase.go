@@ -10,6 +10,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/policy/collections"
 	collectionsv1 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v1"
 	collectionsv2 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v2"
+	collectionsv3 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v3"
 
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	checkoutcatalog "github.com/parstis/bnpl-backend/pkg/core/policy/checkout/catalog"
@@ -90,8 +91,8 @@ type UseCases struct {
 	// Merchant serves merchant-facing queries.
 	Merchant *merchantuc.UseCase
 
-	// MerchantCreditProduct administers merchant credit product eligibility.
-	MerchantCreditProduct *merchantuc.CreditProductUseCase
+	// MerchantCreditKind administers merchant credit kind eligibility.
+	MerchantCreditKind *merchantuc.CreditKindUseCase
 
 	// MerchantTerminal authenticates external partner terminals and manages
 	// their credentials.
@@ -162,7 +163,12 @@ func (a *App) NewUseCases() (UseCases, error) {
 		collectionsBatchSize = 100
 	}
 
-	collectionsPolicies, err := collections.NewRegistry(collectionsv2.New(a.Infrastructure.Clock.BusinessLocation()), collectionsv1.New())
+	collectionsLocation := a.Infrastructure.Clock.BusinessLocation()
+	collectionsPolicies, err := collections.NewRegistry(
+		collectionsv3.New(collectionsLocation),
+		collectionsv1.New(),
+		collectionsv2.New(collectionsLocation),
+	)
 	if err != nil {
 		return UseCases{}, err
 	}
@@ -405,6 +411,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Repos.MerchantProfile,
 		a.Repos.MerchantBranchProfile,
 		a.Repos.CustomerProfile,
+		a.Repos.CreditAccount,
 		a.Repos.Contract,
 		a.Repos.PaymentAttempt,
 		a.Repos.Installment,
@@ -566,7 +573,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Repos.Contract,
 	)
 
-	merchantCreditProductUseCase, err := merchantuc.NewCreditProduct(
+	merchantCreditKindUseCase, err := merchantuc.NewCreditKind(
 		a.Pool,
 		a.Repos.MerchantProfile,
 		a.Repos.Outbox,
@@ -575,7 +582,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Config.AuditEventsTopic(),
 	)
 	if err != nil {
-		return UseCases{}, fmt.Errorf("%s: initialize merchant credit product use case: %w", op, err)
+		return UseCases{}, fmt.Errorf("%s: initialize merchant credit kind use case: %w", op, err)
 	}
 
 	merchantTerminalHasher, err := a.Config.NewMerchantTerminalHasher()
@@ -727,7 +734,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		SagaExecutor:                       sagaExecutorUseCase,
 		Contract:                           contractUseCase,
 		Merchant:                           merchantUseCase,
-		MerchantCreditProduct:              merchantCreditProductUseCase,
+		MerchantCreditKind:              merchantCreditKindUseCase,
 		MerchantTerminal:                   merchantTerminalUseCase,
 		CustomerAccount:                    customerAccountUseCase,
 		CustomerCredit:                     customerCreditUseCase,

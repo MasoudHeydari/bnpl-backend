@@ -24,6 +24,8 @@ type UseCase struct {
 	MarkDueBatchSize int
 	// MarkOverdueBatchSize is the maximum due-to-overdue transitions per run.
 	MarkOverdueBatchSize int
+	// AssessLateFeeBatchSize is the maximum overdue installments assessed per run.
+	AssessLateFeeBatchSize int
 }
 
 // New constructs an installment lifecycle use case.
@@ -37,6 +39,7 @@ func New(
 	idGenerator identifier.Generator,
 	markDueBatchSize int,
 	markOverdueBatchSize int,
+	assessLateFeeBatchSize int,
 	businessMetrics coremetrics.BusinessMetrics,
 	observer Observer,
 ) (*UseCase, error) {
@@ -58,6 +61,10 @@ func New(
 		return nil, fmt.Errorf("%s: installment mark overdue batch size must be positive", op)
 	}
 
+	if assessLateFeeBatchSize <= 0 {
+		return nil, fmt.Errorf("%s: installment assess late fee batch size must be positive", op)
+	}
+
 	if businessMetrics == nil {
 		return nil, fmt.Errorf("%s: business metrics is required", op)
 	}
@@ -67,16 +74,17 @@ func New(
 	}
 
 	return &UseCase{
-		pool:                 pool,
-		installment:          installment,
-		installmentCharge:    installmentCharge,
-		outbox:               outbox,
-		clock:                clk,
-		auditDestination:     auditDestination,
-		idGenerator:          idGenerator,
-		businessMetrics:      businessMetrics,
-		observer:             observer,
-		MarkDueBatchSize:     markDueBatchSize,
-		MarkOverdueBatchSize: markOverdueBatchSize,
+		pool:                   pool,
+		installment:            installment,
+		installmentCharge:      installmentCharge,
+		outbox:                 outbox,
+		clock:                  clk,
+		auditDestination:       auditDestination,
+		idGenerator:            idGenerator,
+		businessMetrics:        businessMetrics,
+		observer:               observer,
+		MarkDueBatchSize:       markDueBatchSize,
+		MarkOverdueBatchSize:   markOverdueBatchSize,
+		AssessLateFeeBatchSize: assessLateFeeBatchSize,
 	}, nil
 }

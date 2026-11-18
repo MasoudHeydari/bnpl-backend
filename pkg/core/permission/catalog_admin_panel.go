@@ -109,9 +109,9 @@ var (
 		"Allows an administrator to read BNPL merchant profiles.",
 	)
 	MerchantsCreditProductsUpdateAny = permission(
-		"bnpl:merchants:credit-products:update:any",
-		"Update any BNPL merchant credit product eligibility",
-		"Allows an administrator to enable or disable BNPL credit products (pay_in_4, pay_next_month) for a merchant.",
+		"bnpl:merchants:credit-kinds:update:any",
+		"Update any BNPL merchant credit kind eligibility",
+		"Allows an administrator to enable or disable BNPL credit kinds (pay_in_4, pay_next_month) for a merchant.",
 	)
 	StoresReadAny = permission(
 		"bnpl:stores:read:any",

@@ -24,6 +24,18 @@ type PartnerCreateSuccessSchema struct {
 	Meta serdser.SuccessMetaNoPagination `json:"meta"`
 }
 
+// SelectCreditKindRequestSchema is a schema-only Partner credit-kind body.
+type SelectCreditKindRequestSchema selectCreditKindRequest
+
+// SelectCreditKindResponseSchema is a schema-only Partner credit-kind response.
+type SelectCreditKindResponseSchema selectCreditKindResponse
+
+// SelectCreditKindSuccessSchema is a schema-only success envelope for SelectCreditKind.
+type SelectCreditKindSuccessSchema struct {
+	Data SelectCreditKindResponseSchema  `json:"data"`
+	Meta serdser.SuccessMetaNoPagination `json:"meta"`
+}
+
 // CheckoutActionSchema is the swagger-stable checkout action projection.
 type CheckoutActionSchema struct {
 	Type               decisionuc.CheckoutActionType `json:"type" enums:"confirm_and_pay,confirm_purchase"`

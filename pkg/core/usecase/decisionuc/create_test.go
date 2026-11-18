@@ -502,6 +502,8 @@ func TestCreate_Denied_NoInstallments_ReturnsReasonCodes(t *testing.T) {
 		uint64(0),
 		model.IRRCurrency,
 		4,
+		"checkout_full_financing_only",
+		"v1",
 		expiresAt,
 		now,
 	).Return(model.CheckoutDecisionAllocation{
@@ -656,6 +658,8 @@ func TestCreate_Approved_CreatesInstallmentsAndAudit(t *testing.T) {
 		uint64(500_000),
 		model.IRRCurrency,
 		4,
+		"checkout_full_financing_only",
+		"v1",
 		testifymock.Anything,
 		now,
 	).Return(allocation, nil).Once()
@@ -793,6 +797,8 @@ func TestCreate_InstallmentCreateFailure_RollsBack(t *testing.T) {
 		uint64(500_000),
 		model.IRRCurrency,
 		4,
+		"checkout_full_financing_only",
+		"v1",
 		testifymock.Anything,
 		now,
 	).Return(model.CheckoutDecisionAllocation{

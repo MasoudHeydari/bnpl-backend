@@ -12,7 +12,6 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/event/checkoutlifecycle"
 	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
-	"github.com/parstis/bnpl-backend/pkg/core/usecase/decisionuc"
 )
 
 const (
@@ -155,7 +154,8 @@ func TestCreatePartner_SameIdempotencyKeyReplaysExistingSession(t *testing.T) {
 	h.sessionTx.EXPECT().
 		LockByMerchantIdempotencyKey(h.ctx, h.merchantPID, testAttemptKey).
 		Return(existing, nil).Once()
-	h.expectPreparedExternalOfferReload(existing)
+	// replay: already bound; preview only
+	_ = existing
 
 	output, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
 	require.NoError(t, err)
@@ -227,9 +227,7 @@ func TestCreatePartner_NewAttemptAllowedAfterPreviousAttemptTerminalizes(t *test
 			unbound := created
 			bound := created
 			bound.CustomerID = &h.customerID
-			linked := bound
-			linked.DecisionID = &h.decisionID
-			h.expectExternalOfferPreparation(unbound, bound, linked)
+			h.expectPartnerCreateCustomerBind(unbound, bound)
 
 			output, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
 			require.NoError(t, err)
@@ -276,7 +274,8 @@ func TestCreatePartner_LegacyActiveAttemptForSameOrderIsReplayed(t *testing.T) {
 	h.sessionTx.EXPECT().
 		LockByMerchantOrderID(h.ctx, h.merchantPID, testMerchantOrderID).
 		Return(legacy, nil).Once()
-	h.expectPreparedExternalOfferReload(legacy)
+	// replay: already bound; preview only
+	_ = legacy
 
 	output, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
 	require.NoError(t, err)
@@ -325,13 +324,15 @@ func TestCreatePartner_IdempotentReplayIgnoresLaterBranchPolicyChange(t *testing
 	h.sessionTx.EXPECT().
 		LockByMerchantIdempotencyKey(h.ctx, h.merchantPID, testAttemptKey).
 		Return(existing, nil).Once()
-	h.expectPreparedExternalOfferReload(existing)
+	// replay: already bound; preview only
+	_ = existing
 
 	output, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
 	require.NoError(t, err)
 	require.Equal(t, CreateResultAlreadyExists, output.Result)
 	require.Equal(t, model.OfferPreparationOnCreate, output.Session.EffectiveOfferPreparationMode())
-	require.NotNil(t, output.Offer)
+	require.Nil(t, output.Offer)
+	require.Len(t, output.CreditKinds, 2)
 }
 
 func TestCreatePartner_SnapshotsOfferPreparationModeOntoSession(t *testing.T) {
@@ -345,9 +346,7 @@ func TestCreatePartner_SnapshotsOfferPreparationModeOntoSession(t *testing.T) {
 	unbound := created
 	bound := created
 	bound.CustomerID = &h.customerID
-	linked := bound
-	linked.DecisionID = &h.decisionID
-	h.expectExternalOfferPreparation(unbound, bound, linked)
+	h.expectPartnerCreateCustomerBind(unbound, bound)
 
 	output, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
 	require.NoError(t, err)
@@ -463,7 +462,7 @@ func TestCreatePartner_BNPLProfileMissing_ReturnsPhoneUnavailableError(t *testin
 	require.Empty(t, h.notificationCalls)
 }
 
-func TestCreatePartner_CreditLimitMissing_ReturnsIdentityVerificationRequired(t *testing.T) {
+func TestCreatePartner_CreditLimitMissing_SurfacesInCreditKindsPreview(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
@@ -483,38 +482,26 @@ func TestCreatePartner_CreditLimitMissing_ReturnsIdentityVerificationRequired(t 
 	unbound := created
 	bound := created
 	bound.CustomerID = &h.customerID
-	unavailable := bound
-	unavailable.Status = model.UnavailableCheckoutSessionStatus
-	unavailable.DecisionID = &h.decisionID
+	h.expectPartnerCreateCustomerBind(unbound, bound)
 
-	h.decisions.output = decisionuc.CreateOutput{
-		Decision: model.Decision{
-			ID:          h.decisionID,
-			Outcome:     model.DeniedDecisionOutcome,
-			ReasonCodes: []string{model.CreditLimitMissingDecisionReason},
-		},
+	output, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
+	require.NoError(t, err)
+	require.Equal(t, CreateResultCreated, output.Result)
+	require.Nil(t, output.Offer)
+	require.Empty(t, h.decisions.calls)
+	require.Len(t, output.CreditKinds, 2)
+
+	byKind := map[model.CreditKind]CreditKindPreview{}
+	for _, preview := range output.CreditKinds {
+		byKind[preview.Kind] = preview
 	}
-	linked := bound
-	linked.DecisionID = &h.decisionID
-	h.expectExternalBind(unbound, bound)
-	h.sessionTx.EXPECT().LockByID(h.ctx, unbound.ID).Return(bound, nil).Once()
-	h.sessionTx.EXPECT().
-		LinkDecision(
-			h.ctx,
-			unbound.ID,
-			h.decisionID,
-			1,
-			h.now,
-		).
-		Return(linked, nil).Once()
-	h.sessionTx.EXPECT().
-		UpdateStatus(h.ctx, linked.ID, model.UnavailableCheckoutSessionStatus, h.now).
-		Return(unavailable, nil).Once()
-	h.expectLifecycleEvent(unavailable, checkoutlifecycle.EventTypeUnavailable)
 
-	_, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
-	requireCerr(t, err, cerr.CodeForbidden, "error.checkout_customer_identity_verification_required")
-	require.Len(t, h.decisions.calls, 1)
+	require.False(t, byKind[model.PayIn4CreditKind].Available)
+	require.NotNil(t, byKind[model.PayIn4CreditKind].Reason)
+	require.Equal(t, "CREDIT_NOT_ASSIGNED", byKind[model.PayIn4CreditKind].Reason.Code)
+	require.False(t, byKind[model.PayNextMonthCreditKind].Available)
+	require.NotNil(t, byKind[model.PayNextMonthCreditKind].Reason)
+	require.Equal(t, "MERCHANT_CREDIT_KIND_DISABLED", byKind[model.PayNextMonthCreditKind].Reason.Code)
 	require.Empty(t, h.notificationCalls)
 }
 
@@ -548,7 +535,7 @@ func TestCreatePartner_UnsupportedCustomerStatusFailsClosed(t *testing.T) {
 	require.Empty(t, h.notificationCalls)
 }
 
-func TestCreatePartner_PreparesOfferWithoutSendingOTP(t *testing.T) {
+func TestCreatePartner_BindsCustomerAndReturnsCreditKindsWithoutOffer(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
@@ -568,39 +555,45 @@ func TestCreatePartner_PreparesOfferWithoutSendingOTP(t *testing.T) {
 	unbound := created
 	bound := created
 	bound.CustomerID = &h.customerID
-	linked := bound
-	linked.DecisionID = &h.decisionID
-	h.expectExternalOfferPreparation(unbound, bound, linked)
+	h.expectPartnerCreateCustomerBind(unbound, bound)
 
 	output, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
 	require.NoError(t, err)
 	require.Equal(t, CreateResultCreated, output.Result)
 	require.NotNil(t, output.Session.CustomerID)
-	require.NotNil(t, output.Session.DecisionID)
+	require.Nil(t, output.Session.DecisionID)
+	require.Nil(t, output.Offer)
+	require.Len(t, output.CreditKinds, 2)
 	require.Len(t, h.identityCalls, 1)
-	require.Len(t, h.decisions.calls, 1)
+	require.Empty(t, h.decisions.calls)
 	require.Empty(t, h.notificationCalls)
 }
 
 func TestCreatePartner_BranchOfferPreparationModeIsAuthoritative(t *testing.T) {
 	t.Parallel()
 
-	t.Run("on_start defers offer", func(t *testing.T) {
+	t.Run("on_start binds customer but defers offer", func(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
 		h.branchOfferMode = model.OfferPreparationOnStart
-		h.expectPool(0, 1)
+		h.expectPool(0, 2)
 		h.expectActiveMerchant()
 		h.expectNoExistingSession()
 		created := h.expectNewAttemptCreated()
+		unbound := created
+		bound := created
+		bound.CustomerID = &h.customerID
+		h.expectPartnerCreateCustomerBind(unbound, bound)
 
 		output, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
 		require.NoError(t, err)
 		require.Equal(t, CreateResultCreated, output.Result)
 		require.Equal(t, model.OfferPreparationOnStart, output.Session.EffectiveOfferPreparationMode())
 		require.Nil(t, output.Offer)
-		require.Equal(t, created.ID, output.Session.ID)
-		require.Empty(t, h.identityCalls)
+		require.Equal(t, bound.ID, output.Session.ID)
+		require.NotNil(t, output.Session.CustomerID)
+		require.Len(t, h.identityCalls, 1)
+		require.Empty(t, h.decisions.calls)
 	})
 }

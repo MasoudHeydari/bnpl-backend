@@ -301,6 +301,10 @@ func (u *Usecases) validate(environment string) error {
 		return fmt.Errorf("%s: invalid usecases.installment.mark_due_batch_size: must be positive", op)
 	}
 
+	if u.Installment.AssessLateFeeBatchSize <= 0 {
+		return fmt.Errorf("%s: invalid usecases.installment.assess_late_fee_batch_size: must be positive", op)
+	}
+
 	if u.Installment.MarkOverdueBatchSize <= 0 {
 		return fmt.Errorf("%s: invalid usecases.installment.mark_overdue_batch_size: must be positive", op)
 	}

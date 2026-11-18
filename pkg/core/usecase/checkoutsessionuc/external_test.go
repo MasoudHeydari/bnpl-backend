@@ -242,7 +242,7 @@ func TestStartExternal_LinkedContractCannotStart(t *testing.T) {
 
 	linked := h.session(withContract(h.contractID))
 	// Product selection locks first and rejects linked contracts before offer load.
-	h.expectSelectCreditKindNoop(linked)
+	h.expectSelectedCreditKindForStart(linked)
 
 	_, err := h.uc.StartExternal(h.ctx, h.startExternalInput(1))
 	requireCerr(t, err, cerr.CodeConflict, "error.checkout_session_cannot_continue_in_its_current_state")
@@ -258,8 +258,7 @@ func TestStartExternal_StaleGenerationDoesNotPrepareAgain(t *testing.T) {
 	h.expectPool(3, 0)
 
 	current := h.session(withGeneration(2))
-	h.expectSelectCreditKindNoop(current)
-	h.sessionCQ.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(current, nil).Once()
+	h.expectSelectedCreditKindForStart(current)
 	h.expectProjectApprovedOffer(current)
 
 	got, err := h.uc.StartExternal(h.ctx, h.startExternalInput(1))
@@ -277,7 +276,7 @@ func TestStartExternal_InternalOriginIsNotFound(t *testing.T) {
 	h := newHarness(t)
 	h.expectPool(1, 0)
 
-	h.expectSelectCreditKindNoop(h.session(withOrigin(model.InternalCheckoutSessionOrigin)))
+	h.expectSelectedCreditKindForStart(h.session(withOrigin(model.InternalCheckoutSessionOrigin)))
 
 	_, err := h.uc.StartExternal(h.ctx, h.startExternalInput(1))
 	requireCerr(t, err, cerr.CodeResourceNotFound, "error.checkout_session_not_found")
@@ -292,7 +291,7 @@ func TestStartExternal_ElapsedSessionIsExpiredBeforeAnyNetworkCall(t *testing.T)
 
 	elapsed := h.session(withExpiresAt(h.now.Add(-time.Second)))
 	// Expiry is detected on the product-selection lock, before offer projection.
-	h.expectSelectCreditKindNoop(elapsed)
+	h.expectSelectedCreditKindForStart(elapsed)
 
 	_, err := h.uc.StartExternal(h.ctx, h.startExternalInput(1))
 	requireCerr(t, err, cerr.CodeConflict, "error.checkout_session_expired")

@@ -31,8 +31,14 @@ const (
 	FinancedAmountTooSmallForInstallmentCountDecisionReason = "FINANCED_AMOUNT_TOO_SMALL_FOR_INSTALLMENT_COUNT"
 
 	// CollectionsGracePeriodExceededDecisionReason is used when at least one
-	// outstanding installment has crossed its contractual grace boundary.
+	// outstanding installment has crossed its contractual grace boundary
+	// (historical openings under collections_default v1/v2).
 	CollectionsGracePeriodExceededDecisionReason = "COLLECTIONS_GRACE_PERIOD_EXCEEDED"
+
+	// CollectionsDefaultEligibilityReachedDecisionReason is used when at least
+	// one outstanding installment has crossed its default-entry boundary
+	// (collections_default v3: overdue + 90 calendar days).
+	CollectionsDefaultEligibilityReachedDecisionReason = "COLLECTIONS_DEFAULT_ELIGIBILITY_REACHED"
 
 	// CollectionsDueInstallmentsSettledDecisionReason is used when every
 	// installment whose contractual due date has arrived is fully settled.

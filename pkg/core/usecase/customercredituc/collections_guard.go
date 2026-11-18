@@ -73,5 +73,14 @@ func newCreditUsageBlocked(
 	if evaluation.HasUnresolvedCancellation || evaluation.HasUnresolvedAdjustment {
 		return true, "credit_usage_restricted", nil
 	}
-	return evaluation.IsDefaultEligible, "collections_default", nil
+
+	if evaluation.IsDefaultEligible {
+		return true, "collections_default", nil
+	}
+
+	if evaluation.BlocksNewCredit {
+		return true, "collections_due", nil
+	}
+
+	return false, "", nil
 }

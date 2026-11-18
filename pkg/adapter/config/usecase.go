@@ -343,6 +343,7 @@ func (c CheckoutSession) newUseCase(
 	merchantProfile repo.MerchantProfile,
 	merchantBranchProfile repo.MerchantBranchProfile,
 	customerProfile repo.CustomerProfile,
+	creditAccount repo.CreditAccount,
 	contract repo.Contract,
 	paymentAttempt repo.PaymentAttempt,
 	installment repo.Installment,
@@ -386,6 +387,7 @@ func (c CheckoutSession) newUseCase(
 		merchantProfile,
 		merchantBranchProfile,
 		customerProfile,
+		creditAccount,
 		contract,
 		paymentAttempt,
 		installment,
@@ -459,6 +461,10 @@ type Installment struct {
 	// MarkOverdueBatchSize configures how many installments are marked overdue per batch.
 	MarkOverdueBatchSize int `yaml:"mark_overdue_batch_size"`
 
+	// AssessLateFeeBatchSize configures how many overdue installments are assessed
+	// for late fees per batch.
+	AssessLateFeeBatchSize int `yaml:"assess_late_fee_batch_size"`
+
 	// InstallmentPaymentRequestsDestination is the Kafka destination for installment
 	// payment request outbox messages.
 	InstallmentPaymentRequestsDestination string `yaml:"installment_payment_requests_destination"`
@@ -485,6 +491,7 @@ func (i Installment) newLifecycleUseCase(
 		idGenerator,
 		i.MarkDueBatchSize,
 		i.MarkOverdueBatchSize,
+		i.AssessLateFeeBatchSize,
 		businessMetrics,
 		observer,
 	)

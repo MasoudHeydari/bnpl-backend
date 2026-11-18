@@ -57,14 +57,21 @@ func (uc *UseCase) DefaultNoticeOnTx(ctx context.Context, tx repo.Tx, id model.C
 		return result, err
 	}
 
-	// Entry timing remains tied to immutable episode history. Message references
-	// current qualifying debt, never an already-paid original trigger. If only
-	// within-grace due debt remains, keep the episode but suppress this notice.
+	// Entry timing remains tied to immutable episode history (default boundary).
+	// Message references current qualifying debt, never an already-paid original
+	// trigger. If only within-grace due debt remains, keep the episode but
+	// suppress this notice.
 	result.InstallmentIDs = append(result.InstallmentIDs, evaluation.TriggerInstallmentIDs...)
 	var boundary time.Time
 	for _, trigger := range triggers {
-		if boundary.IsZero() || trigger.OverdueEligibleAt.Before(boundary) {
-			boundary = trigger.OverdueEligibleAt
+		at := trigger.DefaultEligibleAt
+		if at.IsZero() {
+			// Historical rows / tests that only populated overdue eligibility.
+			at = trigger.OverdueEligibleAt
+		}
+
+		if boundary.IsZero() || at.Before(boundary) {
+			boundary = at
 		}
 	}
 

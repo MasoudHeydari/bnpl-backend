@@ -100,6 +100,7 @@ usecases:
   installment:
     mark_due_batch_size: ${INSTALLMENT_MARK_DUE_BATCH_SIZE}
     mark_overdue_batch_size: ${INSTALLMENT_MARK_OVERDUE_BATCH_SIZE}
+    assess_late_fee_batch_size: ${INSTALLMENT_ASSESS_LATE_FEE_BATCH_SIZE}
     installment_payment_requests_destination: ${KAFKA_TOPIC_INSTALLMENT_PAYMENT_REQUESTS}
 
   contract:
@@ -437,6 +438,17 @@ infrastructure:
           timezone: ${TASK_INSTALLMENT_MARK_OVERDUE_TIMEZONE}
           interval: ${TASK_INSTALLMENT_MARK_OVERDUE_INTERVAL}
           run_on_start: ${TASK_INSTALLMENT_MARK_OVERDUE_RUN_ON_START}
+
+      installment_assess_late_fees:
+        enabled: ${TASK_INSTALLMENT_ASSESS_LATE_FEES_ENABLED}
+        execution: ${TASK_INSTALLMENT_ASSESS_LATE_FEES_EXECUTION}
+        handler: ${TASK_INSTALLMENT_ASSESS_LATE_FEES_HANDLER}
+        trigger:
+          type: ${TASK_INSTALLMENT_ASSESS_LATE_FEES_TRIGGER_TYPE}
+          cron: ${TASK_INSTALLMENT_ASSESS_LATE_FEES_CRON}
+          timezone: ${TASK_INSTALLMENT_ASSESS_LATE_FEES_TIMEZONE}
+          interval: ${TASK_INSTALLMENT_ASSESS_LATE_FEES_INTERVAL}
+          run_on_start: ${TASK_INSTALLMENT_ASSESS_LATE_FEES_RUN_ON_START}
 
       payment_attempt_reconciliation:
         enabled: ${TASK_PAYMENT_ATTEMPT_RECONCILIATION_ENABLED}

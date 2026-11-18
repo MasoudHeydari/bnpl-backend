@@ -141,7 +141,8 @@ func validConfig() *Config {
 			},
 			Installment: Installment{
 				MarkDueBatchSize:     100,
-				MarkOverdueBatchSize: 100,
+				MarkOverdueBatchSize:   100,
+				AssessLateFeeBatchSize: 100,
 			},
 			Contract: Contract{
 				PaymentResultProcessingGracePeriod: time.Minute,

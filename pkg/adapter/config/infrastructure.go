@@ -1096,6 +1096,9 @@ type ScheduledTasks struct {
 	// InstallmentMarkOverdue transitions due installments to overdue.
 	InstallmentMarkOverdue TaskDefinition `yaml:"installment_mark_overdue"`
 
+	// InstallmentAssessLateFees assesses daily late fees on overdue installments.
+	InstallmentAssessLateFees TaskDefinition `yaml:"installment_assess_late_fees"`
+
 	// PaymentAttemptReconciliation schedules payment attempt reconciliation work.
 	PaymentAttemptReconciliation TaskDefinition `yaml:"payment_attempt_reconciliation"`
 
@@ -1326,6 +1329,10 @@ func (t Task) getTaskDefinitions() ([]TaskDefinitionEntry, error) {
 			Name:           "installment_mark_overdue",
 		},
 		{
+			TaskDefinition: t.Scheduled.InstallmentAssessLateFees,
+			Name:           "installment_assess_late_fees",
+		},
+		{
 			TaskDefinition: t.Scheduled.PaymentAttemptReconciliation,
 			Name:           "payment_attempt_reconciliation",
 		},
@@ -1343,7 +1350,7 @@ func (t Task) getTaskDefinitions() ([]TaskDefinitionEntry, error) {
 		},
 	}
 
-	// This capability is absent from the legacy 14-task test configuration.
+	// This capability is absent from the legacy baseline task test configuration.
 	// Include it once explicitly configured, even when disabled, so durable
 	// runtimes can remove schedules that an earlier deployment registered.
 	if t.Scheduled.RepaymentBatchReconciliation.Enabled ||

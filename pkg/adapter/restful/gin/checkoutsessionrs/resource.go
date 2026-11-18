@@ -54,6 +54,11 @@ func RegisterPartner(
 		rs.GetPartnerStatus,
 	)
 	sessions.POST(
+		"/:checkout_session_id/credit-kind",
+		authMW.RequireAny(permission.CheckoutSessionsCreateMerchant),
+		rs.SelectCreditKind,
+	)
+	sessions.POST(
 		"/:checkout_session_id/cancel",
 		authMW.RequireAny(permission.CheckoutSessionsCreateMerchant),
 		rs.CancelByMerchant,

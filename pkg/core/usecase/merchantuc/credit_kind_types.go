@@ -2,12 +2,12 @@ package merchantuc
 
 import "github.com/parstis/bnpl-backend/pkg/core/model"
 
-// SetCreditProductEnabledInput enables or disables one credit product for a merchant.
+// SetCreditKindEnabledInput enables or disables one credit kind for a merchant.
 //
 // MerchantProfileID is the internal merchant_profiles.id primary key; it is not
 // the Identity Service merchant subject. ActorSubjectID is the authenticated
 // administrator (x-auth-subject-id) recorded in the audit event.
-type SetCreditProductEnabledInput struct {
+type SetCreditKindEnabledInput struct {
 	// ActorSubjectID is the authenticated administrator performing the change.
 	ActorSubjectID model.SubjectID
 	// MerchantProfileID is the internal merchant profile primary key.
@@ -18,11 +18,11 @@ type SetCreditProductEnabledInput struct {
 	Enabled bool
 }
 
-// SetCreditProductEnabledOutput reports the effective eligibility after the command.
-type SetCreditProductEnabledOutput struct {
+// SetCreditKindEnabledOutput reports the effective eligibility after the command.
+type SetCreditKindEnabledOutput struct {
 	// MerchantProfileID is the internal merchant profile primary key.
 	MerchantProfileID model.MerchantProfileID
-	// CreditKind is the affected credit product.
+	// CreditKind is the affected credit kind.
 	CreditKind model.CreditKind
 	// Enabled is the effective eligibility after the command.
 	Enabled bool
@@ -31,25 +31,25 @@ type SetCreditProductEnabledOutput struct {
 	Changed bool
 }
 
-// ListCreditProductsInput identifies the merchant whose eligibility is read.
-type ListCreditProductsInput struct {
+// ListCreditKindsInput identifies the merchant whose eligibility is read.
+type ListCreditKindsInput struct {
 	// MerchantProfileID is the internal merchant profile primary key.
 	MerchantProfileID model.MerchantProfileID
 }
 
-// CreditProductEligibility is the effective eligibility of one credit product.
-type CreditProductEligibility struct {
-	// CreditKind is the credit product.
+// CreditKindEligibility is the effective eligibility of one credit kind.
+type CreditKindEligibility struct {
+	// CreditKind is the credit kind.
 	CreditKind model.CreditKind
-	// Enabled is the effective eligibility (legacy pay_in_4 defaults to enabled
-	// when absent; pay_next_month defaults to disabled).
+	// Enabled is the effective eligibility. Both kinds default to disabled when
+	// no eligibility row exists.
 	Enabled bool
 }
 
-// ListCreditProductsOutput lists the effective eligibility of every credit product.
-type ListCreditProductsOutput struct {
+// ListCreditKindsOutput lists the effective eligibility of every credit kind.
+type ListCreditKindsOutput struct {
 	// MerchantProfileID is the internal merchant profile primary key.
 	MerchantProfileID model.MerchantProfileID
-	// Products lists pay_in_4 followed by pay_next_month.
-	Products []CreditProductEligibility
+	// CreditKinds lists pay_in_4 followed by pay_next_month.
+	CreditKinds []CreditKindEligibility
 }

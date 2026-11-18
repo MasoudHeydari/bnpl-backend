@@ -38,6 +38,7 @@ type newDeps struct {
 	merchantProfile            repo.MerchantProfile
 	merchantBranchProfile      repo.MerchantBranchProfile
 	customerProfile            repo.CustomerProfile
+	creditAccount              repo.CreditAccount
 	contract                   repo.Contract
 	paymentAttempt             repo.PaymentAttempt
 	installment                repo.Installment
@@ -188,12 +189,18 @@ func (d newDeps) newUseCase(t *testing.T) (*UseCase, error) {
 
 	sagaRepo, sagaExec, sagaDef := mustStubConfirmationSaga(t, d)
 
+	creditAccount := d.creditAccount
+	if creditAccount == nil {
+		creditAccount = mock.NewCreditAccount(t)
+	}
+
 	return New(
 		d.pool,
 		d.checkoutSession,
 		d.merchantProfile,
 		d.merchantBranchProfile,
 		d.customerProfile,
+		creditAccount,
 		d.contract,
 		d.paymentAttempt,
 		d.installment,

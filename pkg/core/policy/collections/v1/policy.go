@@ -59,3 +59,8 @@ func (Policy) Version() string { return PolicyVersion }
 func (Policy) Boundary(i model.Installment) time.Time {
 	return overdueEligibleAt(i.DueAt, i.GracePeriodDays)
 }
+
+// DefaultBoundary matches Boundary for frozen historical v1 episodes.
+func (p Policy) DefaultBoundary(i model.Installment) time.Time {
+	return p.Boundary(i)
+}

@@ -155,6 +155,33 @@ func (i Installment) IsOverdueEligible(now time.Time, locations ...*time.Locatio
 	return !now.Before(i.OverdueEligibleAt(locations...))
 }
 
+// DefaultEligibleAt returns midnight on the calendar day defaultAfterDays after
+// OverdueEligibleAt in the supplied business location.
+func (i Installment) DefaultEligibleAt(defaultAfterDays uint, locations ...*time.Location) time.Time {
+	loc := time.UTC
+	if len(locations) > 0 && locations[0] != nil {
+		loc = locations[0]
+	}
+
+	overdueLocal := i.OverdueEligibleAt(loc).In(loc)
+	return time.Date(
+		overdueLocal.Year(),
+		overdueLocal.Month(),
+		overdueLocal.Day(),
+		0, 0, 0, 0,
+		loc,
+	).AddDate(0, 0, int(defaultAfterDays)).UTC()
+}
+
+// IsDefaultEligible compares default-entry calendar boundaries in business time.
+func (i Installment) IsDefaultEligible(
+	now time.Time,
+	defaultAfterDays uint,
+	locations ...*time.Location,
+) bool {
+	return !now.Before(i.DefaultEligibleAt(defaultAfterDays, locations...))
+}
+
 // Installment stores a persisted installment offer row for a checkout decision.
 type Installment struct {
 	// ID uniquely identifies this installment row.

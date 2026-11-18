@@ -10,12 +10,7 @@ import (
 )
 
 // ensureOfferPreparedForStart loads the checkout and prepares the financing
-// offer when it is not already linked. Preparation timing is primarily decided
-// at Partner Create (on_create vs on_start); START still safely prepares a
-// missing offer so deferred sessions and interrupted on_create retries converge
-// on the same state machine without duplicating Decisions.
-//
-// Origin and continuability are validated before any preparation side effects.
+// offer when it is not already linked.
 func (uc *UseCase) ensureOfferPreparedForStart(
 	ctx context.Context,
 	token model.CheckoutSessionToken,
@@ -38,24 +33,6 @@ func (uc *UseCase) ensureOfferPreparedForStart(
 				return findErr
 			}
 
-			if found.Origin != model.ExternalPartnerCheckoutSessionOrigin {
-				return checkoutSessionNotFoundError(
-					fmt.Errorf("%s: checkout session origin is %q", op, found.Origin),
-				)
-			}
-
-			if found.Status != model.OpenCheckoutSessionStatus {
-				return checkoutSessionNotContinuableError(
-					fmt.Errorf("%s: checkout session status is %q", op, found.Status),
-				)
-			}
-
-			if found.ContractID != nil && !found.ContractID.IsZero() {
-				return checkoutSessionNotContinuableError(
-					fmt.Errorf("%s: checkout already has a contract", op),
-				)
-			}
-
 			session = found
 
 			return nil
@@ -63,6 +40,45 @@ func (uc *UseCase) ensureOfferPreparedForStart(
 	)
 	if err != nil {
 		return model.CheckoutSession{}, err
+	}
+
+	return uc.ensureOfferPreparedForStartSession(ctx, session)
+}
+
+// ensureOfferPreparedForStartSession prepares the financing offer when it is
+// not already linked. Preparation timing is primarily decided at Partner Create
+// (on_create vs on_start); START still safely prepares a missing offer so
+// deferred sessions and interrupted on_create retries converge on the same
+// state machine without duplicating Decisions.
+//
+// Origin and continuability are validated before any preparation side effects.
+func (uc *UseCase) ensureOfferPreparedForStartSession(
+	ctx context.Context,
+	session model.CheckoutSession,
+) (model.CheckoutSession, error) {
+	const op = "checkoutsessionuc.UseCase.ensureOfferPreparedForStartSession"
+
+	if session.Origin != model.ExternalPartnerCheckoutSessionOrigin {
+		return model.CheckoutSession{}, checkoutSessionNotFoundError(
+			fmt.Errorf("%s: checkout session origin is %q", op, session.Origin),
+		)
+	}
+
+	if session.Status != model.OpenCheckoutSessionStatus {
+		return model.CheckoutSession{}, checkoutSessionNotContinuableError(
+			fmt.Errorf("%s: checkout session status is %q", op, session.Status),
+		)
+	}
+
+	if session.ContractID != nil && !session.ContractID.IsZero() {
+		return model.CheckoutSession{}, checkoutSessionNotContinuableError(
+			fmt.Errorf("%s: checkout already has a contract", op),
+		)
+	}
+
+	now := uc.clock.Now().UTC()
+	if session.IsExpiredAt(now) {
+		return model.CheckoutSession{}, checkoutSessionExpiredError()
 	}
 
 	if session.CustomerID != nil && session.DecisionID != nil && !session.DecisionID.IsZero() {
@@ -92,14 +108,14 @@ func (uc *UseCase) StartExternal(
 		return StartExternalOutput{}, err
 	}
 
-	// A legitimate product switch advances evaluation_generation on the server;
-	// that must not be treated as a stale-client reconfirm failure.
-	_, productChanged, err := uc.selectExternalCreditKindForStart(ctx, input.Token, input.CreditKind)
+	// Hosted START cannot choose or override the credit kind; Partner
+	// SelectCreditKind owns that selection before the customer reaches OTP.
+	selected, err := uc.requireSelectedCreditKindForStart(ctx, input.Token)
 	if err != nil {
 		return StartExternalOutput{}, err
 	}
 
-	prepared, err := uc.ensureOfferPreparedForStart(ctx, input.Token)
+	prepared, err := uc.ensureOfferPreparedForStartSession(ctx, selected)
 	if err != nil {
 		return StartExternalOutput{}, err
 	}
@@ -117,14 +133,8 @@ func (uc *UseCase) StartExternal(
 
 	reconfirmRequired := false
 	if prepared.EvaluationGeneration != input.EvaluationGeneration {
-		if productChanged {
-			// Server-advanced generation after an explicit product selection is
-			// authoritative; return the new offer without soft reconfirm.
-			input.EvaluationGeneration = prepared.EvaluationGeneration
-		} else {
-			// Same product, stale generation: soft reconfirm with refreshed offer.
-			reconfirmRequired = true
-		}
+		// Stale generation: soft reconfirm with refreshed offer.
+		reconfirmRequired = true
 	}
 
 	if prepared.Status != model.OpenCheckoutSessionStatus {

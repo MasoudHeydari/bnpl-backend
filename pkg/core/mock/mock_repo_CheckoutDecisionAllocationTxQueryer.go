@@ -41,8 +41,8 @@ func (_m *CheckoutDecisionAllocationTxQueryer) EXPECT() *CheckoutDecisionAllocat
 }
 
 // Create provides a mock function for the type CheckoutDecisionAllocationTxQueryer
-func (_mock *CheckoutDecisionAllocationTxQueryer) Create(ctx context.Context, decisionID model.DecisionID, checkoutKey string, customerID model.CustomerID, merchantProfileID model.MerchantProfileID, merchantBranchProfileID *model.MerchantBranchProfileID, purchaseChannel model.PurchaseChannel, purchaseSourceID uuid.UUID, merchantOrderID *string, requestedAmountMinor uint64, approvedFinancedAmountMinor uint64, upfrontAmountMinor uint64, availableCreditMinor uint64, currency model.Currency, installmentCount int, expiresAt time.Time, createdAt time.Time) (model.CheckoutDecisionAllocation, error) {
-	ret := _mock.Called(ctx, decisionID, checkoutKey, customerID, merchantProfileID, merchantBranchProfileID, purchaseChannel, purchaseSourceID, merchantOrderID, requestedAmountMinor, approvedFinancedAmountMinor, upfrontAmountMinor, availableCreditMinor, currency, installmentCount, expiresAt, createdAt)
+func (_mock *CheckoutDecisionAllocationTxQueryer) Create(ctx context.Context, decisionID model.DecisionID, checkoutKey string, customerID model.CustomerID, merchantProfileID model.MerchantProfileID, merchantBranchProfileID *model.MerchantBranchProfileID, purchaseChannel model.PurchaseChannel, purchaseSourceID uuid.UUID, merchantOrderID *string, requestedAmountMinor uint64, approvedFinancedAmountMinor uint64, upfrontAmountMinor uint64, availableCreditMinor uint64, currency model.Currency, installmentCount int, businessRuleID string, businessRuleVersion string, expiresAt time.Time, createdAt time.Time) (model.CheckoutDecisionAllocation, error) {
+	ret := _mock.Called(ctx, decisionID, checkoutKey, customerID, merchantProfileID, merchantBranchProfileID, purchaseChannel, purchaseSourceID, merchantOrderID, requestedAmountMinor, approvedFinancedAmountMinor, upfrontAmountMinor, availableCreditMinor, currency, installmentCount, businessRuleID, businessRuleVersion, expiresAt, createdAt)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Create")
@@ -50,16 +50,16 @@ func (_mock *CheckoutDecisionAllocationTxQueryer) Create(ctx context.Context, de
 
 	var r0 model.CheckoutDecisionAllocation
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.DecisionID, string, model.CustomerID, model.MerchantProfileID, *model.MerchantBranchProfileID, model.PurchaseChannel, uuid.UUID, *string, uint64, uint64, uint64, uint64, model.Currency, int, time.Time, time.Time) (model.CheckoutDecisionAllocation, error)); ok {
-		return returnFunc(ctx, decisionID, checkoutKey, customerID, merchantProfileID, merchantBranchProfileID, purchaseChannel, purchaseSourceID, merchantOrderID, requestedAmountMinor, approvedFinancedAmountMinor, upfrontAmountMinor, availableCreditMinor, currency, installmentCount, expiresAt, createdAt)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.DecisionID, string, model.CustomerID, model.MerchantProfileID, *model.MerchantBranchProfileID, model.PurchaseChannel, uuid.UUID, *string, uint64, uint64, uint64, uint64, model.Currency, int, string, string, time.Time, time.Time) (model.CheckoutDecisionAllocation, error)); ok {
+		return returnFunc(ctx, decisionID, checkoutKey, customerID, merchantProfileID, merchantBranchProfileID, purchaseChannel, purchaseSourceID, merchantOrderID, requestedAmountMinor, approvedFinancedAmountMinor, upfrontAmountMinor, availableCreditMinor, currency, installmentCount, businessRuleID, businessRuleVersion, expiresAt, createdAt)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.DecisionID, string, model.CustomerID, model.MerchantProfileID, *model.MerchantBranchProfileID, model.PurchaseChannel, uuid.UUID, *string, uint64, uint64, uint64, uint64, model.Currency, int, time.Time, time.Time) model.CheckoutDecisionAllocation); ok {
-		r0 = returnFunc(ctx, decisionID, checkoutKey, customerID, merchantProfileID, merchantBranchProfileID, purchaseChannel, purchaseSourceID, merchantOrderID, requestedAmountMinor, approvedFinancedAmountMinor, upfrontAmountMinor, availableCreditMinor, currency, installmentCount, expiresAt, createdAt)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.DecisionID, string, model.CustomerID, model.MerchantProfileID, *model.MerchantBranchProfileID, model.PurchaseChannel, uuid.UUID, *string, uint64, uint64, uint64, uint64, model.Currency, int, string, string, time.Time, time.Time) model.CheckoutDecisionAllocation); ok {
+		r0 = returnFunc(ctx, decisionID, checkoutKey, customerID, merchantProfileID, merchantBranchProfileID, purchaseChannel, purchaseSourceID, merchantOrderID, requestedAmountMinor, approvedFinancedAmountMinor, upfrontAmountMinor, availableCreditMinor, currency, installmentCount, businessRuleID, businessRuleVersion, expiresAt, createdAt)
 	} else {
 		r0 = ret.Get(0).(model.CheckoutDecisionAllocation)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, model.DecisionID, string, model.CustomerID, model.MerchantProfileID, *model.MerchantBranchProfileID, model.PurchaseChannel, uuid.UUID, *string, uint64, uint64, uint64, uint64, model.Currency, int, time.Time, time.Time) error); ok {
-		r1 = returnFunc(ctx, decisionID, checkoutKey, customerID, merchantProfileID, merchantBranchProfileID, purchaseChannel, purchaseSourceID, merchantOrderID, requestedAmountMinor, approvedFinancedAmountMinor, upfrontAmountMinor, availableCreditMinor, currency, installmentCount, expiresAt, createdAt)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.DecisionID, string, model.CustomerID, model.MerchantProfileID, *model.MerchantBranchProfileID, model.PurchaseChannel, uuid.UUID, *string, uint64, uint64, uint64, uint64, model.Currency, int, string, string, time.Time, time.Time) error); ok {
+		r1 = returnFunc(ctx, decisionID, checkoutKey, customerID, merchantProfileID, merchantBranchProfileID, purchaseChannel, purchaseSourceID, merchantOrderID, requestedAmountMinor, approvedFinancedAmountMinor, upfrontAmountMinor, availableCreditMinor, currency, installmentCount, businessRuleID, businessRuleVersion, expiresAt, createdAt)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -87,13 +87,15 @@ type CheckoutDecisionAllocationTxQueryer_Create_Call struct {
 //   - availableCreditMinor uint64
 //   - currency model.Currency
 //   - installmentCount int
+//   - businessRuleID string
+//   - businessRuleVersion string
 //   - expiresAt time.Time
 //   - createdAt time.Time
-func (_e *CheckoutDecisionAllocationTxQueryer_Expecter) Create(ctx any, decisionID any, checkoutKey any, customerID any, merchantProfileID any, merchantBranchProfileID any, purchaseChannel any, purchaseSourceID any, merchantOrderID any, requestedAmountMinor any, approvedFinancedAmountMinor any, upfrontAmountMinor any, availableCreditMinor any, currency any, installmentCount any, expiresAt any, createdAt any) *CheckoutDecisionAllocationTxQueryer_Create_Call {
-	return &CheckoutDecisionAllocationTxQueryer_Create_Call{Call: _e.mock.On("Create", ctx, decisionID, checkoutKey, customerID, merchantProfileID, merchantBranchProfileID, purchaseChannel, purchaseSourceID, merchantOrderID, requestedAmountMinor, approvedFinancedAmountMinor, upfrontAmountMinor, availableCreditMinor, currency, installmentCount, expiresAt, createdAt)}
+func (_e *CheckoutDecisionAllocationTxQueryer_Expecter) Create(ctx any, decisionID any, checkoutKey any, customerID any, merchantProfileID any, merchantBranchProfileID any, purchaseChannel any, purchaseSourceID any, merchantOrderID any, requestedAmountMinor any, approvedFinancedAmountMinor any, upfrontAmountMinor any, availableCreditMinor any, currency any, installmentCount any, businessRuleID any, businessRuleVersion any, expiresAt any, createdAt any) *CheckoutDecisionAllocationTxQueryer_Create_Call {
+	return &CheckoutDecisionAllocationTxQueryer_Create_Call{Call: _e.mock.On("Create", ctx, decisionID, checkoutKey, customerID, merchantProfileID, merchantBranchProfileID, purchaseChannel, purchaseSourceID, merchantOrderID, requestedAmountMinor, approvedFinancedAmountMinor, upfrontAmountMinor, availableCreditMinor, currency, installmentCount, businessRuleID, businessRuleVersion, expiresAt, createdAt)}
 }
 
-func (_c *CheckoutDecisionAllocationTxQueryer_Create_Call) Run(run func(ctx context.Context, decisionID model.DecisionID, checkoutKey string, customerID model.CustomerID, merchantProfileID model.MerchantProfileID, merchantBranchProfileID *model.MerchantBranchProfileID, purchaseChannel model.PurchaseChannel, purchaseSourceID uuid.UUID, merchantOrderID *string, requestedAmountMinor uint64, approvedFinancedAmountMinor uint64, upfrontAmountMinor uint64, availableCreditMinor uint64, currency model.Currency, installmentCount int, expiresAt time.Time, createdAt time.Time)) *CheckoutDecisionAllocationTxQueryer_Create_Call {
+func (_c *CheckoutDecisionAllocationTxQueryer_Create_Call) Run(run func(ctx context.Context, decisionID model.DecisionID, checkoutKey string, customerID model.CustomerID, merchantProfileID model.MerchantProfileID, merchantBranchProfileID *model.MerchantBranchProfileID, purchaseChannel model.PurchaseChannel, purchaseSourceID uuid.UUID, merchantOrderID *string, requestedAmountMinor uint64, approvedFinancedAmountMinor uint64, upfrontAmountMinor uint64, availableCreditMinor uint64, currency model.Currency, installmentCount int, businessRuleID string, businessRuleVersion string, expiresAt time.Time, createdAt time.Time)) *CheckoutDecisionAllocationTxQueryer_Create_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -155,13 +157,21 @@ func (_c *CheckoutDecisionAllocationTxQueryer_Create_Call) Run(run func(ctx cont
 		if args[14] != nil {
 			arg14 = args[14].(int)
 		}
-		var arg15 time.Time
+		var arg15 string
 		if args[15] != nil {
-			arg15 = args[15].(time.Time)
+			arg15 = args[15].(string)
 		}
-		var arg16 time.Time
+		var arg16 string
 		if args[16] != nil {
-			arg16 = args[16].(time.Time)
+			arg16 = args[16].(string)
+		}
+		var arg17 time.Time
+		if args[17] != nil {
+			arg17 = args[17].(time.Time)
+		}
+		var arg18 time.Time
+		if args[18] != nil {
+			arg18 = args[18].(time.Time)
 		}
 		run(
 			arg0,
@@ -181,6 +191,8 @@ func (_c *CheckoutDecisionAllocationTxQueryer_Create_Call) Run(run func(ctx cont
 			arg14,
 			arg15,
 			arg16,
+			arg17,
+			arg18,
 		)
 	})
 	return _c
@@ -191,7 +203,7 @@ func (_c *CheckoutDecisionAllocationTxQueryer_Create_Call) Return(checkoutDecisi
 	return _c
 }
 
-func (_c *CheckoutDecisionAllocationTxQueryer_Create_Call) RunAndReturn(run func(ctx context.Context, decisionID model.DecisionID, checkoutKey string, customerID model.CustomerID, merchantProfileID model.MerchantProfileID, merchantBranchProfileID *model.MerchantBranchProfileID, purchaseChannel model.PurchaseChannel, purchaseSourceID uuid.UUID, merchantOrderID *string, requestedAmountMinor uint64, approvedFinancedAmountMinor uint64, upfrontAmountMinor uint64, availableCreditMinor uint64, currency model.Currency, installmentCount int, expiresAt time.Time, createdAt time.Time) (model.CheckoutDecisionAllocation, error)) *CheckoutDecisionAllocationTxQueryer_Create_Call {
+func (_c *CheckoutDecisionAllocationTxQueryer_Create_Call) RunAndReturn(run func(ctx context.Context, decisionID model.DecisionID, checkoutKey string, customerID model.CustomerID, merchantProfileID model.MerchantProfileID, merchantBranchProfileID *model.MerchantBranchProfileID, purchaseChannel model.PurchaseChannel, purchaseSourceID uuid.UUID, merchantOrderID *string, requestedAmountMinor uint64, approvedFinancedAmountMinor uint64, upfrontAmountMinor uint64, availableCreditMinor uint64, currency model.Currency, installmentCount int, businessRuleID string, businessRuleVersion string, expiresAt time.Time, createdAt time.Time) (model.CheckoutDecisionAllocation, error)) *CheckoutDecisionAllocationTxQueryer_Create_Call {
 	_c.Call.Return(run)
 	return _c
 }

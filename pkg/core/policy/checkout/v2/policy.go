@@ -13,7 +13,7 @@ const (
 
 	installmentCount       = 3
 	decisionTTL            = 15 * time.Minute
-	gracePeriodDays        = uint(5)
+	gracePeriodDays        = uint(4)
 	maxFinancedAmountMinor = uint64(2_000_000_000)
 	reminderLeadDays       = uint(3)
 )

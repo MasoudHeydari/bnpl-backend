@@ -1052,6 +1052,78 @@ FOR UPDATE SKIP LOCKED
 	return postgres.ValuesInto[model.Installment](postgres.MustRows(rows))
 }
 
+// ClaimOverdueForLateFee locks overdue unsettled installments that have no
+// active payment attempt or repayment-batch claim (freeze window).
+func ClaimOverdueForLateFee[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	now time.Time,
+	limit int,
+) ([]model.Installment, error) {
+	const op = "installmentrp.ClaimOverdueForLateFee"
+
+	if limit <= 0 {
+		return nil, cerr.InvalidArgument(ErrInvalidClaimLimit, map[string]any{"limit": limit})
+	}
+
+	const query = `
+SELECT` + installmentColumns + `
+FROM installments
+WHERE status = $1
+  AND (((due_at AT TIME ZONE current_setting('TimeZone'))::date + grace_period_days + 1)::timestamp AT TIME ZONE current_setting('TimeZone')) <= $2
+  AND EXISTS (
+	SELECT 1
+	FROM contracts c
+	WHERE c.id = installments.contract_id
+	  AND c.status = $4
+  )
+  AND NOT EXISTS (
+	SELECT 1
+	FROM payment_attempts pa
+	WHERE pa.installment_id = installments.id
+	  AND (
+		pa.state IN ($5, $6, $7, 'manual_review_required')
+		OR (
+			pa.state IN ('failed', 'canceled', 'expired')
+			AND NOT pa.financial_outcome_resolved
+			AND NOT (
+				(pa.state = 'canceled' AND pa.purpose = 'installment_repayment' AND pa.failure_code = 'session_creation_retry_exhausted' AND pa.submitted_at IS NULL AND (pa.payment_url IS NULL OR btrim(pa.payment_url) = ''))
+				OR (pa.state = 'expired' AND pa.purpose = 'installment_repayment' AND pa.submitted_at IS NULL AND (pa.payment_url IS NULL OR btrim(pa.payment_url) = '') AND (pa.financial_payment_session_id IS NULL OR btrim(pa.financial_payment_session_id) = ''))
+			)
+		)
+	  )
+  )
+  AND NOT EXISTS (
+	SELECT 1
+	FROM repayment_batch_installment_claims claim
+	WHERE claim.installment_id = installments.id
+	  AND claim.released_at IS NULL
+  )
+ORDER BY due_at ASC, created_at ASC
+LIMIT $3
+FOR UPDATE SKIP LOCKED
+`
+
+	rows, err := q.Query(
+		ctx,
+		query,
+		model.OverdueInstallmentStatus,
+		now,
+		limit,
+		model.ActiveContractStatus,
+		model.CreatedPaymentAttemptState,
+		model.SubmittedPaymentAttemptState,
+		model.ReconciliationRequiredPaymentAttemptState,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("%s: claim overdue installments for late fee: %w", op, postgres.MapError(err))
+	}
+
+	defer rows.Close()
+
+	return postgres.ValuesInto[model.Installment](postgres.MustRows(rows))
+}
+
 // MarkOverdue transitions a due installment to overdue.
 func MarkOverdue[Q postgres.Queryer](
 	ctx context.Context,

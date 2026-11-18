@@ -76,3 +76,30 @@ func MarkOverdue(
 		return nil
 	}
 }
+
+// AssessLateFees returns a task job that assesses daily late fees on overdue
+// installments (frozen while payment/batch claims are active).
+func AssessLateFees(
+	logger corelog.Logger,
+	uc *installmentlifecycleuc.UseCase,
+) task.Job {
+	return func(ctx context.Context) error {
+		output, err := uc.AssessLateFees(ctx)
+		if err != nil {
+			return err
+		}
+
+		logger.With(
+			"assessed_installment_count",
+			output.AssessedInstallmentCount,
+			"created_charge_count",
+			output.CreatedChargeCount,
+			"skipped_frozen_count",
+			output.SkippedFrozenCount,
+		).Info(
+			corelog.Msg("assessed overdue installment late fees"),
+		)
+
+		return nil
+	}
+}

@@ -13,23 +13,23 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/merchantuc"
 )
 
-type setCreditProductRequest struct {
+type setCreditKindRequest struct {
 	// Enabled is the desired eligibility. It is required so an omitted body can
-	// never silently disable a product.
+	// never silently disable a credit kind.
 	Enabled *bool `json:"enabled" binding:"required" example:"true"`
 }
 
-type creditProductResponse struct {
+type creditKindResponse struct {
 	CreditKind model.CreditKind `json:"credit_kind" example:"pay_next_month" enums:"pay_in_4,pay_next_month"`
 	Enabled    bool             `json:"enabled" example:"true"`
 }
 
-type listCreditProductsResponse struct {
+type listCreditKindsResponse struct {
 	MerchantProfileID model.MerchantProfileID `json:"merchant_profile_id" example:"8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c" format:"uuid"`
-	Products          []creditProductResponse `json:"products"`
+	CreditKinds       []creditKindResponse    `json:"credit_kinds"`
 }
 
-type setCreditProductResponse struct {
+type setCreditKindResponse struct {
 	MerchantProfileID model.MerchantProfileID `json:"merchant_profile_id" example:"8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c" format:"uuid"`
 	CreditKind        model.CreditKind        `json:"credit_kind" example:"pay_next_month" enums:"pay_in_4,pay_next_month"`
 	Enabled           bool                    `json:"enabled" example:"true"`
@@ -85,39 +85,39 @@ func merchantProfileIDParam(c *gin.Context) (model.MerchantProfileID, bool) {
 	return id, true
 }
 
-func toListCreditProductsInput(c *gin.Context) (merchantuc.ListCreditProductsInput, bool) {
+func toListCreditKindsInput(c *gin.Context) (merchantuc.ListCreditKindsInput, bool) {
 	merchantProfileID, ok := merchantProfileIDParam(c)
 	if !ok {
-		return merchantuc.ListCreditProductsInput{}, false
+		return merchantuc.ListCreditKindsInput{}, false
 	}
 
-	return merchantuc.ListCreditProductsInput{MerchantProfileID: merchantProfileID}, true
+	return merchantuc.ListCreditKindsInput{MerchantProfileID: merchantProfileID}, true
 }
 
-func toSetCreditProductInput(c *gin.Context) (merchantuc.SetCreditProductEnabledInput, bool) {
+func toSetCreditKindInput(c *gin.Context) (merchantuc.SetCreditKindEnabledInput, bool) {
 	actor, ok := adminSubject(c)
 	if !ok {
-		return merchantuc.SetCreditProductEnabledInput{}, false
+		return merchantuc.SetCreditKindEnabledInput{}, false
 	}
 
 	merchantProfileID, ok := merchantProfileIDParam(c)
 	if !ok {
-		return merchantuc.SetCreditProductEnabledInput{}, false
+		return merchantuc.SetCreditKindEnabledInput{}, false
 	}
 
 	kind := model.CreditKind(c.Param("credit_kind"))
 	if !kind.IsValid() {
 		serdser.SerValidationErr(c, "credit_kind", "validation.credit_kind_invalid")
 
-		return merchantuc.SetCreditProductEnabledInput{}, false
+		return merchantuc.SetCreditKindEnabledInput{}, false
 	}
 
-	var req setCreditProductRequest
+	var req setCreditKindRequest
 	if !serdser.Bind(c, &req, binding.JSON) {
-		return merchantuc.SetCreditProductEnabledInput{}, false
+		return merchantuc.SetCreditKindEnabledInput{}, false
 	}
 
-	return merchantuc.SetCreditProductEnabledInput{
+	return merchantuc.SetCreditKindEnabledInput{
 		ActorSubjectID:    actor,
 		MerchantProfileID: merchantProfileID,
 		CreditKind:        kind,
@@ -125,23 +125,23 @@ func toSetCreditProductInput(c *gin.Context) (merchantuc.SetCreditProductEnabled
 	}, true
 }
 
-func toListCreditProductsResponse(output merchantuc.ListCreditProductsOutput) listCreditProductsResponse {
-	products := make([]creditProductResponse, 0, len(output.Products))
-	for _, product := range output.Products {
-		products = append(products, creditProductResponse{
-			CreditKind: product.CreditKind,
-			Enabled:    product.Enabled,
+func toListCreditKindsResponse(output merchantuc.ListCreditKindsOutput) listCreditKindsResponse {
+	kinds := make([]creditKindResponse, 0, len(output.CreditKinds))
+	for _, kind := range output.CreditKinds {
+		kinds = append(kinds, creditKindResponse{
+			CreditKind: kind.CreditKind,
+			Enabled:    kind.Enabled,
 		})
 	}
 
-	return listCreditProductsResponse{
+	return listCreditKindsResponse{
 		MerchantProfileID: output.MerchantProfileID,
-		Products:          products,
+		CreditKinds:       kinds,
 	}
 }
 
-func toSetCreditProductResponse(output merchantuc.SetCreditProductEnabledOutput) setCreditProductResponse {
-	return setCreditProductResponse{
+func toSetCreditKindResponse(output merchantuc.SetCreditKindEnabledOutput) setCreditKindResponse {
+	return setCreditKindResponse{
 		MerchantProfileID: output.MerchantProfileID,
 		CreditKind:        output.CreditKind,
 		Enabled:           output.Enabled,

@@ -21,9 +21,9 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/merchantuc"
 )
 
-const creditProductAuditDestination = "bnpl.audit.events.v1"
+const creditKindAuditDestination = "bnpl.audit.events.v1"
 
-type creditProductHarness struct {
+type creditKindHarness struct {
 	pool            *mock.Pool
 	conn            *mock.Conn
 	tx              *mock.Tx
@@ -34,13 +34,13 @@ type creditProductHarness struct {
 	outboxTx        *mock.OutboxTxQueryer
 	idGenerator     *mock.IdentifierGenerator
 	now             time.Time
-	uc              *merchantuc.CreditProductUseCase
+	uc              *merchantuc.CreditKindUseCase
 }
 
-func newCreditProductHarness(t *testing.T) *creditProductHarness {
+func newCreditKindHarness(t *testing.T) *creditKindHarness {
 	t.Helper()
 
-	h := &creditProductHarness{
+	h := &creditKindHarness{
 		pool:            mock.NewPool(t),
 		conn:            mock.NewConn(t),
 		tx:              mock.NewTx(t),
@@ -53,13 +53,13 @@ func newCreditProductHarness(t *testing.T) *creditProductHarness {
 		now:             time.Date(2026, 11, 18, 10, 0, 0, 0, time.UTC),
 	}
 
-	uc, err := merchantuc.NewCreditProduct(
+	uc, err := merchantuc.NewCreditKind(
 		h.pool,
 		h.merchantProfile,
 		h.outbox,
 		adapterclock.NewFixed(h.now, time.UTC),
 		h.idGenerator,
-		creditProductAuditDestination,
+		creditKindAuditDestination,
 	)
 	require.NoError(t, err)
 
@@ -68,7 +68,7 @@ func newCreditProductHarness(t *testing.T) *creditProductHarness {
 	return h
 }
 
-func (h *creditProductHarness) expectConnTx() {
+func (h *creditKindHarness) expectConnTx() {
 	h.pool.EXPECT().
 		Conn(testifymock.Anything, testifymock.Anything).
 		RunAndReturn(func(ctx context.Context, fn repo.ConnHandler) error {
@@ -85,7 +85,7 @@ func (h *creditProductHarness) expectConnTx() {
 	h.outbox.EXPECT().Tx(h.tx).Return(h.outboxTx).Maybe()
 }
 
-func creditProductContext() context.Context {
+func creditKindContext() context.Context {
 	ctx := trace.WithTraceID(context.Background(), "trace-test")
 
 	return trace.WithCorrelationID(ctx, "corr-test")
@@ -99,15 +99,15 @@ func activeMerchant() model.MerchantProfile {
 	}
 }
 
-func TestNewCreditProduct_RequiresDependencies(t *testing.T) {
+func TestNewCreditKind_RequiresDependencies(t *testing.T) {
 	t.Parallel()
 
 	clk := adapterclock.NewFixed(time.Now(), time.UTC)
-	_, err := merchantuc.NewCreditProduct(nil, nil, nil, clk, nil, "")
+	_, err := merchantuc.NewCreditKind(nil, nil, nil, clk, nil, "")
 	require.Error(t, err)
-	require.ErrorContains(t, err, "merchantuc.NewCreditProduct")
+	require.ErrorContains(t, err, "merchantuc.NewCreditKind")
 
-	_, err = merchantuc.NewCreditProduct(
+	_, err = merchantuc.NewCreditKind(
 		mock.NewPool(t),
 		mock.NewMerchantProfile(t),
 		mock.NewOutbox(t),
@@ -118,13 +118,13 @@ func TestNewCreditProduct_RequiresDependencies(t *testing.T) {
 	require.ErrorContains(t, err, "audit destination is required")
 }
 
-func TestSetCreditProductEnabled_EnablesMonthlyAndWritesAudit(t *testing.T) {
+func TestSetCreditKindEnabled_EnablesMonthlyAndWritesAudit(t *testing.T) {
 	t.Parallel()
 
-	h := newCreditProductHarness(t)
+	h := newCreditKindHarness(t)
 	merchant := activeMerchant()
 	actor := model.SubjectID(uuid.New())
-	ctx := creditProductContext()
+	ctx := creditKindContext()
 
 	h.expectConnTx()
 	h.merchantTx.EXPECT().LockByID(testifymock.Anything, merchant.ID).Return(merchant, nil).Once()
@@ -148,7 +148,7 @@ func TestSetCreditProductEnabled_EnablesMonthlyAndWritesAudit(t *testing.T) {
 		}).
 		Once()
 
-	output, err := h.uc.SetCreditProductEnabled(ctx, merchantuc.SetCreditProductEnabledInput{
+	output, err := h.uc.SetCreditKindEnabled(ctx, merchantuc.SetCreditKindEnabledInput{
 		ActorSubjectID:    actor,
 		MerchantProfileID: merchant.ID,
 		CreditKind:        model.PayNextMonthCreditKind,
@@ -160,14 +160,14 @@ func TestSetCreditProductEnabled_EnablesMonthlyAndWritesAudit(t *testing.T) {
 	require.Equal(t, model.PayNextMonthCreditKind, output.CreditKind)
 	require.Equal(t, merchant.ID, output.MerchantProfileID)
 
-	require.Equal(t, creditProductAuditDestination, captured.Destination)
+	require.Equal(t, creditKindAuditDestination, captured.Destination)
 	require.Equal(t, merchant.ID.String(), captured.MessageKey)
 	require.Equal(t, audit.EventType, captured.EventType)
 
 	var event audit.Event
 	require.NoError(t, json.Unmarshal(captured.Payload, &event))
 	require.NoError(t, audit.ValidateEvent(event))
-	require.Equal(t, "merchant_credit_product.set_enabled", event.Data.Action)
+	require.Equal(t, "merchant_credit_kind.set_enabled", event.Data.Action)
 	require.Equal(t, audit.OperatorActorType, event.Data.Actor.Type)
 	require.Equal(t, actor.String(), *event.Data.Actor.ID)
 	require.Equal(t, "merchant_profile", event.Data.Resource.Type)
@@ -176,15 +176,15 @@ func TestSetCreditProductEnabled_EnablesMonthlyAndWritesAudit(t *testing.T) {
 	require.Equal(t, "corr-test", event.CorrelationID)
 	require.Equal(t, "trace-test", event.TraceID)
 	require.Len(t, event.Data.Changes, 1)
-	require.Equal(t, "credit_product.pay_next_month.enabled", event.Data.Changes[0].Field)
+	require.Equal(t, "credit_kind.pay_next_month.enabled", event.Data.Changes[0].Field)
 	require.Equal(t, false, event.Data.Changes[0].Before)
 	require.Equal(t, true, event.Data.Changes[0].After)
 }
 
-func TestSetCreditProductEnabled_DisablesPayIn4(t *testing.T) {
+func TestSetCreditKindEnabled_DisablesPayIn4(t *testing.T) {
 	t.Parallel()
 
-	h := newCreditProductHarness(t)
+	h := newCreditKindHarness(t)
 	merchant := activeMerchant()
 
 	h.expectConnTx()
@@ -200,7 +200,7 @@ func TestSetCreditProductEnabled_DisablesPayIn4(t *testing.T) {
 	h.idGenerator.EXPECT().Generate().Return("event-2").Once()
 	h.outboxTx.EXPECT().Create(testifymock.Anything, testifymock.Anything).Return(model.OutboxMessage{}, nil).Once()
 
-	output, err := h.uc.SetCreditProductEnabled(creditProductContext(), merchantuc.SetCreditProductEnabledInput{
+	output, err := h.uc.SetCreditKindEnabled(creditKindContext(), merchantuc.SetCreditKindEnabledInput{
 		ActorSubjectID:    model.SubjectID(uuid.New()),
 		MerchantProfileID: merchant.ID,
 		CreditKind:        model.PayIn4CreditKind,
@@ -211,10 +211,10 @@ func TestSetCreditProductEnabled_DisablesPayIn4(t *testing.T) {
 	require.False(t, output.Enabled)
 }
 
-func TestSetCreditProductEnabled_IdempotentWhenStateUnchanged(t *testing.T) {
+func TestSetCreditKindEnabled_IdempotentWhenStateUnchanged(t *testing.T) {
 	t.Parallel()
 
-	h := newCreditProductHarness(t)
+	h := newCreditKindHarness(t)
 	merchant := activeMerchant()
 
 	// Legacy pay_in_4 is enabled by default, so enabling it again is a no-op:
@@ -226,7 +226,7 @@ func TestSetCreditProductEnabled_IdempotentWhenStateUnchanged(t *testing.T) {
 		Return(true, nil).
 		Once()
 
-	output, err := h.uc.SetCreditProductEnabled(creditProductContext(), merchantuc.SetCreditProductEnabledInput{
+	output, err := h.uc.SetCreditKindEnabled(creditKindContext(), merchantuc.SetCreditKindEnabledInput{
 		ActorSubjectID:    model.SubjectID(uuid.New()),
 		MerchantProfileID: merchant.ID,
 		CreditKind:        model.PayIn4CreditKind,
@@ -237,7 +237,7 @@ func TestSetCreditProductEnabled_IdempotentWhenStateUnchanged(t *testing.T) {
 	require.True(t, output.Enabled)
 }
 
-func TestSetCreditProductEnabled_RejectsNonActiveMerchant(t *testing.T) {
+func TestSetCreditKindEnabled_RejectsNonActiveMerchant(t *testing.T) {
 	t.Parallel()
 
 	for _, status := range []model.MerchantStatus{
@@ -249,14 +249,14 @@ func TestSetCreditProductEnabled_RejectsNonActiveMerchant(t *testing.T) {
 		t.Run(string(status), func(t *testing.T) {
 			t.Parallel()
 
-			h := newCreditProductHarness(t)
+			h := newCreditKindHarness(t)
 			merchant := activeMerchant()
 			merchant.Status = status
 
 			h.expectConnTx()
 			h.merchantTx.EXPECT().LockByID(testifymock.Anything, merchant.ID).Return(merchant, nil).Once()
 
-			_, err := h.uc.SetCreditProductEnabled(creditProductContext(), merchantuc.SetCreditProductEnabledInput{
+			_, err := h.uc.SetCreditKindEnabled(creditKindContext(), merchantuc.SetCreditKindEnabledInput{
 				ActorSubjectID:    model.SubjectID(uuid.New()),
 				MerchantProfileID: merchant.ID,
 				CreditKind:        model.PayNextMonthCreditKind,
@@ -268,10 +268,10 @@ func TestSetCreditProductEnabled_RejectsNonActiveMerchant(t *testing.T) {
 	}
 }
 
-func TestSetCreditProductEnabled_MerchantNotFound(t *testing.T) {
+func TestSetCreditKindEnabled_MerchantNotFound(t *testing.T) {
 	t.Parallel()
 
-	h := newCreditProductHarness(t)
+	h := newCreditKindHarness(t)
 	merchantID := model.MerchantProfileID(uuid.New())
 
 	h.expectConnTx()
@@ -280,7 +280,7 @@ func TestSetCreditProductEnabled_MerchantNotFound(t *testing.T) {
 		Return(model.MerchantProfile{}, cerr.ResourceNotFound(errors.New("missing"))).
 		Once()
 
-	_, err := h.uc.SetCreditProductEnabled(creditProductContext(), merchantuc.SetCreditProductEnabledInput{
+	_, err := h.uc.SetCreditKindEnabled(creditKindContext(), merchantuc.SetCreditKindEnabledInput{
 		ActorSubjectID:    model.SubjectID(uuid.New()),
 		MerchantProfileID: merchantID,
 		CreditKind:        model.PayNextMonthCreditKind,
@@ -289,11 +289,11 @@ func TestSetCreditProductEnabled_MerchantNotFound(t *testing.T) {
 	require.True(t, cerr.IsCode(err, cerr.CodeResourceNotFound))
 }
 
-func TestSetCreditProductEnabled_ValidatesInput(t *testing.T) {
+func TestSetCreditKindEnabled_ValidatesInput(t *testing.T) {
 	t.Parallel()
 
-	h := newCreditProductHarness(t)
-	valid := merchantuc.SetCreditProductEnabledInput{
+	h := newCreditKindHarness(t)
+	valid := merchantuc.SetCreditKindEnabledInput{
 		ActorSubjectID:    model.SubjectID(uuid.New()),
 		MerchantProfileID: model.MerchantProfileID(uuid.New()),
 		CreditKind:        model.PayNextMonthCreditKind,
@@ -312,21 +312,21 @@ func TestSetCreditProductEnabled_ValidatesInput(t *testing.T) {
 	emptyKind := valid
 	emptyKind.CreditKind = ""
 
-	for name, input := range map[string]merchantuc.SetCreditProductEnabledInput{
+	for name, input := range map[string]merchantuc.SetCreditKindEnabledInput{
 		"missing actor":    missingActor,
 		"missing merchant": missingMerchant,
 		"unknown kind":     badKind,
 		"empty kind":       emptyKind,
 	} {
-		_, err := h.uc.SetCreditProductEnabled(context.Background(), input)
+		_, err := h.uc.SetCreditKindEnabled(context.Background(), input)
 		require.Truef(t, cerr.IsCode(err, cerr.CodeInvalidArgument), "%s must be invalid argument", name)
 	}
 }
 
-func TestListCreditProducts_AppliesEffectiveDefaults(t *testing.T) {
+func TestListCreditKinds_DefaultsBothKindsDisabled(t *testing.T) {
 	t.Parallel()
 
-	h := newCreditProductHarness(t)
+	h := newCreditKindHarness(t)
 	merchant := activeMerchant()
 
 	h.pool.EXPECT().
@@ -339,19 +339,19 @@ func TestListCreditProducts_AppliesEffectiveDefaults(t *testing.T) {
 	h.merchantConn.EXPECT().GetByID(testifymock.Anything, merchant.ID).Return(merchant, nil).Once()
 	h.merchantConn.EXPECT().
 		IsCreditKindEnabled(testifymock.Anything, merchant.ID, model.PayIn4CreditKind).
-		Return(true, nil).
+		Return(false, nil).
 		Once()
 	h.merchantConn.EXPECT().
 		IsCreditKindEnabled(testifymock.Anything, merchant.ID, model.PayNextMonthCreditKind).
 		Return(false, nil).
 		Once()
 
-	output, err := h.uc.ListCreditProducts(context.Background(), merchantuc.ListCreditProductsInput{
+	output, err := h.uc.ListCreditKinds(context.Background(), merchantuc.ListCreditKindsInput{
 		MerchantProfileID: merchant.ID,
 	})
 	require.NoError(t, err)
-	require.Equal(t, []merchantuc.CreditProductEligibility{
-		{CreditKind: model.PayIn4CreditKind, Enabled: true},
+	require.Equal(t, []merchantuc.CreditKindEligibility{
+		{CreditKind: model.PayIn4CreditKind, Enabled: false},
 		{CreditKind: model.PayNextMonthCreditKind, Enabled: false},
-	}, output.Products)
+	}, output.CreditKinds)
 }

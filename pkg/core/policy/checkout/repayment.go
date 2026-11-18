@@ -16,16 +16,16 @@ type DueDateRule string
 const (
 	// DueByCadence retains the existing installment-series schedule.
 	DueByCadence DueDateRule = "cadence"
-	// DueNextJalaliMonthFifth is a single payment at the end of day 5 of the
+	// DueNextJalaliMonthFirst is a single payment at the end of day 1 of the
 	// Jalali month following contract activation in Asia/Tehran.
-	DueNextJalaliMonthFifth DueDateRule = "next_jalali_month_fifth"
+	DueNextJalaliMonthFirst DueDateRule = "next_jalali_month_first"
 )
 
-// nextJalaliFifth computes one fixed contractual due instant. A purchase
-// activated on day 1 or 30 of a Jalali month is due in the following month;
-// it never becomes due on day 5 of the current month.
-func nextJalaliFifth(anchor time.Time) (time.Time, error) {
-	const op = "checkout.nextJalaliFifth"
+// nextJalaliFirst computes one fixed contractual due instant. A purchase
+// activated on any day of a Jalali month (including day 1) is due on day 1 of
+// the following month; it never becomes due on day 1 of the current month.
+func nextJalaliFirst(anchor time.Time) (time.Time, error) {
+	const op = "checkout.nextJalaliFirst"
 	if anchor.IsZero() {
 		return time.Time{}, fmt.Errorf("%s: anchor is required", op)
 	}
@@ -42,9 +42,9 @@ func nextJalaliFifth(anchor time.Time) (time.Time, error) {
 		month = 1
 	}
 
-	// The fifth is inclusive: customer may pay until 23:59:59 in Iran.
-	wall := time.Date(2000, time.January, 5, 23, 59, 59, 0, location)
-	return (jalali.Date{Year: year, Month: month, Day: 5}).ToTime(wall, location), nil
+	// The first is inclusive: customer may pay until 23:59:59 in Iran.
+	wall := time.Date(2000, time.January, 1, 23, 59, 59, 0, location)
+	return (jalali.Date{Year: year, Month: month, Day: 1}).ToTime(wall, location), nil
 }
 
 // CadenceUnit identifies the calendar arithmetic used between recurring
@@ -218,12 +218,12 @@ func DueAtForInstallmentOrder(terms Terms, now time.Time, order int) (time.Time,
 		return time.Time{}, fmt.Errorf("%s: installment order must be positive", op)
 	}
 
-	if terms.DueDateRule == DueNextJalaliMonthFifth {
+	if terms.DueDateRule == DueNextJalaliMonthFirst {
 		if terms.ActivationMode != ActivationAfterMerchantFunding || order != 1 {
 			return time.Time{}, fmt.Errorf("%s: monthly due rule supports one merchant-funded installment", op)
 		}
 
-		return nextJalaliFifth(now)
+		return nextJalaliFirst(now)
 	}
 
 	switch terms.ActivationMode {
@@ -328,11 +328,11 @@ func ValidateTerms(terms Terms) error {
 	case "", DueByCadence:
 		// Existing schedules retain their historical cadence rules.
 
-	case DueNextJalaliMonthFifth:
+	case DueNextJalaliMonthFirst:
 		if terms.InstallmentCount != 1 ||
 			terms.ActivationMode != ActivationAfterMerchantFunding ||
 			model.EffectiveCreditKind(terms.CreditKind) != model.PayNextMonthCreditKind {
-			return fmt.Errorf("%s: next-month fifth requires a single merchant-funded monthly installment", op)
+			return fmt.Errorf("%s: next-month first requires a single merchant-funded monthly installment", op)
 		}
 	default:
 		return fmt.Errorf("%s: unsupported due-date rule %q", op, terms.DueDateRule)

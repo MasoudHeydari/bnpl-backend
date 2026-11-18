@@ -386,12 +386,15 @@ func newHarness(t *testing.T) *harness {
 
 	checkoutObserver := newAllowAllCheckoutObserver(t)
 
+	creditAccountRepo := &harnessCreditAccountRepo{conn: mock.NewCreditAccountConnQueryer(t)}
+
 	h.uc = &UseCase{
 		pool:                       h.pool,
 		checkoutSession:            sessionRepo,
 		merchantProfile:            merchantRepo,
 		merchantBranchProfile:      branchRepo,
 		customerProfile:            customerRepo,
+		creditAccount:              creditAccountRepo,
 		contract:                   contractRepo,
 		paymentAttempt:             attemptRepo,
 		installment:                installRepo,
@@ -526,22 +529,27 @@ func (h *harness) installDefaultCoreCollaborators() {
 // expectPool registers connCalls Pool.Conn invocations that never open a
 // transaction plus txCalls Pool.Conn invocations that immediately open one.
 
-// expectSelectCreditKindNoop expects the START product-selection lock when the
-// request omits credit_kind (or matches the session). No product write occurs.
-func (h *harness) expectSelectCreditKindNoop(session model.CheckoutSession) {
+// expectSelectedCreditKindForStart expects Hosted START's read that the Partner
+// selection already recorded a credit kind.
+func (h *harness) expectSelectedCreditKindForStart(session model.CheckoutSession) {
 	h.t.Helper()
-	h.sessionTx.EXPECT().
-		LockByPublicToken(h.ctx, h.publicToken).
+
+	require.True(h.t, session.CreditKind.IsValid())
+	h.sessionCQ.EXPECT().
+		GetByPublicToken(h.ctx, h.publicToken).
 		Return(session, nil).
 		Once()
 }
 
-// expectStartExternalPrepareLoad expects the deferred-prepare mode probe at START.
+// expectStartExternalPrepareLoad expects Hosted START's selected-kind probe.
+// Offer preparation reuses that loaded session (no second GetByPublicToken).
 func (h *harness) expectStartExternalPrepareLoad() {
 	h.t.Helper()
-	prepared := h.session()
-	h.expectSelectCreditKindNoop(prepared)
-	h.sessionCQ.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(prepared, nil).Once()
+
+	prepared := h.session(func(s *model.CheckoutSession) {
+		s.CreditKind = model.PayIn4CreditKind
+	})
+	h.expectSelectedCreditKindForStart(prepared)
 }
 
 func (h *harness) expectPool(connCalls int, txCalls int) {
@@ -593,6 +601,7 @@ func (h *harness) session(mods ...func(*model.CheckoutSession)) model.CheckoutSe
 		MerchantState:           "cart-42",
 		RequestedAmountMinor:    150000000,
 		Currency:                model.IRRCurrency,
+		CreditKind:              model.PayIn4CreditKind,
 		Status:                  model.OpenCheckoutSessionStatus,
 		DecisionID:              &decisionID,
 		EvaluationGeneration:    1,
@@ -950,7 +959,8 @@ func (h *harness) expectPreparedExternalOfferReload(session model.CheckoutSessio
 	h.expectProjectApprovedOffer(session)
 }
 
-// expectExternalOfferPreparation expects Identity bind + Decision evaluate after create.
+// expectExternalOfferPreparation expects Identity bind + Decision evaluate.
+// Used by SelectCreditKind / deferred START paths that still prepare offers.
 func (h *harness) expectExternalOfferPreparation(unbound, bound, linked model.CheckoutSession) {
 	h.t.Helper()
 
@@ -966,4 +976,11 @@ func (h *harness) expectExternalOfferPreparation(unbound, bound, linked model.Ch
 			h.now,
 		).
 		Return(linked, nil).Once()
+}
+
+// expectPartnerCreateCustomerBind expects CRS resolve + BindCustomer without a Decision.
+func (h *harness) expectPartnerCreateCustomerBind(unbound, bound model.CheckoutSession) {
+	h.t.Helper()
+
+	h.expectExternalBind(unbound, bound)
 }

@@ -9,7 +9,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/policy/checkout"
 )
 
-func TestMonthlyDueDateAlwaysFifthOfFollowingJalaliMonth(t *testing.T) {
+func TestMonthlyDueDateAlwaysFirstOfFollowingJalaliMonth(t *testing.T) {
 	location, err := time.LoadLocation("Asia/Tehran")
 	if err != nil {
 		t.Fatal(err)
@@ -21,9 +21,9 @@ func TestMonthlyDueDateAlwaysFifthOfFollowingJalaliMonth(t *testing.T) {
 		anchor jalali.Date
 		next   jalali.Date
 	}{
-		{"early month", jalali.Date{Year: 1405, Month: 1, Day: 1}, jalali.Date{Year: 1405, Month: 2, Day: 5}},
-		{"after fifth", jalali.Date{Year: 1405, Month: 1, Day: 28}, jalali.Date{Year: 1405, Month: 2, Day: 5}},
-		{"year boundary", jalali.Date{Year: 1405, Month: 12, Day: 20}, jalali.Date{Year: 1406, Month: 1, Day: 5}},
+		{"early month", jalali.Date{Year: 1405, Month: 1, Day: 1}, jalali.Date{Year: 1405, Month: 2, Day: 1}},
+		{"late month", jalali.Date{Year: 1405, Month: 1, Day: 28}, jalali.Date{Year: 1405, Month: 2, Day: 1}},
+		{"year boundary", jalali.Date{Year: 1405, Month: 12, Day: 20}, jalali.Date{Year: 1406, Month: 1, Day: 1}},
 	}
 	for _, tc := range anchors {
 		t.Run(tc.name, func(t *testing.T) {
@@ -54,6 +54,21 @@ func TestMonthlyDueDateAlwaysFifthOfFollowingJalaliMonth(t *testing.T) {
 				t.Fatalf("invalid monthly schedule: %+v", schedule)
 			}
 		})
+	}
+}
+
+func TestTerms_NextMonthFirstWithFourGraceDays(t *testing.T) {
+	terms := New().Terms()
+	if terms.DueDateRule != checkout.DueNextJalaliMonthFirst {
+		t.Fatalf("due date rule=%q", terms.DueDateRule)
+	}
+
+	if terms.Repayment.GracePeriodDays != 4 {
+		t.Fatalf("grace=%d want 4", terms.Repayment.GracePeriodDays)
+	}
+
+	if terms.InstallmentCount != 1 || terms.ActivationMode != checkout.ActivationAfterMerchantFunding {
+		t.Fatalf("unexpected terms: %+v", terms)
 	}
 }
 
