@@ -108,6 +108,11 @@ var (
 		"Read any BNPL merchant",
 		"Allows an administrator to read BNPL merchant profiles.",
 	)
+	MerchantsCreditProductsUpdateAny = permission(
+		"bnpl:merchants:credit-products:update:any",
+		"Update any BNPL merchant credit product eligibility",
+		"Allows an administrator to enable or disable BNPL credit products (pay_in_4, pay_next_month) for a merchant.",
+	)
 	StoresReadAny = permission(
 		"bnpl:stores:read:any",
 		"Read any BNPL store",
@@ -157,6 +162,7 @@ var adminPanel = []Permission{
 	PaymentsReadAny,
 	PaymentsRefundAny,
 	MerchantsReadAny,
+	MerchantsCreditProductsUpdateAny,
 	StoresReadAny,
 	BranchesReadAny,
 	ReportsReadAny,

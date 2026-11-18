@@ -39,6 +39,10 @@ type MerchantProfileTxQueryer interface {
 	// MerchantProfileQueryer provides shared merchant profile query operations.
 	MerchantProfileQueryer
 
+	// MerchantProductEligibilityTxQueryer provides the authorization-scoped
+	// credit product eligibility write used by merchant administration.
+	MerchantProductEligibilityTxQueryer
+
 	// Create stores a new merchant profile inside the current transaction.
 	Create(
 		ctx context.Context,

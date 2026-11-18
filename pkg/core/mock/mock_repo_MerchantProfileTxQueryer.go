@@ -542,3 +542,78 @@ func (_c *MerchantProfileTxQueryer_LockByMerchantID_Call) RunAndReturn(run func(
 	_c.Call.Return(run)
 	return _c
 }
+
+// SetCreditKindEnabled provides a mock function for the type MerchantProfileTxQueryer
+func (_mock *MerchantProfileTxQueryer) SetCreditKindEnabled(context1 context.Context, merchantProfileID model.MerchantProfileID, creditKind model.CreditKind, b bool, time1 time.Time) error {
+	ret := _mock.Called(context1, merchantProfileID, creditKind, b, time1)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SetCreditKindEnabled")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.MerchantProfileID, model.CreditKind, bool, time.Time) error); ok {
+		r0 = returnFunc(context1, merchantProfileID, creditKind, b, time1)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MerchantProfileTxQueryer_SetCreditKindEnabled_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetCreditKindEnabled'
+type MerchantProfileTxQueryer_SetCreditKindEnabled_Call struct {
+	*mock.Call
+}
+
+// SetCreditKindEnabled is a helper method to define mock.On call
+//   - context1 context.Context
+//   - merchantProfileID model.MerchantProfileID
+//   - creditKind model.CreditKind
+//   - b bool
+//   - time1 time.Time
+func (_e *MerchantProfileTxQueryer_Expecter) SetCreditKindEnabled(context1 any, merchantProfileID any, creditKind any, b any, time1 any) *MerchantProfileTxQueryer_SetCreditKindEnabled_Call {
+	return &MerchantProfileTxQueryer_SetCreditKindEnabled_Call{Call: _e.mock.On("SetCreditKindEnabled", context1, merchantProfileID, creditKind, b, time1)}
+}
+
+func (_c *MerchantProfileTxQueryer_SetCreditKindEnabled_Call) Run(run func(context1 context.Context, merchantProfileID model.MerchantProfileID, creditKind model.CreditKind, b bool, time1 time.Time)) *MerchantProfileTxQueryer_SetCreditKindEnabled_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.MerchantProfileID
+		if args[1] != nil {
+			arg1 = args[1].(model.MerchantProfileID)
+		}
+		var arg2 model.CreditKind
+		if args[2] != nil {
+			arg2 = args[2].(model.CreditKind)
+		}
+		var arg3 bool
+		if args[3] != nil {
+			arg3 = args[3].(bool)
+		}
+		var arg4 time.Time
+		if args[4] != nil {
+			arg4 = args[4].(time.Time)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+			arg4,
+		)
+	})
+	return _c
+}
+
+func (_c *MerchantProfileTxQueryer_SetCreditKindEnabled_Call) Return(err error) *MerchantProfileTxQueryer_SetCreditKindEnabled_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MerchantProfileTxQueryer_SetCreditKindEnabled_Call) RunAndReturn(run func(context1 context.Context, merchantProfileID model.MerchantProfileID, creditKind model.CreditKind, b bool, time1 time.Time) error) *MerchantProfileTxQueryer_SetCreditKindEnabled_Call {
+	_c.Call.Return(run)
+	return _c
+}

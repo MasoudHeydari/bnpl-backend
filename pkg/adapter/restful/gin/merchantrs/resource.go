@@ -9,11 +9,16 @@ import (
 )
 
 type resource struct {
-	merchant *merchantuc.UseCase
+	merchant      *merchantuc.UseCase
+	creditProduct *merchantuc.CreditProductUseCase
 }
 
 // RegisterOptions configures merchant route registration.
-type RegisterOptions struct{}
+type RegisterOptions struct {
+	// CreditProduct enables the admin merchant credit product eligibility
+	// routes. When nil those routes are not registered.
+	CreditProduct *merchantuc.CreditProductUseCase
+}
 
 // Register attaches merchant routes to the API RouterGroup provided by wiring
 // (typically /api/v1). Passing *gin.RouterGroup keeps this resource from
@@ -21,13 +26,13 @@ type RegisterOptions struct{}
 func Register(
 	router *gin.RouterGroup,
 	merchant *merchantuc.UseCase,
-	_ RegisterOptions,
+	opts RegisterOptions,
 ) {
 	if merchant == nil {
 		return
 	}
 
-	rs := &resource{merchant: merchant}
+	rs := &resource{merchant: merchant, creditProduct: opts.CreditProduct}
 	authMW := middleware.AuthContext()
 	router.GET(
 		"/merchant",
@@ -44,4 +49,17 @@ func Register(
 		authMW.RequireAny(permission.ContractsReadMerchant),
 		rs.ListSales,
 	)
+
+	if opts.CreditProduct != nil {
+		router.GET(
+			"/admin/merchants/:merchant_profile_id/credit-products",
+			authMW.RequireAny(permission.MerchantsReadAny),
+			rs.ListCreditProducts,
+		)
+		router.PUT(
+			"/admin/merchants/:merchant_profile_id/credit-products/:credit_kind",
+			authMW.RequireAny(permission.MerchantsCreditProductsUpdateAny),
+			rs.SetCreditProduct,
+		)
+	}
 }

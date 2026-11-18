@@ -6,6 +6,7 @@ import (
 
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/healthrs"
+	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/merchantrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/routes"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/shortlinkrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/swaggerrs"
@@ -43,6 +44,9 @@ func (a *App) RegisterRoutes(e *gin.Engine) error {
 		routes.RegisterOptions{
 			RepaymentBatchProviderCode: a.Config.External.FinancialCore.CheckoutPaymentProviderCode,
 			RepaymentBatchReturnURL:    a.Config.External.FinancialCore.PaymentReturnURL,
+			Merchant: merchantrs.RegisterOptions{
+				CreditProduct: a.UseCases.MerchantCreditProduct,
+			},
 			Health: healthrs.RegisterOptions{
 				Enabled: a.Config.Usecases.Health.Enabled,
 			},

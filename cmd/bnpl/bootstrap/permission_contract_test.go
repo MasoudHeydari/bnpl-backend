@@ -159,6 +159,18 @@ func protectedRoutePermissions() []protectedRoutePermission {
 		},
 		{
 			Method:      http.MethodGet,
+			GinPath:     "/api/v1/admin/merchants/" + uuid.NewString() + "/credit-products",
+			SwaggerPath: "/api/v1/admin/merchants/{merchant_profile_id}/credit-products",
+			Permission:  permission.MerchantsReadAny,
+		},
+		{
+			Method:      http.MethodPut,
+			GinPath:     "/api/v1/admin/merchants/" + uuid.NewString() + "/credit-products/pay_next_month",
+			SwaggerPath: "/api/v1/admin/merchants/{merchant_profile_id}/credit-products/{credit_kind}",
+			Permission:  permission.MerchantsCreditProductsUpdateAny,
+		},
+		{
+			Method:      http.MethodGet,
 			GinPath:     "/api/v1/merchant/terminal",
 			SwaggerPath: "/api/v1/merchant/terminal",
 			Permission:  permission.MerchantTerminalsManageMerchant,
@@ -214,6 +226,8 @@ func allEndpointPermissions() []permission.Permission {
 		permission.CheckoutReturnDestinationsManageMerchant,
 		permission.MerchantProfileReadMerchant,
 		permission.MerchantTerminalsManageMerchant,
+		permission.MerchantsReadAny,
+		permission.MerchantsCreditProductsUpdateAny,
 	}
 }
 

@@ -15,6 +15,487 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/v1/admin/merchants/{merchant_profile_id}/credit-products": {
+            "get": {
+                "security": [
+                    {
+                        "PermissionAuth": []
+                    }
+                ],
+                "description": "Returns the effective eligibility of pay_in_4 and pay_next_month for a merchant.\npay_in_4 is enabled unless explicitly disabled (legacy compatibility); pay_next_month is disabled unless explicitly enabled.\nRequires bnpl:merchants:read:any. merchant_profile_id is the internal BNPL merchant profile id (merchant_profiles.id).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Merchant Credit Products Admin"
+                ],
+                "summary": "List merchant credit product eligibility (admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Internal merchant profile UUID",
+                        "name": "merchant_profile_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated administrator subject UUID issued by Identity Service",
+                        "name": "x-auth-subject-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated tenant UUID",
+                        "name": "x-auth-tenant-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated business-context UUID",
+                        "name": "x-auth-context-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "bnpl:merchants:read:any",
+                        "description": "Comma-separated gateway permissions",
+                        "name": "x-auth-permissions",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Trace-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Correlation-Id",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Credit product eligibility returned",
+                        "schema": {
+                            "$ref": "#/definitions/merchantrs.ListCreditProductsSuccessSchema"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/merchants/{merchant_profile_id}/credit-products/{credit_kind}": {
+            "put": {
+                "security": [
+                    {
+                        "PermissionAuth": []
+                    }
+                ],
+                "description": "Sets whether a merchant may offer pay_in_4 or pay_next_month. pay_next_month stays disabled until explicitly enabled here.\nIdempotent: repeating the same desired state returns 200 with changed=false and records no audit event.\nOnly ACTIVE merchants can be changed (409 otherwise). Existing contracts are not affected.\nRequires bnpl:merchants:credit-products:update:any. A real change writes audit action merchant_credit_product.set_enabled.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Merchant Credit Products Admin"
+                ],
+                "summary": "Enable or disable a merchant credit product (admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Internal merchant profile UUID",
+                        "name": "merchant_profile_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "pay_in_4",
+                            "pay_next_month"
+                        ],
+                        "type": "string",
+                        "description": "Credit product",
+                        "name": "credit_kind",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated administrator subject UUID issued by Identity Service",
+                        "name": "x-auth-subject-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated tenant UUID",
+                        "name": "x-auth-tenant-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated business-context UUID",
+                        "name": "x-auth-context-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "bnpl:merchants:credit-products:update:any",
+                        "description": "Comma-separated gateway permissions",
+                        "name": "x-auth-permissions",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Trace-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Correlation-Id",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Desired eligibility",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/merchantrs.SetCreditProductRequestSchema"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Eligibility set (changed=false when already in the requested state)",
+                        "schema": {
+                            "$ref": "#/definitions/merchantrs.SetCreditProductSuccessSchema"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/checkout-decisions": {
             "post": {
                 "security": [
@@ -7120,6 +7601,11 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "reconfirm_required": {
+                    "description": "ReconfirmRequired is true when the client presented a stale generation for\nthe same product; offer and evaluation_generation are authoritative.",
+                    "type": "boolean",
+                    "example": false
+                },
                 "status": {
                     "enum": [
                         "open",
@@ -8880,6 +9366,33 @@ const docTemplate = `{
                 }
             }
         },
+        "merchantrs.ListCreditProductsSchema": {
+            "type": "object",
+            "properties": {
+                "merchant_profile_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c"
+                },
+                "products": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/merchantrs.creditProductResponse"
+                    }
+                }
+            }
+        },
+        "merchantrs.ListCreditProductsSuccessSchema": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/merchantrs.ListCreditProductsSchema"
+                },
+                "meta": {
+                    "$ref": "#/definitions/serdser.SuccessMetaNoPagination"
+                }
+            }
+        },
         "merchantrs.ProfileSchema": {
             "type": "object",
             "properties": {
@@ -9041,6 +9554,77 @@ const docTemplate = `{
                 },
                 "meta": {
                     "$ref": "#/definitions/serdser.SuccessMeta"
+                }
+            }
+        },
+        "merchantrs.SetCreditProductRequestSchema": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "merchantrs.SetCreditProductSchema": {
+            "type": "object",
+            "properties": {
+                "changed": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "credit_kind": {
+                    "enum": [
+                        "pay_in_4",
+                        "pay_next_month"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.CreditKind"
+                        }
+                    ],
+                    "example": "pay_next_month"
+                },
+                "enabled": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "merchant_profile_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c"
+                }
+            }
+        },
+        "merchantrs.SetCreditProductSuccessSchema": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/merchantrs.SetCreditProductSchema"
+                },
+                "meta": {
+                    "$ref": "#/definitions/serdser.SuccessMetaNoPagination"
+                }
+            }
+        },
+        "merchantrs.creditProductResponse": {
+            "type": "object",
+            "properties": {
+                "credit_kind": {
+                    "enum": [
+                        "pay_in_4",
+                        "pay_next_month"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.CreditKind"
+                        }
+                    ],
+                    "example": "pay_next_month"
+                },
+                "enabled": {
+                    "type": "boolean",
+                    "example": true
                 }
             }
         },

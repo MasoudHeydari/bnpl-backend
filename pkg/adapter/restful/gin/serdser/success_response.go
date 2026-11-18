@@ -58,6 +58,13 @@ const (
 	// SuccessCodeMerchantProfileRetrieved indicates that the merchant profile was returned.
 	SuccessCodeMerchantProfileRetrieved SuccessCode = "MERCHANT_PROFILE_RETRIEVED"
 
+	// SuccessCodeMerchantCreditProductsListed indicates that a merchant's credit product eligibility was listed.
+	SuccessCodeMerchantCreditProductsListed SuccessCode = "MERCHANT_CREDIT_PRODUCTS_LISTED"
+
+	// SuccessCodeMerchantCreditProductUpdated indicates that a merchant credit product was enabled or disabled
+	// (or already had the requested state).
+	SuccessCodeMerchantCreditProductUpdated SuccessCode = "MERCHANT_CREDIT_PRODUCT_UPDATED"
+
 	// SuccessCodeInstallmentPaymentsListed indicates that installment payment history was listed.
 	SuccessCodeInstallmentPaymentsListed SuccessCode = "INSTALLMENT_PAYMENTS_LISTED"
 
@@ -210,6 +217,10 @@ var (
 	SuccessMessageMerchantBranchesListed = SuccessMessageKey{value: "success.merchant_branches_listed"}
 	// SuccessMessageMerchantProfileReturned reports a successful merchant-profile lookup.
 	SuccessMessageMerchantProfileReturned = SuccessMessageKey{value: "success.merchant_profile_returned"}
+	// SuccessMessageMerchantCreditProductsListed reports a successful merchant credit product eligibility listing.
+	SuccessMessageMerchantCreditProductsListed = SuccessMessageKey{value: "success.merchant_credit_products_listed"}
+	// SuccessMessageMerchantCreditProductUpdated reports a successful merchant credit product eligibility update.
+	SuccessMessageMerchantCreditProductUpdated = SuccessMessageKey{value: "success.merchant_credit_product_updated"}
 	// SuccessMessageMerchantSalesListed reports a successful merchant-sales listing.
 	SuccessMessageMerchantSalesListed = SuccessMessageKey{value: "success.merchant_sales_listed"}
 	// SuccessMessageContractAlreadyExists reports an idempotently reused contract.

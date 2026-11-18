@@ -323,6 +323,12 @@ definitions:
         allOf:
         - $ref: '#/definitions/checkoutsessionrs.hostedExternalOfferSchema'
         description: Offer is the financing terms bound to evaluation_generation.
+      reconfirm_required:
+        description: |-
+          ReconfirmRequired is true when the client presented a stale generation for
+          the same product; offer and evaluation_generation are authoritative.
+        example: false
+        type: boolean
       status:
         allOf:
         - $ref: '#/definitions/model.CheckoutSessionStatus'
@@ -1489,6 +1495,24 @@ definitions:
       meta:
         $ref: '#/definitions/serdser.SuccessMetaNoPagination'
     type: object
+  merchantrs.ListCreditProductsSchema:
+    properties:
+      merchant_profile_id:
+        example: 8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c
+        format: uuid
+        type: string
+      products:
+        items:
+          $ref: '#/definitions/merchantrs.creditProductResponse'
+        type: array
+    type: object
+  merchantrs.ListCreditProductsSuccessSchema:
+    properties:
+      data:
+        $ref: '#/definitions/merchantrs.ListCreditProductsSchema'
+      meta:
+        $ref: '#/definitions/serdser.SuccessMetaNoPagination'
+    type: object
   merchantrs.ProfileSchema:
     properties:
       created_at:
@@ -1597,6 +1621,52 @@ definitions:
         type: array
       meta:
         $ref: '#/definitions/serdser.SuccessMeta'
+    type: object
+  merchantrs.SetCreditProductRequestSchema:
+    properties:
+      enabled:
+        example: true
+        type: boolean
+    type: object
+  merchantrs.SetCreditProductSchema:
+    properties:
+      changed:
+        example: true
+        type: boolean
+      credit_kind:
+        allOf:
+        - $ref: '#/definitions/model.CreditKind'
+        enum:
+        - pay_in_4
+        - pay_next_month
+        example: pay_next_month
+      enabled:
+        example: true
+        type: boolean
+      merchant_profile_id:
+        example: 8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c
+        format: uuid
+        type: string
+    type: object
+  merchantrs.SetCreditProductSuccessSchema:
+    properties:
+      data:
+        $ref: '#/definitions/merchantrs.SetCreditProductSchema'
+      meta:
+        $ref: '#/definitions/serdser.SuccessMetaNoPagination'
+    type: object
+  merchantrs.creditProductResponse:
+    properties:
+      credit_kind:
+        allOf:
+        - $ref: '#/definitions/model.CreditKind'
+        enum:
+        - pay_in_4
+        - pay_next_month
+        example: pay_next_month
+      enabled:
+        example: true
+        type: boolean
     type: object
   merchantterminalrs.GetResponseSchema:
     properties:
@@ -2246,6 +2316,348 @@ info:
   title: BNPL Backend API
   version: "1.0"
 paths:
+  /api/v1/admin/merchants/{merchant_profile_id}/credit-products:
+    get:
+      description: |-
+        Returns the effective eligibility of pay_in_4 and pay_next_month for a merchant.
+        pay_in_4 is enabled unless explicitly disabled (legacy compatibility); pay_next_month is disabled unless explicitly enabled.
+        Requires bnpl:merchants:read:any. merchant_profile_id is the internal BNPL merchant profile id (merchant_profiles.id).
+      parameters:
+      - description: Internal merchant profile UUID
+        format: uuid
+        in: path
+        name: merchant_profile_id
+        required: true
+        type: string
+      - description: Authenticated administrator subject UUID issued by Identity Service
+        format: uuid
+        in: header
+        name: x-auth-subject-id
+        required: true
+        type: string
+      - description: Authenticated tenant UUID
+        format: uuid
+        in: header
+        name: x-auth-tenant-id
+        required: true
+        type: string
+      - description: Authenticated business-context UUID
+        format: uuid
+        in: header
+        name: x-auth-context-id
+        required: true
+        type: string
+      - description: Comma-separated gateway permissions
+        example: bnpl:merchants:read:any
+        in: header
+        name: x-auth-permissions
+        required: true
+        type: string
+      - description: Optional; reused when present otherwise generated. Always returned.
+        in: header
+        name: X-Trace-Id
+        type: string
+      - description: Optional; reused when present otherwise generated. Always returned.
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Optional; reused when present otherwise generated. Always returned.
+        in: header
+        name: X-Correlation-Id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Credit product eligibility returned
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/merchantrs.ListCreditProductsSuccessSchema'
+        "400":
+          description: Bad Request
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "401":
+          description: Unauthorized
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "403":
+          description: Forbidden
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "404":
+          description: Not Found
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+      security:
+      - PermissionAuth: []
+      summary: List merchant credit product eligibility (admin)
+      tags:
+      - Merchant Credit Products Admin
+  /api/v1/admin/merchants/{merchant_profile_id}/credit-products/{credit_kind}:
+    put:
+      consumes:
+      - application/json
+      description: |-
+        Sets whether a merchant may offer pay_in_4 or pay_next_month. pay_next_month stays disabled until explicitly enabled here.
+        Idempotent: repeating the same desired state returns 200 with changed=false and records no audit event.
+        Only ACTIVE merchants can be changed (409 otherwise). Existing contracts are not affected.
+        Requires bnpl:merchants:credit-products:update:any. A real change writes audit action merchant_credit_product.set_enabled.
+      parameters:
+      - description: Internal merchant profile UUID
+        format: uuid
+        in: path
+        name: merchant_profile_id
+        required: true
+        type: string
+      - description: Credit product
+        enum:
+        - pay_in_4
+        - pay_next_month
+        in: path
+        name: credit_kind
+        required: true
+        type: string
+      - description: Authenticated administrator subject UUID issued by Identity Service
+        format: uuid
+        in: header
+        name: x-auth-subject-id
+        required: true
+        type: string
+      - description: Authenticated tenant UUID
+        format: uuid
+        in: header
+        name: x-auth-tenant-id
+        required: true
+        type: string
+      - description: Authenticated business-context UUID
+        format: uuid
+        in: header
+        name: x-auth-context-id
+        required: true
+        type: string
+      - description: Comma-separated gateway permissions
+        example: bnpl:merchants:credit-products:update:any
+        in: header
+        name: x-auth-permissions
+        required: true
+        type: string
+      - description: Optional; reused when present otherwise generated. Always returned.
+        in: header
+        name: X-Trace-Id
+        type: string
+      - description: Optional; reused when present otherwise generated. Always returned.
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Optional; reused when present otherwise generated. Always returned.
+        in: header
+        name: X-Correlation-Id
+        type: string
+      - description: Desired eligibility
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/merchantrs.SetCreditProductRequestSchema'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Eligibility set (changed=false when already in the requested
+            state)
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/merchantrs.SetCreditProductSuccessSchema'
+        "400":
+          description: Bad Request
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "401":
+          description: Unauthorized
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "403":
+          description: Forbidden
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "404":
+          description: Not Found
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "409":
+          description: Conflict
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+      security:
+      - PermissionAuth: []
+      summary: Enable or disable a merchant credit product (admin)
+      tags:
+      - Merchant Credit Products Admin
   /api/v1/checkout-decisions:
     post:
       consumes:
