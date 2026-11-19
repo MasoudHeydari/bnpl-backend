@@ -97,6 +97,14 @@ func (q txQueryer) Create(
 	return Create(ctx, q.Tx, message)
 }
 
+func (q txQueryer) AppendTriggers(
+	ctx context.Context,
+	episodeID model.DefaultEpisodeID,
+	triggers []model.DefaultEpisodeTrigger,
+) error {
+	return AppendTriggers(ctx, q.Tx, episodeID, triggers)
+}
+
 func (q txQueryer) MarkRecovered(
 	ctx context.Context,
 	episodeID model.DefaultEpisodeID,

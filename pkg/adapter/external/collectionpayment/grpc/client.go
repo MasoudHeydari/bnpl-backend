@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
+	"github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/trace"
 	grpcclient "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -29,16 +30,31 @@ import (
 type Client struct {
 	api     collectionpb.CollectionPaymentServiceClient
 	timeout time.Duration
+	logger  log.Logger
 }
 
 var _ external.Client = (*Client)(nil)
 
-func New(conn *grpcclient.ClientConn, timeout time.Duration) (*Client, error) {
+func New(
+	conn *grpcclient.ClientConn,
+	timeout time.Duration,
+	logger log.Logger,
+) (*Client, error) {
+	const op = "collectionpayment/grpc.New"
+
 	if conn == nil || timeout <= 0 {
-		return nil, fmt.Errorf("collectionpayment/grpc.New: connection and positive timeout required")
+		return nil, fmt.Errorf("%s: connection and positive timeout required", op)
 	}
 
-	return &Client{api: collectionpb.NewCollectionPaymentServiceClient(conn), timeout: timeout}, nil
+	if logger == nil {
+		return nil, fmt.Errorf("%s: logger is required", op)
+	}
+
+	return &Client{
+		api:     collectionpb.NewCollectionPaymentServiceClient(conn),
+		timeout: timeout,
+		logger:  logger,
+	}, nil
 }
 
 // rpc propagates the caller's trusted correlation context. Financial Core

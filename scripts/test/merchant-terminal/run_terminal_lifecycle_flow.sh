@@ -6,7 +6,7 @@ cd "$ROOT"
 
 # Hit BNPL app directly so synthetic panel X-Auth-* headers are trusted.
 # Do not point this at Envoy (api.bnpl.test) unless you have a real merchant JWT.
-export BNPL_API_BASE="${BNPL_API_BASE:-http://192.168.1.104:8080/}"
+export BNPL_API_BASE="${BNPL_API_BASE:-http://127.0.0.1:8080/}"
 
 # Damz from 000_dev.sql (merchant_profiles.external_merchant_id).
 export BNPL_EXTERNAL_MERCHANT_ID="${BNPL_EXTERNAL_MERCHANT_ID:-1e7c3dd4-0e8b-4ec1-aede-2a119f3ffecc}"

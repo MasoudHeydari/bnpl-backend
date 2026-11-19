@@ -14,6 +14,7 @@ import (
 
 	customerv1 "github.com/parstis/bnpl-backend/gen/proto/customer/reference/v1"
 	cbnoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/circuitbreaker/noop"
+	lognoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/noop"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"
 	"github.com/parstis/bnpl-backend/pkg/core/trace"
@@ -54,7 +55,7 @@ func (f *fakeCustomerService) GetCustomer(
 func newTestClient(t *testing.T, fake *fakeCustomerService) *Client {
 	t.Helper()
 
-	client, err := newClient(fake, time.Second, cbnoop.New())
+	client, err := newClient(fake, time.Second, cbnoop.New(), lognoop.New())
 	require.NoError(t, err)
 
 	return client
@@ -63,10 +64,13 @@ func newTestClient(t *testing.T, fake *fakeCustomerService) *Client {
 func TestNew_RequiresDependencies(t *testing.T) {
 	t.Parallel()
 
-	_, err := New(nil, time.Second, cbnoop.New())
+	_, err := New(nil, time.Second, cbnoop.New(), lognoop.New())
 	require.Error(t, err)
 
-	_, err = newClient(&fakeCustomerService{}, time.Second, nil)
+	_, err = newClient(&fakeCustomerService{}, time.Second, nil, lognoop.New())
+	require.Error(t, err)
+
+	_, err = newClient(&fakeCustomerService{}, time.Second, cbnoop.New(), nil)
 	require.Error(t, err)
 }
 

@@ -171,6 +171,7 @@ type harness struct {
 	merchantTx *mock.MerchantProfileTxQueryer
 	merchantCQ *mock.MerchantProfileConnQueryer
 	branchTx   *mock.MerchantBranchProfileTxQueryer
+	branchCQ   *mock.MerchantBranchProfileConnQueryer
 	// branchOfferMode is returned by LockByOnlineStoreID during Create. Default
 	// on_create matches existing Partner Create tests that expect an Offer.
 	branchOfferMode model.OfferPreparationMode
@@ -249,6 +250,7 @@ func newHarness(t *testing.T) *harness {
 		merchantTx:      mock.NewMerchantProfileTxQueryer(t),
 		merchantCQ:      mock.NewMerchantProfileConnQueryer(t),
 		branchTx:        mock.NewMerchantBranchProfileTxQueryer(t),
+		branchCQ:        mock.NewMerchantBranchProfileConnQueryer(t),
 		branchOfferMode: model.OfferPreparationOnCreate,
 		customerTx:      mock.NewCustomerProfileTxQueryer(t),
 		customerCQ:      mock.NewCustomerProfileConnQueryer(t),
@@ -336,8 +338,19 @@ func newHarness(t *testing.T) *harness {
 		Return(false, nil).
 		Maybe()
 	branchRepo.EXPECT().Tx(h.tx).Return(h.branchTx).Maybe()
+	branchRepo.EXPECT().Conn(h.conn).Return(h.branchCQ).Maybe()
+	h.branchCQ.EXPECT().
+		GetByID(testifymock.Anything, testifymock.Anything).
+		Return(model.MerchantBranchProfile{
+			Status: model.ActiveMerchantBranchStatus,
+		}, nil).
+		Maybe()
 	customerRepo.EXPECT().Tx(h.tx).Return(h.customerTx).Maybe()
 	customerRepo.EXPECT().Conn(h.conn).Return(h.customerCQ).Maybe()
+	h.installCQ.EXPECT().
+		ListDueUnpaidByCustomerID(testifymock.Anything, testifymock.Anything, testifymock.Anything).
+		Return(nil, nil).
+		Maybe()
 	decisionRepo.EXPECT().Conn(h.conn).Return(h.decisionCQ).Maybe()
 	decisionRepo.EXPECT().Tx(h.tx).Return(h.decisionTx).Maybe()
 	outboxRepo.EXPECT().Tx(h.tx).Return(h.outboxTx).Maybe()
@@ -714,6 +727,8 @@ func (h *harness) customerProfile() model.CustomerProfile {
 		ID:                 h.customerID,
 		ExternalSubjectID:  model.ExternalSubjectID(h.profileID.UUID()),
 		ExternalCustomerID: h.profileID,
+		Status:             model.ActiveCustomerStatus,
+		Jurisdiction:       model.IRJurisdiction,
 	}
 }
 

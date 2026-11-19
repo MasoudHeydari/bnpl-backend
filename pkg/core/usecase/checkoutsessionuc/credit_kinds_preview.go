@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/parstis/bnpl-backend/pkg/core/calendar/jalali"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/policy"
@@ -54,10 +55,12 @@ func (uc *UseCase) buildCreditKindsPreview(
 		merchantQ := uc.merchantProfile.Conn(conn)
 		customerQ := uc.customerProfile.Conn(conn)
 		assignmentQ := uc.policyAssignment.Conn(conn)
+		installmentQ := uc.installment.Conn(conn)
 
 		var (
 			externalCustomerID model.ExternalCustomerID
 			hasCustomer        bool
+			customerBlocked    *CreditKindPreviewReason
 		)
 
 		if session.CustomerID != nil && !session.CustomerID.IsZero() {
@@ -68,9 +71,50 @@ func (uc *UseCase) buildCreditKindsPreview(
 
 			externalCustomerID = profile.ExternalCustomerID
 			hasCustomer = true
+
+			if !profile.IsActive() {
+				customerBlocked = &CreditKindPreviewReason{
+					Code:       "CUSTOMER_NOT_ACTIVE",
+					MessageKey: "error.customer_profile_not_active",
+				}
+			}
 		}
 
 		now := uc.clock.Now().UTC()
+
+		// Customer-wide due/overdue obligations block every credit kind, matching
+		// Decision's AssertNewCreditAllowed due predicate (now >= DueAt).
+		if hasCustomer && customerBlocked == nil {
+			dueUnpaid, dueErr := installmentQ.ListDueUnpaidByCustomerID(
+				ctx, *session.CustomerID, now,
+			)
+			if dueErr != nil {
+				return fmt.Errorf("%s: list due unpaid installments: %w", op, dueErr)
+			}
+
+			if len(dueUnpaid) > 0 {
+				customerBlocked = &CreditKindPreviewReason{
+					Code:       "NEW_CREDIT_USAGE_RESTRICTED",
+					MessageKey: "error.collections_new_credit_usage_restricted",
+				}
+			}
+		}
+
+		var branchBlocked *CreditKindPreviewReason
+		if !session.MerchantBranchProfileID.IsZero() {
+			branchQ := uc.merchantBranchProfile.Conn(conn)
+			branch, branchErr := branchQ.GetByID(ctx, session.MerchantBranchProfileID)
+			if branchErr != nil {
+				return fmt.Errorf("%s: load merchant branch: %w", op, branchErr)
+			}
+
+			if branch.Status != model.ActiveMerchantBranchStatus {
+				branchBlocked = &CreditKindPreviewReason{
+					Code:       "MERCHANT_BRANCH_NOT_ACTIVE",
+					MessageKey: "error.merchant_branch_not_active",
+				}
+			}
+		}
 
 		for _, kind := range previewCreditKinds {
 			preview := CreditKindPreview{Kind: kind}
@@ -95,6 +139,22 @@ func (uc *UseCase) buildCreditKindsPreview(
 					Code:       "CUSTOMER_NOT_RESOLVED",
 					MessageKey: "error.customer_not_found",
 				}
+				previews = append(previews, preview)
+
+				continue
+			}
+
+			if branchBlocked != nil {
+				reason := *branchBlocked
+				preview.Reason = &reason
+				previews = append(previews, preview)
+
+				continue
+			}
+
+			if customerBlocked != nil {
+				reason := *customerBlocked
+				preview.Reason = &reason
 				previews = append(previews, preview)
 
 				continue
@@ -138,6 +198,30 @@ func (uc *UseCase) buildCreditKindsPreview(
 				return cerr.InternalError(fmt.Errorf(
 					"%s: product-aware credit account repository unavailable", op,
 				))
+			}
+
+			if model.EffectiveCreditKind(kind) == model.PayNextMonthCreditKind {
+				cutoff, cutoffErr := jalali.StartOfFollowingTehranMonth(now)
+				if cutoffErr != nil {
+					return fmt.Errorf("%s: monthly cycle cutoff: %w", op, cutoffErr)
+				}
+
+				blocked, cycleErr := products.HasUnpaidMonthlyCycleBefore(
+					ctx, *session.CustomerID, session.Currency, cutoff,
+				)
+				if cycleErr != nil {
+					return fmt.Errorf("%s: monthly cycle check: %w", op, cycleErr)
+				}
+
+				if blocked {
+					preview.Reason = &CreditKindPreviewReason{
+						Code:       "MONTHLY_PREVIOUS_CYCLE_UNPAID",
+						MessageKey: "error.monthly_previous_cycle_unpaid",
+					}
+					previews = append(previews, preview)
+
+					continue
+				}
 			}
 
 			account, err := products.GetByCustomerIDCurrencyAndKind(

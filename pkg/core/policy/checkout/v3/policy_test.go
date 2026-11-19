@@ -39,8 +39,9 @@ func TestMonthlyDueDateAlwaysFirstOfFollowingJalaliMonth(t *testing.T) {
 				t.Fatalf("due=%+v want=%+v", parts, tc.next)
 			}
 
-			if due.Hour() != 23 || due.Minute() != 59 || due.Second() != 59 {
-				t.Fatalf("due time=%s want 23:59:59", due)
+			local := due.In(location)
+			if local.Hour() != 0 || local.Minute() != 0 || local.Second() != 0 || local.Nanosecond() != 0 {
+				t.Fatalf("due time=%s want 00:00:00 Asia/Tehran", local)
 			}
 
 			schedule, err := policy.BuildInstallmentSchedule(checkout.ScheduleInput{

@@ -745,6 +745,10 @@ CREATE TABLE IF NOT EXISTS installments (
     total_amount_minor bigint NOT NULL,
     due_at timestamptz NOT NULL,
     grace_period_days integer NOT NULL DEFAULT 0,
+    -- Immutable Collections Business Rule governing this obligation (assigned at create).
+    collections_policy_id text NOT NULL,
+    collections_policy_version text NOT NULL,
+    collections_default_after_days integer NOT NULL,
     status text NOT NULL,
     paid_amount_minor bigint NOT NULL DEFAULT 0,
     paid_at timestamptz NULL,
@@ -755,6 +759,11 @@ CREATE TABLE IF NOT EXISTS installments (
     CONSTRAINT chk_installments_order CHECK (installment_order > 0),
     CONSTRAINT chk_installments_amounts CHECK (principal_amount_minor > 0 AND upfront_amount_minor >= 0 AND base_fee_amount_minor >= 0 AND total_amount_minor > 0 AND paid_amount_minor >= 0),
     CONSTRAINT chk_installments_grace_period_days CHECK (grace_period_days >= 0),
+    CONSTRAINT chk_installments_collections_policy CHECK (
+        char_length(collections_policy_id) BETWEEN 1 AND 128
+        AND char_length(collections_policy_version) BETWEEN 1 AND 64
+        AND collections_default_after_days >= 0
+    ),
     CONSTRAINT chk_installments_status CHECK (status IN ('offered', 'scheduled', 'due', 'paid', 'overdue', 'canceled', 'expired')),
     CONSTRAINT chk_installments_contract_required_after_offer CHECK (status IN ('offered', 'expired', 'canceled') OR contract_id IS NOT NULL),
     CONSTRAINT chk_installments_currency CHECK (currency IN ('IRR', 'EUR', 'USD'))
@@ -1729,11 +1738,24 @@ CREATE TABLE IF NOT EXISTS default_episode_triggers (
     grace_period_days integer NOT NULL,
     overdue_eligible_at timestamptz NOT NULL,
     default_eligible_at timestamptz NOT NULL,
+    collections_policy_id text NOT NULL,
+    collections_policy_version text NOT NULL,
+    default_after_days integer NOT NULL,
+    detected_at timestamptz NOT NULL,
     PRIMARY KEY (episode_id, installment_id),
-    CONSTRAINT default_episode_triggers_grace_nonnegative CHECK (grace_period_days >= 0)
+    CONSTRAINT default_episode_triggers_grace_nonnegative CHECK (grace_period_days >= 0),
+    CONSTRAINT default_episode_triggers_default_after_nonnegative CHECK (default_after_days >= 0),
+    CONSTRAINT default_episode_triggers_collections_policy CHECK (
+        char_length(collections_policy_id) BETWEEN 1 AND 128
+        AND char_length(collections_policy_version) BETWEEN 1 AND 64
+    )
 );
 
-COMMENT ON TABLE default_episode_triggers IS 'Historical installment evidence that justified opening a default episode.';
+-- Each installment records default-entry evidence at most once across episodes.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_default_episode_triggers_installment
+ON default_episode_triggers (installment_id);
+
+COMMENT ON TABLE default_episode_triggers IS 'Immutable per-installment default evidence; multiple installments may join one active episode.';
 
 CREATE TABLE IF NOT EXISTS customer_restrictions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid (),

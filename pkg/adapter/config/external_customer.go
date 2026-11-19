@@ -14,6 +14,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/grpcclient"
 	"github.com/parstis/bnpl-backend/pkg/core/circuitbreaker"
 	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"
+	"github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 )
 
@@ -72,12 +73,14 @@ type ExternalCustomerGRPCTLS struct {
 // Service resolver. The optional closer owns the gRPC connection.
 func (c *Config) NewExternalCustomerClient(
 	breaker circuitbreaker.CircuitBreaker,
+	logger log.Logger,
 ) (extcustomer.Resolver, io.Closer, error) {
-	return c.External.Customer.newClient(breaker)
+	return c.External.Customer.newClient(breaker, logger)
 }
 
 func (e ExternalCustomer) newClient(
 	breaker circuitbreaker.CircuitBreaker,
+	logger log.Logger,
 ) (extcustomer.Resolver, io.Closer, error) {
 	const op = "config.ExternalCustomer.newClient"
 
@@ -85,7 +88,7 @@ func (e ExternalCustomer) newClient(
 
 	switch provider {
 	case customerext.GRPCProvider:
-		return e.newGRPCClient(breaker)
+		return e.newGRPCClient(breaker, logger)
 
 	case customerext.NoopProvider:
 		return customernoop.New(), nil, nil
@@ -97,6 +100,7 @@ func (e ExternalCustomer) newClient(
 
 func (e ExternalCustomer) newGRPCClient(
 	breaker circuitbreaker.CircuitBreaker,
+	logger log.Logger,
 ) (extcustomer.Resolver, io.Closer, error) {
 	const op = "config.ExternalCustomer.newGRPCClient"
 
@@ -124,7 +128,7 @@ func (e ExternalCustomer) newGRPCClient(
 		)
 	}
 
-	client, err := customergrpc.New(conn, e.GRPC.Timeout, breaker)
+	client, err := customergrpc.New(conn, e.GRPC.Timeout, breaker, logger)
 	if err != nil {
 		return nil, nil, errors.Join(
 			fmt.Errorf("%s: construct external customer grpc client: %w", op, err),

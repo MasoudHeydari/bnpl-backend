@@ -78,7 +78,7 @@ func ImportTrustedPolicyAssignments(sourceFile, actor string) (policyassignmentu
 		return policyassignmentuc.ImportTrustedOutput{}, fmt.Errorf("%s: initialize circuit breaker: %w", op, err)
 	}
 
-	customerResolver, customerCloser, err := c.NewExternalCustomerClient(breaker)
+	customerResolver, customerCloser, err := c.NewExternalCustomerClient(breaker, logger)
 	if err != nil {
 		return policyassignmentuc.ImportTrustedOutput{}, fmt.Errorf("%s: initialize customer resolver: %w", op, err)
 	}

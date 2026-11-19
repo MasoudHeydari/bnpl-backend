@@ -37,6 +37,23 @@ type ObligationFact struct {
 
 	// IsContractuallyApplicable excludes cancelled/expired/inapplicable rows.
 	IsContractuallyApplicable bool
+
+	// CollectionsPolicyID is the installment's immutable Collections rule id.
+	CollectionsPolicyID string
+
+	// CollectionsPolicyVersion is the installment's immutable Collections rule version.
+	CollectionsPolicyVersion string
+
+	// DefaultAfterDays is the snapshotted default threshold for this installment.
+	DefaultAfterDays uint
+
+	// OverdueEligibleAt is the resolved overdue boundary for this installment.
+	// When zero, Evaluate falls back to Policy.Boundary (unit-test convenience).
+	OverdueEligibleAt time.Time
+
+	// DefaultEligibleAt is the resolved default-entry boundary for this installment.
+	// When zero, Evaluate falls back to Policy.DefaultBoundary.
+	DefaultEligibleAt time.Time
 }
 
 // Evaluation is the pure collections policy outcome for one customer.
@@ -187,8 +204,15 @@ func Evaluate(p Policy, facts []ObligationFact, now time.Time, currentlyDefaulte
 
 		dueAt := fact.DueAt.UTC()
 		installment := model.Installment{DueAt: dueAt, GracePeriodDays: fact.GracePeriodDays}
-		overdueEligibleAt := p.Boundary(installment)
-		defaultEligibleAt := p.DefaultBoundary(installment)
+		overdueEligibleAt := fact.OverdueEligibleAt
+		if overdueEligibleAt.IsZero() {
+			overdueEligibleAt = p.Boundary(installment)
+		}
+
+		defaultEligibleAt := fact.DefaultEligibleAt
+		if defaultEligibleAt.IsZero() {
+			defaultEligibleAt = p.DefaultBoundary(installment)
+		}
 
 		if fact.HasUnresolvedAdjustment {
 			out.HasUnresolvedAdjustment = true

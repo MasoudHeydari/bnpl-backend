@@ -34,3 +34,57 @@ func TestValidatePolicyTerms(t *testing.T) {
 	partial.FinancingMode = checkout.PartialWithUpfrontFinancing
 	require.Error(t, rule.ValidatePolicyTerms(partial))
 }
+
+func TestResolve_HistoricalAndUnknown(t *testing.T) {
+	t.Parallel()
+
+	active := businessrule.Active()
+	resolved, err := businessrule.Resolve(active.ID(), active.Version())
+	require.NoError(t, err)
+	require.Equal(t, active.ID(), resolved.ID())
+	require.True(t, resolved.ActiveAtBuild)
+
+	upfront, err := businessrule.Resolve(
+		businessrule.PayDifferenceUpfrontRuleID,
+		businessrule.PayDifferenceUpfrontRuleVersion,
+	)
+	require.NoError(t, err)
+	require.False(t, upfront.ActiveAtBuild)
+	require.Equal(t, businessrule.PayDifferenceUpfrontShortfall, upfront.Shortfall)
+
+	excess, err := businessrule.Resolve(
+		businessrule.FinanceExcessRuleID,
+		businessrule.FinanceExcessRuleVersion,
+	)
+	require.NoError(t, err)
+	require.False(t, excess.ActiveAtBuild)
+
+	_, err = businessrule.Resolve("checkout_full_financing_only", "v999")
+	require.Error(t, err)
+
+	_, err = businessrule.Resolve("", "v1")
+	require.Error(t, err)
+}
+
+func TestCatalog_ContainsInactiveRules(t *testing.T) {
+	t.Parallel()
+
+	rules := businessrule.Catalog()
+	require.Len(t, rules, 3)
+
+	var sawActive, sawUpfront, sawExcess bool
+	for _, rule := range rules {
+		switch rule.ID() {
+		case businessrule.RejectRuleID:
+			sawActive = rule.ActiveAtBuild
+
+		case businessrule.PayDifferenceUpfrontRuleID:
+			sawUpfront = !rule.ActiveAtBuild
+
+		case businessrule.FinanceExcessRuleID:
+			sawExcess = !rule.ActiveAtBuild
+		}
+	}
+
+	require.True(t, sawActive && sawUpfront && sawExcess)
+}

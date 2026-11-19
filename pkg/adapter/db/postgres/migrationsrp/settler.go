@@ -31,7 +31,7 @@ var schemaDDLStatements string
 // becomes immutable when the first Production version ships; subsequent schema
 // evolution then belongs exclusively in versioned incremental migrations.
 // Updating this digest is intentionally review-visible.
-const baselineSchemaSHA256 = "6a54c57e445903e64551ca7d98f8103b784ec6db270cefe8a47718d339e9aac2"
+const baselineSchemaSHA256 = "597ad557304cf86ec944dcd81b91c7000f556285f427410a5a3846218e4963c9"
 
 func validateBaselineSchema() error {
 	digest := sha256.Sum256([]byte(schemaDDLStatements))

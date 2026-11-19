@@ -32,6 +32,50 @@ func TestEffectiveCreditKindDefaultsToInstallments(t *testing.T) {
 	}
 }
 
+func TestCreditKindScanAndValue(t *testing.T) {
+	t.Parallel()
+
+	var unset CreditKind
+	if err := unset.Scan(nil); err != nil {
+		t.Fatalf("scan NULL: %v", err)
+	}
+
+	if unset != "" {
+		t.Fatalf("scan NULL = %q, want empty", unset)
+	}
+
+	value, err := unset.Value()
+	if err != nil {
+		t.Fatalf("value empty: %v", err)
+	}
+
+	if value != nil {
+		t.Fatalf("value empty = %#v, want nil", value)
+	}
+
+	var kind CreditKind
+	if err := kind.Scan("pay_next_month"); err != nil {
+		t.Fatalf("scan monthly: %v", err)
+	}
+
+	if kind != PayNextMonthCreditKind {
+		t.Fatalf("scan monthly = %q", kind)
+	}
+
+	value, err = kind.Value()
+	if err != nil {
+		t.Fatalf("value monthly: %v", err)
+	}
+
+	if value != "pay_next_month" {
+		t.Fatalf("value monthly = %#v", value)
+	}
+
+	if err := kind.Scan("pay_in_4"); err == nil {
+		t.Fatal("scan pay_in_4 must fail")
+	}
+}
+
 func TestRepaymentPlanKindIsValid(t *testing.T) {
 	t.Parallel()
 

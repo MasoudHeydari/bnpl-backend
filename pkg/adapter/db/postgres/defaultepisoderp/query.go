@@ -29,7 +29,11 @@ const triggerColumns = `
 	due_at,
 	grace_period_days,
 	overdue_eligible_at,
-	default_eligible_at
+	default_eligible_at,
+	collections_policy_id,
+	collections_policy_version,
+	default_after_days,
+	detected_at
 `
 
 // GetActiveByCustomerID returns the active default episode for a customer.
@@ -184,41 +188,8 @@ RETURNING` + episodeColumns
 		return model.DefaultEpisode{}, err
 	}
 
-	const insertTrigger = `
-INSERT INTO default_episode_triggers (
-	episode_id,
-	installment_id,
-	due_at,
-	grace_period_days,
-	overdue_eligible_at,
-	default_eligible_at
-) VALUES (
-	$1, $2, $3, $4, $5, $6
-)
-`
-
-	for _, trigger := range message.Triggers {
-		if trigger.InstallmentID.IsZero() {
-			return model.DefaultEpisode{}, cerr.InternalError(fmt.Errorf("%s: trigger installment id is required", op))
-		}
-
-		_, execErr := q.Exec(
-			ctx,
-			insertTrigger,
-			episode.ID,
-			trigger.InstallmentID,
-			trigger.DueAt.UTC(),
-			int(trigger.GracePeriodDays),
-			trigger.OverdueEligibleAt.UTC(),
-			trigger.DefaultEligibleAt.UTC(),
-		)
-		if execErr != nil {
-			return model.DefaultEpisode{}, cerr.InternalError(fmt.Errorf(
-				"%s: insert trigger: %w",
-				op,
-				postgres.MapError(execErr),
-			))
-		}
+	if err := insertTriggers(ctx, q, episode.ID, message.Triggers); err != nil {
+		return model.DefaultEpisode{}, err
 	}
 
 	return episode, nil
@@ -272,6 +243,101 @@ RETURNING` + episodeColumns
 		updatedAt.UTC(),
 		model.ActiveDefaultEpisodeStatus,
 	)
+}
+
+func insertTriggers[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	episodeID model.DefaultEpisodeID,
+	triggers []model.DefaultEpisodeTrigger,
+) error {
+	const op = "defaultepisoderp.insertTriggers"
+
+	const insertTrigger = `
+INSERT INTO default_episode_triggers (
+	episode_id,
+	installment_id,
+	due_at,
+	grace_period_days,
+	overdue_eligible_at,
+	default_eligible_at,
+	collections_policy_id,
+	collections_policy_version,
+	default_after_days,
+	detected_at
+) VALUES (
+	$1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+)
+ON CONFLICT (installment_id) DO NOTHING
+`
+
+	for _, trigger := range triggers {
+		if trigger.InstallmentID.IsZero() {
+			return cerr.InternalError(fmt.Errorf("%s: trigger installment id is required", op))
+		}
+
+		if trigger.CollectionsPolicyID == "" || trigger.CollectionsPolicyVersion == "" {
+			return cerr.InternalError(fmt.Errorf("%s: collections policy identity is required", op))
+		}
+
+		if err := postgres.RequiredTimes(map[string]time.Time{
+			"due_at":              trigger.DueAt,
+			"overdue_eligible_at": trigger.OverdueEligibleAt,
+			"default_eligible_at": trigger.DefaultEligibleAt,
+			"detected_at":         trigger.DetectedAt,
+		}); err != nil {
+			return err
+		}
+
+		_, execErr := q.Exec(
+			ctx,
+			insertTrigger,
+			episodeID,
+			trigger.InstallmentID,
+			trigger.DueAt.UTC(),
+			int(trigger.GracePeriodDays),
+			trigger.OverdueEligibleAt.UTC(),
+			trigger.DefaultEligibleAt.UTC(),
+			trigger.CollectionsPolicyID,
+			trigger.CollectionsPolicyVersion,
+			int(trigger.DefaultAfterDays),
+			trigger.DetectedAt.UTC(),
+		)
+		if execErr != nil {
+			return cerr.InternalError(fmt.Errorf(
+				"%s: insert trigger: %w",
+				op,
+				postgres.MapError(execErr),
+			))
+		}
+	}
+
+	return nil
+}
+
+// AppendTriggers records newly defaulted installments against an existing
+// episode. Conflicts on installment_id are ignored for idempotent retries.
+func AppendTriggers[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	episodeID model.DefaultEpisodeID,
+	triggers []model.DefaultEpisodeTrigger,
+) error {
+	const op = "defaultepisoderp.AppendTriggers"
+
+	if episodeID.IsZero() {
+		return cerr.InternalError(fmt.Errorf("%s: episode id is required", op))
+	}
+
+	if len(triggers) == 0 {
+		return nil
+	}
+
+	if err := insertTriggers(ctx, q, episodeID, triggers); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	return nil
 }
 
 // ListTriggersByEpisodeID returns trigger evidence for an episode.

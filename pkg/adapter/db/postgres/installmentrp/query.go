@@ -29,6 +29,9 @@ const installmentColumns = `
 	total_amount_minor,
 	due_at,
 	grace_period_days,
+	collections_policy_id,
+	collections_policy_version,
+	collections_default_after_days,
 	status,
 	paid_amount_minor,
 	paid_at,
@@ -54,6 +57,9 @@ func Create[Q postgres.Queryer](
 	totalAmountMinor uint64,
 	dueAt time.Time,
 	gracePeriodDays uint,
+	collectionsPolicyID string,
+	collectionsPolicyVersion string,
+	collectionsDefaultAfterDays uint,
 	status model.InstallmentStatus,
 	paidAmountMinor uint64,
 	paidAt *time.Time,
@@ -83,13 +89,16 @@ INSERT INTO installments (
 	total_amount_minor,
 	due_at,
 	grace_period_days,
+	collections_policy_id,
+	collections_policy_version,
+	collections_default_after_days,
 	status,
 	paid_amount_minor,
 	paid_at,
 	created_at,
 	updated_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
 RETURNING` + installmentColumns
 
 	return postgres.QueryOne[model.Installment](
@@ -110,6 +119,9 @@ RETURNING` + installmentColumns
 		totalAmountMinor,
 		dueAt,
 		gracePeriodDays,
+		collectionsPolicyID,
+		collectionsPolicyVersion,
+		collectionsDefaultAfterDays,
 		status,
 		paidAmountMinor,
 		paidAt,
@@ -386,28 +398,31 @@ WHERE customer_id = $1
 }
 
 type collectionsObligationRow struct {
-	HasUnresolvedCancellation bool                           `db:"has_unresolved_cancellation"`
-	ID                        model.InstallmentID            `db:"id"`
-	DecisionID                model.DecisionID               `db:"decision_id"`
-	ContractID                *model.ContractID              `db:"contract_id"`
-	CustomerID                model.CustomerID               `db:"customer_id"`
-	MerchantProfileID         model.MerchantProfileID        `db:"merchant_profile_id"`
-	MerchantBranchProfileID   *model.MerchantBranchProfileID `db:"merchant_branch_profile_id"`
-	InstallmentOrder          int                            `db:"installment_order"`
-	Currency                  model.Currency                 `db:"currency"`
-	PrincipalAmountMinor      uint64                         `db:"principal_amount_minor"`
-	UpfrontAmountMinor        uint64                         `db:"upfront_amount_minor"`
-	BaseFeeAmountMinor        uint64                         `db:"base_fee_amount_minor"`
-	TotalAmountMinor          uint64                         `db:"total_amount_minor"`
-	DueAt                     time.Time                      `db:"due_at"`
-	GracePeriodDays           uint                           `db:"grace_period_days"`
-	Status                    model.InstallmentStatus        `db:"status"`
-	PaidAmountMinor           uint64                         `db:"paid_amount_minor"`
-	PaidAt                    *time.Time                     `db:"paid_at"`
-	FinancialRevision         int64                          `db:"financial_revision"`
-	CreatedAt                 time.Time                      `db:"created_at"`
-	UpdatedAt                 time.Time                      `db:"updated_at"`
-	HasUnresolvedPayment      bool                           `db:"has_unresolved_payment"`
+	HasUnresolvedCancellation   bool                           `db:"has_unresolved_cancellation"`
+	ID                          model.InstallmentID            `db:"id"`
+	DecisionID                  model.DecisionID               `db:"decision_id"`
+	ContractID                  *model.ContractID              `db:"contract_id"`
+	CustomerID                  model.CustomerID               `db:"customer_id"`
+	MerchantProfileID           model.MerchantProfileID        `db:"merchant_profile_id"`
+	MerchantBranchProfileID     *model.MerchantBranchProfileID `db:"merchant_branch_profile_id"`
+	InstallmentOrder            int                            `db:"installment_order"`
+	Currency                    model.Currency                 `db:"currency"`
+	PrincipalAmountMinor        uint64                         `db:"principal_amount_minor"`
+	UpfrontAmountMinor          uint64                         `db:"upfront_amount_minor"`
+	BaseFeeAmountMinor          uint64                         `db:"base_fee_amount_minor"`
+	TotalAmountMinor            uint64                         `db:"total_amount_minor"`
+	DueAt                       time.Time                      `db:"due_at"`
+	GracePeriodDays             uint                           `db:"grace_period_days"`
+	CollectionsPolicyID         string                         `db:"collections_policy_id"`
+	CollectionsPolicyVersion    string                         `db:"collections_policy_version"`
+	CollectionsDefaultAfterDays uint                           `db:"collections_default_after_days"`
+	Status                      model.InstallmentStatus        `db:"status"`
+	PaidAmountMinor             uint64                         `db:"paid_amount_minor"`
+	PaidAt                      *time.Time                     `db:"paid_at"`
+	FinancialRevision           int64                          `db:"financial_revision"`
+	CreatedAt                   time.Time                      `db:"created_at"`
+	UpdatedAt                   time.Time                      `db:"updated_at"`
+	HasUnresolvedPayment        bool                           `db:"has_unresolved_payment"`
 }
 
 // ListCollectionsObligationsByCustomerID returns economically outstanding debt,
@@ -440,6 +455,9 @@ SELECT
 	i.total_amount_minor,
 	i.due_at,
 	i.grace_period_days,
+	i.collections_policy_id,
+	i.collections_policy_version,
+	i.collections_default_after_days,
 	i.status,
 	i.paid_amount_minor,
 	i.paid_at,
@@ -503,26 +521,29 @@ ORDER BY i.due_at ASC, i.id ASC
 	for _, row := range rows {
 		out = append(out, repo.CollectionsObligation{
 			Installment: model.Installment{
-				ID:                      row.ID,
-				DecisionID:              row.DecisionID,
-				ContractID:              row.ContractID,
-				CustomerID:              row.CustomerID,
-				MerchantProfileID:       row.MerchantProfileID,
-				MerchantBranchProfileID: row.MerchantBranchProfileID,
-				InstallmentOrder:        row.InstallmentOrder,
-				Currency:                row.Currency,
-				PrincipalAmountMinor:    row.PrincipalAmountMinor,
-				UpfrontAmountMinor:      row.UpfrontAmountMinor,
-				BaseFeeAmountMinor:      row.BaseFeeAmountMinor,
-				TotalAmountMinor:        row.TotalAmountMinor,
-				DueAt:                   row.DueAt,
-				GracePeriodDays:         row.GracePeriodDays,
-				Status:                  row.Status,
-				PaidAmountMinor:         row.PaidAmountMinor,
-				PaidAt:                  row.PaidAt,
-				FinancialRevision:       row.FinancialRevision,
-				CreatedAt:               row.CreatedAt,
-				UpdatedAt:               row.UpdatedAt,
+				ID:                          row.ID,
+				DecisionID:                  row.DecisionID,
+				ContractID:                  row.ContractID,
+				CustomerID:                  row.CustomerID,
+				MerchantProfileID:           row.MerchantProfileID,
+				MerchantBranchProfileID:     row.MerchantBranchProfileID,
+				InstallmentOrder:            row.InstallmentOrder,
+				Currency:                    row.Currency,
+				PrincipalAmountMinor:        row.PrincipalAmountMinor,
+				UpfrontAmountMinor:          row.UpfrontAmountMinor,
+				BaseFeeAmountMinor:          row.BaseFeeAmountMinor,
+				TotalAmountMinor:            row.TotalAmountMinor,
+				DueAt:                       row.DueAt,
+				GracePeriodDays:             row.GracePeriodDays,
+				CollectionsPolicyID:         row.CollectionsPolicyID,
+				CollectionsPolicyVersion:    row.CollectionsPolicyVersion,
+				CollectionsDefaultAfterDays: row.CollectionsDefaultAfterDays,
+				Status:                      row.Status,
+				PaidAmountMinor:             row.PaidAmountMinor,
+				PaidAt:                      row.PaidAt,
+				FinancialRevision:           row.FinancialRevision,
+				CreatedAt:                   row.CreatedAt,
+				UpdatedAt:                   row.UpdatedAt,
 			},
 			HasUnresolvedPayment:      row.HasUnresolvedPayment,
 			HasUnresolvedCancellation: row.HasUnresolvedCancellation,
@@ -829,6 +850,8 @@ func ExpireDueOfferedByAllocationExpiry[Q postgres.Queryer](
 		return nil, ErrInvalidClaimLimit
 	}
 
+	// Qualify RETURNING through the target table: due_allocations also exposes
+	// decision_id, so bare installmentColumns would be ambiguous (SQLSTATE 42702).
 	const query = `
 WITH due_allocations AS (
 	SELECT a.decision_id
@@ -853,7 +876,7 @@ FROM due_allocations d
 WHERE installments.decision_id = d.decision_id
   AND installments.status = $5
   AND installments.contract_id IS NULL
-RETURNING` + installmentColumns
+RETURNING installments.*`
 
 	return postgres.QueryAll[model.Installment](
 		ctx,
@@ -1052,8 +1075,12 @@ FOR UPDATE SKIP LOCKED
 	return postgres.ValuesInto[model.Installment](postgres.MustRows(rows))
 }
 
-// ClaimOverdueForLateFee locks overdue unsettled installments that have no
-// active payment attempt or repayment-batch claim (freeze window).
+// ClaimOverdueForLateFee locks overdue unsettled installments that still have
+// at least one unassessed overdue business day and have no active payment
+// attempt or repayment-batch claim (freeze window).
+//
+// Fully caught-up overdue rows are excluded so a fixed LIMIT cannot starve
+// later installments across repeated job runs.
 func ClaimOverdueForLateFee[Q postgres.Queryer](
 	ctx context.Context,
 	q Q,
@@ -1099,7 +1126,20 @@ WHERE status = $1
 	WHERE claim.installment_id = installments.id
 	  AND claim.released_at IS NULL
   )
-ORDER BY due_at ASC, created_at ASC
+  AND (
+	(
+		((($2 AT TIME ZONE current_setting('TimeZone'))::date)
+			- ((due_at AT TIME ZONE current_setting('TimeZone'))::date + grace_period_days + 1)
+		) + 1
+	) > (
+		SELECT COUNT(*)::int
+		FROM installment_charges ic
+		WHERE ic.installment_id = installments.id
+		  AND ic.charge_type = $8
+		  AND ic.charge_status <> $9
+	)
+  )
+ORDER BY due_at ASC, created_at ASC, id ASC
 LIMIT $3
 FOR UPDATE SKIP LOCKED
 `
@@ -1114,6 +1154,8 @@ FOR UPDATE SKIP LOCKED
 		model.CreatedPaymentAttemptState,
 		model.SubmittedPaymentAttemptState,
 		model.ReconciliationRequiredPaymentAttemptState,
+		model.LateFeeInstallmentChargeType,
+		model.CanceledInstallmentChargeStatus,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("%s: claim overdue installments for late fee: %w", op, postgres.MapError(err))

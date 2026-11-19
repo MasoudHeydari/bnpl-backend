@@ -86,7 +86,7 @@ func (f *reminderCandidateFixture) seedInstallment(
 	f.exec(t, `INSERT INTO decisions(id,type,target_type,target_id,outcome,reason_codes,policy_id,policy_version,jurisdiction,actor_type,decided_at,idempotency_key,idempotency_fingerprint) VALUES($1,'credit_limit','customer_profile',$2,'approved',ARRAY['CHECKOUT_APPROVED'],'checkout_contract_approval','v1','IR','system',$3,$4,$5)`, decision, customer, f.now, uuid.NewString(), "sha256:"+fmt.Sprintf("%064x", 1))
 	f.exec(t, `INSERT INTO credit_accounts(id,customer_id,currency,status,effective_from) VALUES($1,$2,'IRR','active',$3)`, account, customer, f.now)
 	f.exec(t, `INSERT INTO contracts(id,decision_id,checkout_key,customer_id,credit_account_id,merchant_profile_id,currency,requested_amount_minor,approved_financed_amount_minor,installment_count,payable_now_amount_minor,remaining_principal_amount_minor,status,expires_at,activated_at) VALUES($1,$2,$3,$4,$5,$6,'IRR',100,100,1,0,100,'active',$7,$7)`, contract, decision, uuid.NewString(), customer, account, merchant, f.now)
-	f.exec(t, `INSERT INTO installments(id,decision_id,contract_id,customer_id,merchant_profile_id,installment_order,currency,principal_amount_minor,total_amount_minor,due_at,grace_period_days,status) VALUES($1,$2,$3,$4,$5,1,'IRR',100,100,$6,$7,$8)`, installment, decision, contract, customer, merchant, dueAt.UTC(), graceDays, status)
+	f.exec(t, `INSERT INTO installments(id,decision_id,contract_id,customer_id,merchant_profile_id,installment_order,currency,principal_amount_minor,total_amount_minor,due_at,grace_period_days,collections_policy_id,collections_policy_version,collections_default_after_days,status) VALUES($1,$2,$3,$4,$5,1,'IRR',100,100,$6,$7,'collections_default','v3',90,$8)`, installment, decision, contract, customer, merchant, dueAt.UTC(), graceDays, status)
 
 	return model.CustomerID(customer), model.InstallmentID(installment)
 }
@@ -399,7 +399,7 @@ func TestPostgreSQLReminderCandidates_CustomerPaginationWithGraceOnly(t *testing
 	require.NoError(t, f.pool.Pool.QueryRow(f.ctx, `
 SELECT decision_id, contract_id, merchant_profile_id
 FROM installments WHERE id=$1`, installmentA1).Scan(&decisionID, &contractID, &merchantID))
-	f.exec(t, `INSERT INTO installments(id,decision_id,contract_id,customer_id,merchant_profile_id,installment_order,currency,principal_amount_minor,total_amount_minor,due_at,grace_period_days,status) VALUES($1,$2,$3,$4,$5,2,'IRR',100,100,$6,$7,'overdue')`, installmentA2, decisionID, contractID, customerA, merchantID, dueLocal.Add(time.Minute).UTC(), graceDays)
+	f.exec(t, `INSERT INTO installments(id,decision_id,contract_id,customer_id,merchant_profile_id,installment_order,currency,principal_amount_minor,total_amount_minor,due_at,grace_period_days,collections_policy_id,collections_policy_version,collections_default_after_days,status) VALUES($1,$2,$3,$4,$5,2,'IRR',100,100,$6,$7,'collections_default','v3',90,'overdue')`, installmentA2, decisionID, contractID, customerA, merchantID, dueLocal.Add(time.Minute).UTC(), graceDays)
 
 	customerB, installmentB := f.seedInstallment(t, dueLocal, graceDays, model.OverdueInstallmentStatus)
 

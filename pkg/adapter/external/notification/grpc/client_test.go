@@ -13,6 +13,7 @@ import (
 
 	notificationv1 "github.com/parstis/bnpl-backend/gen/proto/notification/submission/v1"
 	cbnoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/circuitbreaker/noop"
+	lognoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/noop"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	extnotification "github.com/parstis/bnpl-backend/pkg/core/external/notification"
 	"github.com/parstis/bnpl-backend/pkg/core/trace"
@@ -41,7 +42,7 @@ func (f *fakeNotificationService) SubmitNotification(
 func newTestClient(t *testing.T, fake *fakeNotificationService) *Client {
 	t.Helper()
 
-	client, err := newClient(fake, time.Second, cbnoop.New())
+	client, err := newClient(fake, time.Second, cbnoop.New(), lognoop.New())
 	require.NoError(t, err)
 
 	return client

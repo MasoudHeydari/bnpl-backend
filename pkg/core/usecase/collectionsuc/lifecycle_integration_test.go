@@ -25,6 +25,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/policy/collections"
 	collectionsv1 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v1"
 	collectionsv2 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v2"
+	collectionsv3 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v3"
 	"github.com/parstis/bnpl-backend/pkg/core/saga"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/checkoutsessionuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/contractuc"
@@ -151,14 +152,20 @@ func newCollectionsFixture(t *testing.T, locations ...*time.Location) *collectio
 				id = uuid.New()
 				due = now.Add(30 * 24 * time.Hour)
 			}
-			exec(t, `INSERT INTO installments(id,decision_id,contract_id,customer_id,merchant_profile_id,installment_order,currency,principal_amount_minor,total_amount_minor,due_at,grace_period_days,status) VALUES($1,$2,$3,$4,$5,$6,'IRR',100,100,$7,2,'scheduled')`, id, decision, contract, customer, merchant, order, due)
+			// DefaultAfterDays=0 keeps these lifecycle scenarios at the overdue
+			// boundary so fixtures do not need a 90-day backdated due_at.
+			exec(t, `INSERT INTO installments(id,decision_id,contract_id,customer_id,merchant_profile_id,installment_order,currency,principal_amount_minor,total_amount_minor,due_at,grace_period_days,collections_policy_id,collections_policy_version,collections_default_after_days,status) VALUES($1,$2,$3,$4,$5,$6,'IRR',100,100,$7,2,'collections_default','v3',0,'scheduled')`, id, decision, contract, customer, merchant, order, due)
 		}
 		return model.CustomerID(customer), installment
 	}
 	return &collectionsFixture{ctx: ctx, pool: pool, uc: uc, now: now, clk: clk, exec: exec, scalar: scalar, seed: seed}
 }
 func currentTestPolicies(loc *time.Location) *collections.Registry {
-	r, _ := collections.NewRegistry(collectionsv2.New(loc), collectionsv1.New())
+	r, _ := collections.NewRegistry(
+		collectionsv3.New(loc),
+		collectionsv2.New(loc),
+		collectionsv1.New(),
+	)
 	return r
 }
 
@@ -806,6 +813,9 @@ func TestPostgreSQLCollections_HistoricalPolicyRemainsV1(t *testing.T) {
 	f := newCollectionsFixture(t)
 	f.uc.policies = legacyTestPoliciesForUnit()
 	customer, installment := f.seed(t)
+	// Seed stamps current (v3) identity; rewrite to a historical v1 snapshot so
+	// opening/recovery stay pinned to the legacy rule under test.
+	f.exec(t, `UPDATE installments SET collections_policy_id='collections_default', collections_policy_version='v1', collections_default_after_days=0 WHERE customer_id=$1`, customer)
 	opening, e := f.uc.AssessCustomer(f.ctx, customer)
 	require.NoError(t, e)
 	f.uc.policies = currentTestPolicies(time.UTC)

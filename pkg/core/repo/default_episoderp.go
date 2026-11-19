@@ -49,6 +49,14 @@ type DefaultEpisodeTxQueryer interface {
 
 	Create(ctx context.Context, message CreateDefaultEpisode) (model.DefaultEpisode, error)
 
+	// AppendTriggers adds installment default evidence to an active episode.
+	// Idempotent on installment_id uniqueness.
+	AppendTriggers(
+		ctx context.Context,
+		episodeID model.DefaultEpisodeID,
+		triggers []model.DefaultEpisodeTrigger,
+	) error
+
 	MarkRecovered(
 		ctx context.Context,
 		episodeID model.DefaultEpisodeID,

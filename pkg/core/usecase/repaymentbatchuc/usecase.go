@@ -48,6 +48,10 @@ type UseCase struct {
 	instructions FinancialInstructionsResolver
 	applier      PostedApplier
 	clock        clock.Clock
+	// reassessCustomer runs after an authoritative posted settlement commits.
+	// Wired from bootstrap to collectionsuc.AssessCustomer; nil keeps settle
+	// fail-open for unit tests that do not exercise collections recovery.
+	reassessCustomer func(context.Context, model.CustomerID) error
 }
 
 // New fails fast on incomplete dependencies rather than silently falling
@@ -71,6 +75,17 @@ func New(
 // API routes. Do not use SubjectID directly as the BNPL internal customer key.
 func (uc *UseCase) WithCustomerProfile(r repo.CustomerProfile) *UseCase {
 	uc.customer = r
+	return uc
+}
+
+// WithCollectionsCoordination schedules customer collections reassessment after
+// FC-authoritative posting is applied locally. Pending/unknown provider states
+// never call this hook. Failures are returned so durable reconciliation can
+// retry; periodic AssessBatch remains the safety net.
+func (uc *UseCase) WithCollectionsCoordination(
+	reassess func(context.Context, model.CustomerID) error,
+) *UseCase {
+	uc.reassessCustomer = reassess
 	return uc
 }
 
@@ -418,7 +433,9 @@ func (uc *UseCase) Reconcile(ctx context.Context, id uuid.UUID) (extcollection.R
 func (uc *UseCase) applyPostedInTransaction(
 	ctx context.Context, row repo.RepaymentBatchRow, plan collectionpayment.Plan, result extcollection.Result,
 ) error {
-	return uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
+	const op = "repaymentbatchuc.UseCase.applyPostedInTransaction"
+
+	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
 			q := uc.batches.Tx(tx)
 			current, err := q.GetByID(ctx, row.ID)
@@ -449,6 +466,21 @@ func (uc *UseCase) applyPostedInTransaction(
 			return q.ReleaseClaims(ctx, current.ID, uc.now())
 		})
 	})
+	if err != nil {
+		return err
+	}
+
+	// Collections recovery must run after the monetary TX commits so a failed
+	// reassessment can retry without rolling back FC-authoritative settlement.
+	if uc.reassessCustomer == nil || plan.CustomerID.IsZero() {
+		return nil
+	}
+
+	if reassessErr := uc.reassessCustomer(ctx, plan.CustomerID); reassessErr != nil {
+		return fmt.Errorf("%s: reassess collections after posted settlement: %w", op, reassessErr)
+	}
+
+	return nil
 }
 
 func (uc *UseCase) finishTerminal(ctx context.Context, row repo.RepaymentBatchRow,

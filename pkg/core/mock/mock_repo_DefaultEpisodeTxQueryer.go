@@ -40,6 +40,69 @@ func (_m *DefaultEpisodeTxQueryer) EXPECT() *DefaultEpisodeTxQueryer_Expecter {
 	return &DefaultEpisodeTxQueryer_Expecter{mock: &_m.Mock}
 }
 
+// AppendTriggers provides a mock function for the type DefaultEpisodeTxQueryer
+func (_mock *DefaultEpisodeTxQueryer) AppendTriggers(ctx context.Context, episodeID model.DefaultEpisodeID, triggers []model.DefaultEpisodeTrigger) error {
+	ret := _mock.Called(ctx, episodeID, triggers)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AppendTriggers")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.DefaultEpisodeID, []model.DefaultEpisodeTrigger) error); ok {
+		r0 = returnFunc(ctx, episodeID, triggers)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// DefaultEpisodeTxQueryer_AppendTriggers_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AppendTriggers'
+type DefaultEpisodeTxQueryer_AppendTriggers_Call struct {
+	*mock.Call
+}
+
+// AppendTriggers is a helper method to define mock.On call
+//   - ctx context.Context
+//   - episodeID model.DefaultEpisodeID
+//   - triggers []model.DefaultEpisodeTrigger
+func (_e *DefaultEpisodeTxQueryer_Expecter) AppendTriggers(ctx any, episodeID any, triggers any) *DefaultEpisodeTxQueryer_AppendTriggers_Call {
+	return &DefaultEpisodeTxQueryer_AppendTriggers_Call{Call: _e.mock.On("AppendTriggers", ctx, episodeID, triggers)}
+}
+
+func (_c *DefaultEpisodeTxQueryer_AppendTriggers_Call) Run(run func(ctx context.Context, episodeID model.DefaultEpisodeID, triggers []model.DefaultEpisodeTrigger)) *DefaultEpisodeTxQueryer_AppendTriggers_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.DefaultEpisodeID
+		if args[1] != nil {
+			arg1 = args[1].(model.DefaultEpisodeID)
+		}
+		var arg2 []model.DefaultEpisodeTrigger
+		if args[2] != nil {
+			arg2 = args[2].([]model.DefaultEpisodeTrigger)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *DefaultEpisodeTxQueryer_AppendTriggers_Call) Return(err error) *DefaultEpisodeTxQueryer_AppendTriggers_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *DefaultEpisodeTxQueryer_AppendTriggers_Call) RunAndReturn(run func(ctx context.Context, episodeID model.DefaultEpisodeID, triggers []model.DefaultEpisodeTrigger) error) *DefaultEpisodeTxQueryer_AppendTriggers_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Create provides a mock function for the type DefaultEpisodeTxQueryer
 func (_mock *DefaultEpisodeTxQueryer) Create(ctx context.Context, message repo.CreateDefaultEpisode) (model.DefaultEpisode, error) {
 	ret := _mock.Called(ctx, message)

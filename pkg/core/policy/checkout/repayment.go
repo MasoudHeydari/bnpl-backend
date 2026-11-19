@@ -16,14 +16,19 @@ type DueDateRule string
 const (
 	// DueByCadence retains the existing installment-series schedule.
 	DueByCadence DueDateRule = "cadence"
-	// DueNextJalaliMonthFirst is a single payment at the end of day 1 of the
-	// Jalali month following contract activation in Asia/Tehran.
+	// DueNextJalaliMonthFirst is a single payment due at the start of day 1 of
+	// the Jalali month following contract activation in Asia/Tehran. New credit
+	// usage is blocked from that midnight while the obligation remains unpaid.
 	DueNextJalaliMonthFirst DueDateRule = "next_jalali_month_first"
 )
 
-// nextJalaliFirst computes one fixed contractual due instant. A purchase
-// activated on any day of a Jalali month (including day 1) is due on day 1 of
-// the following month; it never becomes due on day 1 of the current month.
+// nextJalaliFirst computes one fixed contractual due instant at 00:00:00
+// Asia/Tehran on day 1 of the following Jalali month. A purchase activated on
+// any day of a Jalali month (including day 1) is due on day 1 of the following
+// month; it never becomes due on day 1 of the current month.
+//
+// DueAt is the start of the contractual due calendar day so credit-lock,
+// reminders, and overdue/default eligibility share one midnight boundary.
 func nextJalaliFirst(anchor time.Time) (time.Time, error) {
 	const op = "checkout.nextJalaliFirst"
 	if anchor.IsZero() {
@@ -42,8 +47,7 @@ func nextJalaliFirst(anchor time.Time) (time.Time, error) {
 		month = 1
 	}
 
-	// The first is inclusive: customer may pay until 23:59:59 in Iran.
-	wall := time.Date(2000, time.January, 1, 23, 59, 59, 0, location)
+	wall := time.Date(2000, time.January, 1, 0, 0, 0, 0, location)
 	return (jalali.Date{Year: year, Month: month, Day: 1}).ToTime(wall, location), nil
 }
 

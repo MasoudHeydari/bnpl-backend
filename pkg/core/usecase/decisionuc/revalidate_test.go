@@ -14,7 +14,9 @@ import (
 	metricsnoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/metrics/noop"
 	"github.com/parstis/bnpl-backend/pkg/core/mock"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
+	"github.com/parstis/bnpl-backend/pkg/core/policy/checkout/businessrule"
 	checkoutcatalog "github.com/parstis/bnpl-backend/pkg/core/policy/checkout/catalog"
+	checkoutv2 "github.com/parstis/bnpl-backend/pkg/core/policy/checkout/v2"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/decisionuc"
 )
@@ -199,11 +201,15 @@ func (h *revalidateHarness) wireProfilesAndCredit(limitMinor uint64) {
 	h.branch.EXPECT().Tx(h.tx).Return(h.branchTQ).Once()
 	h.credit.EXPECT().Tx(h.tx).Return(h.creditTQ).Once()
 
+	// Persisted Decision uses trusted v2 (full financing) under the launch
+	// reject business rule — matching Active() for new decisions.
+	v2 := checkoutv2.New()
+	activeRule := businessrule.Active()
 	decision := model.Decision{
 		ID:            h.decisionID,
 		Outcome:       model.ApprovedDecisionOutcome,
-		PolicyID:      checkoutcatalog.DefaultRef().ID,
-		PolicyVersion: checkoutcatalog.DefaultRef().Version,
+		PolicyID:      v2.Ref().ID,
+		PolicyVersion: v2.Ref().Version,
 		ExpiresAt:     &h.expires,
 	}
 	allocation := model.CheckoutDecisionAllocation{
@@ -216,7 +222,9 @@ func (h *revalidateHarness) wireProfilesAndCredit(limitMinor uint64) {
 		UpfrontAmountMinor:          0,
 		AvailableCreditMinor:        200_000,
 		Currency:                    model.IRRCurrency,
-		InstallmentCount:            4,
+		InstallmentCount:            3,
+		BusinessRuleID:              activeRule.ID(),
+		BusinessRuleVersion:         activeRule.Version(),
 		ExpiresAt:                   h.expires,
 	}
 	customer := model.CustomerProfile{

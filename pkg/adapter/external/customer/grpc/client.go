@@ -16,6 +16,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/circuitbreaker"
 	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"
+	"github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/trace"
 )
@@ -41,6 +42,7 @@ type Client struct {
 	client  customerv1.CustomerReferenceServiceClient
 	timeout time.Duration
 	breaker circuitbreaker.CircuitBreaker
+	logger  log.Logger
 }
 
 // New constructs a gRPC Customer Reference Service client using the supplied
@@ -49,6 +51,7 @@ func New(
 	conn grpcclient.ClientConnInterface,
 	timeout time.Duration,
 	breaker circuitbreaker.CircuitBreaker,
+	logger log.Logger,
 ) (*Client, error) {
 	const op = "grpc.New"
 
@@ -56,13 +59,19 @@ func New(
 		return nil, fmt.Errorf("%s: customer grpc connection is required", op)
 	}
 
-	return newClient(customerv1.NewCustomerReferenceServiceClient(conn), timeout, breaker)
+	return newClient(
+		customerv1.NewCustomerReferenceServiceClient(conn),
+		timeout,
+		breaker,
+		logger,
+	)
 }
 
 func newClient(
 	client customerv1.CustomerReferenceServiceClient,
 	timeout time.Duration,
 	breaker circuitbreaker.CircuitBreaker,
+	logger log.Logger,
 ) (*Client, error) {
 	const op = "grpc.newClient"
 
@@ -74,11 +83,20 @@ func newClient(
 		return nil, fmt.Errorf("%s: circuit breaker is required", op)
 	}
 
+	if logger == nil {
+		return nil, fmt.Errorf("%s: logger is required", op)
+	}
+
 	if timeout <= 0 {
 		timeout = defaultTimeout
 	}
 
-	return &Client{client: client, timeout: timeout, breaker: breaker}, nil
+	return &Client{
+		client:  client,
+		timeout: timeout,
+		breaker: breaker,
+		logger:  logger,
+	}, nil
 }
 
 // ResolveByMobile resolves the Customer Reference Service customer that owns

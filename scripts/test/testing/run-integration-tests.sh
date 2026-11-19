@@ -54,6 +54,7 @@ admin_password="bnpl-integration-admin"
 runtime_user="bnpl"
 runtime_password="security-test-runtime"
 started=false
+schema_in_container="/tmp/bnpl-integration-000_schema.sql"
 
 cleanup() {
 	if [[ "$started" == true ]]; then
@@ -72,6 +73,20 @@ trap on_exit EXIT
 trap 'exit 130' INT TERM
 
 printf 'Starting isolated PostgreSQL container %s from %s.\n' "$container" "$image"
+
+# Fail fast if the daemon is unreachable instead of hanging on run/pull.
+if ! "$engine" info >/dev/null 2>&1; then
+	die "${engine} daemon is not reachable (check ${engine} info / socket permissions)"
+fi
+
+# Ensure the image is present with visible progress. Silent docker run hides
+# registry pulls and looks like a hang when Hub/mirror is slow.
+if ! "$engine" image inspect "$image" >/dev/null 2>&1; then
+	printf 'Pulling PostgreSQL image %s (this can take a while)...\n' "$image"
+	"$engine" pull "$image"
+fi
+
+printf 'Creating container...\n'
 "$engine" run --detach --rm \
 	--name "$container" \
 	--publish '127.0.0.1::5432' \
@@ -82,6 +97,7 @@ printf 'Starting isolated PostgreSQL container %s from %s.\n' "$container" "$ima
 started=true
 
 port=""
+printf 'Waiting for published port...\n'
 for _ in {1..30}; do
 	port_output=$("$engine" port "$container" '5432/tcp' 2>/dev/null || true)
 	port=$(sed -n 's/.*:\([0-9][0-9]*\)$/\1/p' <<<"$port_output" | head -n 1)
@@ -91,6 +107,7 @@ done
 [[ -n "$port" ]] || die "could not determine the isolated PostgreSQL port"
 
 ready=false
+printf 'Waiting for PostgreSQL readiness on loopback port %s...\n' "$port"
 for _ in {1..60}; do
 	if "$engine" exec "$container" pg_isready --quiet --username "$admin_user" --dbname "$database"; then
 		ready=true
@@ -110,20 +127,28 @@ baseline="pkg/adapter/db/postgres/migrationsrp/000_schema.sql"
 
 # Mirror production's separation of administrative, schema-owner, migrator,
 # and restricted Runtime roles. The migrator must explicitly assume owner.
+printf 'Creating roles and bnpl schema...\n'
 "$engine" exec "$container" psql \
 	--set ON_ERROR_STOP=1 \
 	--username "$admin_user" \
 	--dbname "$database" \
 	--command "CREATE ROLE bnpl_owner NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS; CREATE ROLE bnpl_migrator LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD 'security-test-migrator'; GRANT bnpl_owner TO bnpl_migrator WITH INHERIT FALSE, SET TRUE; CREATE ROLE ${runtime_user} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '${runtime_password}'; CREATE SCHEMA bnpl AUTHORIZATION bnpl_owner;" \
 	>/dev/null
-"$engine" exec --interactive "$container" psql \
+
+# Copy the baseline into the container and apply with -f. Piping a multi-MB
+# schema through `docker exec -i ... --file -` has hung on some Docker Engine
+# versions (attach/stdin stall with no progress).
+printf 'Applying baseline schema %s...\n' "$baseline"
+"$engine" cp "$baseline" "${container}:${schema_in_container}"
+"$engine" exec "$container" psql \
 	--set ON_ERROR_STOP=1 \
 	--username "bnpl_migrator" \
 	--dbname "$database" \
 	--command "SET ROLE bnpl_owner" \
-	--file - \
-	<"$baseline" \
+	--file "$schema_in_container" \
 	>/dev/null
+"$engine" exec "$container" rm -f "$schema_in_container" >/dev/null
+
 "$engine" exec "$container" psql \
 	--set ON_ERROR_STOP=1 \
 	--username "$admin_user" \

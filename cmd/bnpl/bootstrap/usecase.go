@@ -712,12 +712,28 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Repos.MerchantProfile, a.Repos.InstallmentCharge,
 		a.Infrastructure.DomainUUIDGenerator,
 	)
-	// FinancialInstructionsResolver remains unset: FC Target v1 Draft 0.5 still
-	// does not expose a trusted BNPL-facing entitlement/recognition provisioning
-	// contract that can supply merchant_entitlement_id, recognition references,
-	// funding relationships, allocation rules, and versions without fabrication.
-	// CreateForCustomer therefore fails closed (ServiceUnavailable) until FC
-	// publishes that capability. Do not invent claim IDs or distribution rules.
+	repaymentBatchUseCase.WithCollectionsCoordination(func(ctx context.Context, id model.CustomerID) error {
+		_, err := collectionsUseCase.AssessCustomer(ctx, id)
+		return err
+	})
+	// FinancialInstructionsResolver remains unset (fail-closed ServiceUnavailable).
+	//
+	// Evidence from FC CollectionPayment PrepareCollectionPaymentRequest:
+	// each item requires CollectionFundingShare (funding_share_id,
+	// financial_relationship_id, funder) and CollectionComponent allocations
+	// with distribution_rule_reference/version plus recognition_reference for
+	// RECEIVABLE_RECOVERY. BNPL durably stores only
+	// contracts.financial_merchant_entitlement_id (RecordMerchantEntitlement).
+	// Merchant entitlement RPCs do not return funding shares, recognition
+	// references, or distribution rules. Single-installment repayment uses
+	// PrepareCollectionObligation (ExistingReceivable + entitlement id) and
+	// does not supply those CollectionPayment fields either.
+	//
+	// Do not invent funding-share IDs, recognition references, or distribution
+	// rules from merchant entitlement presence alone. Wire
+	// WithFinancialInstructionsResolver only after FC publishes an
+	// authoritative BNPL-facing provisioning contract that returns those
+	// fields for an existing entitlement.
 
 	return UseCases{
 		OutboxPublisher:                    outboxPublisherUseCase,
@@ -735,7 +751,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		SagaExecutor:                       sagaExecutorUseCase,
 		Contract:                           contractUseCase,
 		Merchant:                           merchantUseCase,
-		MerchantCreditKind:              merchantCreditKindUseCase,
+		MerchantCreditKind:                 merchantCreditKindUseCase,
 		MerchantTerminal:                   merchantTerminalUseCase,
 		CustomerAccount:                    customerAccountUseCase,
 		CustomerCredit:                     customerCreditUseCase,

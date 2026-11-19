@@ -230,6 +230,17 @@ type Installment struct {
 	// at offer creation time. It is persisted and never read from runtime configuration.
 	GracePeriodDays uint `db:"grace_period_days" json:"grace_period_days,omitempty"`
 
+	// CollectionsPolicyID is the immutable Collections Business Rule id assigned
+	// when this obligation was created.
+	CollectionsPolicyID string `db:"collections_policy_id" json:"collections_policy_id"`
+
+	// CollectionsPolicyVersion is the immutable Collections Business Rule version.
+	CollectionsPolicyVersion string `db:"collections_policy_version" json:"collections_policy_version"`
+
+	// CollectionsDefaultAfterDays snapshots default_after_days from the governing
+	// Collections rule at obligation creation.
+	CollectionsDefaultAfterDays uint `db:"collections_default_after_days" json:"collections_default_after_days"`
+
 	// PaidAmountMinor is the amount already paid toward this installment.
 	PaidAmountMinor uint64 `db:"paid_amount_minor" json:"paid_amount_minor"`
 

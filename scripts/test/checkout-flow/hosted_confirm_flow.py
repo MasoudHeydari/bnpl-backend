@@ -3,15 +3,16 @@
 
 Flow:
   1. Partner create checkout session
-  2. Hosted GET (customer lands on BNPL page and loads the session)
-  3. Hosted start
-  4. Hosted request OTP
-  5. Wait for OTP typed in the CLI
-  6. Hosted confirm
+  2. Partner select credit kind (arrow ↑/↓, Enter)
+  3. Hosted GET (customer lands on BNPL page and loads the session)
+  4. Hosted start
+  5. Hosted request OTP
+  6. Wait for OTP typed in the CLI
+  7. Hosted confirm
 
 The public token returned as data.checkout_session_id (cs_...) is reused for
-all hosted steps. Partner create needs X-Terminal-Id / X-API-Key; hosted token
-routes are unauthenticated.
+partner credit-kind and all hosted steps. Partner create / credit-kind need
+X-Terminal-Id / X-API-Key; hosted token routes are unauthenticated.
 
 Config (env, optional repo .env):
   BNPL_API_BASE              default https://api.bnpl.test:8443
@@ -42,8 +43,10 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 from lib import cli_style  # noqa: E402
 from lib.api_client import APIClient  # noqa: E402
+from lib.interactive import select  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+REQUEST_DELAY_SECONDS = 2
 
 
 def load_dotenv(path: Path) -> None:
@@ -110,9 +113,6 @@ def data_of(response: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
-REQUEST_DELAY_SECONDS = 10000
-
-
 def pause(seconds: float = REQUEST_DELAY_SECONDS) -> None:
     print(cli_style.muted(f"\nwaiting {seconds:g}s before next request..."))
     time.sleep(seconds)
@@ -131,6 +131,45 @@ def prompt_otp() -> str:
             return code
 
         print(cli_style.warn("OTP is empty; try again."))
+
+
+def format_credit_kind_previews(create_data: dict[str, Any]) -> None:
+    previews = create_data.get("credit_kinds")
+    if not isinstance(previews, list) or not previews:
+        return
+
+    print(cli_style.muted("\ncredit_kinds from create:"))
+    for item in previews:
+        if not isinstance(item, dict):
+            continue
+
+        kind = item.get("kind")
+        available = item.get("available")
+        plan = item.get("repayment_plan") or ""
+        reason = item.get("reason") or {}
+        reason_code = ""
+        if isinstance(reason, dict):
+            reason_code = str(reason.get("code") or "")
+
+        extra = []
+        if plan:
+            extra.append(f"plan={plan}")
+
+        if reason_code:
+            extra.append(f"reason={reason_code}")
+
+        suffix = f" ({', '.join(extra)})" if extra else ""
+        print(cli_style.muted(f"  - {kind}: available={available}{suffix}"))
+
+
+def prompt_credit_kind() -> str:
+    return select(
+        "Select credit kind (merchant choice):",
+        [
+            ("pay_in_installments", "pay_in_installments"),
+            ("pay_next_month", "pay_next_month"),
+        ],
+    )
 
 
 def main() -> None:
@@ -192,9 +231,29 @@ def main() -> None:
         )
 
     print(cli_style.ok(f"\nusing checkout_session_id/token from create: {token}"))
+    format_credit_kind_previews(create_data)
+
+    credit_kind = prompt_credit_kind()
+    pause()
+    print(cli_style.step(f"2) Partner select credit kind ({credit_kind})"))
+    _, select_resp = client.request(
+        "POST",
+        f"/api/v1/partner/checkout-sessions/{token}/credit-kind",
+        body={"credit_kind": credit_kind},
+        headers=partner_headers,
+    )
+    select_data = data_of(select_resp)
+    selected = str(select_data.get("credit_kind") or "").strip()
+    if selected != credit_kind:
+        raise SystemExit(
+            f"select credit-kind returned unexpected credit_kind: "
+            f"{selected!r} != {credit_kind!r}"
+        )
+
+    print(cli_style.ok(f"\nselected credit_kind={selected!r} status={select_data.get('status')!r}"))
 
     pause()
-    print(cli_style.step("2) Hosted GET (customer opens BNPL page)"))
+    print(cli_style.step("3) Hosted GET (customer opens BNPL page)"))
     _, get_resp = client.request(
         "GET",
         f"/api/v1/checkout-sessions/{token}",
@@ -209,7 +268,7 @@ def main() -> None:
     print(cli_style.ok(f"\nhosted GET status={get_data.get('status')!r}"))
 
     pause()
-    print(cli_style.step("3) Hosted start"))
+    print(cli_style.step("4) Hosted start"))
     # First START may omit evaluation_generation when offer is deferred (on_start).
     _, start_resp = client.request(
         "POST",
@@ -226,7 +285,7 @@ def main() -> None:
     print(cli_style.ok(f"\nusing evaluation_generation from start: {evaluation_generation}"))
 
     pause()
-    print(cli_style.step("4) Request OTP"))
+    print(cli_style.step("5) Request OTP"))
     client.request(
         "POST",
         f"/api/v1/checkout-sessions/{token}/otp",
@@ -236,7 +295,7 @@ def main() -> None:
     otp = prompt_otp()
 
     pause()
-    print(cli_style.step("5) Confirm"))
+    print(cli_style.step("6) Confirm"))
     _, confirm_resp = client.request(
         "POST",
         f"/api/v1/checkout-sessions/{token}/confirm",
@@ -251,6 +310,7 @@ def main() -> None:
     cli_style.print_json(
         {
             "checkout_session_id": token,
+            "credit_kind": credit_kind,
             "status": confirm_data.get("status"),
             "reconfirm_required": confirm_data.get("reconfirm_required"),
             "payment_required": confirm_data.get("payment_required"),

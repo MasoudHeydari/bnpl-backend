@@ -18,6 +18,7 @@ import (
 	paymentv1 "github.com/parstis/bnpl-backend/gen/proto/financial/payment/v1"
 	financialcommonv1 "github.com/parstis/bnpl-backend/gen/proto/financial/common/v1"
 	cbnoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/circuitbreaker/noop"
+	lognoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/noop"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	extcheckoutpayment "github.com/parstis/bnpl-backend/pkg/core/external/checkoutpayment"
 	"github.com/parstis/bnpl-backend/pkg/core/trace"
@@ -124,7 +125,10 @@ func startCheckoutPaymentBufconn(
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = conn.Close() })
 
-	return New(conn, time.Second, cbnoop.New(), "")
+	client, newErr := New(conn, time.Second, cbnoop.New(), lognoop.New(), "")
+	require.NoError(t, newErr)
+
+	return client
 }
 
 func TestCreateCheckoutPayment_GRPCContract_CustomerPlatformEmptyPayee(t *testing.T) {

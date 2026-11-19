@@ -278,6 +278,7 @@ type ExternalFinancialCoreGRPCTLS struct {
 
 func (e ExternalFinancialCore) newExternalCheckoutPaymentClient(
 	breaker circuitbreaker.CircuitBreaker,
+	logger corelog.Logger,
 ) (extcheckoutpayment.Client, io.Closer, error) {
 	const op = "config.ExternalFinancialCore.newExternalCheckoutPaymentClient"
 
@@ -285,7 +286,7 @@ func (e ExternalFinancialCore) newExternalCheckoutPaymentClient(
 
 	switch provider {
 	case checkoutpaymentext.GRPCProvider:
-		return e.newGRPCExternalCheckoutPaymentClient(breaker)
+		return e.newGRPCExternalCheckoutPaymentClient(breaker, logger)
 
 	case checkoutpaymentext.NoopProvider:
 		return checkoutpaymentnoop.New(), nil, nil
@@ -297,6 +298,7 @@ func (e ExternalFinancialCore) newExternalCheckoutPaymentClient(
 
 func (e ExternalFinancialCore) newGRPCExternalCheckoutPaymentClient(
 	breaker circuitbreaker.CircuitBreaker,
+	logger corelog.Logger,
 ) (extcheckoutpayment.Client, io.Closer, error) {
 	const op = "config.ExternalFinancialCore.newGRPCExternalCheckoutPaymentClient"
 
@@ -324,12 +326,21 @@ func (e ExternalFinancialCore) newGRPCExternalCheckoutPaymentClient(
 		)
 	}
 
-	return checkoutpaymentgrpc.New(
+	client, err := checkoutpaymentgrpc.New(
 		conn,
 		e.GRPC.Timeout,
 		breaker,
+		logger,
 		e.CheckoutPaymentProviderCode,
-	), conn, nil
+	)
+	if err != nil {
+		return nil, nil, errors.Join(
+			fmt.Errorf("%s: construct external financial core grpc client: %w", op, err),
+			conn.Close(),
+		)
+	}
+
+	return client, conn, nil
 }
 
 func (e ExternalFinancialCore) newExternalInstallmentPaymentClient(

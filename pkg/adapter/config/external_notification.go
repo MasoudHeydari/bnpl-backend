@@ -14,6 +14,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/grpcclient"
 	"github.com/parstis/bnpl-backend/pkg/core/circuitbreaker"
 	extnotification "github.com/parstis/bnpl-backend/pkg/core/external/notification"
+	"github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 )
 
@@ -72,12 +73,14 @@ type ExternalNotificationGRPCTLS struct {
 // submitter. The optional closer owns the gRPC connection.
 func (c *Config) NewExternalNotificationClient(
 	breaker circuitbreaker.CircuitBreaker,
+	logger log.Logger,
 ) (extnotification.Submitter, io.Closer, error) {
-	return c.External.Notification.newClient(breaker)
+	return c.External.Notification.newClient(breaker, logger)
 }
 
 func (e ExternalNotification) newClient(
 	breaker circuitbreaker.CircuitBreaker,
+	logger log.Logger,
 ) (extnotification.Submitter, io.Closer, error) {
 	const op = "config.ExternalNotification.newClient"
 
@@ -85,7 +88,7 @@ func (e ExternalNotification) newClient(
 
 	switch provider {
 	case notificationext.GRPCProvider:
-		return e.newGRPCClient(breaker)
+		return e.newGRPCClient(breaker, logger)
 
 	case notificationext.NoopProvider:
 		return notificationnoop.New(), nil, nil
@@ -97,6 +100,7 @@ func (e ExternalNotification) newClient(
 
 func (e ExternalNotification) newGRPCClient(
 	breaker circuitbreaker.CircuitBreaker,
+	logger log.Logger,
 ) (extnotification.Submitter, io.Closer, error) {
 	const op = "config.ExternalNotification.newGRPCClient"
 
@@ -124,7 +128,7 @@ func (e ExternalNotification) newGRPCClient(
 		)
 	}
 
-	client, err := notificationgrpc.New(conn, e.GRPC.Timeout, breaker)
+	client, err := notificationgrpc.New(conn, e.GRPC.Timeout, breaker, logger)
 	if err != nil {
 		return nil, nil, errors.Join(
 			fmt.Errorf("%s: construct external notification grpc client: %w", op, err),

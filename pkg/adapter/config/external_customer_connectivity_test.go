@@ -9,6 +9,7 @@ import (
 
 	customerext "github.com/parstis/bnpl-backend/pkg/adapter/external/customer"
 	circuitbreakernoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/circuitbreaker/noop"
+	lognoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/noop"
 )
 
 func TestExternalCustomer_NewGRPCClient_UnavailableAddressFailsFast(t *testing.T) {
@@ -30,7 +31,7 @@ func TestExternalCustomer_NewGRPCClient_UnavailableAddressFailsFast(t *testing.T
 	}
 
 	started := time.Now()
-	resolver, closer, err := cfg.newClient(circuitbreakernoop.New())
+	resolver, closer, err := cfg.newClient(circuitbreakernoop.New(), lognoop.New())
 	elapsed := time.Since(started)
 
 	require.Error(t, err)

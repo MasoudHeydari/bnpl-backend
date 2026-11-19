@@ -308,6 +308,17 @@ func (uc *UseCase) assessCustomerTx(
 
 		if !evaluation.IsRecovered {
 			output.Transition = AssessTransitionBlocked
+			if appendErr := uc.appendNewDefaultEvidence(
+				ctx,
+				episodeQ,
+				activeEpisode,
+				evaluation,
+				factByID,
+				now,
+			); appendErr != nil {
+				return AssessCustomerOutput{}, appendErr
+			}
+
 			// Record empty uncertainty too, so a later recurrence is a new transition.
 			if noteErr := uc.notePaymentUncertainty(
 				ctx,
@@ -409,14 +420,117 @@ func (uc *UseCase) evaluateObligationsWithFacts(
 		fact := collections.FactFromUnpaidInstallment(row.Installment, row.HasUnresolvedPayment)
 		fact.HasUnresolvedAdjustment = row.HasUnresolvedAdjustment
 		fact.HasUnresolvedCancellation = row.HasUnresolvedCancellation
+
+		policyID := row.Installment.CollectionsPolicyID
+		policyVersion := row.Installment.CollectionsPolicyVersion
+		if policyID == "" || policyVersion == "" {
+			return collections.Evaluation{}, nil, cerr.InternalError(fmt.Errorf(
+				"%s: installment %s missing collections policy identity",
+				op,
+				row.Installment.ID,
+			))
+		}
+
+		installmentPolicy, resolveErr := uc.policies.Resolve(policyID, policyVersion)
+		if resolveErr != nil {
+			return collections.Evaluation{}, nil, cerr.InternalError(fmt.Errorf(
+				"%s: resolve collections policy for installment %s: %w",
+				op,
+				row.Installment.ID,
+				resolveErr,
+			))
+		}
+
+		fact.CollectionsPolicyID = policyID
+		fact.CollectionsPolicyVersion = policyVersion
+		fact.DefaultAfterDays = row.Installment.CollectionsDefaultAfterDays
+		fact.OverdueEligibleAt = installmentPolicy.Boundary(row.Installment)
+		fact.DefaultEligibleAt = installmentPolicy.DefaultBoundary(row.Installment)
 		facts = append(facts, fact)
 	}
 
+	// Customer-level Evaluation still uses selected/Current for PolicyID labels
+	// on the Evaluation aggregate; per-installment boundaries already come from
+	// each installment's own resolved rule above.
 	policy := uc.policies.Current
 	if len(selected) > 0 {
 		policy = selected[0]
 	}
+
 	return policy.Evaluate(facts, now, currentlyDefaulted), factByID, nil
+}
+
+func (uc *UseCase) appendNewDefaultEvidence(
+	ctx context.Context,
+	episodeQ repo.DefaultEpisodeTxQueryer,
+	episode model.DefaultEpisode,
+	evaluation collections.Evaluation,
+	factByID map[model.InstallmentID]repo.CollectionsObligation,
+	now time.Time,
+) error {
+	const op = "collectionsuc.UseCase.appendNewDefaultEvidence"
+
+	if len(evaluation.TriggerInstallmentIDs) == 0 {
+		return nil
+	}
+
+	existing, err := episodeQ.ListTriggersByEpisodeID(ctx, episode.ID)
+	if err != nil {
+		return fmt.Errorf("%s: list existing triggers: %w", op, err)
+	}
+
+	seen := make(map[model.InstallmentID]struct{}, len(existing))
+	for _, trigger := range existing {
+		seen[trigger.InstallmentID] = struct{}{}
+	}
+
+	toAdd := make([]model.DefaultEpisodeTrigger, 0)
+	for _, installmentID := range evaluation.TriggerInstallmentIDs {
+		if _, ok := seen[installmentID]; ok {
+			continue
+		}
+
+		row, ok := factByID[installmentID]
+		if !ok {
+			return cerr.InternalError(fmt.Errorf("%s: missing trigger installment %s", op, installmentID))
+		}
+
+		policy, resolveErr := uc.policies.Resolve(
+			row.Installment.CollectionsPolicyID,
+			row.Installment.CollectionsPolicyVersion,
+		)
+		if resolveErr != nil {
+			return cerr.InternalError(fmt.Errorf(
+				"%s: resolve collections policy for installment %s: %w",
+				op,
+				installmentID,
+				resolveErr,
+			))
+		}
+
+		toAdd = append(toAdd, model.DefaultEpisodeTrigger{
+			EpisodeID:                episode.ID,
+			InstallmentID:            installmentID,
+			DueAt:                    row.Installment.DueAt,
+			GracePeriodDays:          row.Installment.GracePeriodDays,
+			OverdueEligibleAt:        policy.Boundary(row.Installment),
+			DefaultEligibleAt:        policy.DefaultBoundary(row.Installment),
+			CollectionsPolicyID:      row.Installment.CollectionsPolicyID,
+			CollectionsPolicyVersion: row.Installment.CollectionsPolicyVersion,
+			DefaultAfterDays:         row.Installment.CollectionsDefaultAfterDays,
+			DetectedAt:               now,
+		})
+	}
+
+	if len(toAdd) == 0 {
+		return nil
+	}
+
+	if err := episodeQ.AppendTriggers(ctx, episode.ID, toAdd); err != nil {
+		return fmt.Errorf("%s: append triggers: %w", op, err)
+	}
+
+	return nil
 }
 
 func uncertainInstallmentIDs(
@@ -533,13 +647,30 @@ func (uc *UseCase) openEpisode(
 			))
 		}
 
+		policy, resolveErr := uc.policies.Resolve(
+			row.Installment.CollectionsPolicyID,
+			row.Installment.CollectionsPolicyVersion,
+		)
+		if resolveErr != nil {
+			return openedEpisode{}, cerr.InternalError(fmt.Errorf(
+				"%s: resolve collections policy for installment %s: %w",
+				op,
+				installmentID,
+				resolveErr,
+			))
+		}
+
 		triggers = append(triggers, model.DefaultEpisodeTrigger{
-			EpisodeID:         episodeID,
-			InstallmentID:     installmentID,
-			DueAt:             row.Installment.DueAt,
-			GracePeriodDays:   row.Installment.GracePeriodDays,
-			OverdueEligibleAt: uc.policies.Current.Boundary(row.Installment),
-			DefaultEligibleAt: uc.policies.Current.DefaultBoundary(row.Installment),
+			EpisodeID:                episodeID,
+			InstallmentID:            installmentID,
+			DueAt:                    row.Installment.DueAt,
+			GracePeriodDays:          row.Installment.GracePeriodDays,
+			OverdueEligibleAt:        policy.Boundary(row.Installment),
+			DefaultEligibleAt:        policy.DefaultBoundary(row.Installment),
+			CollectionsPolicyID:      row.Installment.CollectionsPolicyID,
+			CollectionsPolicyVersion: row.Installment.CollectionsPolicyVersion,
+			DefaultAfterDays:         row.Installment.CollectionsDefaultAfterDays,
+			DetectedAt:               now,
 		})
 	}
 

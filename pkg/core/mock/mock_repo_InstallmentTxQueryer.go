@@ -408,8 +408,8 @@ func (_c *InstallmentTxQueryer_CountUnpaidByCustomerID_Call) RunAndReturn(run fu
 }
 
 // Create provides a mock function for the type InstallmentTxQueryer
-func (_mock *InstallmentTxQueryer) Create(ctx context.Context, decisionID model.DecisionID, contractID *model.ContractID, customerID model.CustomerID, merchantProfileID model.MerchantProfileID, merchantBranchProfileID *model.MerchantBranchProfileID, installmentOrder int, currency model.Currency, principalAmountMinor uint64, upfrontAmountMinor uint64, baseFeeAmountMinor uint64, totalAmountMinor uint64, dueAt time.Time, gracePeriodDays uint, status model.InstallmentStatus, paidAmountMinor uint64, paidAt *time.Time, createdAt time.Time, updatedAt time.Time) (model.Installment, error) {
-	ret := _mock.Called(ctx, decisionID, contractID, customerID, merchantProfileID, merchantBranchProfileID, installmentOrder, currency, principalAmountMinor, upfrontAmountMinor, baseFeeAmountMinor, totalAmountMinor, dueAt, gracePeriodDays, status, paidAmountMinor, paidAt, createdAt, updatedAt)
+func (_mock *InstallmentTxQueryer) Create(ctx context.Context, decisionID model.DecisionID, contractID *model.ContractID, customerID model.CustomerID, merchantProfileID model.MerchantProfileID, merchantBranchProfileID *model.MerchantBranchProfileID, installmentOrder int, currency model.Currency, principalAmountMinor uint64, upfrontAmountMinor uint64, baseFeeAmountMinor uint64, totalAmountMinor uint64, dueAt time.Time, gracePeriodDays uint, collectionsPolicyID string, collectionsPolicyVersion string, collectionsDefaultAfterDays uint, status model.InstallmentStatus, paidAmountMinor uint64, paidAt *time.Time, createdAt time.Time, updatedAt time.Time) (model.Installment, error) {
+	ret := _mock.Called(ctx, decisionID, contractID, customerID, merchantProfileID, merchantBranchProfileID, installmentOrder, currency, principalAmountMinor, upfrontAmountMinor, baseFeeAmountMinor, totalAmountMinor, dueAt, gracePeriodDays, collectionsPolicyID, collectionsPolicyVersion, collectionsDefaultAfterDays, status, paidAmountMinor, paidAt, createdAt, updatedAt)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Create")
@@ -417,16 +417,16 @@ func (_mock *InstallmentTxQueryer) Create(ctx context.Context, decisionID model.
 
 	var r0 model.Installment
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.DecisionID, *model.ContractID, model.CustomerID, model.MerchantProfileID, *model.MerchantBranchProfileID, int, model.Currency, uint64, uint64, uint64, uint64, time.Time, uint, model.InstallmentStatus, uint64, *time.Time, time.Time, time.Time) (model.Installment, error)); ok {
-		return returnFunc(ctx, decisionID, contractID, customerID, merchantProfileID, merchantBranchProfileID, installmentOrder, currency, principalAmountMinor, upfrontAmountMinor, baseFeeAmountMinor, totalAmountMinor, dueAt, gracePeriodDays, status, paidAmountMinor, paidAt, createdAt, updatedAt)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.DecisionID, *model.ContractID, model.CustomerID, model.MerchantProfileID, *model.MerchantBranchProfileID, int, model.Currency, uint64, uint64, uint64, uint64, time.Time, uint, string, string, uint, model.InstallmentStatus, uint64, *time.Time, time.Time, time.Time) (model.Installment, error)); ok {
+		return returnFunc(ctx, decisionID, contractID, customerID, merchantProfileID, merchantBranchProfileID, installmentOrder, currency, principalAmountMinor, upfrontAmountMinor, baseFeeAmountMinor, totalAmountMinor, dueAt, gracePeriodDays, collectionsPolicyID, collectionsPolicyVersion, collectionsDefaultAfterDays, status, paidAmountMinor, paidAt, createdAt, updatedAt)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.DecisionID, *model.ContractID, model.CustomerID, model.MerchantProfileID, *model.MerchantBranchProfileID, int, model.Currency, uint64, uint64, uint64, uint64, time.Time, uint, model.InstallmentStatus, uint64, *time.Time, time.Time, time.Time) model.Installment); ok {
-		r0 = returnFunc(ctx, decisionID, contractID, customerID, merchantProfileID, merchantBranchProfileID, installmentOrder, currency, principalAmountMinor, upfrontAmountMinor, baseFeeAmountMinor, totalAmountMinor, dueAt, gracePeriodDays, status, paidAmountMinor, paidAt, createdAt, updatedAt)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.DecisionID, *model.ContractID, model.CustomerID, model.MerchantProfileID, *model.MerchantBranchProfileID, int, model.Currency, uint64, uint64, uint64, uint64, time.Time, uint, string, string, uint, model.InstallmentStatus, uint64, *time.Time, time.Time, time.Time) model.Installment); ok {
+		r0 = returnFunc(ctx, decisionID, contractID, customerID, merchantProfileID, merchantBranchProfileID, installmentOrder, currency, principalAmountMinor, upfrontAmountMinor, baseFeeAmountMinor, totalAmountMinor, dueAt, gracePeriodDays, collectionsPolicyID, collectionsPolicyVersion, collectionsDefaultAfterDays, status, paidAmountMinor, paidAt, createdAt, updatedAt)
 	} else {
 		r0 = ret.Get(0).(model.Installment)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, model.DecisionID, *model.ContractID, model.CustomerID, model.MerchantProfileID, *model.MerchantBranchProfileID, int, model.Currency, uint64, uint64, uint64, uint64, time.Time, uint, model.InstallmentStatus, uint64, *time.Time, time.Time, time.Time) error); ok {
-		r1 = returnFunc(ctx, decisionID, contractID, customerID, merchantProfileID, merchantBranchProfileID, installmentOrder, currency, principalAmountMinor, upfrontAmountMinor, baseFeeAmountMinor, totalAmountMinor, dueAt, gracePeriodDays, status, paidAmountMinor, paidAt, createdAt, updatedAt)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.DecisionID, *model.ContractID, model.CustomerID, model.MerchantProfileID, *model.MerchantBranchProfileID, int, model.Currency, uint64, uint64, uint64, uint64, time.Time, uint, string, string, uint, model.InstallmentStatus, uint64, *time.Time, time.Time, time.Time) error); ok {
+		r1 = returnFunc(ctx, decisionID, contractID, customerID, merchantProfileID, merchantBranchProfileID, installmentOrder, currency, principalAmountMinor, upfrontAmountMinor, baseFeeAmountMinor, totalAmountMinor, dueAt, gracePeriodDays, collectionsPolicyID, collectionsPolicyVersion, collectionsDefaultAfterDays, status, paidAmountMinor, paidAt, createdAt, updatedAt)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -453,16 +453,19 @@ type InstallmentTxQueryer_Create_Call struct {
 //   - totalAmountMinor uint64
 //   - dueAt time.Time
 //   - gracePeriodDays uint
+//   - collectionsPolicyID string
+//   - collectionsPolicyVersion string
+//   - collectionsDefaultAfterDays uint
 //   - status model.InstallmentStatus
 //   - paidAmountMinor uint64
 //   - paidAt *time.Time
 //   - createdAt time.Time
 //   - updatedAt time.Time
-func (_e *InstallmentTxQueryer_Expecter) Create(ctx any, decisionID any, contractID any, customerID any, merchantProfileID any, merchantBranchProfileID any, installmentOrder any, currency any, principalAmountMinor any, upfrontAmountMinor any, baseFeeAmountMinor any, totalAmountMinor any, dueAt any, gracePeriodDays any, status any, paidAmountMinor any, paidAt any, createdAt any, updatedAt any) *InstallmentTxQueryer_Create_Call {
-	return &InstallmentTxQueryer_Create_Call{Call: _e.mock.On("Create", ctx, decisionID, contractID, customerID, merchantProfileID, merchantBranchProfileID, installmentOrder, currency, principalAmountMinor, upfrontAmountMinor, baseFeeAmountMinor, totalAmountMinor, dueAt, gracePeriodDays, status, paidAmountMinor, paidAt, createdAt, updatedAt)}
+func (_e *InstallmentTxQueryer_Expecter) Create(ctx any, decisionID any, contractID any, customerID any, merchantProfileID any, merchantBranchProfileID any, installmentOrder any, currency any, principalAmountMinor any, upfrontAmountMinor any, baseFeeAmountMinor any, totalAmountMinor any, dueAt any, gracePeriodDays any, collectionsPolicyID any, collectionsPolicyVersion any, collectionsDefaultAfterDays any, status any, paidAmountMinor any, paidAt any, createdAt any, updatedAt any) *InstallmentTxQueryer_Create_Call {
+	return &InstallmentTxQueryer_Create_Call{Call: _e.mock.On("Create", ctx, decisionID, contractID, customerID, merchantProfileID, merchantBranchProfileID, installmentOrder, currency, principalAmountMinor, upfrontAmountMinor, baseFeeAmountMinor, totalAmountMinor, dueAt, gracePeriodDays, collectionsPolicyID, collectionsPolicyVersion, collectionsDefaultAfterDays, status, paidAmountMinor, paidAt, createdAt, updatedAt)}
 }
 
-func (_c *InstallmentTxQueryer_Create_Call) Run(run func(ctx context.Context, decisionID model.DecisionID, contractID *model.ContractID, customerID model.CustomerID, merchantProfileID model.MerchantProfileID, merchantBranchProfileID *model.MerchantBranchProfileID, installmentOrder int, currency model.Currency, principalAmountMinor uint64, upfrontAmountMinor uint64, baseFeeAmountMinor uint64, totalAmountMinor uint64, dueAt time.Time, gracePeriodDays uint, status model.InstallmentStatus, paidAmountMinor uint64, paidAt *time.Time, createdAt time.Time, updatedAt time.Time)) *InstallmentTxQueryer_Create_Call {
+func (_c *InstallmentTxQueryer_Create_Call) Run(run func(ctx context.Context, decisionID model.DecisionID, contractID *model.ContractID, customerID model.CustomerID, merchantProfileID model.MerchantProfileID, merchantBranchProfileID *model.MerchantBranchProfileID, installmentOrder int, currency model.Currency, principalAmountMinor uint64, upfrontAmountMinor uint64, baseFeeAmountMinor uint64, totalAmountMinor uint64, dueAt time.Time, gracePeriodDays uint, collectionsPolicyID string, collectionsPolicyVersion string, collectionsDefaultAfterDays uint, status model.InstallmentStatus, paidAmountMinor uint64, paidAt *time.Time, createdAt time.Time, updatedAt time.Time)) *InstallmentTxQueryer_Create_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -520,25 +523,37 @@ func (_c *InstallmentTxQueryer_Create_Call) Run(run func(ctx context.Context, de
 		if args[13] != nil {
 			arg13 = args[13].(uint)
 		}
-		var arg14 model.InstallmentStatus
+		var arg14 string
 		if args[14] != nil {
-			arg14 = args[14].(model.InstallmentStatus)
+			arg14 = args[14].(string)
 		}
-		var arg15 uint64
+		var arg15 string
 		if args[15] != nil {
-			arg15 = args[15].(uint64)
+			arg15 = args[15].(string)
 		}
-		var arg16 *time.Time
+		var arg16 uint
 		if args[16] != nil {
-			arg16 = args[16].(*time.Time)
+			arg16 = args[16].(uint)
 		}
-		var arg17 time.Time
+		var arg17 model.InstallmentStatus
 		if args[17] != nil {
-			arg17 = args[17].(time.Time)
+			arg17 = args[17].(model.InstallmentStatus)
 		}
-		var arg18 time.Time
+		var arg18 uint64
 		if args[18] != nil {
-			arg18 = args[18].(time.Time)
+			arg18 = args[18].(uint64)
+		}
+		var arg19 *time.Time
+		if args[19] != nil {
+			arg19 = args[19].(*time.Time)
+		}
+		var arg20 time.Time
+		if args[20] != nil {
+			arg20 = args[20].(time.Time)
+		}
+		var arg21 time.Time
+		if args[21] != nil {
+			arg21 = args[21].(time.Time)
 		}
 		run(
 			arg0,
@@ -560,6 +575,9 @@ func (_c *InstallmentTxQueryer_Create_Call) Run(run func(ctx context.Context, de
 			arg16,
 			arg17,
 			arg18,
+			arg19,
+			arg20,
+			arg21,
 		)
 	})
 	return _c
@@ -570,7 +588,7 @@ func (_c *InstallmentTxQueryer_Create_Call) Return(installment model.Installment
 	return _c
 }
 
-func (_c *InstallmentTxQueryer_Create_Call) RunAndReturn(run func(ctx context.Context, decisionID model.DecisionID, contractID *model.ContractID, customerID model.CustomerID, merchantProfileID model.MerchantProfileID, merchantBranchProfileID *model.MerchantBranchProfileID, installmentOrder int, currency model.Currency, principalAmountMinor uint64, upfrontAmountMinor uint64, baseFeeAmountMinor uint64, totalAmountMinor uint64, dueAt time.Time, gracePeriodDays uint, status model.InstallmentStatus, paidAmountMinor uint64, paidAt *time.Time, createdAt time.Time, updatedAt time.Time) (model.Installment, error)) *InstallmentTxQueryer_Create_Call {
+func (_c *InstallmentTxQueryer_Create_Call) RunAndReturn(run func(ctx context.Context, decisionID model.DecisionID, contractID *model.ContractID, customerID model.CustomerID, merchantProfileID model.MerchantProfileID, merchantBranchProfileID *model.MerchantBranchProfileID, installmentOrder int, currency model.Currency, principalAmountMinor uint64, upfrontAmountMinor uint64, baseFeeAmountMinor uint64, totalAmountMinor uint64, dueAt time.Time, gracePeriodDays uint, collectionsPolicyID string, collectionsPolicyVersion string, collectionsDefaultAfterDays uint, status model.InstallmentStatus, paidAmountMinor uint64, paidAt *time.Time, createdAt time.Time, updatedAt time.Time) (model.Installment, error)) *InstallmentTxQueryer_Create_Call {
 	_c.Call.Return(run)
 	return _c
 }

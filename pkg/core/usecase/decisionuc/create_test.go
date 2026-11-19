@@ -341,6 +341,9 @@ func expectOfferedInstallments(
 			testifymock.Anything,
 			testifymock.Anything,
 			testifymock.Anything,
+			testifymock.Anything,
+			testifymock.Anything,
+			testifymock.Anything,
 			model.OfferedInstallmentStatus,
 			uint64(0),
 			(*time.Time)(nil),
@@ -812,6 +815,9 @@ func TestCreate_InstallmentCreateFailure_RollsBack(t *testing.T) {
 
 	deps.installmentTx.EXPECT().Create(
 		ctx,
+		testifymock.Anything,
+		testifymock.Anything,
+		testifymock.Anything,
 		testifymock.Anything,
 		testifymock.Anything,
 		testifymock.Anything,

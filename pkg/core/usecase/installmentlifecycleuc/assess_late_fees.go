@@ -12,6 +12,11 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
+// maxLateFeeAssessmentRounds bounds how many claim batches one job run drains.
+// Combined with AssessLateFeeBatchSize this keeps memory and lock duration bounded
+// while still catching up far more installments than a single LIMIT page.
+const maxLateFeeAssessmentRounds = 1000
+
 // AssessLateFeesOutput reports late-fee assessment results for one job run.
 type AssessLateFeesOutput struct {
 	// AssessedInstallmentCount is the number of overdue installments inspected.
@@ -23,6 +28,9 @@ type AssessLateFeesOutput struct {
 	// SkippedFrozenCount is the number of installments skipped because a claim
 	// appeared after the SQL freeze filter (defensive).
 	SkippedFrozenCount int64
+
+	// BatchRounds is how many claim/process rounds this run executed.
+	BatchRounds int64
 }
 
 // AssessLateFees creates one applied late_fee charge per overdue business day
@@ -30,6 +38,10 @@ type AssessLateFeesOutput struct {
 // (principal * 167 / 100000). Assessment freezes while a non-terminal payment
 // attempt or repayment-batch claim is active so posted_applier payable
 // snapshots cannot race newly assessed fees.
+//
+// The claim query excludes installments whose late-fee charges already cover
+// every overdue business day through today, then this method drains bounded
+// batches until no eligible rows remain (or the round cap is hit).
 func (uc *UseCase) AssessLateFees(ctx context.Context) (AssessLateFeesOutput, error) {
 	const op = "installmentlifecycleuc.UseCase.AssessLateFees"
 
@@ -37,135 +49,169 @@ func (uc *UseCase) AssessLateFees(ctx context.Context) (AssessLateFeesOutput, er
 	loc := uc.clock.BusinessLocation()
 	output := AssessLateFeesOutput{}
 
-	err := uc.pool.Conn(
-		ctx,
-		func(ctx context.Context, conn repo.Conn) error {
-			return conn.Tx(
-				ctx,
-				func(ctx context.Context, tx repo.Tx) error {
-					installmentQ := uc.installment.Tx(tx)
-					chargeQ := uc.installmentCharge.Tx(tx)
+	for round := 0; round < maxLateFeeAssessmentRounds; round++ {
+		var claimedCount int
 
-					claimed, err := installmentQ.ClaimOverdueForLateFee(
-						ctx,
-						now,
-						uc.AssessLateFeeBatchSize,
-					)
-					if err != nil {
-						return fmt.Errorf("%s: claim overdue installments: %w", op, err)
-					}
+		err := uc.pool.Conn(
+			ctx,
+			func(ctx context.Context, conn repo.Conn) error {
+				return conn.Tx(
+					ctx,
+					func(ctx context.Context, tx repo.Tx) error {
+						installmentQ := uc.installment.Tx(tx)
+						chargeQ := uc.installmentCharge.Tx(tx)
 
-					if len(claimed) == 0 {
-						return nil
-					}
-
-					ids := make([]model.InstallmentID, 0, len(claimed))
-					for _, row := range claimed {
-						ids = append(ids, row.ID)
-					}
-
-					existing, err := chargeQ.ListByInstallmentIDs(ctx, ids)
-					if err != nil {
-						return fmt.Errorf("%s: list existing charges: %w", op, err)
-					}
-
-					existingLateFeeDays := make(map[model.InstallmentID]map[string]struct{}, len(claimed))
-					for _, charge := range existing {
-						if charge.ChargeType != model.LateFeeInstallmentChargeType {
-							continue
+						claimed, err := installmentQ.ClaimOverdueForLateFee(
+							ctx,
+							now,
+							uc.AssessLateFeeBatchSize,
+						)
+						if err != nil {
+							return fmt.Errorf("%s: claim overdue installments: %w", op, err)
 						}
 
-						if charge.ChargeStatus == model.CanceledInstallmentChargeStatus {
-							continue
+						claimedCount = len(claimed)
+						if claimedCount == 0 {
+							return nil
 						}
 
-						if charge.DueAt == nil {
-							continue
+						output.BatchRounds++
+
+						ids := make([]model.InstallmentID, 0, len(claimed))
+						for _, row := range claimed {
+							ids = append(ids, row.ID)
 						}
 
-						key := lateFeeBusinessDateKey(*charge.DueAt, loc)
-						days, ok := existingLateFeeDays[charge.InstallmentID]
-						if !ok {
-							days = make(map[string]struct{})
-							existingLateFeeDays[charge.InstallmentID] = days
+						existing, err := chargeQ.ListByInstallmentIDs(ctx, ids)
+						if err != nil {
+							return fmt.Errorf("%s: list existing charges: %w", op, err)
 						}
 
-						days[key] = struct{}{}
-					}
-
-					for _, installmentRow := range claimed {
-						output.AssessedInstallmentCount++
-
-						if installmentRow.Status != model.OverdueInstallmentStatus {
-							continue
-						}
-
-						amount := collectionsv3.LateFeeAmountMinor(installmentRow.PrincipalAmountMinor)
-						if amount == 0 {
-							continue
-						}
-
-						for _, dayStart := range overdueBusinessDaysThrough(installmentRow, now, loc) {
-							key := lateFeeBusinessDateKey(dayStart, loc)
-							if _, exists := existingLateFeeDays[installmentRow.ID][key]; exists {
+						existingLateFeeDays := make(map[model.InstallmentID]map[string]struct{}, len(claimed))
+						for _, charge := range existing {
+							if charge.ChargeType != model.LateFeeInstallmentChargeType {
 								continue
 							}
 
-							dueAt := dayStart.UTC()
-							metadata, metaErr := json.Marshal(map[string]any{
-								"business_date":    key,
-								"rate_numerator":   collectionsv3.LateFeeRateNumerator,
-								"rate_denominator": collectionsv3.LateFeeRateDenominator,
-							})
-							if metaErr != nil {
-								return cerr.InternalError(fmt.Errorf("%s: marshal late fee metadata: %w", op, metaErr))
+							if charge.ChargeStatus == model.CanceledInstallmentChargeStatus {
+								continue
 							}
 
-							_, createErr := chargeQ.Create(
-								ctx,
-								installmentRow.ID,
-								model.LateFeeInstallmentChargeType,
-								model.AppliedInstallmentChargeStatus,
-								amount,
-								installmentRow.Currency,
-								model.CustomerInstallmentChargePayerType,
-								model.PlatformInstallmentChargeRecipientType,
-								collectionsv3.PolicyID,
-								collectionsv3.PolicyVersion,
-								now,
-								&dueAt,
-								nil,
-								metadata,
-								now,
-								now,
-							)
-							if createErr != nil {
-								if cerr.IsCode(createErr, cerr.CodeConflict) {
-									output.SkippedFrozenCount++
-									continue
-								}
-
-								return fmt.Errorf("%s: create late fee charge: %w", op, createErr)
+							if charge.DueAt == nil {
+								continue
 							}
 
-							output.CreatedChargeCount++
-							days, ok := existingLateFeeDays[installmentRow.ID]
+							key := lateFeeBusinessDateKey(*charge.DueAt, loc)
+							days, ok := existingLateFeeDays[charge.InstallmentID]
 							if !ok {
 								days = make(map[string]struct{})
-								existingLateFeeDays[installmentRow.ID] = days
+								existingLateFeeDays[charge.InstallmentID] = days
 							}
 
 							days[key] = struct{}{}
 						}
-					}
 
-					return nil
-				},
-			)
-		},
-	)
-	if err != nil {
-		return AssessLateFeesOutput{}, err
+						for _, installmentRow := range claimed {
+							output.AssessedInstallmentCount++
+
+							if installmentRow.Status != model.OverdueInstallmentStatus {
+								continue
+							}
+
+							policyID := installmentRow.CollectionsPolicyID
+							policyVersion := installmentRow.CollectionsPolicyVersion
+							if policyID == "" || policyVersion == "" {
+								return cerr.InternalError(fmt.Errorf(
+									"%s: installment %s missing collections policy identity",
+									op,
+									installmentRow.ID,
+								))
+							}
+
+							// Late-fee arithmetic is defined on the installment's
+							// governing Collections rule. Unknown historical rules
+							// fail closed rather than adopting Current.
+							if policyID != collectionsv3.PolicyID || policyVersion != collectionsv3.PolicyVersion {
+								return cerr.InternalError(fmt.Errorf(
+									"%s: unsupported collections late-fee rule %s:%s for installment %s",
+									op,
+									policyID,
+									policyVersion,
+									installmentRow.ID,
+								))
+							}
+
+							amount := collectionsv3.LateFeeAmountMinor(installmentRow.PrincipalAmountMinor)
+							if amount == 0 {
+								continue
+							}
+
+							for _, dayStart := range overdueBusinessDaysThrough(installmentRow, now, loc) {
+								key := lateFeeBusinessDateKey(dayStart, loc)
+								if _, exists := existingLateFeeDays[installmentRow.ID][key]; exists {
+									continue
+								}
+
+								dueAt := dayStart.UTC()
+								metadata, metaErr := json.Marshal(map[string]any{
+									"business_date":    key,
+									"rate_numerator":   collectionsv3.LateFeeRateNumerator,
+									"rate_denominator": collectionsv3.LateFeeRateDenominator,
+								})
+								if metaErr != nil {
+									return cerr.InternalError(fmt.Errorf("%s: marshal late fee metadata: %w", op, metaErr))
+								}
+
+								_, createErr := chargeQ.Create(
+									ctx,
+									installmentRow.ID,
+									model.LateFeeInstallmentChargeType,
+									model.AppliedInstallmentChargeStatus,
+									amount,
+									installmentRow.Currency,
+									model.CustomerInstallmentChargePayerType,
+									model.PlatformInstallmentChargeRecipientType,
+									policyID,
+									policyVersion,
+									now,
+									&dueAt,
+									nil,
+									metadata,
+									now,
+									now,
+								)
+								if createErr != nil {
+									if cerr.IsCode(createErr, cerr.CodeConflict) {
+										output.SkippedFrozenCount++
+										continue
+									}
+
+									return fmt.Errorf("%s: create late fee charge: %w", op, createErr)
+								}
+
+								output.CreatedChargeCount++
+								days, ok := existingLateFeeDays[installmentRow.ID]
+								if !ok {
+									days = make(map[string]struct{})
+									existingLateFeeDays[installmentRow.ID] = days
+								}
+
+								days[key] = struct{}{}
+							}
+						}
+
+						return nil
+					},
+				)
+			},
+		)
+		if err != nil {
+			return AssessLateFeesOutput{}, err
+		}
+
+		if claimedCount == 0 {
+			break
+		}
 	}
 
 	if output.CreatedChargeCount > 0 {

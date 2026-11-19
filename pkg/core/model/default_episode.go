@@ -131,4 +131,16 @@ type DefaultEpisodeTrigger struct {
 	// DefaultEligibleAt is the first default-entry instant for the trigger.
 	// For historical v1/v2 openings this equals OverdueEligibleAt.
 	DefaultEligibleAt time.Time `db:"default_eligible_at" json:"default_eligible_at"`
+
+	// CollectionsPolicyID is the Collections rule that governed this installment.
+	CollectionsPolicyID string `db:"collections_policy_id" json:"collections_policy_id"`
+
+	// CollectionsPolicyVersion is the exact Collections rule version.
+	CollectionsPolicyVersion string `db:"collections_policy_version" json:"collections_policy_version"`
+
+	// DefaultAfterDays is the rule threshold snapshotted at default detection.
+	DefaultAfterDays uint `db:"default_after_days" json:"default_after_days"`
+
+	// DetectedAt is when this installment's default evidence was recorded.
+	DetectedAt time.Time `db:"detected_at" json:"detected_at"`
 }

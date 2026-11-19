@@ -17,6 +17,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/circuitbreaker"
 	extnotification "github.com/parstis/bnpl-backend/pkg/core/external/notification"
+	"github.com/parstis/bnpl-backend/pkg/core/log"
 )
 
 const (
@@ -33,14 +34,15 @@ var _ extnotification.Submitter = (*Client)(nil)
 
 // Client calls NotificationSubmission over gRPC.
 //
-// Requests may carry recipient phones and OTP template variables, so the
-// client never logs request or response payloads and never embeds raw
-// upstream gRPC status messages in returned errors (they may contain PII or
-// OTP secrets).
+// Requests may carry recipient phones and OTP template variables. Production
+// builds never log request/response payloads; development builds may log the
+// outbound OTP via logOutboundOTP. Returned errors never embed raw upstream
+// gRPC status messages (they may contain PII or OTP secrets).
 type Client struct {
 	client  notificationv1.NotificationSubmissionClient
 	timeout time.Duration
 	breaker circuitbreaker.CircuitBreaker
+	logger  log.Logger
 }
 
 // New constructs a gRPC Notification Service client using the supplied connection.
@@ -48,6 +50,7 @@ func New(
 	conn grpcclient.ClientConnInterface,
 	timeout time.Duration,
 	breaker circuitbreaker.CircuitBreaker,
+	logger log.Logger,
 ) (*Client, error) {
 	const op = "grpc.New"
 
@@ -55,13 +58,19 @@ func New(
 		return nil, fmt.Errorf("%s: notification grpc connection is required", op)
 	}
 
-	return newClient(notificationv1.NewNotificationSubmissionClient(conn), timeout, breaker)
+	return newClient(
+		notificationv1.NewNotificationSubmissionClient(conn),
+		timeout,
+		breaker,
+		logger,
+	)
 }
 
 func newClient(
 	client notificationv1.NotificationSubmissionClient,
 	timeout time.Duration,
 	breaker circuitbreaker.CircuitBreaker,
+	logger log.Logger,
 ) (*Client, error) {
 	const op = "grpc.newClient"
 
@@ -73,11 +82,20 @@ func newClient(
 		return nil, fmt.Errorf("%s: circuit breaker is required", op)
 	}
 
+	if logger == nil {
+		return nil, fmt.Errorf("%s: logger is required", op)
+	}
+
 	if timeout <= 0 {
 		timeout = defaultTimeout
 	}
 
-	return &Client{client: client, timeout: timeout, breaker: breaker}, nil
+	return &Client{
+		client:  client,
+		timeout: timeout,
+		breaker: breaker,
+		logger:  logger,
+	}, nil
 }
 
 // Submit durably submits one notification. OK + ACCEPTED means Notification
@@ -95,6 +113,8 @@ func (c *Client) Submit(
 	if correlationID == "" {
 		return extnotification.SubmitOutput{}, fmt.Errorf("%s: correlation id is required", op)
 	}
+
+	c.logOutboundOTP(ctx, input)
 
 	callCtx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()

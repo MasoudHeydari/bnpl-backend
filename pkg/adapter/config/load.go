@@ -1046,8 +1046,9 @@ func (c *Config) GetInstallmentPaymentReconciliationAcknowledgementsTopic() stri
 // NewExternalCheckoutPaymentClient constructs the configured Financial Core checkout payment client.
 func (c *Config) NewExternalCheckoutPaymentClient(
 	breaker circuitbreaker.CircuitBreaker,
+	logger corelog.Logger,
 ) (extcheckoutpayment.Client, io.Closer, error) {
-	return c.External.FinancialCore.newExternalCheckoutPaymentClient(breaker)
+	return c.External.FinancialCore.newExternalCheckoutPaymentClient(breaker, logger)
 }
 
 // NewExternalInstallmentPaymentClient constructs the configured Financial Core installment payment client.

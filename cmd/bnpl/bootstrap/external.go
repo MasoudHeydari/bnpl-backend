@@ -114,6 +114,7 @@ func (a *App) NewExternal() (_ External, err error) {
 	var checkoutPaymentCloser io.Closer
 	external.CheckoutPaymentClient, checkoutPaymentCloser, err = a.Config.NewExternalCheckoutPaymentClient(
 		a.Infrastructure.CircuitBreaker,
+		a.Infrastructure.Logger,
 	)
 	if err != nil {
 		return External{}, fmt.Errorf("%s: initialize external checkout payment client: %w", op, err)
@@ -133,18 +134,26 @@ func (a *App) NewExternal() (_ External, err error) {
 
 	case "grpc":
 		financialConfig := a.Config.External.FinancialCore.GRPC
-		conn, dialErr := checkoutgrpc.Dial(financialConfig.Address, financialConfig.Insecure, checkoutgrpc.TLSConfig{
-			CAFile:     financialConfig.TLS.CAFile,
-			CertFile:   financialConfig.TLS.CertFile,
-			KeyFile:    financialConfig.TLS.KeyFile,
-			ServerName: financialConfig.TLS.ServerName,
-		})
+		conn, dialErr := checkoutgrpc.Dial(
+			financialConfig.Address,
+			financialConfig.Insecure,
+			checkoutgrpc.TLSConfig{
+				CAFile:     financialConfig.TLS.CAFile,
+				CertFile:   financialConfig.TLS.CertFile,
+				KeyFile:    financialConfig.TLS.KeyFile,
+				ServerName: financialConfig.TLS.ServerName,
+			},
+		)
 		if dialErr != nil {
 			return External{}, fmt.Errorf("%s: dial collection payment service: %w", op, dialErr)
 		}
 
 		external.closers = append(external.closers, conn)
-		external.CollectionPaymentClient, err = collectiongrpc.New(conn, financialConfig.Timeout)
+		external.CollectionPaymentClient, err = collectiongrpc.New(
+			conn,
+			financialConfig.Timeout,
+			a.Infrastructure.Logger,
+		)
 		if err != nil {
 			return External{}, fmt.Errorf("%s: initialize collection payment v1 client: %w", op, err)
 		}
@@ -155,6 +164,7 @@ func (a *App) NewExternal() (_ External, err error) {
 	var customerCloser io.Closer
 	external.CustomerResolver, customerCloser, err = a.Config.NewExternalCustomerClient(
 		a.Infrastructure.CircuitBreaker,
+		a.Infrastructure.Logger,
 	)
 	if err != nil {
 		return External{}, fmt.Errorf("%s: initialize external customer client: %w", op, err)
@@ -167,6 +177,7 @@ func (a *App) NewExternal() (_ External, err error) {
 	var notificationCloser io.Closer
 	external.NotificationSubmitter, notificationCloser, err = a.Config.NewExternalNotificationClient(
 		a.Infrastructure.CircuitBreaker,
+		a.Infrastructure.Logger,
 	)
 	if err != nil {
 		return External{}, fmt.Errorf("%s: initialize external notification client: %w", op, err)

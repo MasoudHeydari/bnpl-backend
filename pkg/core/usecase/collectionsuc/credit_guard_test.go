@@ -97,12 +97,15 @@ func TestAssertNewCreditAllowed_LiveDefaultDoesNotMutateCollections(t *testing.T
 		ListCollectionsObligationsByCustomerID(testifymock.Anything, customerID).
 		Return([]repo.CollectionsObligation{{
 			Installment: model.Installment{
-				ID:              installmentID,
-				ContractID:      &contractID,
-				CustomerID:      customerID,
-				DueAt:           now.Add(-72 * time.Hour),
-				GracePeriodDays: 1,
-				Status:          model.OverdueInstallmentStatus,
+				ID:                          installmentID,
+				ContractID:                  &contractID,
+				CustomerID:                  customerID,
+				DueAt:                       now.Add(-72 * time.Hour),
+				GracePeriodDays:             1,
+				CollectionsPolicyID:         "collections_default",
+				CollectionsPolicyVersion:    "v1",
+				CollectionsDefaultAfterDays: 0,
+				Status:                      model.OverdueInstallmentStatus,
 			},
 			HasUnresolvedPayment: false,
 		}}, nil).
@@ -172,12 +175,15 @@ func TestAssertNewCreditAllowed_DueBlocksWithoutDefault(t *testing.T) {
 		ListCollectionsObligationsByCustomerID(testifymock.Anything, customerID).
 		Return([]repo.CollectionsObligation{{
 			Installment: model.Installment{
-				ID:              installmentID,
-				ContractID:      &contractID,
-				CustomerID:      customerID,
-				DueAt:           dueAt,
-				GracePeriodDays: 4,
-				Status:          model.DueInstallmentStatus,
+				ID:                          installmentID,
+				ContractID:                  &contractID,
+				CustomerID:                  customerID,
+				DueAt:                       dueAt,
+				GracePeriodDays:             4,
+				CollectionsPolicyID:         "collections_default",
+				CollectionsPolicyVersion:    "v3",
+				CollectionsDefaultAfterDays: 90,
+				Status:                      model.DueInstallmentStatus,
 			},
 			HasUnresolvedPayment: false,
 		}}, nil).

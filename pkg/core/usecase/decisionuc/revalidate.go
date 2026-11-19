@@ -7,6 +7,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/policy"
+	"github.com/parstis/bnpl-backend/pkg/core/policy/checkout/businessrule"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
@@ -41,12 +42,12 @@ func (i RevalidateCheckoutOfferInput) validate() error {
 
 // RevalidateCheckoutOffer re-runs the Decision eligibility/financing pipeline
 // against current mutable state using the persisted Decision's PolicyID /
-// PolicyVersion snapshot.
+// PolicyVersion and the allocation's Checkout Business Rule id/version.
 //
-// It never persists a Decision, never consults the active policy assignment for
-// the existing offer, and never treats a raw available-credit change alone as a
-// material change. A runtime policy-assignment change therefore cannot invalidate
-// an already-valid persisted Decision by itself.
+// It never persists a Decision, never consults today's Active() business rule
+// or the active policy assignment for the existing offer, and never treats a
+// raw available-credit change alone as a material change. A build-time rule
+// selection change therefore cannot rewrite an already-valid Decision.
 func (uc *UseCase) RevalidateCheckoutOffer(
 	ctx context.Context,
 	input RevalidateCheckoutOfferInput,
@@ -100,6 +101,26 @@ func (uc *UseCase) RevalidateCheckoutOffer(
 			})
 			if err != nil {
 				return err
+			}
+
+			originalRule, ruleErr := businessrule.Resolve(
+				allocation.BusinessRuleID,
+				allocation.BusinessRuleVersion,
+			)
+			if ruleErr != nil {
+				return cerr.InternalError(fmt.Errorf(
+					"%s: resolve persisted checkout business rule: %w",
+					op,
+					ruleErr,
+				))
+			}
+
+			if err := originalRule.ValidatePolicyTerms(selectedPolicy.Terms()); err != nil {
+				return cerr.InternalError(fmt.Errorf(
+					"%s: persisted policy incompatible with original business rule: %w",
+					op,
+					err,
+				))
 			}
 
 			customerProfile, err := customerProfileQ.LockByID(ctx, allocation.CustomerID)

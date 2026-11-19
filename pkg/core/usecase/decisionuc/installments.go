@@ -9,6 +9,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/policy"
 	"github.com/parstis/bnpl-backend/pkg/core/policy/checkout"
+	collectionsv3 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v3"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
@@ -233,6 +234,10 @@ func (uc *UseCase) persistOfferedInstallments(
 	installments := make([]model.Installment, 0, len(drafts))
 	allCharges := make([]model.InstallmentCharge, 0)
 
+	// Stamp the build-time Current Collections rule onto every obligation so
+	// later assessment never silently adopts a newer rule.
+	collectionsRule := collectionsv3.New(uc.clock.BusinessLocation())
+
 	for _, draft := range drafts {
 		row, err := installmentQ.Create(
 			ctx,
@@ -249,6 +254,9 @@ func (uc *UseCase) persistOfferedInstallments(
 			draft.TotalAmountMinor,
 			draft.DueAt,
 			selectedPolicy.Terms().Repayment.GracePeriodDays,
+			collectionsRule.ID(),
+			collectionsRule.Version(),
+			collectionsv3.DefaultAfterDays,
 			model.OfferedInstallmentStatus,
 			0,
 			nil,

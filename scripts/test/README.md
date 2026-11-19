@@ -9,6 +9,7 @@ integration-test Postgres. Keep new flow scripts here — do not drop them at
 | `lib/` | Shared Python helpers (`api_client`, CLI styling) |
 | `checkout-flow/` | Hosted checkout confirm smoke |
 | `merchant-terminal/` | Merchant terminal lifecycle smoke |
+| `merchant-credit-kinds/` | Admin merchant credit-kinds GET/PUT smoke |
 | `testing/` | `make test-integration` Postgres harness |
 
 Ops scripts stay outside this tree (`scripts/runtime`, `scripts/kafka`,

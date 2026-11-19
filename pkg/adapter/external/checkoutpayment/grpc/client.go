@@ -21,6 +21,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/circuitbreaker"
 	extcheckoutpayment "github.com/parstis/bnpl-backend/pkg/core/external/checkoutpayment"
+	"github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/trace"
 )
 
@@ -49,6 +50,7 @@ type Client struct {
 	merchantEntitlementClient  merchantentitlementv1.MerchantEntitlementServiceClient
 	timeout                    time.Duration
 	breaker                    circuitbreaker.CircuitBreaker
+	logger                     log.Logger
 	// defaultProviderCode fills CreateCheckoutPayment provider_code when the
 	// use-case input leaves it empty (development/local FC: sandbox_payment).
 	defaultProviderCode string
@@ -62,8 +64,23 @@ func New(
 	conn *grpcclient.ClientConn,
 	timeout time.Duration,
 	breaker circuitbreaker.CircuitBreaker,
+	logger log.Logger,
 	defaultProviderCode string,
-) *Client {
+) (*Client, error) {
+	const op = "grpc.New"
+
+	if conn == nil {
+		return nil, fmt.Errorf("%s: financial core grpc connection is required", op)
+	}
+
+	if breaker == nil {
+		return nil, fmt.Errorf("%s: circuit breaker is required", op)
+	}
+
+	if logger == nil {
+		return nil, fmt.Errorf("%s: logger is required", op)
+	}
+
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
@@ -74,8 +91,9 @@ func New(
 		merchantEntitlementClient:  merchantentitlementv1.NewMerchantEntitlementServiceClient(conn),
 		timeout:                    timeout,
 		breaker:                    breaker,
+		logger:                     logger,
 		defaultProviderCode:        strings.TrimSpace(defaultProviderCode),
-	}
+	}, nil
 }
 
 // CreateCheckoutPayment creates a checkout payment through Financial Core.

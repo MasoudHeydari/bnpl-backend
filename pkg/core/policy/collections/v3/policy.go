@@ -71,9 +71,16 @@ func (p Policy) Boundary(i model.Installment) time.Time {
 	return i.OverdueEligibleAt(p.location)
 }
 
-// DefaultBoundary is overdue eligibility plus DefaultAfterDays calendar days.
+// DefaultBoundary is overdue eligibility plus the installment's snapshotted
+// collections_default_after_days. When the installment has no Collections
+// identity yet (unit fixtures), the policy constant is used.
 func (p Policy) DefaultBoundary(i model.Installment) time.Time {
-	return collections.DefaultEligibleAt(i.DueAt, i.GracePeriodDays, DefaultAfterDays, p.location)
+	days := DefaultAfterDays
+	if i.CollectionsPolicyVersion != "" {
+		days = i.CollectionsDefaultAfterDays
+	}
+
+	return collections.DefaultEligibleAt(i.DueAt, i.GracePeriodDays, days, p.location)
 }
 
 // LateFeeAmountMinor returns the non-compounding late fee for one overdue

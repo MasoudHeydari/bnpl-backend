@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/parstis/bnpl-backend/pkg/core/calendar/jalali"
+	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/policy"
 	"github.com/parstis/bnpl-backend/pkg/core/policy/checkout"
 	checkoutv1 "github.com/parstis/bnpl-backend/pkg/core/policy/checkout/v1"
@@ -424,12 +425,52 @@ func TestDueAtForInstallmentOrder_NextJalaliMonthFirst(t *testing.T) {
 			due, err := checkout.DueAtForInstallmentOrder(terms, anchor, 1)
 			require.NoError(t, err)
 			require.Equal(t, tc.want, jalali.FromTime(due.In(tehran)))
-			require.Equal(t, 23, due.In(tehran).Hour())
-			require.Equal(t, 59, due.In(tehran).Minute())
-			require.Equal(t, 59, due.In(tehran).Second())
+			local := due.In(tehran)
+			require.Equal(t, 0, local.Hour())
+			require.Equal(t, 0, local.Minute())
+			require.Equal(t, 0, local.Second())
+			require.Equal(t, 0, local.Nanosecond())
 		})
 	}
 
 	_, err = checkout.DueAtForInstallmentOrder(terms, time.Now(), 2)
 	require.Error(t, err)
+}
+
+func TestNextJalaliFirst_BlocksCreditAtMidnightOnDueDay(t *testing.T) {
+	t.Parallel()
+
+	tehran, err := time.LoadLocation("Asia/Tehran")
+	require.NoError(t, err)
+
+	terms := checkoutv2.New().Terms()
+	terms.CreditKind = "pay_next_month"
+	terms.DueDateRule = checkout.DueNextJalaliMonthFirst
+	terms.InstallmentCount = 1
+
+	// Activate mid-Esfand so due is Farvardin 1 next year (year/month rollover).
+	anchor := jalali.Date{Year: 1404, Month: 12, Day: 15}.
+		ToTime(time.Date(2026, time.March, 6, 14, 30, 0, 0, tehran), tehran)
+	due, err := checkout.DueAtForInstallmentOrder(terms, anchor, 1)
+	require.NoError(t, err)
+	require.Equal(t, jalali.Date{Year: 1405, Month: 1, Day: 1}, jalali.FromTime(due.In(tehran)))
+
+	justBefore := due.Add(-time.Nanosecond)
+	require.True(t, due.After(justBefore), "credit may still be used before due midnight")
+	require.False(t, due.After(due), "at due midnight the obligation is contractually due")
+	require.False(t, due.After(due.Add(time.Second)))
+
+	// Grace 4 calendar days: late fees begin at start of day 6 (due day + 5).
+	installment := model.Installment{DueAt: due, GracePeriodDays: 4}
+	overdueAt := installment.OverdueEligibleAt(tehran)
+	wantOverdue := time.Date(
+		due.In(tehran).Year(),
+		due.In(tehran).Month(),
+		due.In(tehran).Day(),
+		0, 0, 0, 0,
+		tehran,
+	).AddDate(0, 0, 5)
+	require.True(t, overdueAt.Equal(wantOverdue.UTC()))
+	require.False(t, installment.IsOverdueEligible(overdueAt.Add(-time.Nanosecond), tehran))
+	require.True(t, installment.IsOverdueEligible(overdueAt, tehran))
 }
