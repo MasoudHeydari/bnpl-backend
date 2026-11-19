@@ -94,6 +94,10 @@ assets/local-development/**/.env
 assets/local-development/certs/*
 !assets/local-development/certs/README.md
 
+# Local Envoy listener TLS PEMs mounted at /etc/envoy/certs (keep README tracked).
+assets/local-development/envoy/development/certs/*
+!assets/local-development/envoy/development/certs/README.md
+
 # Grafana admin Docker secret for local Loki stack.
 assets/local-development/secrets/bnpl_loki_grafana_password
 

@@ -262,7 +262,8 @@ services:
   # Envoy runs in the host network namespace because BNPL itself runs
   # directly on the host and listens only on 127.0.0.1:8080.
   #
-  # Requires local Envoy config + certs (not shipped in this pack).
+  # Requires local Envoy config + TLS PEMs under
+  # assets/local-development/envoy/development/certs/ (gitignored; see README).
   envoy:
     image: envoyproxy/envoy:v1.39.0
     container_name: bnpl-envoy
@@ -272,8 +273,7 @@ services:
 
     volumes:
       - ./assets/local-development/envoy/development/config.yaml:/etc/envoy/envoy.yaml:ro
-      # Replace this host path on the target machine with the real certs directory.
-      - /home/masoud-dev/Documents/projects/golang/platform-infra/envoy/certs:/etc/envoy/certs:ro
+      - ./assets/local-development/envoy/development/certs:/etc/envoy/certs:ro
 
     command:
       - envoy
