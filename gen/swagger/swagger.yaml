@@ -201,6 +201,16 @@ definitions:
       checkout_session_id:
         example: cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
         type: string
+      credit_kind:
+        allOf:
+        - $ref: '#/definitions/model.CreditKind'
+        description: |-
+          CreditKind is the Partner-selected financing kind when set. Omitted before
+          Partner SelectCreditKind. Hosted GET is read-only and never accepts a
+          browser override of this value.
+        enum:
+        - pay_in_installments
+        - pay_next_month
       currency:
         allOf:
         - $ref: '#/definitions/model.Currency'
@@ -405,6 +415,13 @@ definitions:
         items:
           $ref: '#/definitions/checkoutsessionrs.creditKindPreviewSchema'
         type: array
+      evaluation_generation:
+        description: |-
+          EvaluationGeneration is the optimistic-concurrency token Partner must
+          echo on SelectCreditKind (PUT .../credit-kind), including the first
+          selection. Create starts at 1 and does not prepare offers.
+        example: 1
+        type: integer
       expires_at:
         type: string
       offer:
@@ -456,8 +473,17 @@ definitions:
         enum:
         - pay_in_installments
         - pay_next_month
+      expected_evaluation_generation:
+        description: |-
+          ExpectedEvaluationGeneration fences concurrent / delayed PUT retries.
+          Required for every selection mutation, including the first selection
+          (echo evaluation_generation from Partner Create).
+        example: 1
+        minimum: 1
+        type: integer
     required:
     - credit_kind
+    - expected_evaluation_generation
     type: object
   checkoutsessionrs.SelectCreditKindResponseSchema:
     properties:
@@ -470,6 +496,12 @@ definitions:
         enum:
         - pay_in_installments
         - pay_next_month
+      evaluation_generation:
+        description: |-
+          EvaluationGeneration is the authoritative generation after selection.
+          Echo it on a subsequent replacement PUT as expected_evaluation_generation.
+        example: 1
+        type: integer
       expires_at:
         type: string
       offer:
@@ -6194,7 +6226,7 @@ paths:
       - application/json
       description: |-
         Creates an idempotent merchant checkout handoff authenticated by terminal credentials (X-Terminal-Id, X-API-Key). Requires customer_phone. JWT and gateway Subject/Tenant/Context headers are not required.
-        Returns a dual credit_kinds eligibility preview. The merchant website selects a kind via POST .../credit-kind before Hosted START. Create itself does not prepare financing offers.
+        Returns a dual credit_kinds eligibility preview and evaluation_generation. The merchant website selects a kind via PUT .../credit-kind (with expected_evaluation_generation) before Hosted START. Create itself does not prepare financing offers.
       parameters:
       - description: Public numeric terminal identifier of the partner
         in: header
@@ -6614,12 +6646,17 @@ paths:
       tags:
       - Checkout Sessions
   /api/v1/partner/checkout-sessions/{checkout_session_id}/credit-kind:
-    post:
+    put:
       consumes:
       - application/json
-      description: Records the merchant-site credit-kind selection for an open Partner
-        checkout. Idempotent for the same kind. Hosted START cannot override this
-        selection.
+      description: Records or replaces the merchant-site credit-kind selection for
+        an open Partner checkout. Same-kind PUT is idempotent. A different kind on
+        an still-editable open session clears the current Decision linkage and advances
+        evaluation_generation exactly once; prior Decisions remain immutable history.
+        Hosted START cannot override this selection. expected_evaluation_generation
+        is mandatory and must match Partner Create (or the previous Select response)
+        for genuine mutations; same-kind replays may return the current state without
+        advancing generation.
       parameters:
       - description: Public numeric terminal identifier of the partner
         in: header
@@ -6648,7 +6685,7 @@ paths:
         name: checkout_session_id
         required: true
         type: string
-      - description: Selected credit kind
+      - description: Selected credit kind and expected evaluation generation
         in: body
         name: body
         required: true
@@ -6758,7 +6795,7 @@ paths:
       security:
       - TerminalAPIKey: []
         TerminalID: []
-      summary: Select partner checkout credit kind
+      summary: Select or replace partner checkout credit kind
       tags:
       - Checkout Sessions
   /api/v1/partner/return-destinations/{destination_name}:

@@ -98,6 +98,7 @@ func (uc *UseCase) GetExternal(ctx context.Context, input GetExternalInput) (Get
 				AmountMinor:          found.RequestedAmountMinor,
 				Currency:             found.Currency,
 				EvaluationGeneration: found.EvaluationGeneration,
+				CreditKind:           found.CreditKind,
 				SupportedCreditKinds: supported,
 				Verification: ExternalVerification{
 					Type:        VerificationTypeSMSOTP,

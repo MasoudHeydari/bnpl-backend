@@ -525,6 +525,11 @@ type GetExternalOutput struct {
 	// EvaluationGeneration is the offer version Hosted START/Confirm must echo.
 	EvaluationGeneration int
 
+	// CreditKind is the Partner-selected financing kind when set. Empty before
+	// Partner SelectCreditKind. Hosted surfaces must never accept a browser
+	// override of this value.
+	CreditKind model.CreditKind
+
 	// SupportedCreditKinds are enabled products for this merchant only,
 	// never a representation of the customer's credit balances.
 	SupportedCreditKinds []model.CreditKind

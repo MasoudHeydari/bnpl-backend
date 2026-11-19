@@ -5162,7 +5162,7 @@ const docTemplate = `{
                         "TerminalID": []
                     }
                 ],
-                "description": "Creates an idempotent merchant checkout handoff authenticated by terminal credentials (X-Terminal-Id, X-API-Key). Requires customer_phone. JWT and gateway Subject/Tenant/Context headers are not required.\nReturns a dual credit_kinds eligibility preview. The merchant website selects a kind via POST .../credit-kind before Hosted START. Create itself does not prepare financing offers.",
+                "description": "Creates an idempotent merchant checkout handoff authenticated by terminal credentials (X-Terminal-Id, X-API-Key). Requires customer_phone. JWT and gateway Subject/Tenant/Context headers are not required.\nReturns a dual credit_kinds eligibility preview and evaluation_generation. The merchant website selects a kind via PUT .../credit-kind (with expected_evaluation_generation) before Hosted START. Create itself does not prepare financing offers.",
                 "consumes": [
                     "application/json"
                 ],
@@ -5763,14 +5763,14 @@ const docTemplate = `{
             }
         },
         "/api/v1/partner/checkout-sessions/{checkout_session_id}/credit-kind": {
-            "post": {
+            "put": {
                 "security": [
                     {
                         "TerminalAPIKey": [],
                         "TerminalID": []
                     }
                 ],
-                "description": "Records the merchant-site credit-kind selection for an open Partner checkout. Idempotent for the same kind. Hosted START cannot override this selection.",
+                "description": "Records or replaces the merchant-site credit-kind selection for an open Partner checkout. Same-kind PUT is idempotent. A different kind on an still-editable open session clears the current Decision linkage and advances evaluation_generation exactly once; prior Decisions remain immutable history. Hosted START cannot override this selection. expected_evaluation_generation is mandatory and must match Partner Create (or the previous Select response) for genuine mutations; same-kind replays may return the current state without advancing generation.",
                 "consumes": [
                     "application/json"
                 ],
@@ -5780,7 +5780,7 @@ const docTemplate = `{
                 "tags": [
                     "Checkout Sessions"
                 ],
-                "summary": "Select partner checkout credit kind",
+                "summary": "Select or replace partner checkout credit kind",
                 "parameters": [
                     {
                         "type": "string",
@@ -5822,7 +5822,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Selected credit kind",
+                        "description": "Selected credit kind and expected evaluation generation",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -7636,6 +7636,18 @@ const docTemplate = `{
                     "type": "string",
                     "example": "cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
                 },
+                "credit_kind": {
+                    "description": "CreditKind is the Partner-selected financing kind when set. Omitted before\nPartner SelectCreditKind. Hosted GET is read-only and never accepts a\nbrowser override of this value.",
+                    "enum": [
+                        "pay_in_installments",
+                        "pay_next_month"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.CreditKind"
+                        }
+                    ]
+                },
                 "currency": {
                     "allOf": [
                         {
@@ -7937,6 +7949,11 @@ const docTemplate = `{
                         "$ref": "#/definitions/checkoutsessionrs.creditKindPreviewSchema"
                     }
                 },
+                "evaluation_generation": {
+                    "description": "EvaluationGeneration is the optimistic-concurrency token Partner must\necho on SelectCreditKind (PUT .../credit-kind), including the first\nselection. Create starts at 1 and does not prepare offers.",
+                    "type": "integer",
+                    "example": 1
+                },
                 "expires_at": {
                     "type": "string"
                 },
@@ -8005,7 +8022,8 @@ const docTemplate = `{
         "checkoutsessionrs.SelectCreditKindRequestSchema": {
             "type": "object",
             "required": [
-                "credit_kind"
+                "credit_kind",
+                "expected_evaluation_generation"
             ],
             "properties": {
                 "credit_kind": {
@@ -8018,6 +8036,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/model.CreditKind"
                         }
                     ]
+                },
+                "expected_evaluation_generation": {
+                    "description": "ExpectedEvaluationGeneration fences concurrent / delayed PUT retries.\nRequired for every selection mutation, including the first selection\n(echo evaluation_generation from Partner Create).",
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 1
                 }
             }
         },
@@ -8038,6 +8062,11 @@ const docTemplate = `{
                             "$ref": "#/definitions/model.CreditKind"
                         }
                     ]
+                },
+                "evaluation_generation": {
+                    "description": "EvaluationGeneration is the authoritative generation after selection.\nEcho it on a subsequent replacement PUT as expected_evaluation_generation.",
+                    "type": "integer",
+                    "example": 1
                 },
                 "expires_at": {
                     "type": "string"

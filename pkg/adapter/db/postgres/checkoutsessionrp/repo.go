@@ -449,19 +449,26 @@ func (q txQueryer) UpsertWebhookDestination(
 	)
 }
 
-// SetCreditKindBeforeDecision stores the selected product only while a
-// checkout has not yet produced a Decision. The caller must hold the same
-// database transaction that created the checkout.
-func (q txQueryer) SetCreditKindBeforeDecision(
-	ctx context.Context, id model.CheckoutSessionID, kind model.CreditKind, now time.Time,
-) (model.CheckoutSession, error) {
-	return SetCreditKindBeforeDecision(ctx, q.Tx, id, kind, now)
-}
+var _ repo.CheckoutSessionCreditKindTxQueryer = (*txQueryer)(nil)
 
-var _ repo.CheckoutSessionProductTxQueryer = (*txQueryer)(nil)
-
-func (q txQueryer) SelectCreditKindBeforeDecision(
-	ctx context.Context, id model.CheckoutSessionID, kind model.CreditKind, now time.Time,
+// ReplaceCreditKindAndInvalidateEvaluation stores a first credit-kind selection
+// or replaces a prior selection under optimistic concurrency. The caller must
+// hold the checkout row lock in the same transaction.
+func (q txQueryer) ReplaceCreditKindAndInvalidateEvaluation(
+	ctx context.Context,
+	id model.CheckoutSessionID,
+	kind model.CreditKind,
+	expectedGeneration int,
+	expectedDecisionID *model.DecisionID,
+	now time.Time,
 ) (model.CheckoutSession, error) {
-	return SelectCreditKindBeforeDecision(ctx, q.Tx, id, kind, now)
+	return ReplaceCreditKindAndInvalidateEvaluation(
+		ctx,
+		q.Tx,
+		id,
+		kind,
+		expectedGeneration,
+		expectedDecisionID,
+		now,
+	)
 }

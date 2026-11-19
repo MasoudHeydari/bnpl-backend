@@ -4,13 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
-// SelectCreditKindInput is the Partner continuation that records the
-// customer-chosen credit kind after the merchant-site selection UI.
+// SelectCreditKindInput is the Partner continuation that records or replaces
+// the customer-chosen credit kind after the merchant-site selection UI.
 type SelectCreditKindInput struct {
 	// Token is the public checkout session token returned by CreatePartner.
 	Token model.CheckoutSessionToken
@@ -18,6 +17,10 @@ type SelectCreditKindInput struct {
 	ExternalMerchantID model.ExternalMerchantID
 	// CreditKind is the customer-selected kind (pay_in_installments or pay_next_month).
 	CreditKind model.CreditKind
+	// ExpectedEvaluationGeneration is the optimistic-concurrency token from
+	// Partner Create or the previous SelectCreditKind response. Mandatory for
+	// every selection mutation, including the first selection.
+	ExpectedEvaluationGeneration int
 }
 
 // SelectCreditKindOutput returns the session after selection and, when
@@ -40,23 +43,42 @@ func (i SelectCreditKindInput) validate() error {
 		return validationError("INVALID", "credit_kind", "error.credit_kind_invalid")
 	}
 
+	if i.ExpectedEvaluationGeneration < 1 {
+		return validationError(
+			"REQUIRED",
+			"expected_evaluation_generation",
+			"error.expected_evaluation_generation_required",
+		)
+	}
+
 	return nil
 }
 
-// SelectCreditKind persists the merchant-communicated credit-kind selection.
-// Hosted START must not override this value. Idempotent when the same kind is
-// already selected. After selection, on_create sessions prepare the offer.
+// SelectCreditKind persists or replaces the merchant-communicated credit-kind
+// selection. Hosted START must not override this value.
+//
+// Same-kind PUT is idempotent: generation is not advanced and existing
+// Decision / OTP context is preserved. A different kind on an still-editable
+// open session clears the current Decision linkage and advances
+// evaluation_generation exactly once. Prior Decisions remain immutable history.
+//
+// After a successful mutation (or same-kind recovery), on_create sessions
+// prepare the Offer outside the selection transaction.
 func (uc *UseCase) SelectCreditKind(
 	ctx context.Context,
 	input SelectCreditKindInput,
 ) (SelectCreditKindOutput, error) {
-	const op = "checkoutsessionuc.UseCase.SelectCreditKind"
-
 	if err := input.validate(); err != nil {
 		return SelectCreditKindOutput{}, err
 	}
 
-	session, _, err := uc.selectPartnerCreditKind(ctx, input.Token, input.ExternalMerchantID, input.CreditKind)
+	session, err := uc.selectPartnerCreditKind(
+		ctx,
+		input.Token,
+		input.ExternalMerchantID,
+		input.CreditKind,
+		input.ExpectedEvaluationGeneration,
+	)
 	if err != nil {
 		return SelectCreditKindOutput{}, err
 	}
@@ -95,7 +117,8 @@ func (uc *UseCase) selectPartnerCreditKind(
 	token model.CheckoutSessionToken,
 	externalMerchantID model.ExternalMerchantID,
 	kind model.CreditKind,
-) (session model.CheckoutSession, changed bool, err error) {
+	expectedGeneration int,
+) (session model.CheckoutSession, err error) {
 	const op = "checkoutsessionuc.UseCase.selectPartnerCreditKind"
 
 	err = uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
@@ -118,8 +141,22 @@ func (uc *UseCase) selectPartnerCreditKind(
 				))
 			}
 
-			if locked.Status != model.OpenCheckoutSessionStatus || locked.ContractID != nil {
-				return checkoutSessionNotContinuableError(fmt.Errorf("checkout status %q", locked.Status))
+			if locked.Status != model.OpenCheckoutSessionStatus {
+				return checkoutSessionNotContinuableError(fmt.Errorf(
+					"%s: checkout status %q", op, locked.Status,
+				))
+			}
+
+			if locked.ContractID != nil && !locked.ContractID.IsZero() {
+				return checkoutSessionNotContinuableError(fmt.Errorf(
+					"%s: checkout already linked to a contract", op,
+				))
+			}
+
+			if locked.ConfirmationAttemptID != nil && !locked.ConfirmationAttemptID.IsZero() {
+				return checkoutConfirmationInProgressError(fmt.Errorf(
+					"%s: confirmation owns the checkout", op,
+				))
 			}
 
 			now := uc.clock.Now().UTC()
@@ -127,38 +164,22 @@ func (uc *UseCase) selectPartnerCreditKind(
 				return checkoutSessionExpiredError()
 			}
 
+			// Same-kind idempotent replay: return durable state without mutating
+			// generation, Decision linkage, or OTP context. Stale expected
+			// generations are still accepted when the kind already matches so a
+			// delayed retry of a successful selection cannot fail after commit.
 			if locked.CreditKind == kind {
 				session = locked
 				return nil
 			}
 
-			if locked.CreditKind != "" && locked.DecisionID != nil && !locked.DecisionID.IsZero() {
-				decisionQ := uc.decisionRepo.Tx(tx)
-				decision, getErr := decisionQ.GetByID(ctx, *locked.DecisionID)
-				if getErr != nil {
-					return getErr
-				}
-
-				if decision.Outcome != model.DeniedDecisionOutcome ||
-					isSessionTerminalDecisionDenial(decision.ReasonCodes) {
-					return cerr.Conflict(fmt.Errorf(
-						"%s: checkout credit kind cannot change after Decision preparation",
-						op,
-					))
-				}
-
-				bumped, bumpErr := checkoutSessionQ.BumpEvaluationGenerationCAS(
-					ctx,
-					locked.ID,
+			if locked.EvaluationGeneration != expectedGeneration {
+				return checkoutCreditKindSelectionStaleError(fmt.Errorf(
+					"%s: expected evaluation generation %d but session is at %d",
+					op,
+					expectedGeneration,
 					locked.EvaluationGeneration,
-					locked.DecisionID,
-					now,
-				)
-				if bumpErr != nil {
-					return bumpErr
-				}
-
-				locked = bumped
+				))
 			}
 
 			enabled, enableErr := merchantQ.IsCreditKindEnabled(ctx, locked.MerchantProfileID, kind)
@@ -170,31 +191,22 @@ func (uc *UseCase) selectPartnerCreditKind(
 				return validationError("INVALID", "credit_kind", "error.credit_kind_not_enabled")
 			}
 
-			productQ, ok := checkoutSessionQ.(repo.CheckoutSessionProductTxQueryer)
-			if !ok {
-				return cerr.InternalError(fmt.Errorf("%s: product-aware checkout repository unavailable", op))
-			}
-
-			if locked.CreditKind == "" {
-				selected, setErr := productQ.SetCreditKindBeforeDecision(ctx, locked.ID, kind, now)
-				if setErr != nil {
-					return setErr
-				}
-
-				session = selected
-				changed = true
-				return nil
-			}
-
-			selected, selectErr := productQ.SelectCreditKindBeforeDecision(ctx, locked.ID, kind, now)
-			if selectErr != nil {
-				return selectErr
+			selected, replaceErr := checkoutSessionQ.ReplaceCreditKindAndInvalidateEvaluation(
+				ctx,
+				locked.ID,
+				kind,
+				expectedGeneration,
+				locked.DecisionID,
+				now,
+			)
+			if replaceErr != nil {
+				return replaceErr
 			}
 
 			session = selected
-			changed = true
 			return nil
 		})
 	})
-	return session, changed, err
+
+	return session, err
 }

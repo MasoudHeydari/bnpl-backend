@@ -33,7 +33,7 @@ func TestRegisterRoutes_HealthEnabled(t *testing.T) {
 	requireRouteRegistered(t, routes, "GET", "/healthz/ready")
 	requireRouteRegistered(t, routes, "POST", "/api/v1/partner/checkout-sessions")
 	requireRouteRegistered(t, routes, "GET", "/api/v1/partner/checkout-sessions/:checkout_session_id")
-	requireRouteRegistered(t, routes, "POST", "/api/v1/partner/checkout-sessions/:checkout_session_id/credit-kind")
+	requireRouteRegistered(t, routes, "PUT", "/api/v1/partner/checkout-sessions/:checkout_session_id/credit-kind")
 	requireRouteRegistered(t, routes, "POST", "/api/v1/partner/checkout-sessions/:checkout_session_id/cancel")
 	requireRouteRegistered(t, routes, "PUT", "/api/v1/partner/return-destinations/:destination_name")
 	requireRouteRegistered(t, routes, "PUT", "/api/v1/partner/webhook-destination")

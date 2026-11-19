@@ -1161,8 +1161,10 @@ CREATE TABLE IF NOT EXISTS checkout_sessions (
     -- Who canceled the checkout when status becomes canceled.
     cancellation_reason text NULL,
     -- Selected financing credit kind; NULL until Partner SelectCreditKind.
-    -- Mutable only while no Decision is linked. Product-scoped denial does not
-    -- clear this value.
+    -- Replaceable on open sessions without contract/confirmation ownership via
+    -- ReplaceCreditKindAndInvalidateEvaluation (clears decision_id and bumps
+    -- evaluation_generation on genuine replacement). Product-scoped denial does
+    -- not clear this value by itself.
     credit_kind text NULL,
     -- Increments when a new Decision evaluation is required (e.g. expired offer).
     evaluation_generation integer NOT NULL DEFAULT 1,

@@ -377,6 +377,21 @@ func checkoutOfferReconfirmRequiredError(cause error) error {
 	)
 }
 
+// checkoutCreditKindSelectionStaleError rejects a Partner credit-kind PUT whose
+// expected_evaluation_generation no longer matches the durable session. The
+// session is not mutated.
+func checkoutCreditKindSelectionStaleError(cause error) error {
+	return cerr.NewPublic(
+		cerr.CodeConflict,
+		"error.checkout_credit_kind_selection_stale",
+		cause,
+		cerr.Details{
+			Fields:     []string{"expected_evaluation_generation"},
+			Violations: []cerr.Violation{},
+		},
+	)
+}
+
 // checkoutOfferUnavailableError is returned when a refreshed evaluation denies
 // financing. The CheckoutSession is already transitioned to unavailable; this
 // is not a reconfirm_required result and must not carry an unusable offer.

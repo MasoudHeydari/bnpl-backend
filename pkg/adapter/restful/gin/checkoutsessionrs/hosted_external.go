@@ -37,6 +37,10 @@ type hostedExternalGetResponse struct {
 	AmountMinor          uint64                             `json:"amount_minor" example:"120000000"`
 	Currency             model.Currency                     `json:"currency" example:"IRR"`
 	EvaluationGeneration int                                `json:"evaluation_generation" example:"1"`
+	// CreditKind is the Partner-selected financing kind when set. Omitted before
+	// Partner SelectCreditKind. Hosted GET is read-only and never accepts a
+	// browser override of this value.
+	CreditKind           model.CreditKind                   `json:"credit_kind,omitempty" enums:"pay_in_installments,pay_next_month"`
 	SupportedCreditKinds []model.CreditKind                 `json:"supported_credit_kinds" enums:"pay_in_installments,pay_next_month"`
 	Offer                *hostedExternalOfferSchema         `json:"offer,omitempty"`
 	Verification         hostedExternalVerificationResponse `json:"verification"`
@@ -120,6 +124,7 @@ func toHostedExternalGetResponse(output checkoutsessionuc.GetExternalOutput) hos
 		AmountMinor:          output.AmountMinor,
 		Currency:             output.Currency,
 		EvaluationGeneration: output.EvaluationGeneration,
+		CreditKind:           output.CreditKind,
 		SupportedCreditKinds: append([]model.CreditKind(nil), output.SupportedCreditKinds...),
 		Verification: hostedExternalVerificationResponse{
 			Type:        output.Verification.Type,

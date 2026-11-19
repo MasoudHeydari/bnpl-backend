@@ -3,7 +3,7 @@
 Interactive smoke script:
 
 1. Partner create session
-2. Partner select credit kind (`POST .../credit-kind`) — arrow ↑/↓ then Enter (`pay_in_installments` / `pay_next_month`)
+2. Partner select credit kind (`PUT .../credit-kind` with `expected_evaluation_generation`) — arrow ↑/↓ then Enter (`pay_in_installments` / `pay_next_month`)
 3. Hosted GET (`GET /api/v1/checkout-sessions/{token}` — customer lands on BNPL page)
 4. Hosted start
 5. Hosted OTP request

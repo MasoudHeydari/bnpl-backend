@@ -13,7 +13,7 @@ import (
 //
 //	@Summary		Create partner checkout session
 //	@Description	Creates an idempotent merchant checkout handoff authenticated by terminal credentials (X-Terminal-Id, X-API-Key). Requires customer_phone. JWT and gateway Subject/Tenant/Context headers are not required.
-//	@Description	Returns a dual credit_kinds eligibility preview. The merchant website selects a kind via POST .../credit-kind before Hosted START. Create itself does not prepare financing offers.
+//	@Description	Returns a dual credit_kinds eligibility preview and evaluation_generation. The merchant website selects a kind via PUT .../credit-kind (with expected_evaluation_generation) before Hosted START. Create itself does not prepare financing offers.
 //	@Tags			Checkout Sessions
 //	@Accept			json
 //	@Produce		json

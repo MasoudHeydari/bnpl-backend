@@ -53,7 +53,7 @@ func RegisterPartner(
 		authMW.RequireAny(permission.CheckoutSessionsReadMerchant),
 		rs.GetPartnerStatus,
 	)
-	sessions.POST(
+	sessions.PUT(
 		"/:checkout_session_id/credit-kind",
 		authMW.RequireAny(permission.CheckoutSessionsCreateMerchant),
 		rs.SelectCreditKind,

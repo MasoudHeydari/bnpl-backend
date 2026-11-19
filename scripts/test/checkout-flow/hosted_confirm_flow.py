@@ -231,15 +231,24 @@ def main() -> None:
         )
 
     print(cli_style.ok(f"\nusing checkout_session_id/token from create: {token}"))
+    evaluation_generation = int(create_data.get("evaluation_generation") or 0)
+    if evaluation_generation < 1:
+        raise SystemExit(
+            "create response missing evaluation_generation; cannot select credit kind"
+        )
+
     format_credit_kind_previews(create_data)
 
     credit_kind = prompt_credit_kind()
     pause()
     print(cli_style.step(f"2) Partner select credit kind ({credit_kind})"))
     _, select_resp = client.request(
-        "POST",
+        "PUT",
         f"/api/v1/partner/checkout-sessions/{token}/credit-kind",
-        body={"credit_kind": credit_kind},
+        body={
+            "credit_kind": credit_kind,
+            "expected_evaluation_generation": evaluation_generation,
+        },
         headers=partner_headers,
     )
     select_data = data_of(select_resp)
@@ -250,7 +259,17 @@ def main() -> None:
             f"{selected!r} != {credit_kind!r}"
         )
 
-    print(cli_style.ok(f"\nselected credit_kind={selected!r} status={select_data.get('status')!r}"))
+    evaluation_generation = int(select_data.get("evaluation_generation") or 0)
+    if evaluation_generation < 1:
+        raise SystemExit("select credit-kind response missing evaluation_generation")
+
+    print(
+        cli_style.ok(
+            f"\nselected credit_kind={selected!r} "
+            f"evaluation_generation={evaluation_generation} "
+            f"status={select_data.get('status')!r}"
+        )
+    )
 
     pause()
     print(cli_style.step("3) Hosted GET (customer opens BNPL page)"))

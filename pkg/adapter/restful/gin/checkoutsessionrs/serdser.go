@@ -54,7 +54,11 @@ type partnerCreateResponse struct {
 	CheckoutSessionID string                      `json:"checkout_session_id" example:"cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"`
 	Status            model.CheckoutSessionStatus `json:"status" enums:"open,confirming,processing,completed,canceled,expired,unavailable"`
 	CheckoutURL       string                      `json:"checkout_url"`
-	ExpiresAt         time.Time                   `json:"expires_at"`
+	// EvaluationGeneration is the optimistic-concurrency token Partner must
+	// echo on SelectCreditKind (PUT .../credit-kind), including the first
+	// selection. Create starts at 1 and does not prepare offers.
+	EvaluationGeneration int       `json:"evaluation_generation" example:"1"`
+	ExpiresAt            time.Time `json:"expires_at"`
 	// Offer is present only after Partner SelectCreditKind when preparation
 	// mode is on_create (Create itself does not prepare offers).
 	Offer *OfferSchema `json:"offer,omitempty"`
@@ -77,14 +81,21 @@ type creditKindPreviewReasonSchema struct {
 
 type selectCreditKindRequest struct {
 	CreditKind model.CreditKind `json:"credit_kind" binding:"required" enums:"pay_in_installments,pay_next_month"`
+	// ExpectedEvaluationGeneration fences concurrent / delayed PUT retries.
+	// Required for every selection mutation, including the first selection
+	// (echo evaluation_generation from Partner Create).
+	ExpectedEvaluationGeneration int `json:"expected_evaluation_generation" binding:"required,min=1" example:"1"`
 }
 
 type selectCreditKindResponse struct {
 	CheckoutSessionID string                      `json:"checkout_session_id" example:"cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"`
 	Status            model.CheckoutSessionStatus `json:"status" enums:"open,confirming,processing,completed,canceled,expired,unavailable"`
 	CreditKind        model.CreditKind            `json:"credit_kind" enums:"pay_in_installments,pay_next_month"`
-	ExpiresAt         time.Time                   `json:"expires_at"`
-	Offer             *OfferSchema                `json:"offer,omitempty"`
+	// EvaluationGeneration is the authoritative generation after selection.
+	// Echo it on a subsequent replacement PUT as expected_evaluation_generation.
+	EvaluationGeneration int          `json:"evaluation_generation" example:"1"`
+	ExpiresAt            time.Time    `json:"expires_at"`
+	Offer                *OfferSchema `json:"offer,omitempty"`
 }
 
 // statusResponse is the authoritative merchant inquiry projection.
@@ -284,11 +295,12 @@ func checkoutTokenParam(c *gin.Context) (model.CheckoutSessionToken, bool) {
 
 func toPartnerCreateResponse(output checkoutsessionuc.CreatePartnerOutput) partnerCreateResponse {
 	resp := partnerCreateResponse{
-		CheckoutSessionID: output.Session.PublicToken.String(),
-		Status:            output.Session.Status,
-		CheckoutURL:       output.CheckoutURL,
-		ExpiresAt:         output.Session.ExpiresAt,
-		CreditKinds:       toCreditKindPreviews(output.CreditKinds),
+		CheckoutSessionID:    output.Session.PublicToken.String(),
+		Status:               output.Session.Status,
+		CheckoutURL:          output.CheckoutURL,
+		EvaluationGeneration: output.Session.EvaluationGeneration,
+		ExpiresAt:            output.Session.ExpiresAt,
+		CreditKinds:          toCreditKindPreviews(output.CreditKinds),
 	}
 
 	if output.Offer != nil {
@@ -323,10 +335,11 @@ func toCreditKindPreviews(previews []checkoutsessionuc.CreditKindPreview) []cred
 
 func toSelectCreditKindResponse(output checkoutsessionuc.SelectCreditKindOutput) selectCreditKindResponse {
 	resp := selectCreditKindResponse{
-		CheckoutSessionID: output.Session.PublicToken.String(),
-		Status:            output.Session.Status,
-		CreditKind:        output.Session.CreditKind,
-		ExpiresAt:         output.Session.ExpiresAt,
+		CheckoutSessionID:    output.Session.PublicToken.String(),
+		Status:               output.Session.Status,
+		CreditKind:           output.Session.CreditKind,
+		EvaluationGeneration: output.Session.EvaluationGeneration,
+		ExpiresAt:            output.Session.ExpiresAt,
 	}
 
 	if output.Offer != nil {

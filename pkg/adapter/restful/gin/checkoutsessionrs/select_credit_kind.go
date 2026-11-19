@@ -10,10 +10,10 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/checkoutsessionuc"
 )
 
-// SelectCreditKind handles POST /api/v1/partner/checkout-sessions/{checkout_session_id}/credit-kind.
+// SelectCreditKind handles PUT /api/v1/partner/checkout-sessions/{checkout_session_id}/credit-kind.
 //
-//	@Summary		Select partner checkout credit kind
-//	@Description	Records the merchant-site credit-kind selection for an open Partner checkout. Idempotent for the same kind. Hosted START cannot override this selection.
+//	@Summary		Select or replace partner checkout credit kind
+//	@Description	Records or replaces the merchant-site credit-kind selection for an open Partner checkout. Same-kind PUT is idempotent. A different kind on an still-editable open session clears the current Decision linkage and advances evaluation_generation exactly once; prior Decisions remain immutable history. Hosted START cannot override this selection. expected_evaluation_generation is mandatory and must match Partner Create (or the previous Select response) for genuine mutations; same-kind replays may return the current state without advancing generation.
 //	@Tags			Checkout Sessions
 //	@Accept			json
 //	@Produce		json
@@ -23,7 +23,7 @@ import (
 //	@Param			X-Request-Id		header		string							false	"Optional; reused when present otherwise generated. Always returned."
 //	@Param			X-Correlation-Id	header		string							false	"Optional; reused when present otherwise generated. Always returned."
 //	@Param			checkout_session_id	path		string							true	"Public checkout session token (cs_<64 hex>)"
-//	@Param			body				body		SelectCreditKindRequestSchema	true	"Selected credit kind"
+//	@Param			body				body		SelectCreditKindRequestSchema	true	"Selected credit kind and expected evaluation generation"
 //	@Success		200					{object}	SelectCreditKindSuccessSchema	"Credit kind selected"
 //	@Failure		400					{object}	serdser.ErrorResponse
 //	@Failure		401					{object}	serdser.ErrorResponse
@@ -53,7 +53,7 @@ import (
 //	@Header			500					{string}	X-Request-Id		"Always set: reuse inbound value or generate"
 //	@Header			500					{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
 //	@Security		TerminalID && TerminalAPIKey
-//	@Router			/api/v1/partner/checkout-sessions/{checkout_session_id}/credit-kind [post]
+//	@Router			/api/v1/partner/checkout-sessions/{checkout_session_id}/credit-kind [put]
 func (rs *resource) SelectCreditKind(c *gin.Context) {
 	token, ok := checkoutSessionTokenParam(c)
 	if !ok {
@@ -73,9 +73,10 @@ func (rs *resource) SelectCreditKind(c *gin.Context) {
 	output, err := rs.checkoutSession.SelectCreditKind(
 		c.Request.Context(),
 		checkoutsessionuc.SelectCreditKindInput{
-			Token:              token,
-			ExternalMerchantID: merchantID,
-			CreditKind:         req.CreditKind,
+			Token:                        token,
+			ExternalMerchantID:           merchantID,
+			CreditKind:                   req.CreditKind,
+			ExpectedEvaluationGeneration: req.ExpectedEvaluationGeneration,
 		},
 	)
 	if err != nil {

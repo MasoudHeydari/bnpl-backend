@@ -205,6 +205,21 @@ type CheckoutSessionTxQueryer interface {
 		updatedAt time.Time,
 	) (model.CheckoutSession, error)
 
+	// ReplaceCreditKindAndInvalidateEvaluation persists a first Partner credit-kind
+	// selection or replaces a prior selection under optimistic concurrency.
+	// First selection does not bump evaluation_generation; a genuine replacement
+	// clears decision_id and increments generation exactly once. The row must
+	// still be open, at expectedGeneration, linked to expectedDecisionID, have
+	// contract_id NULL, and have confirmation_attempt_id NULL.
+	ReplaceCreditKindAndInvalidateEvaluation(
+		ctx context.Context,
+		id model.CheckoutSessionID,
+		kind model.CreditKind,
+		expectedGeneration int,
+		expectedDecisionID *model.DecisionID,
+		updatedAt time.Time,
+	) (model.CheckoutSession, error)
+
 	// UpsertReturnDestination registers or updates a merchant return destination.
 	// A nil enabled preserves the stored value on update and defaults to true on
 	// insert, so omission never silently disables a destination.

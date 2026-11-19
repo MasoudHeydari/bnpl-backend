@@ -43,7 +43,7 @@ func protectedRoutePermissions() []protectedRoutePermission {
 			Permission:  permission.CheckoutSessionsReadMerchant,
 		},
 		{
-			Method:      http.MethodPost,
+			Method:      http.MethodPut,
 			GinPath:     "/api/v1/partner/checkout-sessions/" + uuid.NewString() + "/credit-kind",
 			SwaggerPath: "/api/v1/partner/checkout-sessions/{checkout_session_id}/credit-kind",
 			Permission:  permission.CheckoutSessionsCreateMerchant,

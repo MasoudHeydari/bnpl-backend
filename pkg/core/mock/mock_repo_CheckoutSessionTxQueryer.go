@@ -1903,6 +1903,96 @@ func (_c *CheckoutSessionTxQueryer_ReopenStaleConfirmingWithoutContract_Call) Ru
 	return _c
 }
 
+// ReplaceCreditKindAndInvalidateEvaluation provides a mock function for the type CheckoutSessionTxQueryer
+func (_mock *CheckoutSessionTxQueryer) ReplaceCreditKindAndInvalidateEvaluation(ctx context.Context, id model.CheckoutSessionID, kind model.CreditKind, expectedGeneration int, expectedDecisionID *model.DecisionID, updatedAt time.Time) (model.CheckoutSession, error) {
+	ret := _mock.Called(ctx, id, kind, expectedGeneration, expectedDecisionID, updatedAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ReplaceCreditKindAndInvalidateEvaluation")
+	}
+
+	var r0 model.CheckoutSession
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CheckoutSessionID, model.CreditKind, int, *model.DecisionID, time.Time) (model.CheckoutSession, error)); ok {
+		return returnFunc(ctx, id, kind, expectedGeneration, expectedDecisionID, updatedAt)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CheckoutSessionID, model.CreditKind, int, *model.DecisionID, time.Time) model.CheckoutSession); ok {
+		r0 = returnFunc(ctx, id, kind, expectedGeneration, expectedDecisionID, updatedAt)
+	} else {
+		r0 = ret.Get(0).(model.CheckoutSession)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.CheckoutSessionID, model.CreditKind, int, *model.DecisionID, time.Time) error); ok {
+		r1 = returnFunc(ctx, id, kind, expectedGeneration, expectedDecisionID, updatedAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// CheckoutSessionTxQueryer_ReplaceCreditKindAndInvalidateEvaluation_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ReplaceCreditKindAndInvalidateEvaluation'
+type CheckoutSessionTxQueryer_ReplaceCreditKindAndInvalidateEvaluation_Call struct {
+	*mock.Call
+}
+
+// ReplaceCreditKindAndInvalidateEvaluation is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id model.CheckoutSessionID
+//   - kind model.CreditKind
+//   - expectedGeneration int
+//   - expectedDecisionID *model.DecisionID
+//   - updatedAt time.Time
+func (_e *CheckoutSessionTxQueryer_Expecter) ReplaceCreditKindAndInvalidateEvaluation(ctx any, id any, kind any, expectedGeneration any, expectedDecisionID any, updatedAt any) *CheckoutSessionTxQueryer_ReplaceCreditKindAndInvalidateEvaluation_Call {
+	return &CheckoutSessionTxQueryer_ReplaceCreditKindAndInvalidateEvaluation_Call{Call: _e.mock.On("ReplaceCreditKindAndInvalidateEvaluation", ctx, id, kind, expectedGeneration, expectedDecisionID, updatedAt)}
+}
+
+func (_c *CheckoutSessionTxQueryer_ReplaceCreditKindAndInvalidateEvaluation_Call) Run(run func(ctx context.Context, id model.CheckoutSessionID, kind model.CreditKind, expectedGeneration int, expectedDecisionID *model.DecisionID, updatedAt time.Time)) *CheckoutSessionTxQueryer_ReplaceCreditKindAndInvalidateEvaluation_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.CheckoutSessionID
+		if args[1] != nil {
+			arg1 = args[1].(model.CheckoutSessionID)
+		}
+		var arg2 model.CreditKind
+		if args[2] != nil {
+			arg2 = args[2].(model.CreditKind)
+		}
+		var arg3 int
+		if args[3] != nil {
+			arg3 = args[3].(int)
+		}
+		var arg4 *model.DecisionID
+		if args[4] != nil {
+			arg4 = args[4].(*model.DecisionID)
+		}
+		var arg5 time.Time
+		if args[5] != nil {
+			arg5 = args[5].(time.Time)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+			arg4,
+			arg5,
+		)
+	})
+	return _c
+}
+
+func (_c *CheckoutSessionTxQueryer_ReplaceCreditKindAndInvalidateEvaluation_Call) Return(checkoutSession model.CheckoutSession, err error) *CheckoutSessionTxQueryer_ReplaceCreditKindAndInvalidateEvaluation_Call {
+	_c.Call.Return(checkoutSession, err)
+	return _c
+}
+
+func (_c *CheckoutSessionTxQueryer_ReplaceCreditKindAndInvalidateEvaluation_Call) RunAndReturn(run func(ctx context.Context, id model.CheckoutSessionID, kind model.CreditKind, expectedGeneration int, expectedDecisionID *model.DecisionID, updatedAt time.Time) (model.CheckoutSession, error)) *CheckoutSessionTxQueryer_ReplaceCreditKindAndInvalidateEvaluation_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // UpdateStatus provides a mock function for the type CheckoutSessionTxQueryer
 func (_mock *CheckoutSessionTxQueryer) UpdateStatus(ctx context.Context, id model.CheckoutSessionID, status model.CheckoutSessionStatus, updatedAt time.Time) (model.CheckoutSession, error) {
 	ret := _mock.Called(ctx, id, status, updatedAt)
