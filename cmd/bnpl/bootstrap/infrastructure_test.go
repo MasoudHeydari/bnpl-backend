@@ -123,6 +123,7 @@ func noopTestConfig() *config.Config {
 						InstallmentPaymentReconciliationResults:          "financial_core.installment_payment_reconciliation_results",
 						InstallmentPaymentReconciliationAcknowledgements: "bnpl.installment_payment_reconciliation_acknowledgements",
 						NotificationSMSRequests:                          "notification.sms.requests",
+						NotificationCommands:                             "notification.commands.v1",
 					},
 				},
 			},

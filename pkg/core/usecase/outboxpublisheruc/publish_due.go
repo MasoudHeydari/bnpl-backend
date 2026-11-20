@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
+	"github.com/parstis/bnpl-backend/pkg/core/event/notificationsms"
 	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/messaging"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
@@ -78,18 +79,27 @@ func (uc *UseCase) PublishDue(ctx context.Context) error {
 // publishMessage performs only the external publish. It intentionally does not
 // hold or require a database connection.
 func (uc *UseCase) publishMessage(ctx context.Context, msg model.OutboxMessage) error {
+	headers := map[string][]byte{
+		"outbox_id":      []byte(msg.ID.String()),
+		"event_type":     []byte(msg.EventType),
+		"aggregate_type": optionalStringBytes(msg.AggregateType),
+	}
+
+	// Notification commands.v1 requires the caller on the Kafka record header
+	// (not inside the JSON body). Apply for command event types / destinations.
+	if msg.EventType == notificationsms.EventTypeCommand ||
+		notificationsms.IsCommandsTopic(msg.Destination) {
+		headers[notificationsms.CallerHeaderKey] = []byte(notificationsms.CallerHeaderValue)
+	}
+
 	return uc.publisher.Publish(
 		ctx,
 		msg.Destination,
 		messaging.Message{
-			Key:   []byte(msg.MessageKey),
-			Value: msg.Payload,
-			Topic: msg.Destination,
-			Headers: map[string][]byte{
-				"outbox_id":      []byte(msg.ID.String()),
-				"event_type":     []byte(msg.EventType),
-				"aggregate_type": optionalStringBytes(msg.AggregateType),
-			},
+			Key:     []byte(msg.MessageKey),
+			Value:   msg.Payload,
+			Topic:   msg.Destination,
+			Headers: headers,
 		},
 	)
 }

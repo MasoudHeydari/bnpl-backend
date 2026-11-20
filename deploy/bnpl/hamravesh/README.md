@@ -8,6 +8,7 @@ Independent BNPL deployment for namespace `parstis-technology-dpay-dev`.
 | --- | --- |
 | `compose.yaml` | Always-on `bnpl` app (Darkoob Compose import) |
 | `jobs.yaml` | One-shot `bnpl-migrate` / `bnpl-init` — ENV only for `configs/dbadmin.yaml` |
+| `certs/` | Dev outbound gRPC mTLS PEMs baked into `runtime-development` |
 | `secrets.example` | Panel checklist for secret ENV only (not an `env_file`) |
 | `Makefile` | Build/push runtime + dbadmin images to `registry.hamdocker.ir` |
 
@@ -23,10 +24,19 @@ Canonical BNPL runtime ENV: repo-root
 - Listen on `0.0.0.0` (`GIN_HOST=0.0.0.0`) so cluster traffic reaches the app.
 - Darkoob Compose import supports only: `image`, `command`, `entrypoint`,
   `ports`, `environment`, `volumes`, `depends_on` (Compose >= 3.0).
+- `jobs.yaml` must use exec-form arrays for dbadmin, e.g.
+  `command: ["db", "migrate"]` / `["db", "init-dev"]`. A single string like
+  `"db migrate"` becomes one Cobra argv and fails with
+  `unknown command "db migrate"`.
+- Development runtime images bake `certs/` into
+  `/home/bnpluser/app/certs/{ca,bnpl-service}.{crt,key}`. Compose points
+  `EXTERNAL_*_GRPC_TLS_*_FILE` at those paths. Do not set
+  `BNPL_GRPC_*_PEM_BASE64` in Darkoob for this flow.
 
 ## Images
 
 ```sh
+# Requires deploy/bnpl/hamravesh/certs/{ca.crt,bnpl-service.crt,bnpl-service.key}
 make image TAG=v0.1.0-development BUILD_ENV=development
 make push-to-hamravesh TAG=v0.1.0-development
 make image-dbadmin TAG=v0.1.0-development BUILD_ENV=development

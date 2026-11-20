@@ -50,11 +50,23 @@ print-image:
 	@printf 'LOCAL_IMAGE=%s\nREMOTE_IMAGE=%s\nLOCAL_DBADMIN_IMAGE=%s\nREMOTE_DBADMIN_IMAGE=%s\n' \
 		"$(LOCAL_IMAGE)" "$(REMOTE_IMAGE)" "$(LOCAL_DBADMIN_IMAGE)" "$(REMOTE_DBADMIN_IMAGE)"
 
+# development → runtime-development (bakes deploy/bnpl/hamravesh/certs)
+# production  → runtime (no client PEMs in image layers)
+RUNTIME_TARGET = $(if $(filter development,$(BUILD_ENV)),runtime-development,runtime)
+
 image:
 	@case "$(BUILD_ENV)" in development|production) ;; *) \
 		echo "BUILD_ENV must be development or production (got $(BUILD_ENV))" >&2; exit 1;; esac
+	@test -f "$(REPO_ROOT)/deploy/bnpl/hamravesh/certs/ca.crt"
+	@test -f "$(REPO_ROOT)/deploy/bnpl/hamravesh/certs/bnpl-service.crt"
+	@if [ "$(BUILD_ENV)" = "development" ]; then \
+		test -f "$(REPO_ROOT)/deploy/bnpl/hamravesh/certs/bnpl-service.key" || { \
+			echo "missing deploy/bnpl/hamravesh/certs/bnpl-service.key for development image" >&2; \
+			exit 1; \
+		}; \
+	fi
 	docker build \
-		--target runtime \
+		--target "$(RUNTIME_TARGET)" \
 		--build-arg BUILD_ENV="$(BUILD_ENV)" \
 		-t "$(LOCAL_IMAGE)" \
 		-f "$(DOCKERFILE)" \

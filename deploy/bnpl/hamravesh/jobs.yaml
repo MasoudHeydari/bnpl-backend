@@ -36,6 +36,9 @@ services:
       MIGRATIONS_FILES_DIR: assets/db/migrations
       MIGRATIONS_LOCK_TIMEOUT: 30s
       DBADMIN_LOG_FORMAT: json
+    # Image ENTRYPOINT is already ./bnpl-dbadmin. Pass Cobra args as a JSON
+    # array — never a single "db migrate" string (Darkoob/Cobra then treat the
+    # whole phrase as one unknown command).
     entrypoint: ["./bnpl-dbadmin"]
     command: ["db", "migrate"]
 

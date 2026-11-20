@@ -247,6 +247,7 @@ func hardenValidConfigForProductionBinary(cfg *Config) {
 				InstallmentPaymentReconciliationResults:          "installment.payment.reconciliation.results",
 				InstallmentPaymentReconciliationAcknowledgements: "installment.payment.reconciliation.acknowledgements",
 				NotificationSMSRequests:                          "notification.sms.requests",
+				NotificationCommands:                          "notification.commands.v1",
 			},
 		},
 	}
@@ -361,6 +362,7 @@ func TestConfig_Validate_ProductionRequiresIssuanceScrub(t *testing.T) {
 				InstallmentPaymentReconciliationResults:          "installment.payment.reconciliation.results",
 				InstallmentPaymentReconciliationAcknowledgements: "installment.payment.reconciliation.acknowledgements",
 				NotificationSMSRequests:                          "notification.sms.requests",
+				NotificationCommands:                          "notification.commands.v1",
 			},
 		},
 	}
@@ -411,6 +413,7 @@ func TestConfig_Validate_ProductionNoopGuards(t *testing.T) {
 				InstallmentPaymentReconciliationResults:          "installment.payment.reconciliation.results",
 				InstallmentPaymentReconciliationAcknowledgements: "installment.payment.reconciliation.acknowledgements",
 				NotificationSMSRequests:                          "notification.sms.requests",
+				NotificationCommands:                          "notification.commands.v1",
 			},
 		},
 	}
@@ -438,6 +441,7 @@ func TestConfig_Validate_ProductionNoopGuards(t *testing.T) {
 			InstallmentPaymentReconciliationResults:          "installment.payment.reconciliation.results",
 			InstallmentPaymentReconciliationAcknowledgements: "installment.payment.reconciliation.acknowledgements",
 			NotificationSMSRequests:                          "notification.sms.requests",
+				NotificationCommands:                          "notification.commands.v1",
 		},
 	}
 	cfg.Infrastructure.Task.Provider = taskadapter.NoopProvider
@@ -486,6 +490,7 @@ func TestConfig_Validate_ProductionCircuitBreakerNoopForbidden(t *testing.T) {
 			InstallmentPaymentReconciliationResults:          "installment.payment.reconciliation.results",
 			InstallmentPaymentReconciliationAcknowledgements: "installment.payment.reconciliation.acknowledgements",
 			NotificationSMSRequests:                          "notification.sms.requests",
+				NotificationCommands:                          "notification.commands.v1",
 		},
 	}
 	cfg.Infrastructure.Task = enabledSagaExecutorTask(taskadapter.InProcessProvider)
@@ -532,6 +537,7 @@ func TestConfig_Validate_ProductionWebhookDispatcherNoopForbidden(t *testing.T) 
 			InstallmentPaymentReconciliationResults:          "installment.payment.reconciliation.results",
 			InstallmentPaymentReconciliationAcknowledgements: "installment.payment.reconciliation.acknowledgements",
 			NotificationSMSRequests:                          "notification.sms.requests",
+				NotificationCommands:                          "notification.commands.v1",
 		},
 	}
 	cfg.Infrastructure.Task = enabledSagaExecutorTask(taskadapter.InProcessProvider)
@@ -660,6 +666,7 @@ func TestConfig_Validate_ProductionFinancialCoreInsecureGRPCForbidden(t *testing
 				InstallmentPaymentReconciliationResults:          "installment.payment.reconciliation.results",
 				InstallmentPaymentReconciliationAcknowledgements: "installment.payment.reconciliation.acknowledgements",
 				NotificationSMSRequests:                          "notification.sms.requests",
+				NotificationCommands:                          "notification.commands.v1",
 			},
 		},
 	}
@@ -729,6 +736,7 @@ func TestConfig_Validate_KafkaNewestInitialOffsetForbiddenInProduction(t *testin
 				InstallmentPaymentReconciliationResults:          "installment.payment.reconciliation.results",
 				InstallmentPaymentReconciliationAcknowledgements: "installment.payment.reconciliation.acknowledgements",
 				NotificationSMSRequests:                          "notification.sms.requests",
+				NotificationCommands:                          "notification.commands.v1",
 			},
 			Consumer: Consumer{
 				InitialOffset:            "newest",
@@ -769,6 +777,7 @@ func TestConfig_Validate_KafkaNewestInitialOffsetRequiresExplicitAllow(t *testin
 				InstallmentPaymentReconciliationResults:          "installment.payment.reconciliation.results",
 				InstallmentPaymentReconciliationAcknowledgements: "installment.payment.reconciliation.acknowledgements",
 				NotificationSMSRequests:                          "notification.sms.requests",
+				NotificationCommands:                          "notification.commands.v1",
 			},
 			Consumer: Consumer{InitialOffset: "newest"},
 		},

@@ -5,8 +5,7 @@
 # Adapted for the unified Compose stack:
 #   - TLS-only listener on 0.0.0.0:443 (no plaintext :80)
 #   - Upstream STRICT_DNS → dpay-* Compose service names
-#   - Public hosts: dev.dlend.ir / api.dev.dlend.ir
-#     Short links resolve on the public site host: dev.dlend.ir/s/<code>
+#   - Public hosts: dev.dlend.ir / api.dev.dlend.ir / dlend.darkube.ir / s.dev.dlend.ir
 #   - TLS material baked into envoy.parstis-technology-dpay-dev.svc:v0.1.0 at /etc/envoy/certs/tls.{crt,key}
 #
 # JWT issuer/audiences must match Identity ENV (IDENTITY_ACCESS_JWT_*). Rebuild the
@@ -21,7 +20,7 @@
 admin:
   address:
     socket_address:
-      address: 0.0.0.0
+      address: 127.0.0.1
       port_value: 9901
 
 static_resources:
@@ -152,20 +151,20 @@ static_resources:
                 route_config:
                   name: platform_gateway_routes
                   virtual_hosts:
-                    # BNPL public short links resolve as dev.dlend.ir/s/<code>.
-                    # Needs DNS + TLS SAN including dev.dlend.ir.
+                    # BNPL short links are publicly accessible only on their own host.
+                    # Needs DNS + TLS SAN including s.dev.dlend.ir.
                     # Match authority with and without explicit :443.
                     - name: bnpl_short_links
-                      # SHORT_LINK_PUBLIC_HOST — TLS SAN must include dev.dlend.ir
+                      # SHORT_LINK_PUBLIC_HOST — TLS SAN must include s.dev.dlend.ir
                       domains:
-                        - "dev.dlend.ir"
-                        - "dev.dlend.ir:443"
+                        - "s.dev.dlend.ir"
+                        - "s.dev.dlend.ir:443"
                       routes:
-                        # Only generated short-link codes under /s are public here; this
-                        # virtual host never exposes /api/v1 or operational paths.
+                        # Restrict public redirects to a single path segment (opaque code).
+                        # Do not expose /api/v1 or operational paths on this virtual host.
                         - match:
                             safe_regex:
-                              regex: "^/s/[A-Za-z0-9_-]+$"
+                              regex: "^/[A-Za-z0-9_-]+$"
                             headers:
                               - name: ":method"
                                 string_match:
@@ -182,6 +181,7 @@ static_resources:
                           allow_origin_string_match:
                             - exact: https://dev.dlend.ir
                             - exact: https://api.dev.dlend.ir
+                            - exact: https://dlend.darkube.ir
                             - exact: http://localhost:5173
                             - exact: http://127.0.0.1:5173
                             - exact: http://localhost:3000
@@ -219,7 +219,8 @@ static_resources:
                           forward_not_matching_preflights: false
                       routes:
                         # ── Platform Gateway ──────────────────────────────────────────────────────
-                        - match:
+                        - name: gateway_health
+                          match:
                             path: "/healthz"
                           direct_response:
                             status: 200
@@ -258,7 +259,8 @@ static_resources:
                             prefix_rewrite: "/openapi"
                             timeout: 10s
 
-                        - match:
+                        - name: identity_jwks_public
+                          match:
                             path: "/.well-known/jwks.json"
                           route:
                             cluster: "identity_service"
@@ -553,10 +555,14 @@ static_resources:
                             path: /healthz/ready
                           requires:
                             allow_missing_or_failed: {}
-                        # Public SMS short links: the opaque code is the only credential.
+                        # Public short-link codes on s.dev.dlend.ir (VH bnpl_short_links).
                         - match:
                             safe_regex:
-                              regex: ^/s/[A-Za-z0-9_-]+$
+                              regex: "^/[A-Za-z0-9_-]+$"
+                            headers:
+                              - name: :method
+                                string_match:
+                                  exact: GET
                           requires:
                             allow_missing_or_failed: {}
                         - match:
@@ -580,7 +586,7 @@ static_resources:
                           requires:
                             allow_missing_or_failed: {}
                         - match:
-                            path: /identity/.well-known/jwks.json
+                            path: /.well-known/jwks.json
                           requires:
                             allow_missing_or_failed: {}
                         - match:
@@ -789,7 +795,7 @@ static_resources:
                               '{"code":"auth.invalid_token","message":"Authenticated principal claims are invalid.","status_code":401}'
                             )
                           end
-                          
+
                           local function signup_or_guest_path(path)
                             local bare = string.match(path or "", "^[^?]*")
                             if bare == nil then
@@ -812,7 +818,7 @@ static_resources:
                             end
                             return string.match(bare, "^/api/v%d+/customer%-credit") ~= nil
                           end
-
+                          
                           function envoy_on_request(request_handle)
                             -- Request bodies are not read or logged: they carry passwords, OTP codes
                             -- and identity numbers, and buffering them breaks document uploads.
@@ -827,7 +833,7 @@ static_resources:
                                 "skipped_signup_guest"
                               )
                             end
-                          
+
                             -- Caller-supplied trusted headers are never forwarded.
                             remove_trusted_headers(headers)
                           
@@ -996,7 +1002,7 @@ static_resources:
                               mobile_number
                             )
                           end
-                          
+
                           -- HTTP reason phrases are not exposed as a native Envoy access-log operator.
                           -- Derive the standard phrase from the final HTTP :status pseudo-header.
                           local http_status_text = {
@@ -1062,50 +1068,52 @@ static_resources:
                             ["510"] = "Not Extended",
                             ["511"] = "Network Authentication Required",
                           }
-                                                    function envoy_on_response(response_handle)
+
+                          function envoy_on_response(response_handle)
                             local namespace = "envoy.filters.http.lua"
                             local metadata = response_handle:streamInfo():dynamicMetadata()
                             local headers = response_handle:headers()
                             local status = headers:get(":status")
-                                                      metadata:set(namespace, "response_status_text", http_status_text[status] or "Unknown")
+                            metadata:set(namespace, "response_status_text", http_status_text[status] or "Unknown")
                             local prior = metadata:get(namespace)
                             if prior ~= nil and prior["response_body_capture_state"] == "skipped_signup_guest" then
                               return
                             end
-                                                      -- Development-only: raw response previews can include personal data/tokens.
+                            -- Development-only: raw response previews can include personal data/tokens.
                             -- Do not enable response-body logging in a production gateway.
                             local content_type = string.lower(headers:get("content-type") or "")
                             local content_encoding = string.lower(headers:get("content-encoding") or "")
                             local is_json = string.find(content_type, "application/json", 1, true)
                               or string.find(content_type, "+json", 1, true)
-                                                      if not is_json then
+                            if not is_json then
                               metadata:set(namespace, "response_body_capture_state", "skipped_non_json")
                               return
                             end
-                                                      -- Compressed response bytes are not readable JSON at this Lua filter.
+                            -- Compressed response bytes are not readable JSON at this Lua filter.
                             if content_encoding ~= "" and content_encoding ~= "identity" then
                               metadata:set(namespace, "response_body_capture_state", "skipped_compressed")
                               return
                             end
-                                                      -- Stream without buffering the whole response; retain at most 4096 bytes.
+                            -- Stream without buffering the whole response; retain at most 4096 bytes.
                             local max_bytes = 4096
                             local captured_bytes = 0
                             local total_bytes = 0
                             local pieces = {}
-                                                      for chunk in response_handle:bodyChunks() do
+                            for chunk in response_handle:bodyChunks() do
                               local length = chunk:length()
                               total_bytes = total_bytes + length
-                                                        local available = max_bytes - captured_bytes
+                              local available = max_bytes - captured_bytes
                               local take = math.min(length, available)
                               if take > 0 then
                                 pieces[#pieces + 1] = chunk:getBytes(0, take)
                                 captured_bytes = captured_bytes + take
                               end
                             end
-                                                      metadata:set(namespace, "response_body", table.concat(pieces))
+                            metadata:set(namespace, "response_body", table.concat(pieces))
                             metadata:set(namespace, "response_body_truncated", total_bytes > max_bytes)
                             metadata:set(namespace, "response_body_capture_state", "captured")
                           end
+
                   - name: envoy.filters.http.router
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
@@ -1124,7 +1132,6 @@ static_resources:
                           code: gateway.bad_request
                           message: Bad request.
                           status_code: '%RESPONSE_CODE%'
-                          path: '%REQ(:path)%'
                           request_id: '%REQ(X-REQUEST-ID)%'
                           trace_id: '%REQ(X-TRACE-ID)%'
                           correlation_id: '%REQ(X-CORRELATION-ID)%'
@@ -1140,7 +1147,6 @@ static_resources:
                           code: gateway.unauthorized
                           message: Unauthorized.
                           status_code: '%RESPONSE_CODE%'
-                          path: '%REQ(:path)%'
                           request_id: '%REQ(X-REQUEST-ID)%'
                           trace_id: '%REQ(X-TRACE-ID)%'
                           correlation_id: '%REQ(X-CORRELATION-ID)%'
@@ -1156,7 +1162,6 @@ static_resources:
                           code: gateway.forbidden
                           message: Forbidden.
                           status_code: '%RESPONSE_CODE%'
-                          path: '%REQ(:path)%'
                           request_id: '%REQ(X-REQUEST-ID)%'
                           trace_id: '%REQ(X-TRACE-ID)%'
                           correlation_id: '%REQ(X-CORRELATION-ID)%'
@@ -1172,7 +1177,6 @@ static_resources:
                           code: gateway.not_found
                           message: Route not found.
                           status_code: '%RESPONSE_CODE%'
-                          path: '%REQ(:path)%'
                           request_id: '%REQ(X-REQUEST-ID)%'
                           trace_id: '%REQ(X-TRACE-ID)%'
                           correlation_id: '%REQ(X-CORRELATION-ID)%'
@@ -1188,7 +1192,6 @@ static_resources:
                           code: gateway.upstream_unavailable
                           message: Upstream service unavailable.
                           status_code: '%RESPONSE_CODE%'
-                          path: '%REQ(:path)%'
                           request_id: '%REQ(X-REQUEST-ID)%'
                           trace_id: '%REQ(X-TRACE-ID)%'
                           correlation_id: '%REQ(X-CORRELATION-ID)%'
@@ -1204,7 +1207,6 @@ static_resources:
                           code: gateway.upstream_timeout
                           message: Upstream service timeout.
                           status_code: '%RESPONSE_CODE%'
-                          path: '%REQ(:path)%'
                           request_id: '%REQ(X-REQUEST-ID)%'
                           trace_id: '%REQ(X-TRACE-ID)%'
                           correlation_id: '%REQ(X-CORRELATION-ID)%'

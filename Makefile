@@ -475,7 +475,7 @@ db-invariants-test:
 
 .PHONY: build-image-development
 build-image-development:
-	@docker build --target runtime --build-arg BUILD_ENV=development \
+	@docker build --target runtime-development --build-arg BUILD_ENV=development \
 		-t $(IMAGE_NAME):$(IMAGE_VERSION)-development .
 
 .PHONY: build-image-production

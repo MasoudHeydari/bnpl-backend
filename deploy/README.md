@@ -65,11 +65,12 @@ Internal service DNS follows Hamravesh Darkoob FAQ form
   `POSTGRES_DB=bnpl`, `GIN_HOST=0.0.0.0`. BNPL uses PGPass roles, **not** the
   shared Postgres bootstrap user. Placeholder passwords and any `REPLACE_...`
   values must be entered/corrected in Darkoob ENV before deployment.
-- The published BNPL image does not include mTLS client PEMs. The runtime
-  Compose file decodes panel-provided base64 PEMs to private files under
-  `/tmp/dpay-grpc` before launching the existing entrypoint. Confirm CA,
-  SAN/server name, and TLS setting for FC, Customer and Notification; some
-  upstream handoff values in these configs are intentionally unfilled.
+- Hamravesh/dev BNPL runtime images (`runtime-development`) bake outbound
+  gRPC mTLS PEMs from `deploy/bnpl/hamravesh/certs` into
+  `/home/bnpluser/app/certs`. Compose points `EXTERNAL_*_GRPC_TLS_*_FILE`
+  there. Production images use target `runtime` without client keys.
+  Confirm CA, SAN/server name, and TLS settings for FC, Customer, and
+  Notification.
 - Envoy JWT issuer/audience and `GATEWAY_TRUST_PROOF` are runtime ENV,
   not image literals. **Rotate the gateway proof that was previously publicly
   committed**. TLS cert and key remain in the gitignored Gateway image

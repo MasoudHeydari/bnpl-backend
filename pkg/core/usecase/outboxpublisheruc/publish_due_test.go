@@ -14,6 +14,7 @@ import (
 
 	adapterclock "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/clock"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
+	"github.com/parstis/bnpl-backend/pkg/core/event/notificationsms"
 	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/messaging"
 	"github.com/parstis/bnpl-backend/pkg/core/mock"
@@ -233,6 +234,48 @@ func TestPublishDue_NoMessages_ReturnsNil(t *testing.T) {
 	err := uc.PublishDue(ctx)
 
 	require.NoError(t, err)
+}
+
+func TestPublishDue_NotificationCommand_SetsCallerHeader(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+	deps := newOutboxPublisherDeps(t, now)
+	msg := sampleOutboxMessage()
+	msg.Destination = "notification.commands.v1"
+	msg.EventType = notificationsms.EventTypeCommand
+
+	deps.outbox.EXPECT().Conn(deps.conn).Return(deps.outboxQueryer).Twice()
+	deps.outboxQueryer.EXPECT().ClaimPending(
+		ctx,
+		testWorkerID,
+		testBatchSize,
+		now,
+		testProcessingLeaseTimeout,
+	).Return([]model.OutboxMessage{msg}, nil).Once()
+	deps.publisher.EXPECT().Publish(ctx, msg.Destination, expectedMessage(msg)).Return(nil).Once()
+	deps.outboxQueryer.EXPECT().MarkPublished(
+		ctx,
+		msg.ID,
+		testWorkerID,
+		msg.LockVersion,
+		now,
+	).Return(nil).Once()
+	deps.pool.EXPECT().Conn(ctx, testifymock.Anything).RunAndReturn(func(ctx context.Context, handler repo.ConnHandler) error {
+		return handler(ctx, deps.conn)
+	}).Twice()
+
+	deps.observer.EXPECT().MessagePublished(ctx, msg.ID, msg.Destination).Once()
+
+	uc := deps.newUseCase(testWorkerID, testBatchSize)
+
+	err := uc.PublishDue(ctx)
+
+	require.NoError(t, err)
+	require.Equal(
+		t,
+		[]byte(notificationsms.CallerHeaderValue),
+		expectedMessage(msg).Headers[notificationsms.CallerHeaderKey],
+	)
 }
 
 func TestPublishDue_SuccessfulPublish_MarksPublished(t *testing.T) {
@@ -685,14 +728,20 @@ func sampleOutboxMessage() model.OutboxMessage {
 }
 
 func expectedMessage(msg model.OutboxMessage) messaging.Message {
+	headers := map[string][]byte{
+		"outbox_id":      []byte(msg.ID.String()),
+		"event_type":     []byte(msg.EventType),
+		"aggregate_type": nil,
+	}
+	if msg.EventType == notificationsms.EventTypeCommand ||
+		notificationsms.IsCommandsTopic(msg.Destination) {
+		headers[notificationsms.CallerHeaderKey] = []byte(notificationsms.CallerHeaderValue)
+	}
+
 	return messaging.Message{
-		Key:   []byte(msg.MessageKey),
-		Value: msg.Payload,
-		Topic: msg.Destination,
-		Headers: map[string][]byte{
-			"outbox_id":      []byte(msg.ID.String()),
-			"event_type":     []byte(msg.EventType),
-			"aggregate_type": nil,
-		},
+		Key:     []byte(msg.MessageKey),
+		Value:   msg.Payload,
+		Topic:   msg.Destination,
+		Headers: headers,
 	}
 }

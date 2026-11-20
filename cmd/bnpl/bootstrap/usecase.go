@@ -645,17 +645,12 @@ func (a *App) NewUseCases() (UseCases, error) {
 		repaymentBatchSize = 200
 	}
 
-	notificationSchemaVersion := a.Config.Usecases.RepaymentReminder.NotificationSchemaVersion
-	if notificationSchemaVersion == 0 {
-		notificationSchemaVersion = 1
-	}
-
 	publicHost := strings.TrimSpace(a.Config.Usecases.ShortLink.PublicHost)
 	repaymentDestination := strings.TrimSpace(a.Config.Usecases.ShortLink.RepaymentDestinationURL)
 
-	notificationTopic := a.Config.Infrastructure.Messaging.Kafka.Topics.NotificationSMSRequests
+	notificationTopic := a.Config.Infrastructure.Messaging.Kafka.Topics.NotificationCommands
 	if notificationTopic == "" {
-		notificationTopic = "notification.sms.requests"
+		notificationTopic = "notification.commands.v1"
 	}
 
 	repaymentReminderUseCase, err := repaymentreminderuc.New(
@@ -675,7 +670,6 @@ func (a *App) NewUseCases() (UseCases, error) {
 		publicHost,
 		repaymentDestination,
 		repaymentBatchSize,
-		notificationSchemaVersion,
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize repayment reminder use case: %w", op, err)

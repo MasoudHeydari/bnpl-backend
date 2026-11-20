@@ -5,6 +5,8 @@
 .pgpass
 **/.pgpass
 **/*.key
+# Hamravesh/dev runtime image bakes the BNPL outbound gRPC client key.
+!deploy/bnpl/hamravesh/certs/bnpl-service.key
 **/*private*.pem
 **/*credentials*.json
 .codex

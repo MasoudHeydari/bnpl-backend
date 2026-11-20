@@ -24,6 +24,11 @@ RUN --mount=type=cache,target=/root/.cache/go-build case "$BUILD_ENV" in develop
     CGO_ENABLED=0 go build -tags="go_json nomsgpack ${BUILD_ENV}" -trimpath \
     -ldflags='-s -w -extldflags "-static"' -o /out/bnpl-dbadmin ./cmd/bnpl-dbadmin
 
+# Static grpcurl for the development runtime image only.
+FROM dependencies AS grpcurl-builder
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go install github.com/fullstorydev/grpcurl/cmd/grpcurl@v1.9.3
+
 FROM docker.arvancloud.ir/alpine:3.23 AS base
 RUN apk add --no-cache tzdata ca-certificates && \
     ln -snf /usr/share/zoneinfo/Asia/Tehran /etc/localtime && \
@@ -40,6 +45,7 @@ ENTRYPOINT ["./bnpl-dbadmin"]
 CMD ["--help"]
 
 # The default final image retains the existing Runtime entrypoint behavior.
+# Production/runtime builds intentionally omit outbound gRPC client PEMs.
 FROM base AS runtime
 ENV CONFIG_FILE=configs/runtime.yaml
 COPY --from=runtime-builder --chown=bnpluser:bnpluser /out/bnpl ./bnpl
@@ -47,3 +53,49 @@ COPY --chown=bnpluser:bnpluser configs/runtime.yaml ./configs/runtime.yaml
 COPY --chmod=755 --chown=bnpluser:bnpluser scripts/runtime/entrypoint.sh ./entrypoint.sh
 EXPOSE 7080 7080
 CMD ["./entrypoint.sh"]
+
+# Development/Hamravesh runtime: bake outbound gRPC mTLS materials into the
+# image so Darkoob does not need panel base64 PEMs. Production must keep using
+# the `runtime` target (no private key layers).
+FROM runtime AS runtime-development
+
+# Create the certificate directory with traversal permission.
+USER root
+
+# Network troubleshooting tools for Hamravesh/dev only (absent from production).
+# nmap: scan remote open ports (e.g. nmap -Pn -p 1-65535 host).
+# grpcurl: probe gRPC services (often with -cacert/-cert/-key under ./certs).
+RUN apk add --no-cache \
+    bind-tools \
+    curl \
+    iproute2 \
+    iputils \
+    mtr \
+    netcat-openbsd \
+    nmap \
+    nmap-ncat \
+    openssl \
+    tcpdump \
+    traceroute \
+    busybox-extras \
+    wget
+
+COPY --from=grpcurl-builder --chmod=755 /go/bin/grpcurl /usr/local/bin/grpcurl
+
+RUN mkdir -p /home/bnpluser/app/certs \
+    && chown bnpluser:bnpluser /home/bnpluser/app/certs \
+    && chmod 700 /home/bnpluser/app/certs
+
+COPY --chown=bnpluser:bnpluser --chmod=644 \
+    deploy/bnpl/hamravesh/certs/ca.crt \
+    /home/bnpluser/app/certs/ca.crt
+
+COPY --chown=bnpluser:bnpluser --chmod=644 \
+    deploy/bnpl/hamravesh/certs/bnpl-service.crt \
+    /home/bnpluser/app/certs/bnpl-service.crt
+
+COPY --chown=bnpluser:bnpluser --chmod=600 \
+    deploy/bnpl/hamravesh/certs/bnpl-service.key \
+    /home/bnpluser/app/certs/bnpl-service.key
+
+USER bnpluser
