@@ -411,11 +411,10 @@ func (h *ordinaryHarness) dispatch(t *testing.T) repaymentreminderuc.DispatchOut
 		adapterclock.NewFixed(h.now, time.UTC),
 		ids,
 		metricsnoop.New(),
-		"notification.sms.requests",
+		"notification.commands.v1",
 		"dpay.ir",
 		"https://app.example/repayments",
 		10,
-		1,
 	)
 	require.NoError(t, err)
 
@@ -639,11 +638,10 @@ func (h *defaultHarness) dispatch(t *testing.T) repaymentreminderuc.DispatchOutp
 		adapterclock.NewFixed(now, time.UTC),
 		ids,
 		metricsnoop.New(),
-		"notification.sms.requests",
+		"notification.commands.v1",
 		"dpay.ir",
 		"https://app.example/repayments",
 		10,
-		1,
 	)
 	require.NoError(t, err)
 	uc.WithDefaultNotifications(h.notice)

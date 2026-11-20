@@ -255,11 +255,10 @@ func TestDispatch_DefaultNoticeIndependentOfCancelingContract(t *testing.T) {
 		adapterclock.NewFixed(now, loc),
 		ids,
 		metricsnoop.New(),
-		"notification.sms.requests",
+		"notification.commands.v1",
 		"dpay.ir",
 		"https://app.example/repayments",
 		10,
-		1,
 	)
 	require.NoError(t, err)
 	uc.WithDefaultNotifications(stubDefaultNotice{
@@ -462,11 +461,10 @@ func dispatchOrdinaryReminder(
 		adapterclock.NewFixed(now, loc),
 		ids,
 		metricsnoop.New(),
-		"notification.sms.requests",
+		"notification.commands.v1",
 		"dpay.ir",
 		"https://app.example/repayments",
 		10,
-		1,
 	)
 	require.NoError(t, err)
 

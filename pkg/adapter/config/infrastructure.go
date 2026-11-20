@@ -804,9 +804,14 @@ type Topics struct {
 	// installment payment reconciliation acknowledgement outbox messages.
 	InstallmentPaymentReconciliationAcknowledgements string `yaml:"installment_payment_reconciliation_acknowledgements"`
 
-	// NotificationSMSRequests is the Kafka destination for BNPL repayment-reminder
-	// (and other non-OTP) SMS notification request outbox messages.
+	// NotificationSMSRequests is a legacy topic name retained for config
+	// compatibility. Reminder/default SMS commands publish to NotificationCommands.
 	NotificationSMSRequests string `yaml:"notification_sms_requests"`
+
+	// NotificationCommands is the Kafka destination for BNPL repayment-reminder
+	// and collections default Notification Service command outbox messages
+	// (topic notification.commands.v1).
+	NotificationCommands string `yaml:"notification_commands"`
 }
 
 // Producer contains Kafka producer settings.
@@ -914,8 +919,8 @@ func (m Messaging) validateKafkaTopics() error {
 		return fmt.Errorf("%s: kafka topics installment_payment_reconciliation_results is required when messaging provider is kafka", op)
 	}
 
-	if strings.TrimSpace(m.Kafka.Topics.NotificationSMSRequests) == "" {
-		return fmt.Errorf("%s: kafka topics notification_sms_requests is required when messaging provider is kafka", op)
+	if strings.TrimSpace(m.Kafka.Topics.NotificationCommands) == "" {
+		return fmt.Errorf("%s: kafka topics notification_commands is required when messaging provider is kafka", op)
 	}
 
 	if strings.TrimSpace(m.Kafka.Topics.InstallmentPaymentReconciliationAcknowledgements) == "" {

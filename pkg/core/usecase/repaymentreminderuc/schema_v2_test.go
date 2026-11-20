@@ -3,6 +3,7 @@ package repaymentreminderuc_test
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -23,61 +24,42 @@ import (
 	reminderv1 "github.com/parstis/bnpl-backend/pkg/core/policy/repaymentreminder/v1"
 	"github.com/parstis/bnpl-backend/pkg/core/policy/shortlinkdestination"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
-	"github.com/parstis/bnpl-backend/pkg/core/trace"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/repaymentreminderuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/shortlinkuc"
 )
 
-func TestDispatch_SchemaV2PayloadAndLegacyDefault(t *testing.T) {
+func TestDispatch_NotificationCommandPayload(t *testing.T) {
 	t.Parallel()
 
-	t.Run("legacy_v1_default", func(t *testing.T) {
-		t.Parallel()
+	payload, eventType := dispatchAndCapturePayload(t, context.Background())
+	require.Equal(t, notificationsms.EventTypeCommand, eventType)
 
-		payload, eventType := dispatchAndCapturePayload(t, 1, context.Background())
-		require.Equal(t, notificationsms.EventType, eventType)
+	var event notificationsms.Command
+	require.NoError(t, json.Unmarshal(payload, &event))
+	require.NoError(t, notificationsms.ValidateCommand(event))
+	require.Equal(t, notificationsms.SchemaVersionCommand, event.SchemaVersion)
+	require.Equal(t, notificationsms.ProducerName, event.SourceService)
+	require.Equal(t, notificationsms.DefaultPriority, event.Priority)
+	require.Equal(t, reminderv1.TemplateDueToday, event.NotificationType)
+	require.Equal(t, reminderv1.TemplateDueToday, event.Targets[0].Deliveries[0].TemplateCode)
+	require.Equal(t, notificationsms.SelectionSourceUpstreamSelected, event.Targets[0].Deliveries[0].SelectionSource)
+	require.Equal(t, notificationsms.BusinessReferenceTypeBNPLInstallment, event.Targets[0].BusinessReferenceType)
+	require.True(t, strings.HasPrefix(event.Targets[0].Deliveries[0].Variables["payment_url"], "https://"))
+	require.NotContains(t, string(payload), `"recipient_address"`)
+	require.NotContains(t, string(payload), `"recipient_hash"`)
+	require.NotContains(t, string(payload), `"recipient"`)
+	require.NotContains(t, string(payload), `"correlation_id"`)
+	require.NotContains(t, string(payload), `"business_scope"`)
 
-		var event notificationsms.Event
-		require.NoError(t, json.Unmarshal(payload, &event))
-		require.Equal(t, notificationsms.EventVersion, event.EventVersion)
-		require.Equal(t, reminderv1.TemplateDueToday, event.TemplateID)
-		require.NotEmpty(t, event.Recipient.ExternalCustomerID)
-		require.Contains(t, string(payload), `"recipient"`)
-		require.NotContains(t, string(payload), `"schema_version"`)
-		require.NotContains(t, string(payload), `"recipient_address"`)
-	})
-
-	t.Run("schema_v2_envelope", func(t *testing.T) {
-		t.Parallel()
-
-		correlationID := "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-		ctx := trace.WithCorrelationID(context.Background(), correlationID)
-
-		payload, eventType := dispatchAndCapturePayload(t, 2, ctx)
-		require.Equal(t, notificationsms.EventTypeV2, eventType)
-
-		var event notificationsms.EventV2
-		require.NoError(t, json.Unmarshal(payload, &event))
-		require.NoError(t, notificationsms.ValidateEventV2(event))
-		require.Equal(t, notificationsms.SchemaVersionV2, event.SchemaVersion)
-		require.Equal(t, correlationID, event.CorrelationID)
-		require.Equal(t, reminderv1.TemplateDueToday, event.NotificationType)
-		require.Equal(t, reminderv1.TemplateDueToday, event.Targets[0].Deliveries[0].TemplateCode)
-		require.Equal(t, "installment", event.Targets[0].BusinessReferenceType)
-		require.NotContains(t, string(payload), `"recipient_address"`)
-		require.NotContains(t, string(payload), `"recipient_hash"`)
-		require.NotContains(t, string(payload), `"recipient"`)
-
-		loc := time.UTC
-		businessDate := time.Date(2026, time.March, 10, 0, 0, 0, 0, loc)
-		require.True(t, event.ExpiresAt.Equal(
-			notificationsms.DeliveryDeadlineForBusinessDate(businessDate),
-		))
-		require.Contains(t, event.IdempotencyKey, ":due_today:2026-03-10")
-	})
+	loc := time.UTC
+	businessDate := time.Date(2026, time.March, 10, 0, 0, 0, 0, loc)
+	require.True(t, event.ExpiresAt.Equal(
+		notificationsms.DeliveryDeadlineForBusinessDate(businessDate),
+	))
+	require.Contains(t, event.IdempotencyKey, ":due_today:2026-03-10")
 }
 
-func TestDispatch_SchemaV2_IndependentBusinessDatesAndDefaultKey(t *testing.T) {
+func TestDispatch_Command_IndependentBusinessDatesAndDefaultKey(t *testing.T) {
 	t.Parallel()
 
 	installmentID := model.InstallmentID(uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"))
@@ -94,23 +76,21 @@ func TestDispatch_SchemaV2_IndependentBusinessDatesAndDefaultKey(t *testing.T) {
 	defaultKey := reminderv1.DefaultNotificationIdempotencyKey(episodeID, installmentID)
 	require.Equal(t, "default:cccccccc-cccc-cccc-cccc-cccccccccccc:bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", defaultKey)
 
-	event := notificationsms.NewEventV2(notificationsms.EventV2Input{
+	event := notificationsms.NewCommand(notificationsms.CommandInput{
 		SourceEventID:      uuid.NewString(),
 		IdempotencyKey:     defaultKey,
-		CorrelationID:      uuid.NewString(),
 		NotificationType:   defaultnotificationv1.TemplateID,
 		ExternalCustomerID: uuid.NewString(),
 		InstallmentID:      installmentID.String(),
 		PaymentURL:         "https://dpay.ir/default",
 		ExpiresAt:          notificationsms.DeliveryDeadlineForBusinessDate(dayA),
 	})
-	require.NoError(t, notificationsms.ValidateEventV2(event))
+	require.NoError(t, notificationsms.ValidateCommand(event))
 	require.Equal(t, defaultKey, event.IdempotencyKey)
 }
 
 func dispatchAndCapturePayload(
 	t *testing.T,
-	schemaVersion int,
 	ctx context.Context,
 ) ([]byte, string) {
 	t.Helper()
@@ -300,11 +280,10 @@ func dispatchAndCapturePayload(
 		adapterclock.NewFixed(now, loc),
 		ids,
 		metricsnoop.New(),
-		"notification.sms.requests",
+		"notification.commands.v1",
 		"dpay.ir",
 		"https://app.example/repayments",
 		10,
-		schemaVersion,
 	)
 	require.NoError(t, err)
 

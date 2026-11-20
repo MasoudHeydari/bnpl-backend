@@ -303,7 +303,7 @@ func TestPostgreSQLCollections_ReminderAtomicDispatch(t *testing.T) {
 	build := func(outbox repo.Outbox) *repaymentreminderuc.UseCase {
 		checkoutPolicies, regErr := checkoutcatalog.NewRegistry()
 		require.NoError(t, regErr)
-		reminder, e := repaymentreminderuc.New(pool, installmentrp.New(), contractrp.New(), repaymentreminderrp.New(), paymentattemptrp.New(), decisionrp.New(), checkoutPolicies, outbox, links, clk, uuidgen.New(), metricsnoop.New(), "bnpl.notifications.v1", "s.example.com", "https://pay.example.com/installments", 10, 1)
+		reminder, e := repaymentreminderuc.New(pool, installmentrp.New(), contractrp.New(), repaymentreminderrp.New(), paymentattemptrp.New(), decisionrp.New(), checkoutPolicies, outbox, links, clk, uuidgen.New(), metricsnoop.New(), "bnpl.notifications.v1", "s.example.com", "https://pay.example.com/installments", 10)
 		require.NoError(t, e)
 		return reminder
 	}
@@ -469,7 +469,7 @@ func (f *collectionsFixture) reminders(t *testing.T, at time.Time, outbox repo.O
 	require.NoError(t, e)
 	checkoutPolicies, regErr := checkoutcatalog.NewRegistry()
 	require.NoError(t, regErr)
-	reminders, e := repaymentreminderuc.New(f.pool, installmentrp.New(), contractrp.New(), repaymentreminderrp.New(), paymentattemptrp.New(), decisionrp.New(), checkoutPolicies, outbox, links, clk, uuidgen.New(), metricsnoop.New(), "bnpl.notifications.v1", "s.example.com", "https://pay.example.com/installments", 10, 1)
+	reminders, e := repaymentreminderuc.New(f.pool, installmentrp.New(), contractrp.New(), repaymentreminderrp.New(), paymentattemptrp.New(), decisionrp.New(), checkoutPolicies, outbox, links, clk, uuidgen.New(), metricsnoop.New(), "bnpl.notifications.v1", "s.example.com", "https://pay.example.com/installments", 10)
 	require.NoError(t, e)
 	return reminders.WithDefaultNotifications(f.uc)
 }

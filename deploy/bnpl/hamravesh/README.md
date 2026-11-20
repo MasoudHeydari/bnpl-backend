@@ -23,6 +23,10 @@ Canonical BNPL runtime ENV: repo-root
 - Listen on `0.0.0.0` (`GIN_HOST=0.0.0.0`) so cluster traffic reaches the app.
 - Darkoob Compose import supports only: `image`, `command`, `entrypoint`,
   `ports`, `environment`, `volumes`, `depends_on` (Compose >= 3.0).
+- `jobs.yaml` must use exec-form arrays for dbadmin, e.g.
+  `command: ["db", "migrate"]` / `["db", "init-dev"]`. A single string like
+  `"db migrate"` becomes one Cobra argv and fails with
+  `unknown command "db migrate"`.
 
 ## Images
 

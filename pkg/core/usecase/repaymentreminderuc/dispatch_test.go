@@ -229,8 +229,8 @@ func TestDispatch_PagesBeyondFirstCustomerBatch(t *testing.T) {
 			require.False(t, msg.ShortLinkID.IsZero())
 			_, parseErr = uuid.Parse(msg.ShortLinkID.String())
 			require.NoError(t, parseErr)
-			require.Contains(t, msg.PaymentURL, "dpay.ir/s/")
-			code := msg.PaymentURL[len("dpay.ir/s/"):]
+			require.Contains(t, msg.PaymentURL, "https://dpay.ir/s/")
+			code := msg.PaymentURL[len("https://dpay.ir/s/"):]
 			_, exists := createdCodes[code]
 			require.False(t, exists, "each reminder must get a unique short code")
 			createdCodes[code] = struct{}{}
@@ -272,10 +272,9 @@ func TestDispatch_PagesBeyondFirstCustomerBatch(t *testing.T) {
 		adapterclock.NewFixed(now, loc),
 		ids,
 		metricsnoop.New(),
-		"notification.sms.requests",
+		"notification.commands.v1",
 		"dpay.ir",
 		"https://app.example/repayments",
-		1,
 		1,
 	)
 	require.NoError(t, err)

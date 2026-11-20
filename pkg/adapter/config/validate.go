@@ -334,14 +334,6 @@ func (u *Usecases) validate(environment string) error {
 		u.RepaymentReminder.NotificationSchemaVersion = 1
 	}
 
-	if u.RepaymentReminder.NotificationSchemaVersion != 1 &&
-		u.RepaymentReminder.NotificationSchemaVersion != 2 {
-		return fmt.Errorf(
-			"%s: invalid usecases.repayment_reminder.notification_schema_version: must be 1 or 2",
-			op,
-		)
-	}
-
 	if u.PaymentAttemptReconciliation.BatchSize <= 0 {
 		return fmt.Errorf("%s: invalid usecases.payment_attempt_reconciliation.batch_size: must be positive", op)
 	}
@@ -677,6 +669,7 @@ func (t Topics) validate() error {
 		"infrastructure.messaging.kafka.topics.installment_payment_reconciliation_results":          t.InstallmentPaymentReconciliationResults,
 		"infrastructure.messaging.kafka.topics.installment_payment_reconciliation_acknowledgements": t.InstallmentPaymentReconciliationAcknowledgements,
 		"infrastructure.messaging.kafka.topics.notification_sms_requests":                           t.NotificationSMSRequests,
+		"infrastructure.messaging.kafka.topics.notification_commands":                               t.NotificationCommands,
 	}
 
 	for field, value := range required {

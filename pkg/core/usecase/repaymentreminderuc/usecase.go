@@ -23,7 +23,6 @@ import (
 	reminderv1 "github.com/parstis/bnpl-backend/pkg/core/policy/repaymentreminder/v1"
 	"github.com/parstis/bnpl-backend/pkg/core/policy/shortlinkdestination"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
-	"github.com/parstis/bnpl-backend/pkg/core/trace"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/shortlinkuc"
 )
 
@@ -35,26 +34,25 @@ type DefaultNoticeEvaluator interface {
 }
 
 type UseCase struct {
-	defaultNotice             DefaultNoticeEvaluator
-	pool                      repo.Pool
-	installment               repo.Installment
-	contract                  repo.Contract
-	repaymentReminder         repo.RepaymentReminder
-	paymentAttempt            repo.PaymentAttempt
-	decision                  repo.Decision
-	checkoutPolicies          *checkout.Registry
-	outbox                    repo.Outbox
-	shortLink                 *shortlinkuc.UseCase
-	clock                     clock.Clock
-	idGenerator               identifier.Generator
-	businessMetrics           metrics.BusinessMetrics
-	policy                    reminderv1.Policy
-	notificationTopic         string
-	publicHost                string
-	repaymentDestination      string
-	batchSize                 int
-	notificationSchemaVersion int
-	maxReminderLeadDays       uint
+	defaultNotice        DefaultNoticeEvaluator
+	pool                 repo.Pool
+	installment          repo.Installment
+	contract             repo.Contract
+	repaymentReminder    repo.RepaymentReminder
+	paymentAttempt       repo.PaymentAttempt
+	decision             repo.Decision
+	checkoutPolicies     *checkout.Registry
+	outbox               repo.Outbox
+	shortLink            *shortlinkuc.UseCase
+	clock                clock.Clock
+	idGenerator          identifier.Generator
+	businessMetrics      metrics.BusinessMetrics
+	policy               reminderv1.Policy
+	notificationTopic    string
+	publicHost           string
+	repaymentDestination string
+	batchSize            int
+	maxReminderLeadDays  uint
 }
 
 // New constructs a repayment reminder use case.
@@ -75,7 +73,6 @@ func New(
 	publicHost string,
 	repaymentDestination string,
 	batchSize int,
-	notificationSchemaVersion int,
 ) (*UseCase, error) {
 	const op = "repaymentreminderuc.New"
 
@@ -138,15 +135,6 @@ func New(
 		return nil, fmt.Errorf("%s: batch size must be positive", op)
 	}
 
-	if notificationSchemaVersion == 0 {
-		notificationSchemaVersion = notificationsms.SchemaVersionV1
-	}
-
-	if notificationSchemaVersion != notificationsms.SchemaVersionV1 &&
-		notificationSchemaVersion != notificationsms.SchemaVersionV2 {
-		return nil, fmt.Errorf("%s: notification schema version must be 1 or 2", op)
-	}
-
 	if err := reminderv1.ValidateTerms(); err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
@@ -157,25 +145,24 @@ func New(
 	}
 
 	return &UseCase{
-		pool:                      pool,
-		installment:               installment,
-		contract:                  contract,
-		repaymentReminder:         repaymentReminder,
-		paymentAttempt:            paymentAttempt,
-		decision:                  decision,
-		checkoutPolicies:          checkoutPolicies,
-		outbox:                    outbox,
-		shortLink:                 shortLink,
-		clock:                     clk,
-		idGenerator:               idGenerator,
-		businessMetrics:           businessMetrics,
-		policy:                    reminderv1.New(),
-		notificationTopic:         strings.TrimSpace(notificationTopic),
-		publicHost:                strings.TrimSpace(strings.TrimSuffix(publicHost, "/")),
-		repaymentDestination:      strings.TrimSpace(repaymentDestination),
-		batchSize:                 batchSize,
-		notificationSchemaVersion: notificationSchemaVersion,
-		maxReminderLeadDays:       maxLead,
+		pool:                 pool,
+		installment:          installment,
+		contract:             contract,
+		repaymentReminder:    repaymentReminder,
+		paymentAttempt:       paymentAttempt,
+		decision:             decision,
+		checkoutPolicies:     checkoutPolicies,
+		outbox:               outbox,
+		shortLink:            shortLink,
+		clock:                clk,
+		idGenerator:          idGenerator,
+		businessMetrics:      businessMetrics,
+		policy:               reminderv1.New(),
+		notificationTopic:    strings.TrimSpace(notificationTopic),
+		publicHost:           strings.TrimSpace(strings.TrimSuffix(publicHost, "/")),
+		repaymentDestination: strings.TrimSpace(repaymentDestination),
+		batchSize:            batchSize,
+		maxReminderLeadDays:  maxLead,
 	}, nil
 }
 
@@ -816,10 +803,9 @@ func (uc *UseCase) persistNotification(
 
 // buildNotificationPayload constructs the durable Kafka JSON payload once at
 // persist time. Outbox retries must republish these exact bytes; do not rebuild
-// source_event_id, correlation_id, idempotency_key, or expires_at in the
-// publisher.
+// source_event_id, idempotency_key, or expires_at in the publisher.
 func (uc *UseCase) buildNotificationPayload(
-	ctx context.Context,
+	_ context.Context,
 	eventID string,
 	idempotencyKey string,
 	externalCustomerID model.ExternalCustomerID,
@@ -829,64 +815,33 @@ func (uc *UseCase) buildNotificationPayload(
 ) (eventType string, payload []byte, err error) {
 	const op = "repaymentreminderuc.UseCase.buildNotificationPayload"
 
-	switch uc.notificationSchemaVersion {
-	case notificationsms.SchemaVersionV2:
-		correlationID := strings.TrimSpace(trace.CorrelationID(ctx))
-		if _, parseErr := uuid.Parse(correlationID); parseErr != nil {
-			correlationID = uc.idGenerator.Generate()
-		}
-
-		// Ordinary and default notices share next-business-day-start expiry.
-		// Default catch-up after 13:00 still ends at the next local midnight;
-		// tightening that window would change collections catch-up semantics.
-		expiresAt := notificationsms.DeliveryDeadlineForBusinessDate(decision.BusinessDate)
-		if !expiresAt.After(nowUTC) {
-			return "", nil, fmt.Errorf("%s: expires_at must be in the future", op)
-		}
-
-		event := notificationsms.NewEventV2(notificationsms.EventV2Input{
-			SourceEventID:      eventID,
-			IdempotencyKey:     idempotencyKey,
-			CorrelationID:      correlationID,
-			NotificationType:   decision.TemplateID,
-			ExternalCustomerID: externalCustomerID.String(),
-			InstallmentID:      decision.InstallmentID.String(),
-			PaymentURL:         paymentURL,
-			ExpiresAt:          expiresAt,
-		})
-		if validateErr := notificationsms.ValidateEventV2(event); validateErr != nil {
-			return "", nil, fmt.Errorf("%s: validate notification event v2: %w", op, validateErr)
-		}
-
-		payload, marshalErr := json.Marshal(event)
-		if marshalErr != nil {
-			return "", nil, fmt.Errorf("%s: marshal notification event v2: %w", op, marshalErr)
-		}
-
-		return notificationsms.EventTypeV2, payload, nil
-
-	default:
-		event := notificationsms.NewEvent(
-			eventID,
-			idempotencyKey,
-			nowUTC,
-			externalCustomerID.String(),
-			decision.TemplateID,
-			map[string]string{
-				"payment_url": paymentURL,
-			},
-		)
-		if validateErr := notificationsms.ValidateEvent(event); validateErr != nil {
-			return "", nil, fmt.Errorf("%s: validate notification event: %w", op, validateErr)
-		}
-
-		payload, marshalErr := json.Marshal(event)
-		if marshalErr != nil {
-			return "", nil, fmt.Errorf("%s: marshal notification event: %w", op, marshalErr)
-		}
-
-		return notificationsms.EventType, payload, nil
+	// Ordinary and default notices share next-business-day-start expiry.
+	// Default catch-up after 13:00 still ends at the next local midnight;
+	// tightening that window would change collections catch-up semantics.
+	expiresAt := notificationsms.DeliveryDeadlineForBusinessDate(decision.BusinessDate)
+	if !expiresAt.After(nowUTC) {
+		return "", nil, fmt.Errorf("%s: expires_at must be in the future", op)
 	}
+
+	event := notificationsms.NewCommand(notificationsms.CommandInput{
+		SourceEventID:      eventID,
+		IdempotencyKey:     idempotencyKey,
+		NotificationType:   decision.TemplateID,
+		ExternalCustomerID: externalCustomerID.String(),
+		InstallmentID:      decision.InstallmentID.String(),
+		PaymentURL:         paymentURL,
+		ExpiresAt:          expiresAt,
+	})
+	if validateErr := notificationsms.ValidateCommand(event); validateErr != nil {
+		return "", nil, fmt.Errorf("%s: validate notification command: %w", op, validateErr)
+	}
+
+	payload, marshalErr := json.Marshal(event)
+	if marshalErr != nil {
+		return "", nil, fmt.Errorf("%s: marshal notification command: %w", op, marshalErr)
+	}
+
+	return notificationsms.EventTypeCommand, payload, nil
 }
 
 func (uc *UseCase) reminderLeadDaysByDecision(
@@ -926,13 +881,14 @@ func (uc *UseCase) reminderLeadDaysByDecision(
 	return out, nil
 }
 
-// displayShortURL builds the scheme-less public short-link URL shown in SMS
-// text. The resolver serves short codes under /s, so that prefix is part of the
-// public URL contract shared with the shortlinkrs route registration.
+// displayShortURL builds the absolute https short-link URL shown in SMS text.
+// Notification requires a full https payment_url. The resolver serves short
+// codes under /s, shared with the shortlinkrs Host-scoped route registration.
 func displayShortURL(publicHost, code string) string {
 	host := strings.TrimSpace(strings.TrimSuffix(publicHost, "/"))
+	host = strings.TrimPrefix(strings.TrimPrefix(host, "https://"), "http://")
 	code = strings.TrimSpace(strings.TrimPrefix(code, "/"))
-	return host + shortlinkuc.PublicPathPrefix + "/" + code
+	return "https://" + host + shortlinkuc.PublicPathPrefix + "/" + code
 }
 
 func parseReminderID(raw string) (model.RepaymentReminderID, error) {
