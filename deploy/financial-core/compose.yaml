@@ -58,7 +58,7 @@ services:
     restart: unless-stopped
     environment:
       <<: *financial-core-env
-      APP_MODE: api
+      APP_MODE: api /home/masoud-dev/Documents/projects/golang/bnpl-backend/doc/integration
     read_only: true
     tmpfs: *platform-tmpfs
     volumes:

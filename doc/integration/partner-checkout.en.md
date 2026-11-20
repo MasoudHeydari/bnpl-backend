@@ -2,7 +2,7 @@
 
 > **Audience:** Partner backend, frontend, QA and operations teams (Damz, Digikala and every other merchant).  
 > **Language:** English · [فارسی](partner-checkout.md)  
-> **Wire update (2026-11-10):** Partner Create `online_store_id` → `external_online_store_id`; checkout webhook `merchant_id` → `external_merchant_id`. Frontend delta: [changelog](../frontend/bnpl-frontend-external-ids-changelog.en.md).  
+> **Wire update (2026-11-20):** Dual credit products + Partner `PUT .../credit-kind` with `expected_evaluation_generation`. Create returns `credit_kinds[]` preview and does **not** prepare offers. External-ID rename delta remains: [changelog](../frontend/bnpl-frontend-external-ids-changelog.en.md).  
 > **API base path:** `/api/v1`. Ask BNPL for actual Sandbox/Production origins, terminal credentials and Hosted Checkout URL.  
 > **Related BNPL-owned UI guide:** [Frontend (EN)](../frontend/bnpl-frontend.en.md) / [فارسی](../frontend/bnpl-frontend.fa.md).
 
@@ -11,10 +11,11 @@ This is the **single partner integration contract**. Merchant origin ("internal"
 ## 1. Principles and responsibilities
 
 1. **Merchant backend** makes `/api/v1/partner/**` calls with `X-Terminal-Id` and `X-API-Key`. It never exposes either secret or the merchant's webhook signing secret in JavaScript/browser code.
-2. **Merchant frontend** navigates the user to the exact opaque `checkout_url` returned by BNPL; it must not construct an alternative URL.
-3. **BNPL Hosted Checkout frontend** calls its own public-token routes `/api/v1/checkout-sessions/{token}/**`, uses SMS OTP for confirmation, and interacts with the payment provider only through redirect.
-4. **Merchant backend** verifies completion via authenticated Partner Inquiry `status=completed` or a **cryptographically verified** `bnpl.checkout.completed.v1` webhook. Neither browser return nor PSP redirects prove payment.
-5. Applying an order fulfillment transition on the merchant side must be **idempotent**.
+2. **Merchant storefront** presents BNPL `credit_kinds[]` eligibility and collects the customer's product choice; the **merchant backend** records it with Partner `PUT .../credit-kind` before redirect.
+3. **Merchant frontend** navigates the user to the exact opaque `checkout_url` returned by BNPL; it must not construct an alternative URL or choose the credit product inside Hosted Checkout.
+4. **BNPL Hosted Checkout frontend** calls public-token routes `/api/v1/checkout-sessions/{token}/**`, uses SMS OTP for confirmation, and interacts with the payment provider only through redirect. It cannot override Partner-selected `credit_kind`.
+5. **Merchant backend** verifies completion via authenticated Partner Inquiry `status=completed` or a **cryptographically verified** `bnpl.checkout.completed.v1` webhook. Neither browser return nor PSP redirects prove payment.
+6. Applying an order fulfillment transition on the merchant side must be **idempotent**.
 
 The existing code's `InternalCheckoutSessionOrigin` is an internal domain distinction, **not** a second Partner HTTP integration. The current Partner Create uses the common external-partner hosted session origin.
 
@@ -24,15 +25,21 @@ The existing code's `InternalCheckoutSessionOrigin` is an internal domain distin
 Merchant Backend -- X-Terminal-Id / X-API-Key --> BNPL /api/v1/partner/
           |
           +-- POST /partner/checkout-sessions
-          |    <-- checkout_session_id (public cs_ token), checkout_url, expires_at
-          |        [optional offer on branch mode on_create]
+          |    <-- cs_ token, checkout_url, evaluation_generation, credit_kinds[] preview
+          |        (Create does NOT select a product and does NOT prepare offers)
+          |
+Merchant storefront -- show eligible credit_kinds --> customer chooses product
+          |
+          +-- PUT /partner/checkout-sessions/{id}/credit-kind
+          |    body: {credit_kind, expected_evaluation_generation}
+          |    <-- selected kind; offer only if branch mode on_create
           |
 Merchant Frontend -- navigate to checkout_url --> BNPL Hosted Checkout
                                                    |
                                                    | GET  /checkout-sessions/{token}
-                                                   | POST .../start   (prepare/read offer)
-                                                   | POST .../otp     (request SMS)
-                                                   | POST .../confirm (OTP + confirm/pay)
+                                                   | POST .../start   (prepare/read offer for Partner-selected kind)
+                                                   | POST .../otp
+                                                   | POST .../confirm
                                                    | GET  .../confirmation-status
                                                    | GET  .../return  (UX only)
                                                    |
@@ -69,7 +76,7 @@ Terminal permissions are assigned server-side when provisioning and checked on e
 
 | Persisted terminal permission | Operations |
 | --- | --- |
-| `bnpl:checkout-sessions:create:merchant` | Create and Cancel sessions |
+| `bnpl:checkout-sessions:create:merchant` | Create, Select credit kind (`PUT .../credit-kind`), and Cancel sessions |
 | `bnpl:checkout-sessions:read:merchant` | Partner Inquiry |
 | `bnpl:checkout-return-destinations:manage:merchant` | Return Destination configuration |
 | `bnpl:checkout-webhooks:manage:merchant` | Webhook Destination configuration |
@@ -139,12 +146,13 @@ Every Partner Create refers to a registered `external_online_store_id` belonging
 | Method | Path | Terminal permission |
 | --- | --- | --- |
 | `POST` | `/api/v1/partner/checkout-sessions` | `bnpl:checkout-sessions:create:merchant` |
+| `PUT` | `/api/v1/partner/checkout-sessions/{checkout_session_id}/credit-kind` | `bnpl:checkout-sessions:create:merchant` |
 | `GET` | `/api/v1/partner/checkout-sessions/{checkout_session_id}` | `bnpl:checkout-sessions:read:merchant` |
 | `POST` | `/api/v1/partner/checkout-sessions/{checkout_session_id}/cancel` | `bnpl:checkout-sessions:create:merchant` |
 | `PUT` | `/api/v1/partner/return-destinations/{destination_name}` | `bnpl:checkout-return-destinations:manage:merchant` |
 | `PUT` | `/api/v1/partner/webhook-destination` | `bnpl:checkout-webhooks:manage:merchant` |
 
-These are the **only** public Partner checkout integration endpoints in this route family. Browser-only token endpoints are listed in section 7.
+These are the **only** public Partner checkout integration endpoints in this route family. Browser-only token endpoints are listed in section 8. Admin merchant credit-kind configuration uses authenticated admin routes (section 5.7), **not** terminal credentials.
 
 ## 5. Create a Checkout Session
 
@@ -175,13 +183,15 @@ X-API-Key: ...
 | `merchant_order_id` | Required merchant order reference; max 256 characters |
 | `idempotency_key` | Optional; max 256; defaults to `merchant_order_id` when omitted. Recommend supplying it explicitly |
 | `customer_reference` | Optional, max 256; merchant-only correlation, **not** customer identity |
-| `customer_phone` | Required, max 32; canonicalized/validated for merchant jurisdiction; Iranian example `09…` / `+989…` |
+| `customer_phone` | Required, max 32; canonicalized/validated for merchant jurisdiction |
 | `return_destination` | Required pre-registered, enabled symbolic destination name |
 | `merchant_state` | Optional, max 256; non-sensitive opaque merchant correlation |
-| `requested_amount_minor` | Required positive integer, at most MaxInt64, in the currency's minor units |
-| `currency` | Required wire enum `IRR` / `EUR` / `USD`; merchant/branch/policy eligibility can restrict it |
+| `requested_amount_minor` | Required positive integer in minor units |
+| `currency` | Required wire enum `IRR` / `EUR` / `USD` |
 
-Do not send `external_merchant_id`, `external_branch_id`, `identity_subject_id`, `offer_preparation_mode`, `webhook_url`, or an arbitrary return URL. Convert toman to **IRR** before request if your own system stores toman; check integer overflow.
+**Create does not accept or select `credit_kind`.** Product selection is a separate Partner PUT after the merchant UI presents `credit_kinds[]`.
+
+Do not send `external_merchant_id`, `external_branch_id`, `identity_subject_id`, `offer_preparation_mode`, `webhook_url`, or an arbitrary return URL.
 
 **HTTP:** `201` new checkout; `200` idempotent replay.
 
@@ -191,52 +201,140 @@ Do not send `external_merchant_id`, `external_branch_id`, `identity_subject_id`,
     "checkout_session_id": "cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     "status": "open",
     "checkout_url": "https://checkout.example/checkout/cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-    "expires_at": "2026-11-04T13:00:00Z"
+    "evaluation_generation": 1,
+    "expires_at": "2026-11-04T13:00:00Z",
+    "credit_kinds": [
+      {
+        "kind": "pay_in_installments",
+        "available": true,
+        "repayment_plan": "pay_in_3",
+        "installment_count": 3
+      },
+      {
+        "kind": "pay_next_month",
+        "available": false,
+        "reason": {
+          "code": "INSUFFICIENT_AVAILABLE_CREDIT",
+          "message": "Insufficient available credit for this purchase."
+        },
+        "installment_count": 1
+      }
+    ]
   },
   "meta": {
     "status": "success",
     "code": "CHECKOUT_SESSION_CREATED",
-    "message": "Checkout session created.",
-    "status_code": 201,
-    "timestamp": "2026-11-04T12:30:00Z",
-    "trace_id": "a1b2c3d4-e5f6-4890-abcd-ef1234567890",
-    "request_id": "b2c3d4e5-f6a7-4901-bcde-f12345678901"
+    "status_code": 201
   }
 }
 ~~~
 
-This is a **wire-shape example**; actual timestamps, token, localized text and optional `offer` vary. `checkout_url` is opaque: hand it to the browser unmodified. `checkout_session_id` is the public `cs_` token used by Inquiry, Cancel, Return and lifecycle webhooks; it is **not** an internal UUID.
+### `credit_kinds[]` preview (privacy-safe)
 
-## 6. The only meaningful integration-mode difference: `on_create` / `on_start`
+Each entry:
 
-Both Damz and Digikala can use either mode depending on their **branch** configuration. It is **not** an internal/external merchant type.
+| Field | Meaning |
+| --- | --- |
+| `kind` | `pay_in_installments` or `pay_next_month` |
+| `available` | Whether the merchant UI should enable that choice for **this** amount/customer |
+| `reason.code` / `reason.message` | Present when unavailable (localized message) |
+| `repayment_plan` | Optional; only for installment kind (`pay_in_3` / `pay_in_4`) |
+| `installment_count` | Optional policy length (1 for monthly) |
 
-| Behavior | `on_create` | `on_start` (default) |
+Common reason codes (exact runtime values): `MERCHANT_CREDIT_KIND_DISABLED`, `CUSTOMER_NOT_RESOLVED`, `MERCHANT_BRANCH_NOT_ACTIVE`, `CREDIT_NOT_ASSIGNED`, `CREDIT_ACCOUNT_UNUSABLE`, `INSUFFICIENT_AVAILABLE_CREDIT`, `NEW_CREDIT_USAGE_RESTRICTED`, `MONTHLY_PREVIOUS_CYCLE_UNPAID`, `CUSTOMER_NOT_ACTIVE`, `CHECKOUT_UPFRONT_PAYMENT_UNAVAILABLE`. (`reason.message` is localized for display.)
+
+**Privacy:** the preview does **not** expose account-level monetary fields (`available_credit_minor`, limits, customer IDs). Disable unavailable choices in the merchant UI; do not invent balances.
+
+`evaluation_generation` starts at **1**. Echo it on the first SelectCreditKind PUT. Create itself **never prepares financing offers** — `data.offer` is absent on Create.
+
+`checkout_url` is opaque. `checkout_session_id` is the public `cs_` token (not an internal UUID).
+
+## 5.5 Select credit kind (required before Hosted START)
+
+~~~http
+PUT /api/v1/partner/checkout-sessions/{checkout_session_id}/credit-kind
+Content-Type: application/json
+X-Terminal-Id: ...
+X-API-Key: ...
+~~~
+
+**Method is PUT (not POST).** Permission: `bnpl:checkout-sessions:create:merchant`.
+
+~~~json
+{
+  "credit_kind": "pay_next_month",
+  "expected_evaluation_generation": 1
+}
+~~~
+
+| Field | Contract |
+| --- | --- |
+| `credit_kind` | Required; `pay_in_installments` or `pay_next_month` |
+| `expected_evaluation_generation` | Required on **every** selection, including the first; must be ≥ 1. Echo Create (or previous Select) `evaluation_generation` |
+
+Success `200`:
+
+~~~json
+{
+  "data": {
+    "checkout_session_id": "cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "status": "open",
+    "credit_kind": "pay_next_month",
+    "evaluation_generation": 1,
+    "expires_at": "2026-11-04T13:00:00Z",
+    "offer": null
+  }
+}
+~~~
+
+`offer` is present only when the branch `offer_preparation_mode` is `on_create` **and** preparation succeeds after selection. Under `on_start`, offer remains deferred until Hosted START.
+
+### Selection behavior
+
+| Case | Behavior |
+| --- | --- |
+| First selection | Records kind; generation is **not** bumped (stays at Create value, typically `1`) when fencing matches |
+| Same-kind retry (idempotent) | Returns current state **without** advancing generation; **even if** `expected_evaluation_generation` is stale — delayed retries of a successful PUT must not fail after commit |
+| Different kind on editable `open` session | Clears Decision linkage, advances `evaluation_generation` exactly once, invalidates prior prepared offer for this session; prior Decisions remain immutable history |
+| Stale generation on a **kind change** | Conflict / stale-selection error — re-GET or re-read last Select response and retry |
+| Merchant kind disabled | Validation error (`credit_kind` not enabled) |
+| Session expired / not `open` / confirmation in progress / contract already linked | Not continuable / expired errors — do not force Hosted START |
+
+Race/retry scenario: two parallel PUTs with the same kind and generation — both may succeed as same-kind replays without double-increment. A parallel PUT with a **different** kind after the first committed change must send the **new** generation.
+
+After selection, the merchant frontend navigates to the existing `checkout_url`. Hosted Checkout must not re-choose the product.
+
+## 6. Offer preparation modes after dual-credit selection: `on_create` / `on_start`
+
+Both modes are **branch** configuration. Product selection always happens via Partner PUT **before** Hosted START.
+
+| Behavior | `on_create` | `on_start` (typical default) |
 | --- | --- | --- |
-| Partner Create | Resolve customer phone through Customer Reference Service and prepare Decision/Offer | Create session/handoff; defer Offer preparation |
-| Customer cannot be resolved / is ineligible | Could transition to `unavailable` during Create | Could transition to `unavailable` during first START |
-| `data.offer` at Partner Create | **May be present** | **Absent** |
-| Hosted GET before START | Can show prepared Offer | May have no Offer yet |
-| Hosted START | Revalidate/read prepared Offer | Prepare Offer and return evaluation generation |
-| SMS OTP | Separate `POST .../otp` only | Same |
-| Confirmation | Shared Hosted Confirm/OTP workflow | Same |
+| Partner Create | Session + `credit_kinds[]` preview only; **no** Offer | Same |
+| Partner SelectCreditKind | May prepare Decision/Offer for the selected kind | Records kind only; defers Offer |
+| Hosted GET before START | May show prepared Offer when Select already ran under `on_create` | May have kind set but no Offer yet |
+| Hosted START | Revalidate/read Offer for Partner-selected kind | Prepare Offer for Partner-selected kind |
+| Hosted START without prior Select | Fails — credit kind required | Same |
+| SMS OTP / Confirm | Shared Hosted workflow | Same |
 
-### What an optional Partner `offer` contains
+### What an optional Partner `offer` contains (after Select, `on_create`)
 
-For `on_create`, current backend DTOs may return `data.offer`. For approved offers:
+For approved offers: financing amounts, schedule (`installment_count`, installments), optional `credit_kind` / `repayment_plan`, `checkout_action`. Denied offers expose `outcome` without a usable schedule. Treat Offer as a financing proposal, **not** fulfillment evidence.
 
-- `outcome=approved`, `requested_amount_minor`, `approved_financed_amount_minor`, `required_down_payment_amount_minor` and `currency`.
-- `available_credit_minor`, `offer_expires_at`, `installment_count`, `payable_now_amount_minor`, `total_payable_amount_minor`.
-- `installments[]` with `installment_order`, `due_at` and `total_amount_minor`.
-- `checkout_action` with `type`, `payment_required` and `payment_amount_minor`.
+**Data minimization on Hosted public token:** Hosted GET/START never expose `available_credit_minor` or full customer identity. Partner Select/`on_create` responses are merchant-backend confidential.
 
-For `denied` only `outcome` is included. `unavailable` status can occur instead of a usable Offer. **Data minimization:** `available_credit_minor` can currently be returned to the *merchant backend* in this mode; treat it as confidential and do not log or display it indiscriminately. The Hosted public-token response deliberately excludes account-level credit values.
+## 5.7 Admin merchant credit-kind configuration (not Partner Terminal)
 
-An Offer is a financing proposal, **not** financial success or order fulfillment evidence.
+Authenticated admin APIs (gateway identity + admin permissions):
+
+- `GET /api/v1/admin/merchants/{merchant_profile_id}/credit-kinds`
+- `PUT /api/v1/admin/merchants/{merchant_profile_id}/credit-kinds/{credit_kind}` with `{"enabled":true|false}`
+
+Defaults: installment kind enabled unless disabled; `pay_next_month` disabled until explicitly enabled. Partner Terminal credentials must **not** call these routes. Ops/admin tooling owns merchant product enablement; Partner checkout only consumes the resulting eligibility.
 
 ## 7. BNPL-owned Hosted Checkout flow — for coordination only
 
-Merchant **backend** must **not** call these methods. The merchant **frontend** navigates to `checkout_url`; BNPL-owned Hosted UI calls:
+Merchant **backend** must **not** call these methods (except Partner Create / Select / Inquiry / Cancel). The merchant **storefront** selects the credit product via Partner PUT, then navigates to `checkout_url`. BNPL-owned Hosted UI calls:
 
 | Method | Path | Behavior |
 | --- | --- | --- |
@@ -248,8 +346,8 @@ Merchant **backend** must **not** call these methods. The merchant **frontend** 
 | `GET` | `/api/v1/checkout-sessions/{token}/return` | Browser `302` to registered merchant destination; UX only |
 | `POST` | `/api/v1/checkout-sessions/{token}/cancel` | Customer token cancellation if state permits |
 
-1. GET returns `status`, `merchant.display_name`, `amount_minor`, `currency`, `evaluation_generation`, optional `offer`, `verification.type=sms_otp`, masked `verification.destination` and `expires_at`. GET never issues OTP or calls FC.
-2. START accepts optional `{"evaluation_generation":N}`. For an unprepared offer, empty body/`{}` is allowed. It prepares or reuses an Offer and returns the current generation. **It does not send OTP.**
+1. GET returns `status`, `merchant.display_name`, `amount_minor`, `currency`, `evaluation_generation`, optional Partner-selected `credit_kind`, `supported_credit_kinds[]` (merchant-enabled kinds ≠ customer eligibility), optional privacy-safe `offer`, masked OTP destination and `expires_at`. GET never issues OTP, creates Decisions, or calls FC. Hosted GET cannot change credit kind.
+2. START requires Partner SelectCreditKind to have completed. It accepts optional `{"evaluation_generation":N}`, prepares/reuses an Offer for the **Partner-selected** kind, and **cannot override** that kind. **It does not send OTP.**
 3. OTP requires `{"evaluation_generation":N}`, returns `otp_sent`, `otp_expires_at?`, `otp_next_issue_at?` and `otp_availability?`. Current valid challenges can be replayed without another SMS. Respect cooldown/lockouts.
 4. CONFIRM requires `{"evaluation_generation":N,"otp":"123456"}`. A changed or stale Offer may return `reconfirm_required=true` and a new generation. The user must see/reaccept refreshed terms and obtain a new OTP.
 5. `payment_required=true` with a `redirect_url` indicates further customer payment navigation, **not payment success**. `confirming`/`processing` are pending states, not safe fulfillment.
@@ -428,7 +526,10 @@ Errors are **not** nested inside `data/meta`:
 | --- | --- |
 | Same Create body + idempotency key twice | `201` then `200`; same checkout token |
 | Same key but changed amount / store / phone | Conflict, no second checkout |
-| Branch `on_create` vs `on_start` | Create may have Offer only in `on_create`; START prepares it in deferred mode |
+| Branch `on_create` vs `on_start` | Create never prepares Offer; Select may prepare under `on_create`; START prepares under `on_start` |
+| Missing SelectCreditKind before START | Hosted START fails; merchant must PUT credit-kind first |
+| Same-kind Select retry with stale generation | Succeeds without advancing generation |
+| Kind change with stale generation | Conflict; refresh generation and retry |
 | Hosted GET | No OTP or Decision creation |
 | Hosted START | Offer only; **no SMS** |
 | Hosted OTP replay during valid challenge | Controlled/idempotent; no unlimited SMS |
@@ -491,7 +592,9 @@ After return it requests the result from its own backend, not from a guessed sta
 - [ ] `external_online_store_id`, Return Destination and Webhook Destination provisioned.
 - [ ] Customer phone comes from the actual order; `customer_reference` is not treated as identity.
 - [ ] `on_create` and `on_start` are both supported without merchant-name conditionals.
-- [ ] Order ID, stable create idempotency key, checkout token, amount and currency are durably stored.
+- [ ] Merchant UI presents `credit_kinds[]`, disables unavailable options, and PUTs selected kind with `expected_evaluation_generation`.
+- [ ] Hosted redirect happens only after successful SelectCreditKind.
+- [ ] Order ID, create idempotency key, checkout token, evaluation generation, selected kind, amount and currency are durably stored.
 - [ ] Only verified `completed` Inquiry or signed completed webhook can fulfill an order.
 - [ ] Webhook HMAC verified against raw body, timestamp checked, event ID deduplicated.
 - [ ] Missing or delayed webhook falls back to Inquiry; duplicate messages do not double-fulfill.
@@ -518,8 +621,10 @@ Backend code reference map:
 | Auth groups, routes | `pkg/adapter/restful/gin/routes/register.go`; `checkoutsessionrs/resource.go` |
 | Partner terminal authentication and permissions | `middleware/partner_terminal_auth.go`; `merchantterminaluc/authenticate.go`; `merchantterminal/permissions.go` |
 | Terminal lifecycle | `merchantterminalrs/resource.go`; `merchantterminaluc/provision.go` |
-| Create DTO / status / Offer | `checkoutsessionrs/create_partner.go`; `checkoutsessionrs/serdser.go`; `checkoutsessionrs/swagger_schema.go` |
-| Offer timing and phone resolution | `checkoutsessionuc/create_partner.go`; `checkoutsessionuc/external_prepare.go`; `model/merchant_branch_profile.go` |
+| Create + credit_kinds preview | `checkoutsessionrs/create_partner.go`; `checkoutsessionrs/serdser.go`; `checkoutsessionuc/credit_kinds_preview.go` |
+| Select credit kind (PUT) | `checkoutsessionrs/select_credit_kind.go`; `checkoutsessionuc/partner_select_credit_kind.go` |
+| Offer timing after selection | `checkoutsessionuc/partner_select_credit_kind.go`; `checkoutsessionuc/external_prepare.go`; `model/merchant_branch_profile.go` |
+| Admin merchant credit-kinds | `merchantrs/list_credit_kinds.go`; `merchantrs/set_credit_kind.go` |
 | Hosted GET/START/OTP/CONFIRM | `checkoutsessionrs/hosted_external.go`; `checkoutsessionrs/request_otp.go`; `checkoutsessionuc/external_start.go` |
 | Inquiry / cancellation | `checkoutsessionuc/get_partner_status.go`; `checkoutsessionrs/cancel.go` |
 | Webhook event and HMAC | `core/event/checkoutlifecycle/event.go`; `checkoutsessionuc/lifecycle_outbox.go`; `merchantwebhook/http/signature.go`; `merchantwebhook/http/dispatcher.go` |

@@ -2,7 +2,7 @@
 
 **زبان:** فارسی · [English](partner-checkout.en.md)  
 **راهنمای Frontend خود BNPL:** [فارسی](../frontend/bnpl-frontend.fa.md) / [English](../frontend/bnpl-frontend.en.md)  
-**تغییر wire شناسه‌های بیرونی (۲۰۲۶-۱۱-۱۰):** فیلد Create از `online_store_id` به `external_online_store_id` و Webhook از `merchant_id` به `external_merchant_id`؛ خلاصه برای Frontend: [changelog](../frontend/bnpl-frontend-external-ids-changelog.fa.md).
+> **به‌روزرسانی قرارداد (۲۰ نوامبر ۲۰۲۶):** دو محصول اعتباری + Partner `PUT .../credit-kind` با `expected_evaluation_generation`. Create فقط `credit_kinds[]` می‌دهد و Offer نمی‌سازد. changelog شناسه: [changelog](../frontend/bnpl-frontend-external-ids-changelog.fa.md).
 
 **مخاطب:** تیم Backend، Frontend، QA و عملیات همهٔ Merchantها؛ از جمله Damz، دیجی‌کالا و سایر فروشگاه‌ها.  
 **وضعیت:** قرارداد اجرایی فعلی.  
@@ -15,35 +15,36 @@
 
 آنچه میان فروشگاه‌ها فرق می‌کند **تنظیمات سروری Merchant/Branch و مجوزهای ترمینال** است؛ نه تشخیص داخلی یا خارجی بودن نام فروشگاه. تفاوت مهم `merchant_branch_profiles.offer_preparation_mode` در بخش ۶ توضیح داده شده است.
 
-### چهار قانون غیرقابل چشم‌پوشی
+### اصول مسئولیت‌ها
 
-1. Merchant Backend فقط Partner API را صدا می‌زند؛ APIهای دارای `/checkout-sessions/{token}` متعلق به **Frontend میزبانی‌شدهٔ BNPL** هستند.
-2. Merchant باید `checkout_url` دریافتی را بدون بازسازی به مرورگر بدهد؛ `X-API-Key` هرگز وارد مرورگر نشود.
-3. Browser Return، redirect درگاه و query string آن **مدرک پرداخت موفق نیستند**.
-4. Merchant سفارش را فقط با **Inquiry دارای `status=completed`** یا **Webhook امضاشدهٔ `bnpl.checkout.completed.v1`**، پس از تطبیق شناسه/سفارش/مبلغ/ارز، نهایی کند. تغییر وضعیت سفارش در سامانهٔ Merchant باید Idempotent باشد.
+1. **Merchant Backend** فقط `/api/v1/partner/**` را با `X-Terminal-Id` و `X-API-Key` صدا می‌زند و هرگز این اسرار یا signing secret وب‌هوک را در Browser قرار نمی‌دهد.
+2. **فروشگاه Merchant** لیست `credit_kinds[]` را به مشتری نشان می‌دهد و انتخاب را از طریق Backend با `PUT .../credit-kind` ثبت می‌کند.
+3. **Frontend Merchant** کاربر را فقط به `checkout_url` شفاف/opaque برمی‌گرداند؛ محصول را داخل Hosted انتخاب نمی‌کند.
+4. **Hosted Checkout BNPL** مسیرهای توکن عمومی را اجرا می‌کند و نمی‌تواند `credit_kind` انتخاب‌شده توسط Partner را عوض کند.
+5. **تکمیل سفارش** فقط با Partner Inquiry به `status=completed` یا وب‌هوک امضاشدهٔ `bnpl.checkout.completed.v1` قطعی است؛ Redirect مرورگر یا PSP کافی نیست.
+6. اعمال fulfillment سمت Merchant باید **idempotent** باشد.
 
 ## ۲. نقشهٔ بازیگران و مسیرها
 
 ~~~text
-Merchant Backend -- (Terminal ID + API Key) --> BNPL /api/v1/partner/*
-       |
-       | POST /partner/checkout-sessions
-       +<-- checkout_session_id (public cs_ token), checkout_url, status, expires_at
-       |    [optional offer only when branch mode = on_create]
-       |
-Merchant Frontend -- redirect to checkout_url --> BNPL Hosted Checkout UI
-                                                  |
-                                                  | GET /checkout-sessions/{token}
-                                                  | POST .../start    (prepare/read offer)
-                                                  | POST .../otp      (request SMS)
-                                                  | POST .../confirm  (OTP + Confirm & Pay)
-                                                  | GET .../confirmation-status (read-only)
-                                                  | GET .../return   (UX redirect only)
-                                                  v
-                                 BNPL processes contract/payment internally
-                                                  |
-Merchant Backend <-- Signed webhook ----------------+
-Merchant Backend ---- Partner Inquiry -------------> BNPL
+Merchant Backend -- X-Terminal-Id / X-API-Key --> BNPL /api/v1/partner/
+          |
+          +-- POST /partner/checkout-sessions
+          |    <-- cs_ token, checkout_url, evaluation_generation, credit_kinds[]
+          |        (Create محصول را انتخاب و Offer را آماده نمی‌کند)
+          |
+فروشگاه Merchant -- نمایش credit_kinds[] --> مشتری محصول را انتخاب می‌کند
+          |
+          +-- PUT /partner/checkout-sessions/{id}/credit-kind
+          |    body: {credit_kind, expected_evaluation_generation}
+          |    <-- kind؛ Offer فقط اگر mode=on_create
+          |
+Merchant Frontend -- checkout_url --> BNPL Hosted Checkout
+                                       |
+                                       | GET/START/OTP/CONFIRM/...
+                                       |
+Merchant Backend <-- webhook امضاشده --+
+Merchant Backend -- GET Inquiry ------> BNPL
 ~~~
 
 | سطح | مسیر | احراز هویت | مصرف‌کننده |
@@ -149,6 +150,7 @@ Webhook URL مستقل از Return URL است؛ مقصد Webhook نباید مس
 | Method | Path | Permission |
 | --- | --- | --- |
 | `POST` | `/api/v1/partner/checkout-sessions` | `bnpl:checkout-sessions:create:merchant` |
+| `PUT` | `/api/v1/partner/checkout-sessions/{checkout_session_id}/credit-kind` | `bnpl:checkout-sessions:create:merchant` |
 | `GET` | `/api/v1/partner/checkout-sessions/{checkout_session_id}` | `bnpl:checkout-sessions:read:merchant` |
 | `POST` | `/api/v1/partner/checkout-sessions/{checkout_session_id}/cancel` | `bnpl:checkout-sessions:create:merchant` |
 | `PUT` | `/api/v1/partner/return-destinations/{destination_name}` | `bnpl:checkout-return-destinations:manage:merchant` |
@@ -175,97 +177,109 @@ X-Terminal-Id: ...
 X-API-Key: ...
 ~~~
 
-~~~json
-{
-  "external_online_store_id": "6e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c",
-  "merchant_order_id": "ORDER-1001",
-  "idempotency_key": "ORDER-1001-ATTEMPT-1",
-  "customer_reference": "CUSTOMER-12345",
-  "customer_phone": "+989121234567",
-  "return_destination": "default",
-  "merchant_state": "CART-1001",
-  "requested_amount_minor": 120000000,
-  "currency": "IRR"
-}
-~~~
+فیلدهای درخواست مانند قبل (`external_online_store_id`, `merchant_order_id`, `idempotency_key?`, `customer_phone`, `return_destination`, مبلغ، ارز، ...). **`credit_kind` در Create پذیرفته یا انتخاب نمی‌شود.**
 
-| Field | الزام و معنی |
-| --- | --- |
-| `external_online_store_id` | الزامی؛ UUID آنلاین‌استور متعلق به Merchant احرازشده |
-| `merchant_order_id` | الزامی، حداکثر ۲۵۶؛ شناسهٔ سفارش Merchant |
-| `idempotency_key` | اختیاری، حداکثر ۲۵۶؛ در صورت حذف، `merchant_order_id` استفاده می‌شود. پیشنهاد: همیشه صریح بفرستید |
-| `customer_reference` | اختیاری، حداکثر ۲۵۶؛ فقط Correlation فروشگاه، **نه شناسهٔ BNPL Customer** |
-| `customer_phone` | الزامی، حداکثر ۳۲؛ مطابق Jurisdiction Merchant اعتبارسنجی/Canonicalize و در DB رمز می‌شود؛ نمونهٔ ایران: `09…` یا `+989…` |
-| `return_destination` | الزامی؛ نام از پیش ثبت‌شده و فعال، نه URL |
-| `merchant_state` | اختیاری، حداکثر ۲۵۶؛ دادهٔ Opaque غیرحساس برای Browser Return/Webhook |
-| `requested_amount_minor` | عدد صحیح مثبت، حداکثر `MaxInt64`؛ مبلغ در واحد Minor ارز |
-| `currency` | الزامی؛ enum مدل: `IRR`، `EUR`، `USD`؛ پذیرش نهایی به Merchant/Branch/Policy بستگی دارد |
+HTTP: `201` جدید؛ `200` replay.
 
-`identity_subject_id`، `external_merchant_id`، `external_branch_id`، `offer_preparation_mode`، `webhook_url` و URL برگشت آزاد بخشی از بدنهٔ این API نیستند. برای پرداخت ریالی، مبلغ را با واحد **IRR** ارسال کنید؛ اگر سیستم Merchant تومان ذخیره می‌کند، تبدیل واحد را قبل از درخواست با کنترل Overflow انجام دهید.
-
-**HTTP:** برای ساخت جدید `201`، برای Replay همان عملیات `200`. پاسخ موفق در BNPL با Envelope `data` و `meta` می‌آید:
+پاسخ نمونه:
 
 ~~~json
 {
   "data": {
     "checkout_session_id": "cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     "status": "open",
-    "checkout_url": "https://checkout.example/checkout/cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-    "expires_at": "2026-11-04T13:00:00Z"
-  },
-  "meta": {
-    "status": "success",
-    "code": "CHECKOUT_SESSION_CREATED",
-    "message": "Checkout session created.",
-    "status_code": 201,
-    "timestamp": "2026-11-04T12:30:00Z",
-    "trace_id": "a1b2c3d4-e5f6-4890-abcd-ef1234567890",
-    "request_id": "b2c3d4e5-f6a7-4901-bcde-f12345678901"
+    "checkout_url": "https://checkout.example/checkout/cs_…",
+    "evaluation_generation": 1,
+    "expires_at": "2026-11-04T13:00:00Z",
+    "credit_kinds": [
+      {
+        "kind": "pay_in_installments",
+        "available": true,
+        "repayment_plan": "pay_in_3",
+        "installment_count": 3
+      },
+      {
+        "kind": "pay_next_month",
+        "available": false,
+        "reason": {
+          "code": "INSUFFICIENT_AVAILABLE_CREDIT",
+          "message": "Insufficient available credit for this purchase."
+        },
+        "installment_count": 1
+      }
+    ]
   }
 }
 ~~~
 
-نمونه‌ها فقط شکل قرارداد را نشان می‌دهند؛ زمان‌ها، توکن و پیامِ Localized واقعی ممکن است فرق داشته باشند. `checkout_url` را **Opaque** نگه دارید و بازسازی یا دستکاری نکنید. `checkout_session_id` همان توکن عمومی مسیر Inquiry/Cancel/Return/Webhook است، نه UUID داخلی.
+### پیش‌نمایش `credit_kinds[]` (حریم‌خصوصی)
 
-## ۶. تفاوت سروری `on_create` و `on_start`
+| فیلد | معنا |
+| --- | --- |
+| `kind` | `pay_in_installments` یا `pay_next_month` |
+| `available` | آیا UI باید این گزینه را برای این مبلغ/مشتری فعال کند |
+| `reason.code` / `reason.message` | علت غیرفعال بودن (پیام محلی‌سازی‌شده) |
+| `repayment_plan` | فقط برای اقساطی (`pay_in_3` / `pay_in_4`) |
+| `installment_count` | طول سیاست (۱ برای ماهانه) |
 
-**این دو Mode برای هر Merchant (Damz یا Digikala) ممکن‌اند؛ نوع Merchant نیستند.**
+کدهای رایج (مقادیر واقعی runtime): `MERCHANT_CREDIT_KIND_DISABLED`, `CUSTOMER_NOT_RESOLVED`, `MERCHANT_BRANCH_NOT_ACTIVE`, `CREDIT_NOT_ASSIGNED`, `CREDIT_ACCOUNT_UNUSABLE`, `INSUFFICIENT_AVAILABLE_CREDIT`, `NEW_CREDIT_USAGE_RESTRICTED`, `MONTHLY_PREVIOUS_CYCLE_UNPAID`, `CUSTOMER_NOT_ACTIVE`, `CHECKOUT_UPFRONT_PAYMENT_UNAVAILABLE`. (`reason.message` برای نمایش محلی‌سازی می‌شود.)
 
-| رفتار | `on_create` | `on_start` (پیش‌فرض) |
+پیش‌نمایش فیلدهای پولی سطح حساب (`available_credit_minor` و سقف) را افشا نمی‌کند. Create **هرگز Offer آماده نمی‌کند**؛ `offer` روی Create غایب است. `evaluation_generation` از ۱ شروع می‌شود.
+
+## ۵.۵ انتخاب credit kind (الزامی قبل از Hosted START)
+
+~~~http
+PUT /api/v1/partner/checkout-sessions/{checkout_session_id}/credit-kind
+Content-Type: application/json
+X-Terminal-Id: ...
+X-API-Key: ...
+
+{
+  "credit_kind": "pay_next_month",
+  "expected_evaluation_generation": 1
+}
+~~~
+
+**متد PUT است، نه POST.** Permission ساخت Session. `expected_evaluation_generation` حتی در اولین انتخاب اجباری است.
+
+رفتار:
+
+| حالت | نتیجه |
+| --- | --- |
+| اولین انتخاب | kind ثبت می‌شود؛ generation افزایش نمی‌یابد (معمولاً روی `1` می‌ماند) |
+| Retry همان kind | بدون افزایش generation؛ حتی اگر expected generation کهنه باشد |
+| تعویض kind روی session قابل‌ویرایش `open` | Decision فعلی قطع، generation دقیقاً یک‌بار جلو می‌رود، Offer قبلی باطل می‌شود |
+| تعویض kind با generation کهنه | Conflict/stale — generation تازه را بخوانید و دوباره بزنید |
+| kind غیرفعال merchant / session منقضی / confirming | خطا |
+
+پس از موفقیت، مرورگر را به همان `checkout_url` ببرید. Hosted محصول را دوباره انتخاب نمی‌کند. `offer` فقط وقتی mode شعبه `on_create` باشد ممکن است برگردد.
+
+## ۶. حالت‌های آماده‌سازی Offer بعد از dual-credit: `on_create` / `on_start`
+
+| رفتار | `on_create` | `on_start` |
 | --- | --- | --- |
-| Partner Create | پس از ساخت Session، موبایل از Customer Reference Service Resolve و Decision/Offer تهیه می‌شود | Session + handoff ساخته می‌شود؛ تهیهٔ Offer به START موکول می‌شود |
-| اگر مشتری در Customer Reference موجود/فعال نباشد | ممکن است در Create به `unavailable` برسد | ممکن است در اولین START به `unavailable` برسد |
-| `data.offer` در Partner Create | **می‌تواند وجود داشته باشد** | **وجود ندارد** |
-| Hosted GET پیش از START | در صورت تهیهٔ موفق Offer می‌تواند آن را نمایش دهد | ممکن است هنوز Offer آماده نباشد |
-| Hosted START | Offer قبلی را اعتبارسنجی/بازپخش می‌کند | Offer را آماده و نسخهٔ آن را برمی‌گرداند |
-| ارسال OTP | فقط `POST .../otp` | فقط `POST .../otp` |
-| تأیید خرید | همیشه OTP/Confirm طبق فلو یکسان | همان |
+| Partner Create | فقط Session + `credit_kinds[]` | همان |
+| Partner SelectCreditKind | ممکن است Offer همان kind را بسازد | فقط kind را ثبت می‌کند |
+| Hosted START | Offer انتخاب‌شده را بازخوانی/اعتبارسنجی می‌کند | Offer را برای kind انتخاب‌شده می‌سازد |
+| START بدون Select | شکست | شکست |
 
-### قرارداد واقعی `offer` در Partner Create
+### تنظیم admin محصولات (نه Terminal)
 
-در `on_create`، **برخلاف نسخه‌های قدیمی مستندات**، پاسخ `CreatePartner` می‌تواند `data.offer` داشته باشد. برای Outcome تأییدشده، Schema شامل این فیلدها است:
+- `GET /api/v1/admin/merchants/{merchant_profile_id}/credit-kinds`
+- `PUT .../credit-kinds/{credit_kind}` با `{"enabled":true|false}`
 
-- `outcome` = `approved`؛ فیلدهای `requested_amount_minor`، `approved_financed_amount_minor`، `required_down_payment_amount_minor`، `currency`
-- `available_credit_minor`، `offer_expires_at`، `installment_count`، `payable_now_amount_minor`، `total_payable_amount_minor`
-- `installments[]` با `installment_order`، `due_at`، `total_amount_minor`
-- `checkout_action` با `type`، `payment_required` و `payment_amount_minor`
+پیش‌فرض: اقساطی فعال مگر disable؛ `pay_next_month` تا enable صریح خاموش. Partner Terminal این APIها را صدا نمی‌زند.
 
-برای Outcome `denied` فقط `outcome` در Offer منتشر می‌شود. `on_create` ممکن است به‌جای Offer، وضعیت `unavailable` تولید کند.
-
-**هشدار حریم خصوصی/حداقل‌سازی داده:** در پیاده‌سازی فعلی Partner Create ممکن است `available_credit_minor` را برگرداند. بنابراین پاسخ را محرمانه و صرفاً در Backend/کانال مجاز پردازش کنید؛ آن را در Log عمومی یا Analytics غیرمجاز قرار ندهید. Merchant برای Fulfillment نباید از Offer یا available credit به‌عنوان مدرک پرداخت استفاده کند. این سند رفتار **فعلی کد** را شرح می‌دهد، نه توصیه به افشای چنین داده‌ای در آینده.
-
-در مقابل، DTO مربوط به **Hosted GET/START/Confirm** عمداً `available_credit_minor` و شناسهٔ BNPL Customer را حذف می‌کند.
-
-## ۷. فلو Hosted UI: دقیقاً `GET → START → OTP → CONFIRM`
+## ۷. فلو Hosted UI: پس از انتخاب Partner، `GET → START → OTP → CONFIRM`
 
 این بخش برای تیم Frontend میزبانی‌شدهٔ BNPL و برای آگاهی QA/Backend Merchant است؛ Merchant Backend این Endpointها را صدا نمی‌زند.
 
-1. **GET** `/checkout-sessions/{token}`: وضعیت، `merchant.display_name`، مبلغ، `evaluation_generation`، در صورت آماده بودن `offer`، `verification.type=sms_otp` و `verification.destination` ماسک‌شده را بخوانید. GET هیچ OTP نمی‌فرستد.
-2. **START** با JSON اختیاری `{"evaluation_generation":N}`: اگر Offer هنوز آماده نیست (`on_start` نخستین بار)، Body خالی/`{}` یا Generation صفر قابل قبول است. اگر Offer از قبل نمایش داده شده، Generation مشاهده‌شده را بفرستید. پاسخ شامل Offer و Generation معتبر است. **START هیچ SMS ارسال نمی‌کند.**
-3. **OTP**: `POST /checkout-sessions/{token}/otp` با `{"evaluation_generation":N}`. سرویس Challenge/Rate Limit را مدیریت و درخواست Notification را برای SMS صادر می‌کند یا Challenge فعال را بدون SMS دوم بازپخش می‌کند. پاسخ شامل `otp_sent`، `otp_expires_at`، `otp_next_issue_at` و `otp_availability` است.
-4. **CONFIRM**: `POST /checkout-sessions/{token}/confirm` با `{"evaluation_generation":N,"otp":"123456"}`. OTP به همان Generation وصل است، یک‌بارمصرف است و برای همهٔ Partnerها لازم است. نتیجه می‌تواند `reconfirm_required=true` و Offer تازه بدهد؛ در این حالت هیچ تأییدی با OTP نسل قبل مجاز نیست و باید فلو START → OTP → CONFIRM برای Generation جدید تکرار شود.
-5. **تکمیل پرداخت**: `payment_required=true` یعنی UI با `redirect_url` دریافتی ادامه دهد؛ صرف دریافت URL یا Browser Return تأیید مالی نیست. اگر `payment_required=false` و Checkout واقعاً `completed` باشد، UI می‌تواند به بازگشت Merchant هدایت شود.
-6. **ابهام/Timeout در Confirm**: `GET .../confirmation-status` صرفاً Poll خواندنی است و Payment URL یا عملیات مالی جدید نمی‌سازد. مقادیر `confirmation_status` از جمله `not_started`، `processing`، `payment_action_required`، `payment_processing`، `reconfirm_required`، `retry_available`، `completed`، `needs_attention`، `canceled`، `expired` و `unavailable` هستند؛ فیلد `next_action` راهنمای اقدام UI است.
+1. **GET** `/checkout-sessions/{token}`: وضعیت، `merchant.display_name`، مبلغ، `evaluation_generation`، `credit_kind` اختیاری (انتخاب Partner)، `supported_credit_kinds[]` (فعال‌بودن merchant ≠ واجدشرایطی مشتری)، `offer` حریم‌خصوصی‌محور در صورت آماده‌بودن، OTP مقصد ماسک‌شده. GET فقط‌خواندنی است؛ Decision/OTP/FC نمی‌سازد و credit kind را عوض نمی‌کند. `available_credit_minor` و هویت کامل مشتری در Hosted نیست.
+2. **START** فقط بعد از Partner `PUT .../credit-kind`. body اختیاری `{"evaluation_generation":N}`؛ بدون انتخاب قبلی ادامه نمی‌دهد و kind را override نمی‌کند. Offer را برای kind انتخاب‌شده آماده/برمی‌گرداند و **SMS نمی‌فرستد**.
+3. **OTP**: `POST .../otp` با `{"evaluation_generation":N}`؛ پاسخ شامل `otp_sent` و محدودیت‌های صدور مجدد است.
+4. **CONFIRM**: `POST .../confirm` با `{"evaluation_generation":N,"otp":"123456"}`. `reconfirm_required=true` یعنی Offer تازه + OTP نسل جدید.
+5. **تکمیل پرداخت**: `payment_required=true` + `redirect_url` فقط ادامهٔ UX است، نه تسویه. `payment_required=false` هم تا `completed` authoritative قطعی نیست.
+6. **ابهام Confirm**: `GET .../confirmation-status` فقط‌خواندنی است؛ Payment URL جدید نمی‌سازد. وضعیت‌هایی مثل `payment_action_required` / `retry_available` / `needs_attention` را از `next_action` دنبال کنید.
 
 برای `confirmation-status`، حالت `payment_action_required` به این معنی نیست که Poll خودش لینک جدید می‌سازد؛ ادامهٔ مجاز پرداخت باید از فلو احراز هویت و Confirm پیروی کند. محدودیت‌های صدور مجدد OTP با `otp_next_issue_at` و `otp_availability` هدایت می‌شوند.
 
@@ -448,7 +462,9 @@ Secret در سمت BNPL هنگام ارسال از Registry فعلی خواند�
 | --- | --- |
 | یک Create دوبار با Key و Body یکسان | `201` سپس `200`؛ همان توکن |
 | همان Key با مبلغ/شماره/Store متفاوت | Conflict، بدون ایجاد Checkout جدید |
-| `on_create` و `on_start` | اولی می‌تواند `data.offer` داشته باشد؛ دومی در Create ندارد |
+| `on_create` و `on_start` | Create هرگز Offer ندارد؛ Select ممکن است در `on_create` Offer بسازد؛ START در `on_start` |
+| SelectCreditKind قبل از START | بدون PUT موفق، Hosted START ادامه نمی‌دهد |
+| Retry همان kind با generation کهنه | موفق بدون افزایش generation |
 | GET Hosted | بدون ارسال SMS یا ایجاد Decision |
 | START Hosted | آماده‌سازی/بازیابی Offer، **بدون OTP** |
 | OTP دوباره در Challenge معتبر | رفتار محدود و Idempotent، نه SMS بی‌قیدوشرط |
@@ -477,7 +493,7 @@ curl -sS -X PUT "$BNPL_API_BASE/api/v1/partner/webhook-destination" \
   -H "Content-Type: application/json" \
   -d '{"webhook_url":"https://shop.example/webhooks/bnpl","signing_secret":"<long-random-secret-at-least-32-bytes>","enabled":true}'
 
-curl -sS -X POST "$BNPL_API_BASE/api/v1/partner/checkout-sessions" \
+CREATE=$(curl -sS -X POST "$BNPL_API_BASE/api/v1/partner/checkout-sessions" \
   -H "X-Terminal-Id: $TERMINAL_ID" -H "X-API-Key: $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -488,13 +504,23 @@ curl -sS -X POST "$BNPL_API_BASE/api/v1/partner/checkout-sessions" \
     "return_destination":"default",
     "requested_amount_minor":120000000,
     "currency":"IRR"
-  }'
+  }')
+
+CHECKOUT_SESSION_ID=$(jq -r '.data.checkout_session_id' <<<"$CREATE")
+EVAL_GEN=$(jq -r '.data.evaluation_generation' <<<"$CREATE")
+CHECKOUT_URL=$(jq -r '.data.checkout_url' <<<"$CREATE")
+
+# فروشگاه گزینه‌های data.credit_kinds[] را نشان می‌دهد؛ سپس:
+curl -sS -X PUT "$BNPL_API_BASE/api/v1/partner/checkout-sessions/$CHECKOUT_SESSION_ID/credit-kind" \
+  -H "X-Terminal-Id: $TERMINAL_ID" -H "X-API-Key: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{\"credit_kind\":\"pay_in_installments\",\"expected_evaluation_generation\":$EVAL_GEN}"
 
 curl -sS "$BNPL_API_BASE/api/v1/partner/checkout-sessions/$CHECKOUT_SESSION_ID" \
   -H "X-Terminal-Id: $TERMINAL_ID" -H "X-API-Key: $API_KEY"
 ~~~
 
-Backend Merchant باید پس از Create توکن، Key، شناسهٔ سفارش، مبلغ و ارز مورد انتظار و وضعیت را ذخیره کند. Frontend Merchant فقط:
+Backend Merchant باید پس از Create توکن، generation، Key، شناسهٔ سفارش، مبلغ، ارز، و پس از Select نوع انتخاب‌شده را ذخیره کند. Frontend Merchant فقط:
 
 ~~~javascript
 window.location.assign(checkout_url); // returned by BNPL; do not reconstruct
@@ -544,6 +570,9 @@ window.location.assign(checkout_url); // returned by BNPL; do not reconstruct
 - سیاست دسترسی به `data.offer.available_credit_minor` در پاسخ Partner `on_create`؛ این فیلد **اکنون در کد وجود دارد** و تصمیم تغییر آن، موضوعی مستقل از مستندسازی است.
 
 ## ۱۵. نقشهٔ سورس برای نگه‌داری قرارداد
+
+ارجاع‌های کلیدی dual-credit: `checkoutsessionrs/select_credit_kind.go`، `checkoutsessionuc/partner_select_credit_kind.go`، `checkoutsessionuc/credit_kinds_preview.go`، `merchantrs/list_credit_kinds.go`، `merchantrs/set_credit_kind.go`.
+
 
 | بخش سند | مرجع پیاده‌سازی |
 | --- | --- |

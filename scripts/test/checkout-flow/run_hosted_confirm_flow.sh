@@ -12,7 +12,7 @@ export BNPL_EXTERNAL_ONLINE_STORE_ID="${BNPL_EXTERNAL_ONLINE_STORE_ID:-${BNPL_ON
 export BNPL_CUSTOMER_PHONE="${BNPL_CUSTOMER_PHONE:-+989127434738}"
 
 # Optional overrides:
-export BNPL_AMOUNT_MINOR=1500000000
+export BNPL_AMOUNT_MINOR=15000000000
 # export BNPL_RETURN_DESTINATION=default
 # export BNPL_CURRENCY=IRR
 # Prefer mkcert CA for api.bnpl.test (Envoy). Fallback is handled in Python.

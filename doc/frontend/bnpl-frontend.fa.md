@@ -2,7 +2,7 @@
 
 > **مخاطب:** تیم‌های Frontend مشتری، پنل Merchant، Hosted Checkout و QA خود BNPL.  
 > **زبان:** فارسی · [English](bnpl-frontend.en.md)  
-> **آخرین به‌روزرسانی قرارداد wire:** ۲۰۲۶-۱۱-۱۰ — پیشوند `external_` برای شناسه‌های سرویس بیرونی. خلاصهٔ تغییرات: [changelog](bnpl-frontend-external-ids-changelog.fa.md).  
+> **به‌روزرسانی قرارداد (۲۰ نوامبر ۲۰۲۶):** دو محصول اعتباری مستقل (`pay_in_installments`، `pay_next_month`)، انتخاب credit-kind در Partner، و repayment batch. changelog شناسه‌های خارجی: [changelog](bnpl-frontend-external-ids-changelog.fa.md).
 > **پیشوند API:** `/api/v1`؛ نام سرویس نباید به مسیر اضافه شود.  
 > **مستند Merchant Backend:** [فارسی](../integration/partner-checkout.md) / [English](../integration/partner-checkout.en.md).
 
@@ -18,6 +18,26 @@
 | **Backend پارتنر** | `X-Terminal-Id` + `X-API-Key` | فقط `/api/v1/partner/**`؛ این سطح مربوط به Browser نیست |
 
 **هیچ‌وقت این مرزها را مخلوط نکنید.** Frontend نباید هدرهای `X-Auth-*` را خودش بسازد، Terminal API Key را در Browser قرار دهد، یا روی Hosted Checkout از مشتری JWT پنل را بخواهد. BNPL هویت را از Gateway می‌گیرد؛ Gateway باید توکن را تأیید، هدرهای جعلی را حذف و مقادیر معتبر را تزریق کند.
+
+## ۱ـالف. دو محصول اعتباری مستقل (غیرقابل ادغام)
+
+BNPL اکنون **دو محصول اعتباری مستقل** دارد. موجودی، واجدشرایط بودن، exposure و تصمیم checkout آن‌ها **هرگز نباید با هم جمع یا جایگزین** شود.
+
+| Credit kind | معنا | برچسب repayment_plan | زمان‌بندی معمول |
+| --- | --- | --- | --- |
+| `pay_in_installments` | حساب اعتباری اقساطی | `pay_in_3` یا `pay_in_4` (از Checkout Policy حاکم) | ۳ قسط (سیاست معتمد **v2**) یا ۴ قسط (سیاست عادی **v1**) |
+| `pay_next_month` | اعتبار ماهانه / معوق | **ندارد** — بدون برچسب `pay_in_N` | یک قسط در **۰۰:۰۰ Asia/Tehran روز ۱ ماه جلالی بعدی** پس از فعال‌سازی قرارداد (سیاست **v3**) |
+
+**`credit_kind` ≠ `repayment_plan`.** Kind حساب اعتبار را انتخاب می‌کند؛ Plan فقط تصویر طول سیاست اقساطی است. اعتبار ماهانه `installment_count=1` دارد و `repayment_plan` را حذف می‌کند.
+
+**قاعده تأمین مالی فعال (لانچ):** فقط تأمین کامل (`full-financing-only`). اگر موجودی همان محصول کافی نباشد، تصمیم/آفر **رد** می‌شود. قواعد catalog برای مابه‌التفاوت پیش‌پرداخت و excess-financing **غیرفعال**اند — UI مسیر پیش‌پرداخت جزئی را به‌عنوان رفتار production نسازید.
+
+**Exposure:** اعتبار قابل‌استفاده = سقف محصول − اصل معوق **فعال** همان CreditAccount. Decision/Offer و قرارداد `payment_pending` موجودی را کم نمی‌کنند. مصرف اعتبار فقط با `active` شدن قرارداد است.
+
+**محدودیت خرید جدید (`credit_usage`):** اقساط due/overdue می‌تواند همه محصولات را محدود کند؛ چرخه ماهانه پرداخت‌نشده می‌تواند فقط `pay_next_month` را محدود کند (`previous_month_unpaid`).
+
+**سررسید ماهانه:** کامنت قدیمی v3 گاهی «پایان روز ۱» گفته؛ پیاده‌سازی واقعی **شروع روز ۱ (۰۰:۰۰ Asia/Tehran)** ماه جلالی بعدی است. همان `due_at` سرور را نمایش دهید.
+
 
 ## ۲. تنظیم Client، آدرس‌ها و Headerها
 
@@ -110,157 +130,190 @@ Accept-Language: fa-IR
 
 ## ۴. نقشهٔ APIهای پنل مشتری
 
-همهٔ مسیرها Gateway-authenticated هستند. نام Permission برای طراحی Route Guard مفید است اما مجوز واقعی در Backend بررسی می‌شود.
+همهٔ مسیرهای زیر با هویت Gateway و permissionهای زیر کار می‌کنند. Frontend فقط به Gateway احراز هویت می‌کند و هرگز `X-Auth-*` جعلی نمی‌سازد.
 
-| Method | Path | Permission | HTTP |
+| Method | Path | Permission | Status |
 | --- | --- | --- | --- |
 | `GET` | `/api/v1/customer-credit` | `bnpl:credit-limits:read:self` | `200` |
-| `POST` | `/api/v1/customer-credit/initiate` | `bnpl:credit-limits:create:self` | `201` یا `200` |
-| `POST` | `/api/v1/checkout-decisions` | `bnpl:decisions:create:self` | `201` یا `200` |
-| `POST` | `/api/v1/checkout-decisions/{decision_id}/contracts` | `bnpl:contracts:create:self` | `201` یا `200` |
-| `POST` | `/api/v1/contracts/{contract_id}/cancel` | `bnpl:contracts:cancel:self` | `202` یا `200` |
+| `POST` | `/api/v1/customer-credit/initiate` | `bnpl:credit-limits:create:self` | `201` اگر حداقل یک محصول جدید ساخته شود؛ وگرنه `200` |
+| `POST` | `/api/v1/checkout-decisions` | `bnpl:decisions:create:self` | `201` جدید؛ `200` replay |
+| `POST` | `/api/v1/checkout-decisions/{decision_id}/contracts` | `bnpl:contracts:create:self` | `201` / `200` |
+| `POST` | `/api/v1/contracts/{contract_id}/cancel` | `bnpl:contracts:cancel:self` | `202` / `200` |
 | `GET` | `/api/v1/contracts` | `bnpl:contracts:read:self` | `200` |
 | `GET` | `/api/v1/contracts/{contract_id}/installments` | `bnpl:installments:read:self` | `200` |
 | `GET` | `/api/v1/installments` | `bnpl:installments:read:self` | `200` |
-| `POST` | `/api/v1/contracts/{contract_id}/installments/{installment_id}/pay` | `bnpl:payments:start:self` | `202` یا `200` |
+| `POST` | `/api/v1/contracts/{contract_id}/installments/{installment_id}/pay` | `bnpl:payments:start:self` | `202` / `200` |
+| `POST` | `/api/v1/repayment-batches` | `bnpl:payments:start:self` | `202` |
+| `POST` | `/api/v1/repayment-batches/{id}/start` | `bnpl:payments:start:self` | `202` |
+| `GET` | `/api/v1/repayment-batches/{id}` | `bnpl:payments:read:self` | `200` |
 | `GET` | `/api/v1/payments` | `bnpl:payments:read:self` | `200` |
-
-`customer_id`، `tenant_id` و `context_id` را در Body یا Query نسازید؛ Backend از Subject و Context معتبر Gateway استفاده می‌کند.
 
 ## ۵. اعتبار مشتری و شروع استفاده
 
-### `GET /customer-credit`
+### ۵.۱ خواندن همهٔ محصولات (پیش‌فرض)
 
-`data.status` یکی از `active`، `not_assigned` و `expired` است. `credit_usage` یک Object با `status` و `reason?` است و با وضعیت Credit Limit فرق دارد.
+`GET /api/v1/customer-credit` **بدون** `credit_kind` هر دو محصول را برمی‌گرداند:
 
-- `active`: `limit_amount_minor` (سقف کل)، `available_amount_minor` (باقی‌مانده قابل‌استفاده)، `currency` و در صورت وجود `expires_at` را نمایش دهید. ممکن است Credit Usage استفاده از اعتبار را منع کند.
-- `not_assigned`: مشتری هنوز Limit ندارد؛ آن را موجودی صفر نشان ندهید. `meta.code=CUSTOMER_CREDIT_NOT_ASSIGNED` و CTA شروع ارزیابی مناسب است.
-- `expired`: Limit قبلی قابل‌استفاده نیست؛ `meta.code=CUSTOMER_CREDIT_EXPIRED`، `expires_at` اختیاری و CTA بررسی مجدد.
+~~~json
+{
+  "data": {
+    "status": "assigned",
+    "credits": [
+      {
+        "credit_kind": "pay_in_installments",
+        "status": "active",
+        "credit_usage": { "status": "allowed" },
+        "limit_amount_minor": 2000000000,
+        "available_amount_minor": 500000000,
+        "currency": "IRR",
+        "expires_at": "2027-11-19T10:41:34Z",
+        "application": { "status": "assigned" }
+      },
+      {
+        "credit_kind": "pay_next_month",
+        "status": "active",
+        "credit_usage": { "status": "restricted", "reason": "previous_month_unpaid" },
+        "limit_amount_minor": 30000000,
+        "available_amount_minor": 30000000,
+        "currency": "IRR",
+        "expires_at": "2027-11-19T10:41:34Z",
+        "application": { "status": "assigned" }
+      }
+    ]
+  },
+  "meta": { "code": "CUSTOMER_CREDIT_RETRIEVED", "status_code": 200 }
+}
+~~~
 
-### `POST /customer-credit/initiate`
+**`data.status` تجمیعی:** `not_assigned` | `partially_assigned` | `assigned`.
 
-هیچ Body ندارد. توکن باید claim‏ `auth_mobile_number` (E.164) داشته باشد؛ Envoy آن را به‌صورت `x-auth-mobile-number` تزریق می‌کند و BNPL فقط وقتی Customer Reference Service وضعیت `ACTIVE` برگرداند اعتبار می‌سازد (پالیسی trusted/v2 در صورت assignment روی همان CRS id). پاسخ `data.result`، `credit_limit_decision.outcome` با `limit_set` یا `denied`، `reason_codes[]` و `credit_limit?` دارد. `credit_limit` شامل `amount_minor`، `currency`، `status`، `effective_from` و `expires_at?` است.
+**وضعیت هر محصول (`credits[].status`):** `active` | `not_assigned` | `expired`.
 
-`201` یعنی Limit جدید ایجاد شده؛ `200` می‌تواند «قبلاً وجود داشته» یا «رد شده» باشد. **بر اساس `outcome` تصمیم بگیرید، نه صرف HTTP 200.** سپس Credit Summary را Refresh کنید.
+**`application.status`:** `assigned` | `not_assigned` | `reassessment_required`.
 
-## ۶. Checkout مستقیم مشتری: Decision، Offer و Contract
+**`credit_usage.status`:** `allowed` | `restricted` | `unavailable`. برای `restricted`، `reason` عمومی می‌تواند شامل `previous_month_unpaid`، `collections_default`، `collections_due`، `credit_usage_restricted` باشد.
 
-این فلو متعلق به **مشتری احرازشده** است؛ Hosted Checkout پارتنر در بخش ۱۰ توضیح داده می‌شود.
+**حضور فیلدهای پولی:** فقط در `active`؛ برای `not_assigned`/`expired` صفر جعلی نسازید. همیشه **دو کارت محصول** بسازید و موجودی‌ها را جمع نکنید.
+
+اگر تجمیعی `not_assigned` باشد، `meta.code` برابر `CUSTOMER_CREDIT_NOT_ASSIGNED` است.
+
+#### فقط یکی assign شده / هیچ‌کدام / یکی restricted
+
+همان شکل `credits[]` را حفظ کنید؛ برای محصول بدون assign فیلدهای پولی را حذف‌شده بگذارید؛ برای `restricted` CTA خرید جدید آن محصول را غیرفعال کنید.
+
+### ۵.۲ کوئری سازگار تک‌محصولی
+
+`GET /api/v1/customer-credit?credit_kind=pay_in_installments`  
+`GET /api/v1/customer-credit?credit_kind=pay_next_month`
+
+پاسخ **تخت قدیمی** است (بدون `credits[]`). parser دو شکل را قاطی نکنید. `credit_kind` نامعتبر → خطای validation.
+
+### ۵.۳ آغاز تخصیص اعتبار
+
+~~~http
+POST /api/v1/customer-credit/initiate
+Authorization: Bearer <access-token>
+~~~
+
+بدون body. موبایل از claim هویت (`auth_mobile_number`) و header گیت‌وی `x-auth-mobile-number` می‌آید؛ **کلاینت مرورگر نباید headerهای اعتماد را جعل کند**. CRS فقط `ACTIVE` را می‌پذیرد.
+
+**بدون `credit_kind`:** هر دو محصول را تخصیص می‌دهد (`status` + `credits[]` با `result`/`credit_limit_decision`/`credit_limit?`). `result`: `created` | `already_assigned` | `denied`. Outcome: `limit_set` | `denied`. HTTP `201` اگر هر محصولی `created` باشد؛ وگرنه `200`. موفقیت را فقط از HTTP 200 نتیجه نگیرید.
+
+**با `?credit_kind=`:** پاسخ تک‌محصولی legacy.
+
+سیاست معتمد checkout **v2** (۳ قسط) و عادی **v1** (۴ قسط) و ماهانه **v3** سمت سرور انتخاب می‌شوند؛ طول طرح را hard-code نکنید.
+
+## ۶. Checkout مستقیم مشتری: Decision → Offer → Contract
+
+مسیر مشتری احرازشده. Hosted Merchant مسیر جدا است (بخش ۱۰).
 
 ### ساخت Decision
 
 ~~~http
 POST /api/v1/checkout-decisions
-Authorization: Bearer <token>
+Authorization: Bearer <access-token>
 Idempotency-Key: checkout-intent-1001
 Content-Type: application/json
 ~~~
 
-برای POS:
+**بدنهٔ عمومی `credit_kind` ندارد.** فقط `purchase_context`، `requested_amount_minor`، `currency`. Kind حذف‌شده در use case به‌معنی `pay_in_installments` است. فعلاً انتخاب عمومی `pay_next_month` روی این endpoint وجود ندارد؛ مسیر دو‌محصولی Partner Hosted است.
+
+نمونه POS / Online مانند قبل با `external_pos_gps_id` / `external_online_store_id`.
+
+نمونهٔ تأیید **تأمین کامل** (قاعده لانچ فعال — بدون مسیر پیش‌پرداخت جزئی):
 
 ~~~json
 {
-  "purchase_context": {
-    "type": "pos",
-    "external_pos_gps_id": "6ba7b811-9dad-11d1-80b4-00c04fd430c8"
+  "result": "created",
+  "decision": {
+    "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+    "checkout_key": "checkout-intent-1001",
+    "outcome": "approved",
+    "reason_codes": []
   },
   "requested_amount_minor": 150000000,
-  "currency": "IRR"
+  "approved_financed_amount_minor": 150000000,
+  "upfront_amount_minor": 0,
+  "currency": "IRR",
+  "available_credit_minor": 500000000,
+  "checkout_action": {
+    "type": "confirm_purchase",
+    "payment_required": false,
+    "payment_amount_minor": 0
+  },
+  "installment_offer": {
+    "installment_count": 3,
+    "payable_now_amount_minor": 0,
+    "total_payable_amount_minor": 150000000,
+    "currency": "IRR",
+    "installments": []
+  }
 }
 ~~~
 
-برای خرید Online:
-
-~~~json
-{
-  "purchase_context": {
-    "type": "online",
-    "external_online_store_id": "6e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c",
-    "merchant_order_id": "ORDER-1001"
-  },
-  "requested_amount_minor": 150000000,
-  "currency": "IRR"
-}
-~~~
-
-`purchase_context.type` الزامی است. نوع `pos` باید `external_pos_gps_id` داشته باشد و فیلدهای Online ممنوع‌اند؛ نوع `online` باید `external_online_store_id` داشته باشد و `external_pos_gps_id` ممنوع است. `merchant_order_id` برای Online اختیاری و حداکثر ۲۵۶ کاراکتر است. این شناسه‌ها متعلق به سیستم بیرونی (پذیرنده/فروشگاه) هستند؛ با PK داخلی BNPL اشتباه گرفته نشوند. Currency در DTO می‌تواند `IRR`، `EUR` یا `USD` باشد ولی پذیرش بیزینسی ممکن است محدودتر باشد. در خطای `VALIDATION_FAILED`، `details.fields` با همان کلیدهای JSON (snake_case) برمی‌گردد.
-
-**Response واقعی** در `data` دارای `result`، `decision` (شامل `id`، `checkout_key`، `outcome`، `reason_codes[]`)، `purchase_context`، `requested_amount_minor`، `approved_financed_amount_minor`، `upfront_amount_minor`، `currency`، `available_credit_minor`، `expires_at?`، `checkout_action?` و `installment_offer?` است.
-
-`installment_offer` وقتی موجود است شامل `installment_count`، `payable_now_amount_minor`، `total_payable_amount_minor`، `currency`، `expires_at` و `installments[]` می‌شود. ردیف هر قسط: `id`، `installment_order`، `status`، `due_at`، `principal_amount_minor`، `upfront_amount_minor`، `base_fee_amount_minor`، `total_amount_minor`.
-
-**دو نکتهٔ بسیار مهم:**
-1. Outcome روی HTTP فقط `approved` یا `denied` است؛ حالت Domain `conditional` / تأمین مالی جزئی، در Response نیز `approved` نشان داده می‌شود. `upfront_amount_minor` را نمایش دهید و Enum خیالی `partial_approved` نسازید.
-2. دکمهٔ ادامه باید از `checkout_action.type` با `confirm_and_pay` یا `confirm_purchase` پیروی کند، نه از نوع فروشگاه یا تعداد اقساط. اگر Decision رد شده باشد Offer وجود ندارد. این مرحله اعتبار را رزرو/کم نمی‌کند.
+با کمبود موجودی همان محصول، `outcome=denied` می‌آید نه CTA پیش‌پرداخت. CTA را از `checkout_action.type` (`confirm_and_pay` / `confirm_purchase`) بگیرید. Decision اعتبار را reserve نمی‌کند. زمان‌بندی را محلی محاسبه نکنید.
 
 ### ایجاد Contract
 
 ~~~http
 POST /api/v1/checkout-decisions/{decision_id}/contracts
-Authorization: Bearer <token>
+Authorization: Bearer <access-token>
 ~~~
 
-Body پرداخت/Provider نفرستید. عملیات بر اساس Decision تکرارپذیر است: `201` جدید و `200` Contract قبلی. پاسخ `data`:
-
-~~~json
-{
-  "result": "created",
-  "contract": {
-    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-    "status": "payment_pending"
-  },
-  "payment_required": true,
-  "redirect_url": "https://payment.example/session/opaque",
-  "expires_at": "2026-11-04T12:40:00Z"
-}
-~~~
-
-`redirect_url` و `expires_at` اختیاری و وابسته به `payment_required` هستند. اگر URL وجود دارد، Navigation سطح اول مرورگر را به همان URL انجام دهید؛ نه بازسازی لینک و نه استخراج شناسهٔ Provider.
-
-**ایجاد Contract یا Browser Return به معنی پرداخت موفق/Active شدن Contract نیست.** فقط نتیجهٔ معتبر FC که Backend اعمال کرده معتبر است. اگر `payment_required=false` (مثل Merchant Funding)، بدون Redirect ادامه دهید اما باز هم وضعیت نهایی معتبر Backend را بررسی کنید.
+Idempotent بر اساس Decision. اگر `payment_required=true` و `redirect_url` باشد به همان URL بروید. اگر `payment_required=false` (مسیر merchant-funding) هنوز باید وضعیت authoritative را بخوانید. `201` یا برگشت PSP به‌معنی فعال‌سازی نهایی نیست. `payment_pending` می‌تواند تا تکمیل funding در FC بماند.
 
 ## ۷. داشبورد اقساط، تاریخچه و بازپرداخت
 
 ### خواندن داده‌ها
 
-- `GET /contracts` فقط Contractهای `active` و `canceling` را بازمی‌گرداند، نه تاریخچهٔ همهٔ Contractها. `data` آرایه‌ای از `id`، `merchant_profile_id`، `merchant_branch_profile_id?`، `requested_amount_minor`، `currency`، `installment_count`، `status` و `created_at` است.
-- `GET /contracts/{id}/installments` یک **Object** برمی‌گرداند: `contract_id`، `requested_amount_minor`، `currency`، `status`، `created_at`، `installments[]` و `next_payable_installment?`. هر قسط `id`، `installment_order`، `total_amount_minor`، `currency`، `due_at`، `status` و `paid_at?` دارد. نوبت پرداخت را از `next_payable_installment` بخوانید.
-- `GET /installments` یک **Object** با `data.installments[]` و `data.repayment` است؛ نه آرایهٔ مستقیم. `repayment` خلاصهٔ **کل مشتری** را دارد، مستقل از صفحه: `due_installments[]`، `due_count`، `unpaid_count`، `next_payable?` و `has_pending_payment`. `next_payable` ممکن است `payable_amount_known`، `outstanding_amount_minor`، `payment_block_reason`، `has_pending_payment` و `payable_amount_minor` داشته باشد.
-- `GET /payments` آرایهٔ PaymentAttemptهای **نهایی‌شده** را نشان می‌دهد، نه پرداخت‌های درحال‌انجام. وضعیت‌های قابل‌نمایش `succeeded`، `failed`، `canceled` و `purpose` برابر `first_installment` یا `installment` است. هر رکورد `id`، `contract_id`، `installment_id`، `amount_minor`، `currency`، `status`، `purpose`، `created_at` و `completed_at?` دارد.
+- `GET /api/v1/contracts`: قراردادهای `active`/`canceling` با `credit_kind` و `repayment_plan` اختیاری.
+- `GET /api/v1/contracts/{id}/installments`: شامل `credit_kind`، `repayment_plan?`، `installments[]`، `next_payable_installment?`. ماهانه یک قسط دارد.
+- `GET /api/v1/installments`: شیء با `installments[]` و `repayment` سراسری؛ فیلدهایی مانند `customer_payable_amount_minor` (nullable)، `principal_amount_minor`، `late_fee_amount_minor`، `grace_period_days`، `next_payable`، `payment_block_reason`، `has_pending_payment`.
+- `GET /api/v1/payments`: فقط attemptهای نهایی.
 
-**نبود یک ردیف در `/payments` به معنی نبود پرداخت در جریان نیست.** برای فعال/غیرفعال کردن دکمهٔ پرداخت `has_pending_payment` و `payment_block_reason` را رعایت کنید.
+لیست خالی با `200` عادی است. جریمه و next-payable را سمت کلاینت حساب نکنید.
 
-### پرداخت قسط
+### پرداخت تک‌قسط
 
-~~~http
-POST /api/v1/contracts/{contract_id}/installments/{installment_id}/pay
-Authorization: Bearer <token>
-Idempotency-Key: repay-contract-123-installment-2-attempt-1
-Content-Type: application/json
+`POST /api/v1/contracts/{contract_id}/installments/{installment_id}/pay` با `Idempotency-Key` و `{"channel":"gateway"|"bank_transfer"|"wallet"}`. ترتیب اقساط را سرور enforce می‌کند. Redirect ≠ تسویه.
 
-{"channel":"gateway"}
-~~~
+### Repayment Batch (چند قسط)
 
-`channel` یکی از `gateway`، `bank_transfer` و `wallet` است، ولی قابل‌استفاده‌بودن کانال به Policy بستگی دارد. Backend ترتیب اقساط را enforce می‌کند: فقط اولین قسط پرداخت‌نشده طبق برنامه قابل پرداخت است. `202` درخواست جدید و `200` Replay است.
+قوانین انتخاب سرور:
 
-پاسخ `data.result` و `data.payment_attempt` دارد. `payment_attempt` شامل `id`، `installment_id`، `amount_minor`، `currency`، `state`، `channel` و `redirect_url?` و `expires_at?` است.
+1. همهٔ اقساط **overdue** در **هر دو محصول و همهٔ merchantها** باید داخل batch باشند.
+2. داخل یک قرارداد چندقسطی، قسط unpaid زودتر را نمی‌توان رد کرد.
+3. قسط due ولی هنوز overdue‌نشده اختیاری است.
 
-وقتی URL معتبر وجود دارد کاربر را به آن Navigate کنید. **اگر وجود ندارد URL نسازید و پرداخت را موفق حساب نکنید.** وضعیت `created`، `submitted` یا سایر حالت‌های عملیاتی باید Pending/Recoverable نمایش داده شوند.
+`POST /api/v1/repayment-batches` — body `{"installment_ids":[...]}` (۱..۵۰)، header `Idempotency-Key` اجباری، موفقیت **`202`** با `{id,status,total_amount_minor,currency}`.
 
-Backend برای یک PaymentAttempt حداکثر **سه فراخوانی ساخت Session در FC به‌صورت Customer-triggered** مجاز می‌داند، با Idempotency Identity یکسان. شکست‌های اول و دوم می‌توانند Attempt را `created` نگه دارند و شکست سوم به لغو محلی می‌رسد. Frontend نباید Retry Loop خودکار بسازد و بودجه را تمام کند. بعد از وضعیت Terminal، پیش از نیت تازه و Key جدید، وضعیت قسط و سوابق را Refresh کنید.
+`POST /api/v1/repayment-batches/{id}/start` — `Idempotency-Key` اجباری، **`202`** با `{id,status,redirect_url?}`. provider/return URL فقط سمت سرور است. **توجه:** `status` در Start واژگان **FC collection** است (مثلاً `requires_customer_action`، `succeeded`)، نه لزوماً همان enum BNPL در Create/Get.
+
+`GET /api/v1/repayment-batches/{id}` — وضعیت durable با واژگان **BNPL**: `created`, `prepared`, `starting`, `requires_action`, `reconciling`, `accounting_pending`, `posted`, `failed`, `expired`, `manual_review`. تکمیل UX فقط وقتی Get برابر **`posted`** است (یا وضعیت اقساط authoritative را دوباره بخوانید). `202`/redirect/`requires_action`/FC `succeeded` به‌تنهایی تسویه قطعی نیست.
 
 ### لغو Contract
 
-~~~http
-POST /api/v1/contracts/{contract_id}/cancel
-Authorization: Bearer <token>
-Idempotency-Key: cancel-contract-123-v1
-Content-Type: application/json
-
-{"reason":"customer_requested"}
-~~~
-
-`202` یعنی شروع لغو و `data.status=canceling`؛ `200` Replay همان لغو است. لغو قطعی با نتیجهٔ FC انجام می‌شود؛ `canceling` را «لغوشده» نمایش ندهید.
+`POST /api/v1/contracts/{contract_id}/cancel` با `Idempotency-Key` و `{"reason":"customer_requested"}`. در `canceling` هنوز «لغو شده» نشان ندهید.
 
 ## ۸. Pagination
 
@@ -296,6 +349,15 @@ Provision/Rotate فقط هنگام صدور (و Replay مجاز همان درخ�
 
 **نکته:** کلید صادرشده باید به Backend پارتنر منتقل و آنجا نگهداری شود، نه اینکه پنل مرورگری با آن `/partner/**` را صدا بزند. برای Integration Merchant به مستند [Partner](../integration/partner-checkout.md) مراجعه کنید.
 
+### تنظیم admin محصولات اعتباری Merchant (نه Terminal Partner)
+
+APIهای admin احرازشده:
+
+- `GET /api/v1/admin/merchants/{merchant_profile_id}/credit-kinds`
+- `PUT /api/v1/admin/merchants/{merchant_profile_id}/credit-kinds/{credit_kind}` با `{"enabled":true|false}`
+
+پیش‌فرض: اقساطی معمولاً فعال؛ `pay_next_month` تا enable صریح غیرفعال. این‌ها با credential ترمینال Partner صدا زده نمی‌شوند.
+
 ## ۱۰. Frontend میزبانی‌شدهٔ BNPL (Hosted Checkout)
 
 Partner Backend قبلاً Checkout را ساخته و `checkout_url` را به مرورگر تحویل داده است. UI میزبانی‌شده از توکن `cs_` داخل URL خودش استفاده می‌کند؛ مقدار Route آن بسته به استقرار تعیین می‌شود، اما Backend APIها ثابت‌اند:
@@ -312,13 +374,7 @@ Partner Backend قبلاً Checkout را ساخته و `checkout_url` را به 
 
 ### مرحلهٔ اول: GET
 
-پاسخ `data` دارای `checkout_session_id`، `status`، `merchant.display_name`، `amount_minor`، `currency`، `evaluation_generation`، `offer?`، `verification.type=sms_otp`، `verification.destination` ماسک‌شده و `expires_at` است.
-
-GET هویت مشتری Resolve نمی‌کند، Decision نمی‌سازد، OTP ارسال نمی‌کند و FC را صدا نمی‌زند.
-
-Offer ممکن است از قبل وجود داشته باشد، چون شعبه روی `on_create` تنظیم شده است؛ در `on_start` ممکن است هنوز Offer آماده نباشد. این Mode توسط Backend و Branch تعیین می‌شود، نه نام Damz/دیجی‌کالا.
-
-Offer میزبانی‌شده `outcome` با `approved` یا `denied`، مبالغ تأمین مالی و پیش‌پرداخت، `currency`، `offer_expires_at`، `installment_count`، `payable_now_amount_minor`، `total_payable_amount_minor`، `installments[]` و `checkout_action` دارد. **این DTO عمداً `available_credit_minor` و شناسهٔ داخلی مشتری را حذف کرده است.**
+`GET /api/v1/checkout-sessions/{token}` فیلدهایی مثل `status`، مبلغ، `evaluation_generation`، `credit_kind` اختیاری (انتخاب Partner)، `supported_credit_kinds[]`، `offer` حریم‌خصوصی‌محور، مقصد OTP ماسک‌شده و `expires_at` برمی‌گرداند. GET فقط‌خواندنی است، Decision/OTP/FC نمی‌سازد و credit kind را نمی‌پذیرد. تا قبل از Partner `PUT .../credit-kind` ممکن است `credit_kind` غایب باشد. Hosted محصول را انتخاب نمی‌کند.
 
 ### مرحلهٔ دوم: START
 
@@ -329,9 +385,7 @@ Content-Type: application/json
 {}
 ~~~
 
-برای اولین START در `on_start`، Body خالی یا `{}` درست است. وقتی GET قبلاً Offer نشان داده، `{"evaluation_generation":N}` بفرستید. پاسخ شامل `checkout_session_id`، `status`، `evaluation_generation` و `offer` در صورت آماده بودن است. **START هیچ OTP یا SMS صادر نمی‌کند.**
-
-اگر Offer `denied` باشد یا Session `unavailable`، OTP/Confirm را ادامه ندهید.
+START نمی‌تواند credit kind انتخاب‌شده توسط Partner را override کند؛ بدون Select قبلی ادامه نمی‌دهد. body اختیاری `{"evaluation_generation":N}` برای fencing است. START فقط Offer را آماده/برمی‌گرداند و **SMS نمی‌فرستد**.
 
 ### مرحلهٔ سوم: OTP
 
@@ -422,7 +476,7 @@ Poll هیچ Saga، PaymentAttempt، Session پرداخت یا URL جدیدی ا�
 - [ ] Success `{data,meta}` از Error `{code,message,trace_id,details?}` جدا Parse می‌شود.
 - [ ] `Idempotency-Key` درست مدیریت می‌شود؛ نتیجهٔ مبهم پرداخت Pending می‌ماند.
 - [ ] `not_assigned` و `expired` با Credit صفر اشتباه نمی‌شوند.
-- [ ] Partial Financing و Schedule فقط با مبلغ Backend نمایش داده می‌شوند.
+- [ ] تحت قاعدهٔ لانچ full-financing-only، مسیر پیش‌پرداخت جزئی ساخته نمی‌شود؛ Schedule فقط از Backend نمایش داده می‌شود.
 - [ ] Redirect درگاه تأیید پرداخت/فعال‌سازی Contract محسوب نمی‌شود.
 - [ ] دکمهٔ Repayment به `next_payable` و `payment_block_reason` وابسته است.
 - [ ] Pagination از `meta.pagination` و Cursor واقعی استفاده می‌کند.

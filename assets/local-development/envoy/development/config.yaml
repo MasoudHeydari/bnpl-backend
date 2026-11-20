@@ -1,7 +1,12 @@
-# STANDALONE DevOps copy. Not applied to a running gateway.
-# The generated banner below still applies: scripts/render-envoy.py must grow the
-# same merchant-guest route, signup JWT allowances, CORS credential headers, and
-# signup/guest response-body skip, or the next render will drop this update.
+# REVIEWED COPY - not deployed. Do not apply before these checks:
+# - Private connectivity from this Envoy to the intended service endpoints.
+#   A listener on 127.0.0.1 on another host is not reachable at the LAN IP.
+#   No downstream service cluster should target Morteza's local Envoy :8080.
+# - Render __REQUIRED_MERCHANT_SIGNUP_PROXY_PROOF__ from your protected config
+#   source; do not commit or share the effective value. Match Merchant's trusted
+#   proxy contract. Rotate the old value if it was active in the shared input.
+# - Apply changes in the generator/source fragments before the next render.
+#   JWT requirements and header trust checks have not been disabled.
 # ============================================================================
 # Platform Envoy Gateway - Development
 # ============================================================================
@@ -56,7 +61,6 @@ static_resources:
                           method: "%REQ(:METHOD)%"
                           path: "%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%"
                           full_url: "%REQ(:SCHEME)%://%REQ(:AUTHORITY)%%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%"
-                          request_body: "%DYNAMIC_METADATA(envoy.filters.http.lua:request_body)%"
                           protocol: "%PROTOCOL%"
                           authority: "%REQ(:AUTHORITY)%"
                           scheme: "%REQ(:SCHEME)%"
@@ -110,9 +114,6 @@ static_resources:
                           # Response
                           response_code: "%RESPONSE_CODE%"
                           response_status_text: "%DYNAMIC_METADATA(envoy.filters.http.lua:response_status_text)%"
-                          response_body: "%DYNAMIC_METADATA(envoy.filters.http.lua:response_body)%"
-                          response_body_capture_state: "%DYNAMIC_METADATA(envoy.filters.http.lua:response_body_capture_state)%"
-                          response_body_truncated: "%DYNAMIC_METADATA(envoy.filters.http.lua:response_body_truncated)%"
                           response_code_details: "%RESPONSE_CODE_DETAILS%"
                           response_flags: "%RESPONSE_FLAGS%"
 
@@ -171,7 +172,7 @@ static_resources:
                             timeout: 10s
 
                     - name: platform_services
-                      domains: ["*"]
+                      domains: [ "*" ]
                       typed_per_filter_config:
                         envoy.filters.http.cors:
                           "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.CorsPolicy
@@ -461,7 +462,7 @@ static_resources:
                               append_action: OVERWRITE_IF_EXISTS_OR_ADD
                             - header:
                                 key: "x-internal-signup-proxy-proof"
-                                value: "mttQzxL-oP-ArArs_GKqtp5rX7E_7n8wawBMixLmru454AGQ2zGSmb0z6NlFlb80"
+                                value: "__REQUIRED_MERCHANT_SIGNUP_PROXY_PROOF__"
                               append_action: OVERWRITE_IF_EXISTS_OR_ADD
 
                         - match:
@@ -518,7 +519,7 @@ static_resources:
                           forward: false
                           remote_jwks:
                             http_uri:
-                              uri: http://192.168.1.103:8080/.well-known/jwks.json
+                              uri: http://192.168.1.103:8081/.well-known/jwks.json
                               cluster: identity_jwks
                               timeout: 5s
                             cache_duration:
@@ -533,58 +534,58 @@ static_resources:
                                 string_match:
                                   exact: OPTIONS
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         - match:
                             path: /healthz
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         - match:
                             path: /healthz/live
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         - match:
                             path: /healthz/ready
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         - match:
                             path_separated_prefix: /bnpl/swagger
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         - match:
                             path: /identity/swagger/auth-api.yaml
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         - match:
                             path: /identity/swagger/auth-api.yaml
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         - match:
                             path: /identity/swagger
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         - match:
                             path: /identity/openapi
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         - match:
                             path: /identity/.well-known/jwks.json
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         - match:
                             safe_regex:
                               regex: ^/api/v[0-9]+/auth/challenges/(start|verify|resend)$
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         - match:
                             safe_regex:
                               regex: ^/api/v[0-9]+/auth/contexts(/.*)?$
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         - match:
                             safe_regex:
                               regex: ^/api/v[0-9]+/auth/(sessions/issue|tokens/refresh)(/.*)?$
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         - match:
                             safe_regex:
                               regex: ^/api/v[0-9]+/auth/sessions$
@@ -593,7 +594,7 @@ static_resources:
                                 string_match:
                                   exact: POST
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         - match:
                             safe_regex:
                               regex: ^/api/v[0-9]+/auth/login-flows/complete-profile$
@@ -602,71 +603,71 @@ static_resources:
                                 string_match:
                                   exact: POST
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         - match:
                             path: /api/v1/auth/jwks
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         - match:
                             path_separated_prefix: /api/v1/partner
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         # BNPL hosted checkout uses an unguessable token and SMS OTP,
                         # not a Gateway JWT. Keep this rule above the /api/ catch-all.
                         - match:
                             path_separated_prefix: /api/v1/checkout-sessions
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         - match:
                             prefix: /merchant/swagger/
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         # Merchant guest signup is pre-session. Binding an existing account is not.
                         - match:
                             safe_regex:
                               regex: ^/api/v[0-9]+/merchant-signup/drafts/[^/]+/phone/(start|resend|verify)$
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         - match:
                             safe_regex:
                               regex: ^/api/v[0-9]+/merchant-signup/drafts/[^/]+/account-enrollment(/consent)?$
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         - match:
                             safe_regex:
                               regex: ^/api/v[0-9]+/merchant-signup/drafts/[^/]+/account-binding/consent$
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         - match:
                             safe_regex:
                               regex: ^/api/v[0-9]+/merchant-signup/drafts/[^/]+$
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         # Verified draft to application. Continuation plus proof, not a login Bearer.
                         - match:
                             safe_regex:
                               regex: ^/api/v[0-9]+/merchant-signup/drafts/[^/]+/applicant$
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         # Invitation acceptance authenticates with the draft OTP or the person's
                         # password. It does not require a membership or login Bearer.
                         - match:
                             safe_regex:
                               regex: ^/api/v[0-9]+/merchant-signup/drafts/[^/]+/admin-invitation-acceptance$
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         - match:
                             safe_regex:
                               regex: ^/api/v[0-9]+/merchant-signup/admin-invitations/[^/]+/accept$
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         # Requirements are public. Other guest paths carry X-Applicant-Credential.
                         # Merchant ignores gateway identity headers on this prefix.
                         - match:
                             safe_regex:
                               regex: ^/api/v[0-9]+/merchant-guest(/.*)?$
                           requires:
-                            allow_missing_or_failed: {}
+                            allow_missing_or_failed: { }
                         - match:
                             prefix: /api/
                           requires:
@@ -777,17 +778,7 @@ static_resources:
                             )
                           end
                           
-                          local function signup_or_guest_path(path)
-                            local bare = string.match(path or "", "^[^?]*")
-                            if bare == nil then
-                              return false
-                            end
-                            return string.match(bare, "^/api/v%d+/merchant%-signup$") ~= nil
-                              or string.match(bare, "^/api/v%d+/merchant%-signup/") ~= nil
-                              or string.match(bare, "^/api/v%d+/merchant%-guest$") ~= nil
-                              or string.match(bare, "^/api/v%d+/merchant%-guest/") ~= nil
-                          end
-
+                          
                           -- Customer credit APIs resolve the BNPL customer through
                           -- Customer Reference Service using the authenticated mobile.
                           -- Header name stays in the x-auth-* family (gateway-injected
@@ -805,16 +796,6 @@ static_resources:
                             -- and identity numbers, and buffering them breaks document uploads.
                             local headers = request_handle:headers()
 
-                            -- Signup and guest JSON responses can carry an applicant credential,
-                            -- a TOTP secret, or recovery codes. Do not copy those bodies into the log.
-                            if signup_or_guest_path(headers:get(":path")) then
-                              request_handle:streamInfo():dynamicMetadata():set(
-                                "envoy.filters.http.lua",
-                                "response_body_capture_state",
-                                "skipped_signup_guest"
-                              )
-                            end
-                          
                             -- Caller-supplied trusted headers are never forwarded.
                             remove_trusted_headers(headers)
                           
@@ -1049,49 +1030,11 @@ static_resources:
                             ["510"] = "Not Extended",
                             ["511"] = "Network Authentication Required",
                           }
-                                                    function envoy_on_response(response_handle)
-                            local namespace = "envoy.filters.http.lua"
-                            local metadata = response_handle:streamInfo():dynamicMetadata()
-                            local headers = response_handle:headers()
-                            local status = headers:get(":status")
-                                                      metadata:set(namespace, "response_status_text", http_status_text[status] or "Unknown")
-                            local prior = metadata:get(namespace)
-                            if prior ~= nil and prior["response_body_capture_state"] == "skipped_signup_guest" then
-                              return
-                            end
-                                                      -- Development-only: raw response previews can include personal data/tokens.
-                            -- Do not enable response-body logging in a production gateway.
-                            local content_type = string.lower(headers:get("content-type") or "")
-                            local content_encoding = string.lower(headers:get("content-encoding") or "")
-                            local is_json = string.find(content_type, "application/json", 1, true)
-                              or string.find(content_type, "+json", 1, true)
-                                                      if not is_json then
-                              metadata:set(namespace, "response_body_capture_state", "skipped_non_json")
-                              return
-                            end
-                                                      -- Compressed response bytes are not readable JSON at this Lua filter.
-                            if content_encoding ~= "" and content_encoding ~= "identity" then
-                              metadata:set(namespace, "response_body_capture_state", "skipped_compressed")
-                              return
-                            end
-                                                      -- Stream without buffering the whole response; retain at most 4096 bytes.
-                            local max_bytes = 4096
-                            local captured_bytes = 0
-                            local total_bytes = 0
-                            local pieces = {}
-                                                      for chunk in response_handle:bodyChunks() do
-                              local length = chunk:length()
-                              total_bytes = total_bytes + length
-                                                        local available = max_bytes - captured_bytes
-                              local take = math.min(length, available)
-                              if take > 0 then
-                                pieces[#pieces + 1] = chunk:getBytes(0, take)
-                                captured_bytes = captured_bytes + take
-                              end
-                            end
-                                                      metadata:set(namespace, "response_body", table.concat(pieces))
-                            metadata:set(namespace, "response_body_truncated", total_bytes > max_bytes)
-                            metadata:set(namespace, "response_body_capture_state", "captured")
+                          function envoy_on_response(response_handle)
+                            local status = response_handle:headers():get(":status")
+                            response_handle:streamInfo():dynamicMetadata():set(
+                              "envoy.filters.http.lua", "response_status_text", http_status_text[status] or "Unknown"
+                            )
                           end
                   - name: envoy.filters.http.router
                     typed_config:

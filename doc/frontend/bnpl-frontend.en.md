@@ -2,7 +2,7 @@
 
 > **Audience:** BNPL customer app, merchant administration UI, and BNPL-owned Hosted Checkout UI developers and QA.  
 > **Language:** English · [فارسی](bnpl-frontend.fa.md)  
-> **Wire contract update:** 2026-11-10 — `external_` prefix for IDs owned by external systems. Delta: [changelog](bnpl-frontend-external-ids-changelog.en.md).  
+> **Wire contract update:** 2026-11-20 — dual independent credit products (`pay_in_installments`, `pay_next_month`), Partner credit-kind selection, repayment batches. External-ID delta remains: [changelog](bnpl-frontend-external-ids-changelog.en.md).  
 > **API prefix:** `/api/v1`, without a service-name prefix. The origin and frontend route for Hosted Checkout are deployment configuration, **not** hard-coded by this document.  
 > **Related merchant-server documentation:** [Partner integration (EN)](../integration/partner-checkout.en.md) / [فارسی](../integration/partner-checkout.md).
 
@@ -20,6 +20,26 @@ This guide specifies **what the current Go backend actually exposes**. It distin
 **Never mix the surfaces.** In particular, do not put merchant terminal API keys in a browser, do not manufacture `X-Auth-*` headers in a client, and do not require an authenticated dashboard session to open a public Hosted Checkout URL.
 
 The backend does **not** offer a frontend login/logout/token-refresh endpoint. Authentication and access-token lifecycle belong to the Identity Service and gateway.
+
+## 1A. Dual credit products (non-fungible)
+
+BNPL now maintains **two independent credit products**. Their balances, eligibility, exposure, and checkout decisions **must never be combined or substituted**.
+
+| Credit kind | Meaning | Repayment plan label | Typical schedule |
+| --- | --- | --- | --- |
+| `pay_in_installments` | Installment credit account | `pay_in_3` or `pay_in_4` (from the customer's governing Checkout Policy) | 3 (trusted policy **v2**) or 4 (ordinary policy **v1**) installments |
+| `pay_next_month` | Monthly / deferred credit account | **None** — no `pay_in_N` label | Single installment due at **00:00 Asia/Tehran on day 1 of the next Jalali month** after contract activation (Checkout Policy **v3**) |
+
+**`credit_kind` ≠ `repayment_plan`.** Kind selects the credit account. Plan is only a projection of installment-policy length. Monthly credit keeps `installment_count=1` and omits `repayment_plan`.
+
+**Active financing rule (launch):** full-financing-only. If available credit for the selected product cannot cover the whole purchase, the decision/offer is **denied**. Catalogued upfront-difference and excess-financing rules exist but are **inactive** — do not build UI for partial upfront top-up as a production path.
+
+**Exposure:** Available credit = product limit − **active** outstanding principal on that product's CreditAccount. Checkout decisions, offers, and `payment_pending` contracts do **not** reduce available credit. Credit is consumed only when a contract becomes `active`.
+
+**New-credit restrictions (server-authoritative via `credit_usage`):** due/overdue unpaid obligations can restrict **every** product; unpaid previous monthly cycle can restrict `pay_next_month` specifically (`previous_month_unpaid`).
+
+**Due date note:** Policy v3 comments historically said "end of day 1"; the implemented due instant is **start of day 1 (00:00 Asia/Tehran)** of the following Jalali month. Document and display that server `due_at`.
+
 
 ## 2. Deployment and HTTP-client setup
 
@@ -124,7 +144,7 @@ Every route below uses the gateway identity context and the listed backend permi
 | Method | Path | Permission | Status |
 | --- | --- | --- | --- |
 | `GET` | `/api/v1/customer-credit` | `bnpl:credit-limits:read:self` | `200` |
-| `POST` | `/api/v1/customer-credit/initiate` | `bnpl:credit-limits:create:self` | `201` new; `200` existing/denied |
+| `POST` | `/api/v1/customer-credit/initiate` | `bnpl:credit-limits:create:self` | `201` if any product newly created; else `200` |
 | `POST` | `/api/v1/checkout-decisions` | `bnpl:decisions:create:self` | `201` new; `200` replay |
 | `POST` | `/api/v1/checkout-decisions/{decision_id}/contracts` | `bnpl:contracts:create:self` | `201` new; `200` existing |
 | `POST` | `/api/v1/contracts/{contract_id}/cancel` | `bnpl:contracts:cancel:self` | `202` started; `200` replay |
@@ -132,32 +152,180 @@ Every route below uses the gateway identity context and the listed backend permi
 | `GET` | `/api/v1/contracts/{contract_id}/installments` | `bnpl:installments:read:self` | `200` |
 | `GET` | `/api/v1/installments` | `bnpl:installments:read:self` | `200` |
 | `POST` | `/api/v1/contracts/{contract_id}/installments/{installment_id}/pay` | `bnpl:payments:start:self` | `202` new; `200` replay |
+| `POST` | `/api/v1/repayment-batches` | `bnpl:payments:start:self` | `202` |
+| `POST` | `/api/v1/repayment-batches/{id}/start` | `bnpl:payments:start:self` | `202` |
+| `GET` | `/api/v1/repayment-batches/{id}` | `bnpl:payments:read:self` | `200` |
 | `GET` | `/api/v1/payments` | `bnpl:payments:read:self` | `200` |
 
 No customer ID or tenant ID is accepted from the browser for these operations. The authenticated subject is resolved by the backend. Showing or hiding UI buttons based on client permissions is UX only; the API enforces access.
 
 ## 5. Customer credit and first-time onboarding
 
-### Read credit
+### 5.1 Read all products (default)
 
-`GET /api/v1/customer-credit` has no body. `data` contains:
+`GET /api/v1/customer-credit` with **no** `credit_kind` query returns **both** supported products in one envelope.
 
-- `status`: `active` | `not_assigned` | `expired`
-- `credit_usage`: `{status, reason?}`; this is distinct from credit limit lifecycle.
-- When active: `limit_amount_minor` (total governed capacity), `available_amount_minor` (remaining usable), and `currency`, plus optional `expires_at`.
-- When not assigned: **do not** interpret missing amount as zero; invite the user to initiate assessment.
-- When expired: `expires_at` may be present; explain that reassessment is needed.
+~~~json
+{
+  "data": {
+    "status": "assigned",
+    "credits": [
+      {
+        "credit_kind": "pay_in_installments",
+        "status": "active",
+        "credit_usage": { "status": "allowed" },
+        "limit_amount_minor": 2000000000,
+        "available_amount_minor": 500000000,
+        "currency": "IRR",
+        "expires_at": "2027-11-19T10:41:34Z",
+        "application": { "status": "assigned" }
+      },
+      {
+        "credit_kind": "pay_next_month",
+        "status": "active",
+        "credit_usage": { "status": "restricted", "reason": "previous_month_unpaid" },
+        "limit_amount_minor": 30000000,
+        "available_amount_minor": 30000000,
+        "currency": "IRR",
+        "expires_at": "2027-11-19T10:41:34Z",
+        "application": { "status": "assigned" }
+      }
+    ]
+  },
+  "meta": { "code": "CUSTOMER_CREDIT_RETRIEVED", "status_code": 200 }
+}
+~~~
 
-Backend `meta.code` distinguishes `CUSTOMER_CREDIT_NOT_ASSIGNED` and `CUSTOMER_CREDIT_EXPIRED`. Eligibility and `credit_usage` restrictions can still prevent a payment even with an active limit.
+**Top-level `data.status` (aggregate):**
 
-### Initiate credit
+| Value | Meaning |
+| --- | --- |
+| `not_assigned` | Neither product has an active usable assignment |
+| `partially_assigned` | Exactly one product is usable/assigned in a meaningful way (or mixed expired/active) |
+| `assigned` | Both products are actively assigned |
+
+**Per-product `credits[].status`:** `active` | `not_assigned` | `expired`.
+
+**Per-product `application.status`:** `assigned` | `not_assigned` | `reassessment_required` (expired).
+
+**`credit_usage.status`:** `allowed` | `restricted` | `unavailable`. When `restricted`, optional public `reason` values include `previous_month_unpaid`, `collections_default`, `collections_due`, and `credit_usage_restricted`. An active limit with `restricted` usage must not be treated as spendable for new purchases.
+
+**Field presence:**
+
+- `active`: includes `limit_amount_minor`, `available_amount_minor`, `currency`, optional `expires_at`.
+- `not_assigned`: **omit** monetary fields — never invent zeros.
+- `expired`: may include `expires_at` only; invite reassessment.
+
+Always render **two product cards**. Never sum `available_amount_minor` across kinds.
+
+When aggregate `status=not_assigned`, `meta.code` is `CUSTOMER_CREDIT_NOT_ASSIGNED`.
+
+#### Example: only installment product assigned
+
+~~~json
+{
+  "status": "partially_assigned",
+  "credits": [
+    {
+      "credit_kind": "pay_in_installments",
+      "status": "active",
+      "credit_usage": { "status": "allowed" },
+      "limit_amount_minor": 90000000,
+      "available_amount_minor": 90000000,
+      "currency": "IRR",
+      "application": { "status": "assigned" }
+    },
+    {
+      "credit_kind": "pay_next_month",
+      "status": "not_assigned",
+      "credit_usage": { "status": "unavailable" },
+      "application": { "status": "not_assigned" }
+    }
+  ]
+}
+~~~
+
+#### Example: neither assigned
+
+~~~json
+{
+  "status": "not_assigned",
+  "credits": [
+    {
+      "credit_kind": "pay_in_installments",
+      "status": "not_assigned",
+      "credit_usage": { "status": "unavailable" },
+      "application": { "status": "not_assigned" }
+    },
+    {
+      "credit_kind": "pay_next_month",
+      "status": "not_assigned",
+      "credit_usage": { "status": "unavailable" },
+      "application": { "status": "not_assigned" }
+    }
+  ]
+}
+~~~
+
+### 5.2 Legacy single-product query
+
+`GET /api/v1/customer-credit?credit_kind=pay_in_installments`  
+`GET /api/v1/customer-credit?credit_kind=pay_next_month`
+
+Returns the **legacy flat** summary (`status`, `credit_usage`, optional amounts) — **not** the `{status, credits[]}` envelope. For `pay_next_month`, `credit_kind` is present on the wire; for installment legacy responses it may be omitted. Do not mix parsers for the two shapes.
+
+Invalid `credit_kind` → validation error.
+
+### 5.3 Initiate credit
 
 ~~~http
 POST /api/v1/customer-credit/initiate
 Authorization: Bearer <access-token>
 ~~~
 
-No request body. The access token must include Identity claim `auth_mobile_number` (canonical E.164); Envoy injects it as `x-auth-mobile-number`. BNPL resolves that mobile through Customer Reference Service and assigns credit only when CRS status is `ACTIVE` (trusted-customer policy v2 applies when that CRS customer has an assignment). Response `data` contains `result`, `credit_limit_decision.outcome` (`limit_set` | `denied`), `reason_codes[]`, and optional `credit_limit` containing `amount_minor`, `currency`, `status`, `effective_from` and `expires_at`. `201` means a newly created credit assignment; `200` also covers already-assigned or denied. The frontend must branch on `credit_limit_decision.outcome` and then refresh credit, not infer success from HTTP 200 alone.
+No request body. The access token must include Identity claim `auth_mobile_number` (canonical E.164); Envoy injects `x-auth-mobile-number`. **Browser clients must not forge** trusted gateway headers. BNPL resolves the mobile through Customer Reference Service (`ACTIVE` only) and may create the local profile idempotently without assigning credit until assessment runs.
+
+**Without `credit_kind`:** assigns **both** independent products (all-products response):
+
+~~~json
+{
+  "data": {
+    "status": "assigned",
+    "credits": [
+      {
+        "credit_kind": "pay_in_installments",
+        "result": "created",
+        "credit_limit_decision": { "outcome": "limit_set", "reason_codes": [] },
+        "credit_limit": {
+          "amount_minor": 90000000,
+          "currency": "IRR",
+          "status": "active",
+          "effective_from": "2026-11-19T12:00:00Z",
+          "expires_at": "2027-11-19T12:00:00Z"
+        }
+      },
+      {
+        "credit_kind": "pay_next_month",
+        "result": "created",
+        "credit_limit_decision": { "outcome": "limit_set", "reason_codes": [] },
+        "credit_limit": {
+          "amount_minor": 30000000,
+          "currency": "IRR",
+          "status": "active",
+          "effective_from": "2026-11-19T12:00:00Z",
+          "expires_at": "2027-11-19T12:00:00Z"
+        }
+      }
+    ]
+  }
+}
+~~~
+
+Per-item `result`: `created` | `already_assigned` | `denied`. Decision `outcome`: `limit_set` | `denied`. HTTP `201` if **any** product was newly `created`; otherwise `200` (including mixed already-assigned/denied). **Never infer success from HTTP 200 alone** — inspect each `credit_limit_decision.outcome` / `result`.
+
+**With `?credit_kind=…`:** legacy single-product response (`result`, `credit_limit_decision`, optional `credit_limit`) without the aggregate `credits[]` wrapper. `201` only for that product's new creation; `200` for already-assigned or denied.
+
+Trusted-customer Checkout Policy **v2** (three installments) may be selected server-side for eligible CRS customers; ordinary customers use **v1** (four). Monthly product uses Checkout Policy **v3**. Frontend must not hard-code plan length — read returned schedules/`repayment_plan` where exposed.
 
 ## 6. Customer direct checkout: Decision → Offer → Contract
 
@@ -171,6 +339,8 @@ Authorization: Bearer <access-token>
 Idempotency-Key: checkout-intent-1001
 Content-Type: application/json
 ~~~
+
+**Public request body does NOT include `credit_kind`.** The REST `createRequest` only accepts `purchase_context`, `requested_amount_minor`, and `currency`. Omitted kind is treated as installment credit (`pay_in_installments`) inside the use case. There is currently **no** authenticated public way to select `pay_next_month` on this endpoint — Partner Hosted Checkout is the dual-product selection path.
 
 **POS purchase:**
 
@@ -199,9 +369,9 @@ Content-Type: application/json
 }
 ~~~
 
-`purchase_context.type` is mandatory. `pos` requires `external_pos_gps_id` and forbids online fields; `online` requires `external_online_store_id`, forbids `external_pos_gps_id`, and accepts optional `merchant_order_id` (max 256). These IDs belong to external merchant systems; they are not BNPL internal primary keys. Currency on the wire is one of `IRR`, `EUR` or `USD`; business eligibility can be narrower. On `VALIDATION_FAILED`, `details.fields` uses the same JSON snake_case keys.
+`purchase_context.type` is mandatory. `pos` requires `external_pos_gps_id` and forbids online fields; `online` requires `external_online_store_id`, forbids `external_pos_gps_id`, and accepts optional `merchant_order_id` (max 256). Currency on the wire is one of `IRR`, `EUR` or `USD`; business eligibility can be narrower.
 
-Key `data` fields on a successful decision:
+Key `data` fields on a successful **full-financing** approval (active launch rule — no partial upfront path):
 
 ~~~json
 {
@@ -218,19 +388,19 @@ Key `data` fields on a successful decision:
     "merchant_order_id": "ORDER-1001"
   },
   "requested_amount_minor": 150000000,
-  "approved_financed_amount_minor": 100000000,
-  "upfront_amount_minor": 50000000,
+  "approved_financed_amount_minor": 150000000,
+  "upfront_amount_minor": 0,
   "currency": "IRR",
-  "available_credit_minor": 100000000,
+  "available_credit_minor": 500000000,
   "expires_at": "2026-11-04T12:30:00Z",
   "checkout_action": {
-    "type": "confirm_and_pay",
-    "payment_required": true,
-    "payment_amount_minor": 75000000
+    "type": "confirm_purchase",
+    "payment_required": false,
+    "payment_amount_minor": 0
   },
   "installment_offer": {
-    "installment_count": 4,
-    "payable_now_amount_minor": 75000000,
+    "installment_count": 3,
+    "payable_now_amount_minor": 0,
     "total_payable_amount_minor": 150000000,
     "currency": "IRR",
     "expires_at": "2026-11-04T12:30:00Z",
@@ -239,9 +409,11 @@ Key `data` fields on a successful decision:
 }
 ~~~
 
-This is a **shape example**, not a calculated schedule. Actual installment arrays have `id`, `installment_order`, `status`, `due_at`, `principal_amount_minor`, `upfront_amount_minor`, `base_fee_amount_minor` and `total_amount_minor`. Always display returned terms; never calculate an alternative schedule. Conditional/partial financing is mapped to HTTP `decision.outcome=approved`; determine upfront contribution from `upfront_amount_minor`, not from an invented `partial_approved` enum.
+This is a **shape example**, not a calculated schedule. Actual installment arrays have `id`, `installment_order`, `status`, `due_at`, `principal_amount_minor`, `upfront_amount_minor`, `base_fee_amount_minor` and `total_amount_minor`. Always display returned terms; never calculate an alternative schedule.
 
-`decision.outcome=denied` has reason codes and **no** `installment_offer`. For an approved decision use `checkout_action.type` (`confirm_and_pay` or `confirm_purchase`) to drive the CTA, not the POS/online distinction. This operation **does not reserve/deduct available credit**; eligibility is rechecked later.
+Under the active full-financing-only rule, insufficient available credit yields `decision.outcome=denied` (no usable `installment_offer`), not a customer cash top-up. Historical schemas may still expose `upfront_amount_minor`; treat non-zero upfront as non-launch behavior unless a future rule is activated.
+
+`checkout_action.type` is `confirm_and_pay` (initial payment required) or `confirm_purchase` (no customer payment redirect — typical merchant-funding / zero payable-now). Drive the CTA from this field. Creating a Decision **does not reserve** available credit.
 
 ### Create contract from approved decision
 
@@ -250,7 +422,7 @@ POST /api/v1/checkout-decisions/{decision_id}/contracts
 Authorization: Bearer <access-token>
 ~~~
 
-No payment-provider selection or business request body. The operation is idempotent by Decision ID. `data` includes:
+No payment-provider selection or business request body. Idempotent by Decision ID. `data` includes:
 
 ~~~json
 {
@@ -265,22 +437,22 @@ No payment-provider selection or business request body. The operation is idempot
 }
 ~~~
 
-If `payment_required=true` and `redirect_url` is present, perform a **top-level browser navigation** to exactly that URL. Do not process PSP/FC identifiers, do not build the URL yourself, and do not embed the PSP in an unsafe frame. If `payment_required=false`, no payment redirect is required; **still verify subsequent authoritative backend contract status** before reporting final activation.
+If `payment_required=true` and `redirect_url` is present, perform a **top-level browser navigation** to exactly that URL. If `payment_required=false`, no payment redirect is required (merchant-funding activation path); **still verify** authoritative contract/session status before reporting final activation.
 
-A `201` contract creation response or browser payment return is **not** contract activation. Financial Core payment/funding is authoritative; BNPL activates only after its backend processing.
+A `201` contract creation response or browser payment return is **not** contract activation. Financial Core payment/funding is authoritative; BNPL activates only after backend processing. `payment_pending` can remain while FC merchant funding is incomplete — do not treat local `expires_at` alone as proof the gate is free for another purchase on the same credit product.
 
 ## 7. Customer dashboard, installments, and repayment
 
 ### Dashboard reads
 
-- `GET /api/v1/contracts` returns **active/canceling** contracts (not all historical contracts). `data` is an array. Item fields include `id`, `merchant_profile_id`, optional `merchant_branch_profile_id`, `requested_amount_minor`, `currency`, `installment_count`, `status` and `created_at`.
-- `GET /api/v1/contracts/{contract_id}/installments` returns a **single object**: `contract_id`, `requested_amount_minor`, `currency`, `status`, `created_at`, `installments[]` and nullable `next_payable_installment`. Each installment has `id`, `installment_order`, `total_amount_minor`, `currency`, `due_at`, `status` and optional `paid_at`. Do not derive current next-payable installment client-side if the backend provides it.
-- `GET /api/v1/installments` returns **an object, not a bare array**: `data.installments[]` and `data.repayment`. The latter is a customer-wide summary, not just current page. It contains `due_installments[]`, `due_count`, `unpaid_count`, nullable `next_payable` and `has_pending_payment`. The `next_payable` can expose `payable_amount_known`, `outstanding_amount_minor`, `payment_block_reason`, `has_pending_payment` and `payable_amount_minor`.
-- `GET /api/v1/payments` returns finalized customer payment attempts only: `succeeded`, `failed` and `canceled`; purpose `first_installment` or `installment`. In-progress attempts are **not** included. Each item provides `id`, `contract_id`, `installment_id`, `amount_minor`, `currency`, `status`, `purpose`, `created_at` and optional `completed_at`.
+- `GET /api/v1/contracts` returns **active/canceling** contracts. Each item includes `credit_kind` and optional `repayment_plan` (`pay_in_3` / `pay_in_4`; omitted for monthly), plus `id`, merchant profile/branch IDs, `requested_amount_minor`, `currency`, `installment_count`, `status`, `created_at`.
+- `GET /api/v1/contracts/{contract_id}/installments` returns a **single object** including `credit_kind`, optional `repayment_plan`, `installment_count`, `installments[]`, and nullable `next_payable_installment`. Monthly contracts have one installment.
+- `GET /api/v1/installments` returns **an object**: `data.installments[]` and `data.repayment` (customer-wide). Repayment summary includes `due_installments[]`, `due_count`, `unpaid_count`, nullable `next_payable`, and `has_pending_payment`. Items expose server amounts such as `customer_payable_amount_minor` (nullable when unknown), `principal_amount_minor`, `late_fee_amount_minor`, `grace_period_days`, `payment_block_reason`, and `has_pending_payment`.
+- `GET /api/v1/payments` returns finalized attempts only (`succeeded` / `failed` / `canceled`); in-progress attempts are omitted.
 
-A `200` with empty list is normal. Do not use absence in payment history as proof that no payment is in flight. The frontend should respect `has_pending_payment` and `payment_block_reason` to disable premature payment attempts.
+A `200` with empty list is normal. Respect `has_pending_payment` and `payment_block_reason`. Never recompute overdue penalties or next-payable selection in the client.
 
-### Start an installment repayment
+### Start a single installment repayment
 
 ~~~http
 POST /api/v1/contracts/{contract_id}/installments/{installment_id}/pay
@@ -293,29 +465,56 @@ Content-Type: application/json
 {"channel":"gateway"}
 ~~~
 
-`channel` must be one of `gateway`, `bank_transfer` or `wallet`; availability is subject to actual backend policy. The backend enforces earliest-payable-installment order: an arbitrary later installment ID is not necessarily payable.
+`channel` must be one of `gateway`, `bank_transfer` or `wallet`; availability is subject to backend policy. The backend enforces earliest-payable order within a contract.
 
-`202` for a new attempt and `200` for replay. Read `data.result` and `data.payment_attempt`:
+`202` for a new attempt and `200` for replay. If `redirect_url` is returned, navigate to it. Final settlement is asynchronous — redirect ≠ paid.
 
-~~~json
-{
-  "result": "queued",
-  "payment_attempt": {
-    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-    "installment_id": "0a1b2c3d-4e5f-6789-abcd-ef0123456789",
-    "amount_minor": 25000000,
-    "currency": "IRR",
-    "state": "submitted",
-    "channel": "gateway",
-    "redirect_url": "https://payment.example/session/opaque",
-    "expires_at": "2026-11-04T12:40:00Z"
-  }
-}
+### Repayment batches (multi-installment)
+
+Use when the customer pays several installments together. Selection is validated server-side:
+
+1. **All overdue** installments across **both credit products and all merchants** must be included.
+2. Within a multi-installment contract, earlier unpaid installments cannot be skipped.
+3. Scheduled-but-not-overdue installments are optional until they become overdue.
+
+#### Create
+
+~~~http
+POST /api/v1/repayment-batches
+Authorization: Bearer <access-token>
+Idempotency-Key: repay-batch-2026-11-20-1
+Content-Type: application/json
+
+{"installment_ids":["0a1b2c3d-4e5f-6789-abcd-ef0123456789"]}
 ~~~
 
-`redirect_url` and `expires_at` are optional. If a valid `redirect_url` is returned, navigate to it. If not, show an operation in progress or meaningful retry/recovery UX based on state/error; **do not fabricate a URL**.
+- `installment_ids`: required, 1..50 UUIDs.
+- `Idempotency-Key`: required, max 256.
+- Success **`202`** with `data`: `{ "id", "status", "total_amount_minor", "currency" }`.
+- Create does **not** mean installments are settled. Provider/FC identifiers are never exposed.
 
-For a single PaymentAttempt, the backend permits at most three **customer-triggered** synchronous Financial Core session-creation calls using one stable idempotency identity. The first two failures can retain local `created`; the third failed call cancels locally. Do not implement an automatic rapid retry loop to spend the budget. A fresh user intention after a terminal state needs a fresh key; first refresh unpaid installments / payment history to ensure the previous payment did not settle. Final payment success is determined asynchronously by FC and BNPL, not by redirect.
+#### Start
+
+~~~http
+POST /api/v1/repayment-batches/{id}/start
+Authorization: Bearer <access-token>
+Idempotency-Key: repay-batch-2026-11-20-1-start
+~~~
+
+Empty body. Success **`202`** with `{ "id", "status", "redirect_url?" }`. Navigate if `redirect_url` is present. Provider code and return URLs are **server-configured**, never taken from the browser.
+
+**Wire mismatch to respect:** Create/Get `status` uses **BNPL** batch vocabulary (`created`, `prepared`, `starting`, `requires_action`, `reconciling`, `accounting_pending`, `posted`, `failed`, `expired`, `manual_review`). Start `status` echoes the **Financial Core collection** vocabulary (for example `requires_customer_action`, `succeeded`, `failed`, `expired`) — do not assume the same enum as Create/Get.
+
+#### Get / poll
+
+~~~http
+GET /api/v1/repayment-batches/{id}
+Authorization: Bearer <access-token>
+~~~
+
+Returns `{ "id", "status", "total_amount_minor", "currency" }` with the **BNPL** status set above. Background reconciliation refreshes this projection. Treat **`posted`** as the durable settled BNPL projection for UX completion.
+
+**Never** treat HTTP `202`, a redirect, Start's FC `succeeded`, or BNPL `requires_action` alone as installment settlement until Get reports `posted` (or you re-read authoritative installment state). On BNPL `manual_review` / `failed` / `expired`, show support/recovery UX.
 
 ### Cancel a contract (separate from checkout cancellation)
 
@@ -328,7 +527,7 @@ Content-Type: application/json
 {"reason":"customer_requested"}
 ~~~
 
-`202`: cancellation started and `data.status=canceling`; `200`: exact replay. FC remains authoritative for the final `canceled` transition. Do **not** display "canceled" when merely `canceling`.
+`202`: cancellation started (`canceling`); `200`: exact replay. Do **not** display final "canceled" while still `canceling`.
 
 ## 8. Query pagination
 
@@ -362,6 +561,17 @@ One merchant currently has at most one terminal. The terminal list is an array i
 
 Merchant pages must not invoke `/api/v1/partner/checkout-sessions` using this newly provisioned key from the browser. The merchant backend owns that integration. See the separate Partner guide.
 
+### Admin merchant credit-kind eligibility (not Partner Terminal)
+
+Authenticated **admin** APIs (gateway permissions, not terminal keys):
+
+| Method | Path | Permission |
+| --- | --- | --- |
+| `GET` | `/api/v1/admin/merchants/{merchant_profile_id}/credit-kinds` | `bnpl:merchants:read:any` |
+| `PUT` | `/api/v1/admin/merchants/{merchant_profile_id}/credit-kinds/{credit_kind}` | `bnpl:merchants:credit-kinds:update:any` |
+
+`PUT` body: `{"enabled": true|false}`. Defaults: `pay_in_installments` enabled unless disabled; `pay_next_month` **disabled until explicitly enabled**. Partner checkout selection fails for disabled kinds. These endpoints are **not** for Partner Backend terminal credentials.
+
 ## 10. BNPL Hosted Checkout frontend — complete flow
 
 The merchant backend creates checkout and supplies `checkout_url`. The BNPL Hosted Checkout app receives the public `cs_` token through its own deployment-specific URL; that UI then uses only:
@@ -378,13 +588,15 @@ The merchant backend creates checkout and supplies `checkout_url`. The BNPL Host
 
 ### Step A: GET (initial render)
 
-`GET /api/v1/checkout-sessions/{token}` returns `data.checkout_session_id`, `status`, `merchant.display_name`, `amount_minor`, `currency`, `evaluation_generation`, optional `offer`, `verification.type=sms_otp`, masked `verification.destination` and `expires_at`.
+`GET /api/v1/checkout-sessions/{token}` returns `checkout_session_id`, `status`, `merchant.display_name`, `amount_minor`, `currency`, `evaluation_generation`, optional Partner-selected `credit_kind`, `supported_credit_kinds[]` (merchant-enabled kinds — **not** customer purchase eligibility), optional privacy-safe `offer`, `verification.type=sms_otp`, masked `verification.destination`, and `expires_at`.
 
-The token is a random public `cs_` followed by 64 hex characters, not an internal UUID. GET **does not** resolve a customer identity, generate a financing decision, request OTP, or call Financial Core.
+The token is a random public `cs_` followed by 64 hex characters, not an internal UUID. GET is **read-only**: it does not resolve customer identity, create a Decision, send OTP, call Financial Core, or accept a credit-kind override.
 
-An already prepared Offer may be visible because the merchant's branch is configured `on_create`. A deferred `on_start` branch may have no Offer until START. This mode is a merchant-branch server setting, not something the UI chooses or guesses based on merchant name.
+`credit_kind` is omitted until Partner `PUT .../credit-kind`. Hosted UI must **not** invent product selection — that happens on the merchant website before redirect.
 
-Hosted Offer fields include `outcome` (`approved` / `denied`), optional requested/financed/down-payment amounts, `currency`, `offer_expires_at`, `installment_count`, `payable_now_amount_minor`, `total_payable_amount_minor`, `installments[]` and `checkout_action`. **Hosted DTOs deliberately exclude `available_credit_minor` and internal customer identifiers** even when partner backend Create had such data.
+An Offer may already be present when Partner selected a kind under branch mode `on_create`. Under `on_start`, Offer preparation is deferred until START (still bound to the Partner-selected kind).
+
+Hosted Offer fields include `outcome`, amounts, optional `credit_kind` / `repayment_plan`, schedule, and `checkout_action`. **Hosted DTOs deliberately exclude `available_credit_minor`, customer IDs, and the full phone number.**
 
 ### Step B: START (prepare/re-read Offer)
 
@@ -395,9 +607,9 @@ Content-Type: application/json
 {}
 ~~~
 
-On first deferred START, `{}` or empty body is valid. If GET already presented an Offer, send `{"evaluation_generation":N}` from that response. START returns current `checkout_session_id`, `status`, `evaluation_generation` and `offer` when prepared; it **does not issue or send OTP**.
+START **cannot override** the Partner-selected credit kind. Partner SelectCreditKind must already have run; otherwise START fails as not continuable. Optional body `{"evaluation_generation":N}` fences stale offers. START returns current generation and offer when prepared; it **does not send OTP**.
 
-If Offer is denied/unavailable, show its unavailable state; do not progress to OTP/Confirm for an invalid Offer.
+If Offer is denied/unavailable, show that state; do not progress to OTP/Confirm.
 
 ### Step C: request OTP
 
@@ -452,10 +664,11 @@ The receiving merchant webpage must treat the return as UX only and ask its own 
 | 401 on authenticated dashboard | Reauthenticate through Identity/gateway; do not fake `X-Auth-*` |
 | 403 on authenticated dashboard | Explain missing permission; hide unauthorized controls as UX, but do not replace server checks |
 | 404 on someone else's contract/session | Treat as inaccessible; never reveal resource existence |
-| Credit `not_assigned` | Offer `POST /customer-credit/initiate`; not a zero-balance state |
-| Credit `expired` | Offer reassessment; do not show old limit as active |
+| Aggregate credit `not_assigned` | Offer `POST /customer-credit/initiate` for all products; not a zero-balance state |
+| Per-product `not_assigned` / `expired` | Show that card independently; do not invent monetary zeros |
+| `credit_usage.restricted` | Disable new spend for that product; show distinct monthly/collections messaging |
 | Decision denied | Show reason codes/message; do not attempt contract creation |
-| Decision approved with upfront requirement | Show exact backend amounts and installment schedule; do not reprice |
+| Full-financing denial | Do not invent an upfront cash top-up CTA under the active launch rule |
 | PSP/browser returns | Show pending; re-read authoritative BNPL state |
 | Installment `has_pending_payment=true` or `payment_block_reason` | Disable duplicate payment CTA; do not assume failed |
 | POST payment timeout | Reuse same idempotency key only for deliberate retry; refresh dashboard first |
@@ -465,6 +678,8 @@ The receiving merchant webpage must treat the return as UX only and ask its own 
 | Hosted stale Offer generation | Show refreshed terms, require fresh user consent and OTP |
 | Hosted Confirm uncertain | Poll `confirmation-status` using retry hint; do not manufacture financial success |
 | Hosted `completed` | Show completion, then navigate via backend Return endpoint |
+| Hosted missing `credit_kind` | Wait / instruct merchant selection; Hosted must not choose the product |
+| Repayment batch `202` / redirect | Poll batch until `posted` (or terminal failure); never mark installments paid early |
 | Hosted `expired/canceled/unavailable` | Show terminal UI, avoid mutating actions |
 | Any 429/503 | Use bounded backoff and server retry hint if returned |
 | Aborted request / tab close | Treat remote outcome as unknown; recover from safe reads |
@@ -485,10 +700,13 @@ The receiving merchant webpage must treat the return as UX only and ask its own 
 - [ ] Hosted Checkout uses public token and OTP only, not merchant terminal credentials or dashboard JWT.
 - [ ] Response parser distinguishes success `{data,meta}` from top-level error `{code,message,trace_id,details?}`.
 - [ ] All POSTs use correct idempotency policy and bounded retries; ambiguous financial operations remain pending until backend verification.
-- [ ] Credit statuses `not_assigned` / `expired` / `active` are distinct UI states.
-- [ ] Partial financing displays server-provided upfront/instalment terms without local recalculation.
+- [ ] Dual credit cards never combine balances; `credit_kind` and optional `repayment_plan` render correctly.
+- [ ] All-products vs `?credit_kind=` response shapes use separate parsers.
+- [ ] Credit statuses `not_assigned` / `expired` / `active` and `credit_usage` are distinct UI states.
+- [ ] Full-financing-only launch behavior: no invented partial-upfront checkout path.
 - [ ] Contract activation/repayment/cancellation is never inferred from redirects.
-- [ ] Repayment CTA uses server-selected `next_payable` / `payment_block_reason`.
+- [ ] Repayment CTA uses server-selected `next_payable` / `payment_block_reason`; batches require overdue-complete selection.
+- [ ] Repayment-batch Create/Start require `Idempotency-Key`; settlement only when status is `posted`.
 - [ ] History pagination uses `meta.pagination` and the exact cursor pair.
 - [ ] Hosted START does not send OTP; `/otp` is separate and bound to `evaluation_generation`.
 - [ ] Stale Hosted Offer requires reconsent and OTP; uncertain Confirm uses read-only polling.
@@ -503,9 +721,10 @@ Implementation entrypoints:
 - Route surfaces and authentication: `pkg/adapter/restful/gin/routes/register.go`, `middleware/auth_context.go`, `middleware/partner_terminal_auth.go`, `middleware/hosted_hardening.go`.
 - Customer Decision and Offer: `decisionrs/serdser.go`, `decisionrs/create.go`, `decisionuc`.
 - Contract and cancellation: `contractrs/serdser.go`, `contractrs/create_contract.go`, `contractrs/cancel.go`.
-- Credit: `customercreditrs/serdser.go`, `customercreditrs/assign_initial_limit_serdser.go`.
-- Account reads and repayment: `customerrs/list_active_contracts.go`, `customerrs/list_unpaid_installments.go`, `customerrs/list_payments.go`, `installmentpaymentrs/serdser.go`.
-- Merchant management and terminals: `merchantrs/resource.go`, `merchantrs/serdser.go`, `merchantterminalrs/resource.go`, `merchantterminalrs/serdser.go`.
+- Credit (dual products): `customercreditrs/get.go`, `customercreditrs/serdser.go`, `customercreditrs/assign_initial_limit.go`, `customercredituc/all_credits.go`.
+- Account reads and repayment: `customerrs/list_active_contracts.go`, `customerrs/list_unpaid_installments.go`, `customerrs/list_payments.go`, `installmentpaymentrs/serdser.go`, `repaymentbatchrs/resource.go`, `repaymentselection/selection.go`.
+- Policies: `policy/checkout/v1|v2|v3`, `policy/checkout/repayment.go`, `policy/checkout/businessrule/catalog.go`.
+- Merchant management, terminals, admin credit-kinds: `merchantrs/resource.go`, `merchantrs/list_credit_kinds.go`, `merchantrs/set_credit_kind.go`, `merchantterminalrs/`.
 - Hosted UI: `checkoutsessionrs/resource.go`, `checkoutsessionrs/hosted_external.go`, `checkoutsessionrs/request_otp.go`, `checkoutsessionrs/confirmation_status.go`.
 - Envelope, locale, pagination: `serdser/success_response.go`, `serdser/error_response.go`, `restful/i18n/locale.go`, `pagination/parse.go`.
 
