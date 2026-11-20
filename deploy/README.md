@@ -83,12 +83,43 @@ use `docker-compose.local.yml`. The old unified
 `docker-compose.dev.yml` handoff is replaced by this folder; local assets
 are intentionally duplicated where needed. No CI/CD changes.
 
-## Infrastructure image commands
+## Image build / Hamravesh push (Makefiles)
+
+Each deploy app has its own Makefile. **Build and push are separate**
+(`push-to-hamravesh` never rebuilds). Image name/tag/registry are Makefile
+env vars (`TAG`, `IMAGE_NAME`, `REGISTRY`, `REGISTRY_NAMESPACE`, …).
+
+From `deploy/`:
 
 ```sh
-cd deploy/infrastructure/postgres && make push-to-hamravesh
-cd deploy/gateway/envoy && make push-to-hamravesh
+make help
 
-docker build -t registry.hamdocker.ir/parstis-technology/dpay-kafka-init:v0.1.0 deploy/infrastructure/kafka-init
-docker push registry.hamdocker.ir/parstis-technology/dpay-kafka-init:v0.1.0
+# BNPL (built from repo-root Dockerfile)
+make bnpl-image
+make bnpl-push-to-hamravesh
+make bnpl-image-dbadmin
+make bnpl-push-dbadmin-to-hamravesh
+
+# Gateway Envoy
+make gateway-image
+make gateway-push-to-hamravesh
+
+# Infrastructure images owned by this repo
+make postgres-image
+make postgres-push-to-hamravesh
+make kafka-init-image
+make kafka-init-push-to-hamravesh
 ```
+
+Or run inside an app directory:
+
+```sh
+cd deploy/bnpl && make image TAG=v0.1.0-development BUILD_ENV=development
+cd deploy/bnpl && make push-to-hamravesh TAG=v0.1.0-development
+cd deploy/infrastructure/kafka-init && make image && make push-to-hamravesh
+cd deploy/gateway && make image TAG=v0.1.0
+```
+
+Identity / Customer / Financial Core / Notification images are **not** built
+from this monorepo. Their Makefiles only support `tag` + `push-to-hamravesh`
+after you already have a local image (`SOURCE_IMAGE=... make -C identity tag`).
