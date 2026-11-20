@@ -327,7 +327,7 @@ func TestPostgreSQLCollections_ReminderAtomicDispatch(t *testing.T) {
 	for _, path := range []string{"/health", "/swagger", "/api/v1"} {
 		engine.GET(path, func(c *gin.Context) { c.Status(http.StatusOK) })
 	}
-	req := httptest.NewRequest(http.MethodGet, "https://s.example.com/"+code, nil)
+	req := httptest.NewRequest(http.MethodGet, "https://s.example.com/s/"+code, nil)
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusFound, rec.Code)
@@ -1327,7 +1327,6 @@ WHERE i.id=$1`, installment).Scan(&contractID, &externalCustomerID))
 	require.Equal(t, 0, again.CreatedCount)
 	require.Equal(t, 1, f.scalar(t, `SELECT count(*) FROM repayment_reminders WHERE customer_id=$1`, customer))
 }
-
 
 func rewriteFixtureSchemaSQL(sql, schema string) string {
 	out := strings.ReplaceAll(sql, "SET search_path TO bnpl;", "SET search_path TO "+schema+";")

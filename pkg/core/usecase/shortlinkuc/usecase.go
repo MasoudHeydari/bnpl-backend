@@ -20,6 +20,13 @@ import (
 )
 
 const (
+	// PublicPathPrefix is the public URL path prefix for short-link redirects.
+	//
+	// It is part of the public contract: SMS display URLs embed it and the HTTP
+	// route registration mounts under it. Changing it breaks already-issued
+	// short links, so both call sites must use this constant.
+	PublicPathPrefix = "/s"
+
 	defaultCodeLength    = 8
 	maxCodeCreateRetries = 8
 	codeAlphabet         = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"

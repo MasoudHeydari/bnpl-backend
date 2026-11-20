@@ -7,13 +7,14 @@ Independent BNPL deployment for namespace `parstis-technology-dpay-dev`.
 | File | Role |
 | --- | --- |
 | `compose.yaml` | Always-on `bnpl` app (Darkoob Compose import) |
-| `jobs.yaml` | One-shot `bnpl-migrate` / `bnpl-init` (run separately; do not leave up) |
+| `jobs.yaml` | One-shot `bnpl-migrate` / `bnpl-init` — ENV only for `configs/dbadmin.yaml` |
 | `secrets.example` | Panel checklist for secret ENV only (not an `env_file`) |
 | `Makefile` | Build/push runtime + dbadmin images to `registry.hamdocker.ir` |
 
-Canonical ENV defaults (all BNPL keys): repo-root
-[`.env.dev.hamravesh.example`](../../../.env.dev.hamravesh.example).
-Keep that file, `compose.yaml`, and `jobs.yaml` in sync.
+Canonical BNPL runtime ENV: repo-root
+[`.env.dev.hamravesh.example`](../../../.env.dev.hamravesh.example)
+(keep in sync with `compose.yaml`). `jobs.yaml` only carries placeholders from
+[`configs/dbadmin.yaml`](../../../configs/dbadmin.yaml).
 
 ## Hamravesh constraints
 

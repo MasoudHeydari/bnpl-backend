@@ -17,17 +17,17 @@ type resource struct {
 // RegisterOptions configures short-link HTTP route registration.
 type RegisterOptions struct {
 	// PublicHost scopes redirect routes to requests whose Host header matches
-	// (without port). Required for safe mounting: without it, `/:code` would
-	// collide with `/api/v1`, `/swagger`, and `/health` on the API host.
+	// (without port). Required for mounting: without it no public redirect
+	// route is registered.
 	PublicHost string
 
-	// DynamicCodes registers `GET /:code` for generated short-link codes.
+	// DynamicCodes registers `GET /s/:code` for generated short-link codes.
 	// Only effective when PublicHost is set.
 	DynamicCodes bool
 }
 
-// Register attaches unauthenticated short-link redirect routes on the root
-// HTTP surface when a validated public host is configured.
+// Register attaches unauthenticated short-link redirect routes under /s on the
+// root HTTP surface when a validated public host is configured.
 //
 // gin.IRouter is intentional: these redirects mount outside /api/v1.
 func Register(
@@ -44,7 +44,7 @@ func Register(
 		return
 	}
 
-	r := router.Group("/", requireHost(host))
+	r := router.Group(shortlinkuc.PublicPathPrefix, requireHost(host))
 	r.GET("/:code", ResolveHandler(shortLink))
 }
 
@@ -94,6 +94,35 @@ func applyResolveHeaders(c *gin.Context) {
 
 // ResolveHandler exposes a reusable redirect handler for dynamic codes when a
 // constrained route is registered by wiring.
+//
+//	@Summary		Redirect a public short link to its destination
+//	@Description	Resolves an opaque short code and redirects the browser to the stored HTTPS destination with HTTP 302.
+//	@Description	Public endpoint outside /api/v1: the short code is the only credential. Gateway auth headers, tenant context, and permissions are neither required nor evaluated.
+//	@Description	Mounted under /s on the configured public short-link host. A request whose Host does not match that host is answered with HTTP 404 by the route guard, before any code lookup.
+//	@Description	Unknown, revoked, and expired codes return HTTP 404. A blank code returns HTTP 400.
+//	@Description	Bad-request and not-found responses are empty-bodied by design, so public codes cannot be confirmed or enumerated through this endpoint.
+//	@Description	Resolution responses carry Cache-Control: no-store, Pragma: no-cache, and Referrer-Policy: no-referrer so revocation and destination changes take effect immediately.
+//	@Description	Codes therefore do not leak through intermediate caches or Referer headers.
+//	@Description	The destination is authoritative only in the Location header. The redirect body is a browser artifact and must not be parsed as a payload.
+//	@Tags			Short Links
+//	@Param			code	path		string	true	"Opaque short-link code"	minLength(1)
+//	@Success		302		{string}	string	"Redirect to the stored destination; Location carries the destination URL"
+//	@Failure		400		"Blank short code; the body is empty"
+//	@Failure		404		"Code unknown, revoked, or expired, or the request Host is not the configured public short-link host; the body is empty"
+//	@Header			302		{string}	Location			"Absolute HTTPS destination URL"
+//	@Header			302		{string}	Cache-Control		"Always no-store"
+//	@Header			302		{string}	Pragma				"Always no-cache"
+//	@Header			302		{string}	Referrer-Policy		"Always no-referrer"
+//	@Header			302		{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
+//	@Header			302		{string}	X-Request-Id		"Always set: reuse inbound value or generate"
+//	@Header			302		{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
+//	@Header			400		{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
+//	@Header			400		{string}	X-Request-Id		"Always set: reuse inbound value or generate"
+//	@Header			400		{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
+//	@Header			404		{string}	X-Trace-Id			"Always set: reuse inbound value or generate"
+//	@Header			404		{string}	X-Request-Id		"Always set: reuse inbound value or generate"
+//	@Header			404		{string}	X-Correlation-Id	"Always set: reuse inbound value or generate"
+//	@Router			/s/{code} [get]
 func ResolveHandler(shortLink *shortlinkuc.UseCase) gin.HandlerFunc {
 	rs := &resource{shortLink: shortLink}
 	return func(c *gin.Context) {

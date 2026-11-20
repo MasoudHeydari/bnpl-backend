@@ -24,10 +24,14 @@ func (a *App) RegisterRoutes(e *gin.Engine) error {
 
 	publicHost := strings.TrimSpace(a.Config.Usecases.ShortLink.PublicHost)
 	if publicHost != "" {
-		shortlinkrs.Register(e, a.UseCases.ShortLink, shortlinkrs.RegisterOptions{
-			PublicHost:   publicHost,
-			DynamicCodes: true,
-		})
+		shortlinkrs.Register(
+			e,
+			a.UseCases.ShortLink,
+			shortlinkrs.RegisterOptions{
+				PublicHost:   publicHost,
+				DynamicCodes: true,
+			},
+		)
 	}
 
 	if err := routes.Register(

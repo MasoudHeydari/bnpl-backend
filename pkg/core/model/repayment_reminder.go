@@ -142,7 +142,7 @@ type RepaymentReminder struct {
 	ShortLinkID ShortLinkID `db:"short_link_id" json:"short_link_id"`
 
 	// PaymentURL is the compact public short-link URL included in the SMS
-	// (scheme omitted for display, e.g. dpay.ir/aB72xQ).
+	// (scheme omitted for display, e.g. dpay.ir/s/aB72xQ).
 	PaymentURL string `db:"payment_url" json:"payment_url"`
 
 	// InstallmentIDs contains exactly one installment that justified this

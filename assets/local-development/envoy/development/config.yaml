@@ -148,21 +148,20 @@ static_resources:
                 route_config:
                   name: platform_gateway_routes
                   virtual_hosts:
-                    # BNPL short links are publicly accessible only on their own host.
-                    # Development needs DNS and a TLS certificate including s.dpay.ir.
+                    # BNPL public short links resolve as dpay.ir/s/<code>.
+                    # Development needs DNS and a TLS certificate including dpay.ir.
                     # Match authority with and without the development listener port.
                     - name: bnpl_short_links
-                      #                      domains: ["dlend.ir", "dlend.ir:443", "dlend.ir:8443"]
                       domains:
                         - "dpay.ir"
                         - "dpay.ir:443"
                         - "dpay.ir:8443"
                       routes:
-                        # Restrict public redirects to a single path segment (opaque code).
-                        # Do not expose /api/v1 or operational paths on this virtual host.
+                        # Only generated short-link codes under /s are public here; this
+                        # virtual host never exposes /api/v1 or operational paths.
                         - match:
                             safe_regex:
-                              regex: "^/[A-Za-z0-9_-]+$"
+                              regex: "^/s/[A-Za-z0-9_-]+$"
                             headers:
                               - name: ":method"
                                 string_match:
@@ -545,6 +544,12 @@ static_resources:
                             allow_missing_or_failed: { }
                         - match:
                             path: /healthz/ready
+                          requires:
+                            allow_missing_or_failed: { }
+                        # Public SMS short links: the opaque code is the only credential.
+                        - match:
+                            safe_regex:
+                              regex: ^/s/[A-Za-z0-9_-]+$
                           requires:
                             allow_missing_or_failed: { }
                         - match:

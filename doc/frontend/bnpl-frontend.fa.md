@@ -315,6 +315,10 @@ Idempotent بر اساس Decision. اگر `payment_required=true` و `redirect_u
 
 `POST /api/v1/contracts/{contract_id}/cancel` با `Idempotency-Key` و `{"reason":"customer_requested"}`. در `canceling` هنوز «لغو شده» نشان ندهید.
 
+### لینک کوتاه پیامک بازپرداخت
+
+یادآورهای پیامکی به `https://<SHORT_LINK_PUBLIC_HOST>/s/<CODE>` اشاره می‌کنند و BNPL با `302` به یک صفحهٔ **ثابت** ریدایرکت می‌کند (هیچ کد، شناسهٔ قسط یا شناسهٔ مشتری در URL نیست). قرارداد کامل: [لینک کوتاه پیامک بازپرداخت ← صفحهٔ اقساط](repayment-short-link-redirect.fa.md).
+
 ## ۸. Pagination
 
 | API | Mode | پارامترها و ترتیب |

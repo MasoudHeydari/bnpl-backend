@@ -529,6 +529,10 @@ Content-Type: application/json
 
 `202`: cancellation started (`canceling`); `200`: exact replay. Do **not** display final "canceled" while still `canceling`.
 
+### Repayment SMS short links
+
+SMS reminders point at `https://<SHORT_LINK_PUBLIC_HOST>/s/<CODE>`, which BNPL answers with a `302` to a **static** page (no code, installment id, or customer id in the URL). See the dedicated contract: [Repayment SMS short link → installments page](repayment-short-link-redirect.en.md).
+
 ## 8. Query pagination
 
 | Route | Mode | Parameters and order |

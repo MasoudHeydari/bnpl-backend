@@ -926,10 +926,13 @@ func (uc *UseCase) reminderLeadDaysByDecision(
 	return out, nil
 }
 
+// displayShortURL builds the scheme-less public short-link URL shown in SMS
+// text. The resolver serves short codes under /s, so that prefix is part of the
+// public URL contract shared with the shortlinkrs route registration.
 func displayShortURL(publicHost, code string) string {
 	host := strings.TrimSpace(strings.TrimSuffix(publicHost, "/"))
 	code = strings.TrimSpace(strings.TrimPrefix(code, "/"))
-	return host + "/" + code
+	return host + shortlinkuc.PublicPathPrefix + "/" + code
 }
 
 func parseReminderID(raw string) (model.RepaymentReminderID, error) {

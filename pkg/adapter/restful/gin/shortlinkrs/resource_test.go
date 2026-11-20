@@ -69,7 +69,7 @@ func TestRegister_DynamicCodeRedirectOnPublicHost(t *testing.T) {
 		DynamicCodes: true,
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/"+code, nil)
+	req := httptest.NewRequest(http.MethodGet, "/s/"+code, nil)
 	req.Host = "dpay.ir"
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
@@ -108,7 +108,7 @@ func TestRegister_DynamicCodeIgnoredOnAPIHost(t *testing.T) {
 		DynamicCodes: true,
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/aB72xQ", nil)
+	req := httptest.NewRequest(http.MethodGet, "/s/aB72xQ", nil)
 	req.Host = "api.bnpl.example"
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
@@ -148,7 +148,7 @@ func TestRegister_WithoutPublicHostDoesNotMountDynamicRoute(t *testing.T) {
 		DynamicCodes: true,
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/aB72xQ", nil)
+	req := httptest.NewRequest(http.MethodGet, "/s/aB72xQ", nil)
 	req.Host = "dpay.ir"
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)

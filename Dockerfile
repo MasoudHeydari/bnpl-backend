@@ -1,4 +1,7 @@
-FROM golang:1.26.2-alpine3.23 AS dependencies
+# Base images are pulled through the ArvanCloud Docker Hub mirror
+# (https://docker.arvancloud.ir) so builds do not depend on direct Docker Hub
+# access. This matches the other deployment Dockerfiles in this repository.
+FROM docker.arvancloud.ir/golang:1.26.2-alpine3.23 AS dependencies
 WORKDIR /app
 RUN apk add --no-cache git
 ENV GOPROXY=https://goproxy.io,https://proxy.golang.org,direct
@@ -21,7 +24,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build case "$BUILD_ENV" in develop
     CGO_ENABLED=0 go build -tags="go_json nomsgpack ${BUILD_ENV}" -trimpath \
     -ldflags='-s -w -extldflags "-static"' -o /out/bnpl-dbadmin ./cmd/bnpl-dbadmin
 
-FROM alpine:3.23 AS base
+FROM docker.arvancloud.ir/alpine:3.23 AS base
 RUN apk add --no-cache tzdata ca-certificates && \
     ln -snf /usr/share/zoneinfo/Asia/Tehran /etc/localtime && \
     echo "Asia/Tehran" > /etc/timezone && adduser -D bnpluser

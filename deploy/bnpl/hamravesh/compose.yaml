@@ -386,9 +386,9 @@ services:
       TASK_COLLECTIONS_ASSESSMENT_RUN_ON_START: "false"
       REPAYMENT_REMINDER_BATCH_SIZE: 200
       REPAYMENT_REMINDER_NOTIFICATION_SCHEMA_VERSION: 1
-      SHORT_LINK_ALLOWED_DESTINATION_HOST: api.dev.dlend.ir
-      SHORT_LINK_PUBLIC_HOST: s.dev.dlend.ir
-      SHORT_LINK_REPAYMENT_DESTINATION_URL: "https://dpay.ir/installments"
+      SHORT_LINK_ALLOWED_DESTINATION_HOST: dev.dlend.ir
+      SHORT_LINK_PUBLIC_HOST: dev.dlend.ir
+      SHORT_LINK_REPAYMENT_DESTINATION_URL: "https://dev.dlend.ir/installments"
       TASK_PAYMENT_ATTEMPT_RECONCILIATION_HANDLER: payment_attempt_reconciliation
       TASK_PAYMENT_ATTEMPT_EXPIRATION_HANDLER: payment_attempt_expiration
       TASK_REPAYMENT_REMINDER_DISPATCH_HANDLER: repayment_reminder_dispatch

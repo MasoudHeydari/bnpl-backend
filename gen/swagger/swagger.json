@@ -7359,6 +7359,97 @@
                     }
                 }
             }
+        },
+        "/s/{code}": {
+            "get": {
+                "description": "Resolves an opaque short code and redirects the browser to the stored HTTPS destination with HTTP 302.\nPublic endpoint outside /api/v1: the short code is the only credential. Gateway auth headers, tenant context, and permissions are neither required nor evaluated.\nMounted under /s on the configured public short-link host. A request whose Host does not match that host is answered with HTTP 404 by the route guard, before any code lookup.\nUnknown, revoked, and expired codes return HTTP 404. A blank code returns HTTP 400.\nBad-request and not-found responses are empty-bodied by design, so public codes cannot be confirmed or enumerated through this endpoint.\nResolution responses carry Cache-Control: no-store, Pragma: no-cache, and Referrer-Policy: no-referrer so revocation and destination changes take effect immediately.\nCodes therefore do not leak through intermediate caches or Referer headers.\nThe destination is authoritative only in the Location header. The redirect body is a browser artifact and must not be parsed as a payload.",
+                "tags": [
+                    "Short Links"
+                ],
+                "summary": "Redirect a public short link to its destination",
+                "parameters": [
+                    {
+                        "minLength": 1,
+                        "type": "string",
+                        "description": "Opaque short-link code",
+                        "name": "code",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "302": {
+                        "description": "Redirect to the stored destination; Location carries the destination URL",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "headers": {
+                            "Cache-Control": {
+                                "type": "string",
+                                "description": "Always no-store"
+                            },
+                            "Location": {
+                                "type": "string",
+                                "description": "Absolute HTTPS destination URL"
+                            },
+                            "Pragma": {
+                                "type": "string",
+                                "description": "Always no-cache"
+                            },
+                            "Referrer-Policy": {
+                                "type": "string",
+                                "description": "Always no-referrer"
+                            },
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Blank short code; the body is empty",
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Code unknown, revoked, or expired, or the request Host is not the configured public short-link host; the body is empty",
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {

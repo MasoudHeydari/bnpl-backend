@@ -5,7 +5,8 @@
 # Adapted for the unified Compose stack:
 #   - TLS-only listener on 0.0.0.0:443 (no plaintext :80)
 #   - Upstream STRICT_DNS → dpay-* Compose service names
-#   - Public hosts: dev.dlend.ir / api.dev.dlend.ir / s.dev.dlend.ir
+#   - Public hosts: dev.dlend.ir / api.dev.dlend.ir
+#     Short links resolve on the public site host: dev.dlend.ir/s/<code>
 #   - TLS material baked into envoy.parstis-technology-dpay-dev.svc:v0.1.0 at /etc/envoy/certs/tls.{crt,key}
 #
 # JWT issuer/audiences must match Identity ENV (IDENTITY_ACCESS_JWT_*). Rebuild the
@@ -151,20 +152,20 @@ static_resources:
                 route_config:
                   name: platform_gateway_routes
                   virtual_hosts:
-                    # BNPL short links are publicly accessible only on their own host.
-                    # Needs DNS + TLS SAN including s.dev.dlend.ir.
+                    # BNPL public short links resolve as dev.dlend.ir/s/<code>.
+                    # Needs DNS + TLS SAN including dev.dlend.ir.
                     # Match authority with and without explicit :443.
                     - name: bnpl_short_links
-                      # SHORT_LINK_PUBLIC_HOST — TLS SAN must include s.dev.dlend.ir
+                      # SHORT_LINK_PUBLIC_HOST — TLS SAN must include dev.dlend.ir
                       domains:
-                        - "s.dev.dlend.ir"
-                        - "s.dev.dlend.ir:443"
+                        - "dev.dlend.ir"
+                        - "dev.dlend.ir:443"
                       routes:
-                        # Restrict public redirects to a single path segment (opaque code).
-                        # Do not expose /api/v1 or operational paths on this virtual host.
+                        # Only generated short-link codes under /s are public here; this
+                        # virtual host never exposes /api/v1 or operational paths.
                         - match:
                             safe_regex:
-                              regex: "^/[A-Za-z0-9_-]+$"
+                              regex: "^/s/[A-Za-z0-9_-]+$"
                             headers:
                               - name: ":method"
                                 string_match:
@@ -550,6 +551,12 @@ static_resources:
                             allow_missing_or_failed: {}
                         - match:
                             path: /healthz/ready
+                          requires:
+                            allow_missing_or_failed: {}
+                        # Public SMS short links: the opaque code is the only credential.
+                        - match:
+                            safe_regex:
+                              regex: ^/s/[A-Za-z0-9_-]+$
                           requires:
                             allow_missing_or_failed: {}
                         - match:

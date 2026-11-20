@@ -7789,6 +7789,80 @@ paths:
       summary: Readiness probe
       tags:
       - Health
+  /s/{code}:
+    get:
+      description: |-
+        Resolves an opaque short code and redirects the browser to the stored HTTPS destination with HTTP 302.
+        Public endpoint outside /api/v1: the short code is the only credential. Gateway auth headers, tenant context, and permissions are neither required nor evaluated.
+        Mounted under /s on the configured public short-link host. A request whose Host does not match that host is answered with HTTP 404 by the route guard, before any code lookup.
+        Unknown, revoked, and expired codes return HTTP 404. A blank code returns HTTP 400.
+        Bad-request and not-found responses are empty-bodied by design, so public codes cannot be confirmed or enumerated through this endpoint.
+        Resolution responses carry Cache-Control: no-store, Pragma: no-cache, and Referrer-Policy: no-referrer so revocation and destination changes take effect immediately.
+        Codes therefore do not leak through intermediate caches or Referer headers.
+        The destination is authoritative only in the Location header. The redirect body is a browser artifact and must not be parsed as a payload.
+      parameters:
+      - description: Opaque short-link code
+        in: path
+        minLength: 1
+        name: code
+        required: true
+        type: string
+      responses:
+        "302":
+          description: Redirect to the stored destination; Location carries the destination
+            URL
+          headers:
+            Cache-Control:
+              description: Always no-store
+              type: string
+            Location:
+              description: Absolute HTTPS destination URL
+              type: string
+            Pragma:
+              description: Always no-cache
+              type: string
+            Referrer-Policy:
+              description: Always no-referrer
+              type: string
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            type: string
+        "400":
+          description: Blank short code; the body is empty
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+        "404":
+          description: Code unknown, revoked, or expired, or the request Host is not
+            the configured public short-link host; the body is empty
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+      summary: Redirect a public short link to its destination
+      tags:
+      - Short Links
 securityDefinitions:
   PermissionAuth:
     description: Comma-separated gateway permissions. Protected endpoints also require

@@ -13,6 +13,15 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/header"
 )
 
+// shortLinkPublicHost is the public short-link host used when the swagger
+// coverage test builds the normal bootstrap route table. Short-link redirects
+// mount on the root surface only when this host is configured.
+const shortLinkPublicHost = "short.bnpl.example"
+
+// shortLinkRedirectSwaggerPath is the documented public short-link redirect.
+// It is unauthenticated: the opaque code is the only credential.
+const shortLinkRedirectSwaggerPath = "/s/{code}"
+
 // TestSwaggerCoversRegisteredRoutes asserts the committed Swagger 2.0 document
 // covers every application HTTP route registered through the normal bootstrap
 // path, excluding infrastructure-only Swagger UI routes.
@@ -22,6 +31,7 @@ func TestSwaggerCoversRegisteredRoutes(t *testing.T) {
 	cfg := noopTestConfig()
 	cfg.Usecases.Health.Enabled = true
 	cfg.Gin.Swagger.Enabled = true
+	cfg.Usecases.ShortLink.PublicHost = shortLinkPublicHost
 
 	app := testAppWithInfrastructure(t, cfg)
 
@@ -251,6 +261,21 @@ func TestSwaggerAuthContractAndInitialCreditHasNoBody(t *testing.T) {
 			}
 
 			operationKey := strings.ToUpper(method) + " " + path
+
+			// Public short-link redirects are unauthenticated: the opaque
+			// code is the only credential, and the route is Host-scoped by
+			// the public short-link host guard in the resource package.
+			if path == shortLinkRedirectSwaggerPath {
+				require.Falsef(
+					t,
+					hasSwaggerSecurity(op.Security, "PermissionAuth") ||
+						hasSwaggerSecurity(op.Security, "TerminalID"),
+					"%s must not declare gateway or terminal authentication",
+					operationKey,
+				)
+
+				continue
+			}
 
 			// Hosted external routes are unauthenticated: the public checkout
 			// token and SMS OTP are the credentials, so no gateway auth applies.
