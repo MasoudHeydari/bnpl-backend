@@ -42,5 +42,5 @@ ENV CONFIG_FILE=configs/runtime.yaml
 COPY --from=runtime-builder --chown=bnpluser:bnpluser /out/bnpl ./bnpl
 COPY --chown=bnpluser:bnpluser configs/runtime.yaml ./configs/runtime.yaml
 COPY --chmod=755 --chown=bnpluser:bnpluser scripts/runtime/entrypoint.sh ./entrypoint.sh
-EXPOSE 8000 8443
+EXPOSE 7080 7080
 CMD ["./entrypoint.sh"]

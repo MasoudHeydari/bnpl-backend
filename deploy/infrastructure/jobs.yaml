@@ -9,6 +9,9 @@ services:
     restart: "no"
     profiles: ["bootstrap"]
     environment:
+      # Keep in sync with docker-compose.local.yml kafka-init defaults.
+      # Space-separated list; init-topics.sh deduplicates identical names.
+      # Set here (Darkoob job ENV), not on the always-on kafka broker service.
       KAFKA_TOPICS: >-
         bnpl.merchant.checkout.events
         financial-core.payment-results
@@ -19,6 +22,10 @@ services:
         financial_core.installment_payment_reconciliation_results
         bnpl.installment_payment_reconciliation_acknowledgements
         notification.sms.requests
+        document.lifecycle
+        document.owner.lifecycle
+        financial.events
+        financial.provider.commands
         identity.auth.revocations.v1
         identity.outbox.v1
         notification.commands.v1

@@ -7,7 +7,7 @@ files into a unified manifest. Darkoob resolves service names as
 
 | Deployment | Always-on containers | Separate one-shot jobs |
 | --- | --- | --- |
-| infrastructure | Postgres, Redis, Kafka, Temporal, Temporal UI | Kafka topics |
+| infrastructure | Postgres, Redis, Kafka (`compose.yaml` service `kafka`), Temporal, Temporal UI | Kafka topics (`jobs.yaml` service `kafka-init`; image under `kafka-init/`) |
 | gateway | Envoy | — |
 | bnpl | API and internal scheduled runtime | migrate, disposable dev bootstrap |
 | identity | API, outbox, revocation, notification workers | migrate, seed |
@@ -30,7 +30,11 @@ for ENV values to set in the Darkoob panel; they are not `env_file` inputs.
    The PostgreSQL first-boot script creates five databases (bnpl, identity,
    customer, financial_core, notification) but not their application roles.
 3. Run Kafka topic initialization from `infrastructure/jobs.yaml` once after
-   Kafka is reachable. Its script is copied into its own image, not bind-mounted.
+   Kafka is reachable. The broker itself is the `kafka` service in
+   `infrastructure/compose.yaml`; `kafka-init/` is only the one-shot topic
+   bootstrap image/script. `KAFKA_TOPICS` is set on the `kafka-init` job in
+   `jobs.yaml` (keep aligned with `docker-compose.local.yml` defaults). Its
+   script is copied into its own image, not bind-mounted.
 4. Provision service DB roles and run the team's `jobs.yaml` migrations. BNPL
    DBAdmin uses the command **`db migrate`**; do NOT use `migrate up`. It
    requires separately provisioned admin, bnpl_migrator, and bnpl logins. On
