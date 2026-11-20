@@ -2,10 +2,10 @@
 # No all-in-one publish target — each app/command stays separate.
 #
 # Built from this repo:
-#   make -C bnpl image
-#   make -C bnpl push-to-hamravesh
-#   make -C bnpl image-dbadmin
-#   make -C bnpl push-dbadmin-to-hamravesh
+#   make -C bnpl/hamravesh image
+#   make -C bnpl/hamravesh push-to-hamravesh
+#   make -C bnpl/hamravesh image-dbadmin
+#   make -C bnpl/hamravesh push-dbadmin-to-hamravesh
 #   make -C gateway image
 #   make -C gateway push-to-hamravesh
 #   make -C infrastructure postgres-image
@@ -20,7 +20,7 @@
 #   make -C notification push-to-hamravesh
 #
 # Override names/versions via env on any sub-make, e.g.:
-#   make -C bnpl image TAG=v0.2.0-development BUILD_ENV=development
+#   make -C bnpl/hamravesh image TAG=v0.2.0-development BUILD_ENV=development
 #   make -C infrastructure/postgres push-to-hamravesh TAG=v0.1.1
 
 .DEFAULT_GOAL := help
@@ -59,16 +59,16 @@ help:
 		'  make notification-push-to-hamravesh'
 
 bnpl-image:
-	$(MAKE) -C bnpl image
+	$(MAKE) -C bnpl/hamravesh image
 
 bnpl-push-to-hamravesh:
-	$(MAKE) -C bnpl push-to-hamravesh
+	$(MAKE) -C bnpl/hamravesh push-to-hamravesh
 
 bnpl-image-dbadmin:
-	$(MAKE) -C bnpl image-dbadmin
+	$(MAKE) -C bnpl/hamravesh image-dbadmin
 
 bnpl-push-dbadmin-to-hamravesh:
-	$(MAKE) -C bnpl push-dbadmin-to-hamravesh
+	$(MAKE) -C bnpl/hamravesh push-dbadmin-to-hamravesh
 
 gateway-image:
 	$(MAKE) -C gateway image

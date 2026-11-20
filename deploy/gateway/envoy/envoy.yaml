@@ -1225,7 +1225,7 @@ static_resources:
                   address:
                     socket_address:
                       address: bnpl.parstis-technology-dpay-dev.svc
-                      port_value: 8080
+                      port_value: 7080
 
     - name: identity_service
       connect_timeout: 5s

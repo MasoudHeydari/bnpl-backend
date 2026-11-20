@@ -9,7 +9,7 @@ files into a unified manifest. Darkoob resolves service names as
 | --- | --- | --- |
 | infrastructure | Postgres, Redis, Kafka (`compose.yaml` service `kafka`), Temporal, Temporal UI | Kafka topics (`jobs.yaml` service `kafka-init`; image under `kafka-init/`) |
 | gateway | Envoy | — |
-| bnpl | API and internal scheduled runtime | migrate, disposable dev bootstrap |
+| bnpl (`bnpl/hamravesh`) | API and internal scheduled runtime | migrate, disposable dev bootstrap |
 | identity | API, outbox, revocation, notification workers | migrate, seed |
 | customer | API | migrate |
 | financial-core | API, outbox, provider-start, accounting workers | migrate |
@@ -45,16 +45,26 @@ for ENV values to set in the Darkoob panel; they are not `env_file` inputs.
 
 ## Configuration contracts
 
+Internal service DNS follows Hamravesh Darkoob FAQ form
+`SVC_NAME.NS.svc` (not Pod/Service IP). For this environment:
+
 - Postgres: `postgres.parstis-technology-dpay-dev.svc:5432`
 - Kafka: `kafka.parstis-technology-dpay-dev.svc:29092`
 - Redis: `redis.parstis-technology-dpay-dev.svc:6379`
 - Temporal: `temporal.parstis-technology-dpay-dev.svc:7233`
 - Team API/gRPC URLs follow the same internal DNS pattern. Keep Kubernetes
   network access restricted; this bundle does not create NetworkPolicies.
+- Darkoob Compose import supports only: `image`, `command`, `entrypoint`,
+  `ports`, `environment`, `volumes`, `depends_on` (Compose >= 3.0). Do not
+  rely on `restart`, `profiles`, `networks`, `env_file`, `healthcheck`,
+  `build`, `container_name`, `tmpfs`, or YAML anchors/`x-*` merge keys.
+- BNPL ENV checklist for Darkoob: repo-root `.env.dev.hamravesh.example`
+  (mirror of `.env.example` with Hamravesh DNS defaults). Manifests under
+  `deploy/bnpl/hamravesh/` stay in sync with that file.
 - BNPL: `APP_EXECUTABLE=./bnpl`, `MESSAGING_PROVIDER=kafka`,
-  `POSTGRES_DB=bnpl`. BNPL uses PGPass roles, **not** the shared Postgres
-  bootstrap user. Placeholder passwords and any `REPLACE_...` values must
-  be entered/corrected in Darkoob ENV before deployment.
+  `POSTGRES_DB=bnpl`, `GIN_HOST=0.0.0.0`. BNPL uses PGPass roles, **not** the
+  shared Postgres bootstrap user. Placeholder passwords and any `REPLACE_...`
+  values must be entered/corrected in Darkoob ENV before deployment.
 - The published BNPL image does not include mTLS client PEMs. The runtime
   Compose file decodes panel-provided base64 PEMs to private files under
   `/tmp/dpay-grpc` before launching the existing entrypoint. Confirm CA,
@@ -114,8 +124,8 @@ make kafka-init-push-to-hamravesh
 Or run inside an app directory:
 
 ```sh
-cd deploy/bnpl && make image TAG=v0.1.0-development BUILD_ENV=development
-cd deploy/bnpl && make push-to-hamravesh TAG=v0.1.0-development
+cd deploy/bnpl/hamravesh && make image TAG=v0.1.0-development BUILD_ENV=development
+cd deploy/bnpl/hamravesh && make push-to-hamravesh TAG=v0.1.0-development
 cd deploy/infrastructure/kafka-init && make image && make push-to-hamravesh
 cd deploy/gateway && make image TAG=v0.1.0
 ```

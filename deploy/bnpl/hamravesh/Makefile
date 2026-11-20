@@ -8,7 +8,7 @@
 #
 # image* and push* are separate: push never rebuilds.
 
-REPO_ROOT := $(abspath ../..)
+REPO_ROOT := $(abspath ../../..)
 
 BUILD_ENV ?= development
 TAG ?= v0.1.0-$(BUILD_ENV)

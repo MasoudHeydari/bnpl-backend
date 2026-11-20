@@ -10,14 +10,14 @@ Flow:
   6. GET again to show the resulting eligibility
 
 Admin routes trust gateway X-Auth-* headers. Hit BNPL directly
-(default http://127.0.0.1:8080), not Envoy — Envoy strips inbound X-Auth
+(default http://127.0.0.1:7080), not Envoy — Envoy strips inbound X-Auth
 and expects a real JWT.
 
 Merchant profile IDs come from pkg/adapter/db/postgres/migrationsrp/000_dev.sql
 (internal merchant_profiles.id, not external_merchant_id).
 
 Config (env, optional repo .env):
-  BNPL_API_BASE                 default http://127.0.0.1:8080
+  BNPL_API_BASE                 default http://127.0.0.1:7080
   BNPL_ADMIN_SUBJECT_ID         optional admin subject UUID (random if unset)
   BNPL_ADMIN_READ_PERM          default bnpl:merchants:read:any
   BNPL_ADMIN_UPDATE_PERM        default bnpl:merchants:credit-kinds:update:any
@@ -239,7 +239,7 @@ def print_credit_kinds(data: dict[str, Any]) -> None:
 def main() -> None:
     load_dotenv(REPO_ROOT / ".env")
 
-    base_url = optional_env("BNPL_API_BASE", "http://127.0.0.1:8080")
+    base_url = optional_env("BNPL_API_BASE", "http://127.0.0.1:7080")
     subject_id = optional_env("BNPL_ADMIN_SUBJECT_ID") or str(uuid.uuid4())
     read_perm = optional_env("BNPL_ADMIN_READ_PERM", "bnpl:merchants:read:any")
     update_perm = optional_env(

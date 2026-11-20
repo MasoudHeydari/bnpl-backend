@@ -6,7 +6,7 @@ cd "$ROOT"
 
 # Hit BNPL app directly so synthetic admin X-Auth-* headers are trusted.
 # Do not point this at Envoy (api.bnpl.test) unless you have a real admin JWT.
-export BNPL_API_BASE="${BNPL_API_BASE:-http://127.0.0.1:8080/}"
+export BNPL_API_BASE="${BNPL_API_BASE:-http://127.0.0.1:7080/}"
 
 export BNPL_ADMIN_READ_PERM="${BNPL_ADMIN_READ_PERM:-bnpl:merchants:read:any}"
 export BNPL_ADMIN_UPDATE_PERM="${BNPL_ADMIN_UPDATE_PERM:-bnpl:merchants:credit-kinds:update:any}"

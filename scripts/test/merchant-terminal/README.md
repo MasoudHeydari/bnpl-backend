@@ -26,13 +26,13 @@ Or export the same vars and run `python3 scripts/test/merchant-terminal/terminal
 
 ## Why direct BNPL (not Envoy)
 
-Panel routes trust gateway `x-auth-*` headers that Envoy normally injects from JWT. This smoke injects those headers itself, so the base URL should be something like `http://127.0.0.1:8080`. Against Envoy, inbound `x-auth-*` are stripped unless you supply a real merchant JWT.
+Panel routes trust gateway `x-auth-*` headers that Envoy normally injects from JWT. This smoke injects those headers itself, so the base URL should be something like `http://127.0.0.1:7080`. Against Envoy, inbound `x-auth-*` are stripped unless you supply a real merchant JWT.
 
 ## Env
 
 | Variable | Default |
 | --- | --- |
-| `BNPL_API_BASE` | `http://127.0.0.1:8080` |
+| `BNPL_API_BASE` | `http://127.0.0.1:7080` |
 | `BNPL_EXTERNAL_MERCHANT_ID` | Damz seed `1e7c3dd4-0e8b-4ec1-aede-2a119f3ffecc` |
 | `BNPL_MERCHANT_TERMINAL_PERM` | `bnpl:merchant-terminals:manage:merchant` |
 | `BNPL_ROTATE_GRACE_SECONDS` | `3600` |

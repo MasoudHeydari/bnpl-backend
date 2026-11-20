@@ -13,11 +13,11 @@ Flow:
   9. Print final terminal_id + api_key for other partner APIs
 
 Panel routes use synthetic gateway X-Auth-* headers. Hit BNPL directly
-(default http://127.0.0.1:8080), not Envoy — Envoy strips inbound X-Auth
+(default http://127.0.0.1:7080), not Envoy — Envoy strips inbound X-Auth
 and expects a real JWT.
 
 Config (env, optional repo .env):
-  BNPL_API_BASE                 default http://127.0.0.1:8080
+  BNPL_API_BASE                 default http://127.0.0.1:7080
   BNPL_EXTERNAL_MERCHANT_ID     default Damz seed (1e7c3dd4-…)
   BNPL_MERCHANT_TERMINAL_PERM   default bnpl:merchant-terminals:manage:merchant
   BNPL_ROTATE_GRACE_SECONDS     default 3600 (grace used in step 5)
@@ -176,7 +176,7 @@ def require_str(data: dict[str, Any], key: str) -> str:
 def main() -> None:
     load_dotenv(REPO_ROOT / ".env")
 
-    base_url = optional_env("BNPL_API_BASE", "http://127.0.0.1:8080")
+    base_url = optional_env("BNPL_API_BASE", "http://127.0.0.1:7080")
     external_merchant_id = optional_env(
         "BNPL_EXTERNAL_MERCHANT_ID",
         DEFAULT_EXTERNAL_MERCHANT_ID,

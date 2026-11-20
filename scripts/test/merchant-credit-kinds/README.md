@@ -27,14 +27,14 @@ Or export the same vars and run
 
 Admin routes trust gateway `x-auth-*` headers that Envoy normally injects from
 JWT. This smoke injects those headers itself, so the base URL should be
-something like `http://127.0.0.1:8080`. Against Envoy, inbound `x-auth-*` are
+something like `http://127.0.0.1:7080`. Against Envoy, inbound `x-auth-*` are
 stripped unless you supply a real admin JWT.
 
 ## Env
 
 | Variable | Default |
 | --- | --- |
-| `BNPL_API_BASE` | `http://127.0.0.1:8080` |
+| `BNPL_API_BASE` | `http://127.0.0.1:7080` |
 | `BNPL_ADMIN_SUBJECT_ID` | random UUID |
 | `BNPL_ADMIN_READ_PERM` | `bnpl:merchants:read:any` |
 | `BNPL_ADMIN_UPDATE_PERM` | `bnpl:merchants:credit-kinds:update:any` |
