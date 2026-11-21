@@ -42,8 +42,9 @@ type ExternalNotificationGRPC struct {
 	// Timeout configures the per-RPC timeout for Notification Service gRPC calls.
 	Timeout time.Duration `yaml:"timeout"`
 
-	// ConnectionTimeout is the startup budget for verifying the gRPC transport
-	// reaches READY after dial (before business RPCs).
+	// ConnectionTimeout bounds the optional startup readiness probe after dial.
+	// A failed probe is logged and does not block process start; RPCs still fail
+	// later if the upstream remains unreachable.
 	ConnectionTimeout time.Duration `yaml:"connection_timeout"`
 
 	// Insecure disables TLS for the Notification Service gRPC connection.
@@ -122,10 +123,12 @@ func (e ExternalNotification) newGRPCClient(
 	defer cancel()
 
 	if err := grpcclient.Ping(pingCtx, conn); err != nil {
-		return nil, nil, errors.Join(
-			fmt.Errorf("%s: notification grpc service %q unavailable: %w", op, e.GRPC.Address, err),
-			conn.Close(),
-		)
+		// Do not block BNPL boot on Notification availability; RPCs surface
+		// upstream failures when the dependency is actually invoked.
+		logger.With(
+			"address", e.GRPC.Address,
+			"error", err.Error(),
+		).Warn(log.Msg("notification grpc service not ready at startup; continuing"))
 	}
 
 	client, err := notificationgrpc.New(conn, e.GRPC.Timeout, breaker, logger)

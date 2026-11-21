@@ -90,10 +90,10 @@ assets/local-development/**/*.key
 assets/local-development/**/*-key.pem
 assets/local-development/**/.env
 
-# Hamravesh/dev mTLS: track CA + client cert + README; keep private key local
-# for `make image` (Dockerfile target runtime-development).
-deploy/bnpl/hamravesh/certs/*.key
-deploy/bnpl/hamravesh/certs/*.csr
+# Hamravesh/dev mTLS materials (keep README tracked). Place PEMs locally before
+# `make image` (Dockerfile target runtime-development).
+deploy/bnpl/hamravesh/certs/*
+!deploy/bnpl/hamravesh/certs/README.md
 
 # Outbound mTLS PEMs for FC/customer/notification (keep README tracked).
 assets/local-development/certs/*

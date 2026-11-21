@@ -67,6 +67,7 @@ USER root
 # grpcurl: probe gRPC services (often with -cacert/-cert/-key under ./certs).
 RUN apk add --no-cache \
     bind-tools \
+    busybox-extras \
     curl \
     iproute2 \
     iputils \
@@ -77,7 +78,7 @@ RUN apk add --no-cache \
     openssl \
     tcpdump \
     traceroute \
-    busybox-extras \
+    vim \
     wget
 
 COPY --from=grpcurl-builder --chmod=755 /go/bin/grpcurl /usr/local/bin/grpcurl

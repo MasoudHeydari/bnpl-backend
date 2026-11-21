@@ -12,7 +12,7 @@ import (
 	lognoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/noop"
 )
 
-func TestExternalCustomer_NewGRPCClient_UnavailableAddressFailsFast(t *testing.T) {
+func TestExternalCustomer_NewGRPCClient_UnavailableAddressStillStarts(t *testing.T) {
 	t.Parallel()
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -34,11 +34,9 @@ func TestExternalCustomer_NewGRPCClient_UnavailableAddressFailsFast(t *testing.T
 	resolver, closer, err := cfg.newClient(circuitbreakernoop.New(), lognoop.New())
 	elapsed := time.Since(started)
 
-	require.Error(t, err)
-	require.Nil(t, resolver)
-	require.Nil(t, closer)
-	require.Contains(t, err.Error(), "customer grpc service")
-	require.Contains(t, err.Error(), address)
-	require.Contains(t, err.Error(), "unavailable")
+	require.NoError(t, err)
+	require.NotNil(t, resolver)
+	require.NotNil(t, closer)
 	require.Less(t, elapsed, 5*time.Second)
+	require.NoError(t, closer.Close())
 }
