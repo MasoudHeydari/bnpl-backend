@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	customerv1 "github.com/parstis/bnpl-backend/gen/proto/customer/reference/v1"
+	adaptergrpc "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/grpcclient"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/circuitbreaker"
 	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"
@@ -104,7 +105,8 @@ func newClient(
 //
 // Mapping:
 //   - NOT_FOUND → cerr.ResourceNotFound
-//   - DEADLINE_EXCEEDED / UNAVAILABLE / circuit open → cerr.ServiceUnavailable
+//   - DEADLINE_EXCEEDED / UNAVAILABLE / circuit open / transport →
+//     cerr.ExternalServiceUnavailable (HTTP 502)
 //   - PERMISSION_DENIED → fail closed (not customer unavailable)
 //   - RESOURCE_EXHAUSTED → cerr.TooManyRequests when available, else wrapped
 //   - CUSTOMER_STATUS_UNSPECIFIED → fail closed as protocol error
@@ -136,7 +138,7 @@ func (c *Client) ResolveByMobile(
 		return callErr
 	})
 	if err != nil {
-		return extcustomer.ResolveByMobileOutput{}, mapCustomerDependencyError(op, err)
+		return extcustomer.ResolveByMobileOutput{}, mapCustomerDependencyError(c.logger, op, err)
 	}
 
 	if response == nil {
@@ -199,9 +201,9 @@ func mapCustomerStatus(status customerv1.CustomerStatus) (extcustomer.Status, er
 	}
 }
 
-func mapCustomerDependencyError(op string, err error) error {
+func mapCustomerDependencyError(logger log.Logger, op string, err error) error {
 	if errors.Is(err, circuitbreaker.ErrOpen) {
-		return cerr.ServiceUnavailable(fmt.Errorf("%s: customer circuit open", op))
+		return externalCustomerUnavailable(logger, op, fmt.Errorf("%s: customer circuit open", op))
 	}
 
 	code := status.Code(err)
@@ -211,7 +213,11 @@ func mapCustomerDependencyError(op string, err error) error {
 		return cerr.ResourceNotFound(fmt.Errorf("%s: customer not found (grpc_code=%s)", op, code))
 
 	case codes.DeadlineExceeded, codes.Unavailable:
-		return cerr.ServiceUnavailable(fmt.Errorf("%s: customer dependency unavailable (grpc_code=%s)", op, code))
+		return externalCustomerUnavailable(
+			logger,
+			op,
+			fmt.Errorf("%s: customer dependency unavailable (grpc_code=%s)", op, code),
+		)
 
 	case codes.PermissionDenied, codes.Unauthenticated:
 		return cerr.InternalError(fmt.Errorf("%s: customer dependency authorization failure (grpc_code=%s)", op, code))
@@ -230,9 +236,18 @@ func mapCustomerDependencyError(op string, err error) error {
 	default:
 		// Upstream status.Message() may contain the mobile; never wrap err.
 		if _, ok := status.FromError(err); ok {
-			return fmt.Errorf("%s: customer resolve failed (grpc_code=%s)", op, code)
+			return cerr.InternalError(fmt.Errorf("%s: customer resolve failed (grpc_code=%s)", op, code))
 		}
 
-		return fmt.Errorf("%s: customer resolve failed", op)
+		return externalCustomerUnavailable(
+			logger,
+			op,
+			fmt.Errorf("%s: customer transport unavailable", op),
+		)
 	}
+}
+
+func externalCustomerUnavailable(logger log.Logger, op string, cause error) error {
+	adaptergrpc.LogUnavailable(logger, "customer", op, cause)
+	return cerr.ExternalServiceUnavailable(cause)
 }

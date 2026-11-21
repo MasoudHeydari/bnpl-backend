@@ -203,7 +203,7 @@ func TestResolveByMobile_MapsUnavailable(t *testing.T) {
 	_, err := newTestClient(t, fake).ResolveByMobile(withTestCorrelation(context.Background()), extcustomer.ResolveByMobileInput{
 		MobileE164: "+989121234567",
 	})
-	require.True(t, cerr.IsCode(err, cerr.CodeServiceUnavailable))
+	require.True(t, cerr.IsCode(err, cerr.CodeExternalServiceUnavailable))
 }
 
 func TestDial_RequiresAddress(t *testing.T) {

@@ -14,10 +14,11 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	paymentv1 "github.com/parstis/bnpl-backend/gen/proto/financial/payment/v1"
 	collectionobligationv1 "github.com/parstis/bnpl-backend/gen/proto/financial/collectionobligation/v1"
 	financialcommonv1 "github.com/parstis/bnpl-backend/gen/proto/financial/common/v1"
 	merchantentitlementv1 "github.com/parstis/bnpl-backend/gen/proto/financial/merchantentitlement/v1"
+	paymentv1 "github.com/parstis/bnpl-backend/gen/proto/financial/payment/v1"
+	adaptergrpc "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/grpcclient"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/circuitbreaker"
 	extcheckoutpayment "github.com/parstis/bnpl-backend/pkg/core/external/checkoutpayment"
@@ -172,7 +173,9 @@ func (c *Client) CreateCheckoutPayment(
 	)
 	if err != nil {
 		return extcheckoutpayment.CreateCheckoutPaymentResult{}, mapFinancialCoreDependencyError(
-			op, fmt.Errorf("%s: financial core create checkout payment: %w", op, err),
+			c.logger,
+			op,
+			fmt.Errorf("%s: financial core create checkout payment: %w", op, err),
 		)
 	}
 
@@ -211,7 +214,9 @@ func (c *Client) GetPaymentStatus(
 	})
 	if err != nil {
 		return extcheckoutpayment.GetPaymentStatusResult{}, mapFinancialCoreDependencyError(
-			op, fmt.Errorf("%s: financial core get payment status: %w", op, err),
+			c.logger,
+			op,
+			fmt.Errorf("%s: financial core get payment status: %w", op, err),
 		)
 	}
 
@@ -295,7 +300,9 @@ func (c *Client) PrepareCollectionObligation(
 	})
 	if err != nil {
 		return extcheckoutpayment.PrepareCollectionObligationResult{}, mapFinancialCoreDependencyError(
-			op, fmt.Errorf("%s: %w", op, err),
+			c.logger,
+			op,
+			fmt.Errorf("%s: %w", op, err),
 		)
 	}
 
@@ -376,7 +383,9 @@ func (c *Client) RecordMerchantEntitlement(
 	})
 	if err != nil {
 		return extcheckoutpayment.RecordMerchantEntitlementResult{}, mapFinancialCoreDependencyError(
-			op, fmt.Errorf("%s: %w", op, err),
+			c.logger,
+			op,
+			fmt.Errorf("%s: %w", op, err),
 		)
 	}
 
@@ -398,9 +407,11 @@ func (c *Client) RecordMerchantEntitlement(
 // details are preserved in the mapped error text. Do not parse the message as an
 // enum for control flow. Raw request payloads and secrets are never attached.
 //
-// A deadline or cancellation does not prove Financial Core failed to commit.
-// Those errors stay retryable with the original idempotency identity.
-func mapFinancialCoreDependencyError(op string, err error) error {
+// Unavailable / circuit-open / plain transport failures map to
+// cerr.ExternalServiceUnavailable (HTTP 502). A deadline or cancellation does
+// not prove Financial Core failed to commit; those stay retryable with the
+// original idempotency identity and are not remapped to Bad Gateway.
+func mapFinancialCoreDependencyError(logger log.Logger, op string, err error) error {
 	if err == nil {
 		return nil
 	}
@@ -417,30 +428,29 @@ func mapFinancialCoreDependencyError(op string, err error) error {
 	}
 
 	if errors.Is(err, circuitbreaker.ErrOpen) {
-		return cerr.ServiceUnavailable(extcheckoutpayment.NewFailure(
-			extcheckoutpayment.FailureClassTransient,
-			fmt.Errorf("%s: financial core circuit open", op),
-		))
+		return externalFinancialCoreUnavailable(
+			logger,
+			op,
+			extcheckoutpayment.NewFailure(
+				extcheckoutpayment.FailureClassTransient,
+				fmt.Errorf("%s: financial core circuit open", op),
+			),
+		)
 	}
 
 	code := status.Code(err)
 	diag := financialCoreStatusDiagnostics(err)
-	if st, ok := status.FromError(err); ok {
-		fmt.Printf(
-			"\n\n\nfinancial_core_grpc_error op=%s code=%s message=%q diagnostics=%q\n\n\n",
-			op,
-			st.Code(),
-			st.Message(),
-			diag,
-		)
-	}
 
 	switch code {
 	case codes.Unavailable:
-		return cerr.ServiceUnavailable(extcheckoutpayment.NewFailure(
-			extcheckoutpayment.FailureClassTransient,
-			fmt.Errorf("%s", financialCoreMappedMessage(op, "financial core unavailable", code, diag)),
-		))
+		return externalFinancialCoreUnavailable(
+			logger,
+			op,
+			extcheckoutpayment.NewFailure(
+				extcheckoutpayment.FailureClassTransient,
+				fmt.Errorf("%s", financialCoreMappedMessage(op, "financial core unavailable", code, diag)),
+			),
+		)
 
 	case codes.ResourceExhausted:
 		return cerr.ServiceUnavailable(extcheckoutpayment.NewFailure(
@@ -479,9 +489,16 @@ func mapFinancialCoreDependencyError(op string, err error) error {
 		return err
 
 	default:
-		if code == codes.Unknown && status.Code(err) == codes.Unknown {
+		if code == codes.Unknown {
 			if _, ok := status.FromError(err); !ok {
-				return err
+				return externalFinancialCoreUnavailable(
+					logger,
+					op,
+					extcheckoutpayment.NewFailure(
+						extcheckoutpayment.FailureClassTransient,
+						fmt.Errorf("%s: financial core transport unavailable: %w", op, err),
+					),
+				)
 			}
 		}
 
@@ -490,6 +507,11 @@ func mapFinancialCoreDependencyError(op string, err error) error {
 			fmt.Errorf("%s", financialCoreMappedMessage(op, "financial core call failed", code, diag)),
 		))
 	}
+}
+
+func externalFinancialCoreUnavailable(logger log.Logger, op string, cause error) error {
+	adaptergrpc.LogUnavailable(logger, "financial_core", op, cause)
+	return cerr.ExternalServiceUnavailable(cause)
 }
 
 func financialCoreMappedMessage(op, summary string, code codes.Code, diagnostics string) string {

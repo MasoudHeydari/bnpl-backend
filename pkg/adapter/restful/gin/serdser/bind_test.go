@@ -164,6 +164,7 @@ func TestSerErr_CerrCodes(t *testing.T) {
 		{"PaymentProviderError", cerr.PaymentProviderError(errors.New("provider down")), http.StatusBadGateway, string(cerr.CodePaymentProviderError)},
 		{"Conflict", cerr.Conflict(errors.New("conflict")), http.StatusConflict, string(cerr.CodeConflict)},
 		{"ServiceUnavailable", cerr.ServiceUnavailable(errors.New("unavailable")), http.StatusServiceUnavailable, string(cerr.CodeServiceUnavailable)},
+		{"ExternalServiceUnavailable", cerr.ExternalServiceUnavailable(errors.New("down")), http.StatusBadGateway, string(cerr.CodeExternalServiceUnavailable)},
 		{"InternalError", cerr.InternalError(errors.New("boom")), http.StatusInternalServerError, string(cerr.CodeInternalError)},
 	}
 

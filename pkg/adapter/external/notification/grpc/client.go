@@ -14,6 +14,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	notificationv1 "github.com/parstis/bnpl-backend/gen/proto/notification/submission/v1"
+	adaptergrpc "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/grpcclient"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/circuitbreaker"
 	extnotification "github.com/parstis/bnpl-backend/pkg/core/external/notification"
@@ -140,7 +141,7 @@ func (c *Client) Submit(
 		return callErr
 	})
 	if err != nil {
-		mapped := mapNotificationDependencyError(op, err)
+		mapped := mapNotificationDependencyError(c.logger, op, err)
 		if isDefiniteNotificationRejection(err) {
 			return extnotification.SubmitOutput{}, extnotification.Rejected(mapped)
 		}
@@ -188,20 +189,24 @@ func isDefiniteNotificationRejection(err error) bool {
 	}
 }
 
-func mapNotificationDependencyError(op string, err error) error {
+func mapNotificationDependencyError(logger log.Logger, op string, err error) error {
 	if errors.Is(err, circuitbreaker.ErrOpen) {
-		return cerr.ServiceUnavailable(fmt.Errorf("%s: notification circuit open", op))
+		return externalNotificationUnavailable(logger, op, fmt.Errorf("%s: notification circuit open", op))
 	}
 
 	code := status.Code(err)
 
 	switch code {
 	case codes.DeadlineExceeded, codes.Unavailable:
-		return cerr.ServiceUnavailable(fmt.Errorf(
-			"%s: notification dependency unavailable (grpc_code=%s)",
+		return externalNotificationUnavailable(
+			logger,
 			op,
-			code,
-		))
+			fmt.Errorf(
+				"%s: notification dependency unavailable (grpc_code=%s)",
+				op,
+				code,
+			),
+		)
 
 	case codes.AlreadyExists:
 		// Same idempotency key with a different payload — not normal replay.
@@ -232,9 +237,18 @@ func mapNotificationDependencyError(op string, err error) error {
 	default:
 		// Upstream status.Message() may contain recipient/OTP; never wrap err.
 		if _, ok := status.FromError(err); ok {
-			return fmt.Errorf("%s: notification submit failed (grpc_code=%s)", op, code)
+			return cerr.InternalError(fmt.Errorf("%s: notification submit failed (grpc_code=%s)", op, code))
 		}
 
-		return fmt.Errorf("%s: notification submit failed", op)
+		return externalNotificationUnavailable(
+			logger,
+			op,
+			fmt.Errorf("%s: notification transport unavailable", op),
+		)
 	}
+}
+
+func externalNotificationUnavailable(logger log.Logger, op string, cause error) error {
+	adaptergrpc.LogUnavailable(logger, "notification", op, cause)
+	return cerr.ExternalServiceUnavailable(cause)
 }

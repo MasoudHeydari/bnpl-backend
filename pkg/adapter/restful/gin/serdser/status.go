@@ -33,7 +33,8 @@ func StatusCode(code cerr.Code) int {
 		cerr.CodeConflict:
 		return http.StatusConflict
 
-	case cerr.CodePaymentProviderError:
+	case cerr.CodePaymentProviderError,
+		cerr.CodeExternalServiceUnavailable:
 		return http.StatusBadGateway
 
 	case cerr.CodeUnauthorized:

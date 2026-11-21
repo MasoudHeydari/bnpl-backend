@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	lognoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/noop"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	extcheckoutpayment "github.com/parstis/bnpl-backend/pkg/core/external/checkoutpayment"
 )
@@ -27,10 +28,10 @@ func TestMapFinancialCoreDependencyError(t *testing.T) {
 		wantIs    error
 	}{
 		{
-			name:      "unavailable is transient",
+			name:      "unavailable is transient bad gateway",
 			err:       status.Error(codes.Unavailable, "socket closed"),
 			wantClass: extcheckoutpayment.FailureClassTransient,
-			wantCode:  cerr.CodeServiceUnavailable,
+			wantCode:  cerr.CodeExternalServiceUnavailable,
 		},
 		{
 			name:      "resource exhausted is transient",
@@ -90,7 +91,7 @@ func TestMapFinancialCoreDependencyError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := mapFinancialCoreDependencyError("CreateCheckoutPayment", tt.err)
+			got := mapFinancialCoreDependencyError(lognoop.New(), "CreateCheckoutPayment", tt.err)
 			require.Error(t, got)
 
 			if st, ok := status.FromError(tt.err); ok {
@@ -116,15 +117,17 @@ func TestMapFinancialCoreDependencyError(t *testing.T) {
 	}
 }
 
-func TestMapFinancialCoreDependencyErrorPassesPlainNetworkErrorsThrough(t *testing.T) {
+func TestMapFinancialCoreDependencyErrorMapsPlainNetworkErrorsToBadGateway(t *testing.T) {
 	t.Parallel()
 
 	original := &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}
-	got := mapFinancialCoreDependencyError("GetPaymentStatus", original)
+	got := mapFinancialCoreDependencyError(lognoop.New(), "GetPaymentStatus", original)
+	require.True(t, cerr.IsCode(got, cerr.CodeExternalServiceUnavailable))
 	require.ErrorIs(t, got, original)
 
-	var opErr *net.OpError
-	require.ErrorAs(t, got, &opErr)
+	var classified *extcheckoutpayment.ClassifiedFailure
+	require.ErrorAs(t, got, &classified)
+	require.Equal(t, extcheckoutpayment.FailureClassTransient, classified.Class)
 }
 
 func TestMapFinancialCoreDependencyError_IncludesStructuredDetails(t *testing.T) {
@@ -147,7 +150,7 @@ func TestMapFinancialCoreDependencyError_IncludesStructuredDetails(t *testing.T)
 	)
 	require.NoError(t, err)
 
-	got := mapFinancialCoreDependencyError("PrepareCollectionObligation", detailed.Err())
+	got := mapFinancialCoreDependencyError(lognoop.New(), "PrepareCollectionObligation", detailed.Err())
 	require.Error(t, got)
 	require.True(t, cerr.IsCode(got, cerr.CodeInvalidArgument))
 
@@ -167,6 +170,7 @@ func TestMapFinancialCoreDependencyError_PreservesStatusMessageWithoutDetails(t 
 	t.Parallel()
 
 	got := mapFinancialCoreDependencyError(
+		lognoop.New(),
 		"PrepareCollectionObligation",
 		status.Error(codes.FailedPrecondition, "Merchant settlement FinancialScope is not configured for this merchant."),
 	)

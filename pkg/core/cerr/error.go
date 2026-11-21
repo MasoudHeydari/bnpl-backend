@@ -74,6 +74,11 @@ const (
 	// temporarily unavailable.
 	CodeServiceUnavailable Code = "SERVICE_UNAVAILABLE"
 
+	// CodeExternalServiceUnavailable indicates that an outbound external
+	// dependency (for example Financial Core, Customer, or Notification) could
+	// not be reached. Transports map this to Bad Gateway.
+	CodeExternalServiceUnavailable Code = "EXTERNAL_SERVICE_UNAVAILABLE"
+
 	// CodePayloadTooLarge indicates that the request body exceeds the
 	// transport safety limit configured by the serving application.
 	CodePayloadTooLarge Code = "PAYLOAD_TOO_LARGE"
@@ -284,6 +289,9 @@ func DefaultMessageKey(code Code) MessageKey {
 	case CodeServiceUnavailable:
 		return "error.default.service_unavailable"
 
+	case CodeExternalServiceUnavailable:
+		return "error.default.external_service_unavailable"
+
 	case CodePayloadTooLarge:
 		return "error.default.payload_too_large"
 
@@ -378,6 +386,12 @@ func Conflict(err error, data ...any) *Error {
 // ServiceUnavailable indicates that a required dependency is temporarily unavailable.
 func ServiceUnavailable(err error, data ...any) *Error {
 	return newError(CodeServiceUnavailable, err, data...)
+}
+
+// ExternalServiceUnavailable indicates that an outbound external dependency
+// could not be reached for this request.
+func ExternalServiceUnavailable(err error, data ...any) *Error {
+	return newError(CodeExternalServiceUnavailable, err, data...)
 }
 
 // InternalError indicates an unexpected server-side failure.

@@ -208,14 +208,14 @@ func TestSubmit_ErrorMapping(t *testing.T) {
 			name:         "unavailable",
 			code:         codes.Unavailable,
 			message:      "recipient +989121234567 code=123456",
-			wantCode:     cerr.CodeServiceUnavailable,
+			wantCode:     cerr.CodeExternalServiceUnavailable,
 			wantRejected: false,
 		},
 		{
 			name:         "deadline",
 			code:         codes.DeadlineExceeded,
 			message:      "deadline for +989121234567",
-			wantCode:     cerr.CodeServiceUnavailable,
+			wantCode:     cerr.CodeExternalServiceUnavailable,
 			wantRejected: false,
 		},
 		{

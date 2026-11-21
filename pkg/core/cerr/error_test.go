@@ -105,6 +105,7 @@ func TestConstructorsSetCodeAndSafeDefaultMessageKey(t *testing.T) {
 		{"PaymentProviderError", PaymentProviderError(cause), CodePaymentProviderError},
 		{"Conflict", Conflict(cause), CodeConflict},
 		{"ServiceUnavailable", ServiceUnavailable(cause), CodeServiceUnavailable},
+		{"ExternalServiceUnavailable", ExternalServiceUnavailable(cause), CodeExternalServiceUnavailable},
 		{"InternalError", InternalError(cause), CodeInternalError},
 	}
 
