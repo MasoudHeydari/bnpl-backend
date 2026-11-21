@@ -90,6 +90,12 @@ func TestClassifyConfirmationExternalError(t *testing.T) {
 			want:         saga.StepOutcomeRetry,
 		},
 		{
+			name:         "external service unavailable is transient",
+			err:          cerr.ExternalServiceUnavailable(errors.New("fc down")),
+			attemptCount: 1,
+			want:         saga.StepOutcomeRetry,
+		},
+		{
 			name:         "too many requests backs off",
 			err:          cerr.NewPublic(cerr.CodeTooManyRequests, cerr.DefaultMessageKey(cerr.CodeTooManyRequests), errors.New("slow down"), cerr.Details{}),
 			attemptCount: 1,
@@ -127,7 +133,7 @@ func TestClassifyConfirmationExternalError(t *testing.T) {
 		},
 		{
 			name: "grpc unavailable shape after adapter normalization retries",
-			err: cerr.ServiceUnavailable(extcheckoutpayment.NewFailure(
+			err: cerr.ExternalServiceUnavailable(extcheckoutpayment.NewFailure(
 				extcheckoutpayment.FailureClassTransient,
 				errors.New("financial core unavailable (grpc_code=Unavailable)"),
 			)),

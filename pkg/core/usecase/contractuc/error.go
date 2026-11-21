@@ -650,16 +650,26 @@ func financialCoreCheckoutPaymentConflictError(cause error) error {
 }
 
 func financialCoreCheckoutPaymentUnavailableError(cause error) error {
+	code := cerr.CodeServiceUnavailable
+	messageKey := cerr.MessageKey("error.financial_core_checkout_payment_is_temporarily_unavailable")
+	violationCode := "SERVICE_UNAVAILABLE"
+
+	if cerr.IsCode(cause, cerr.CodeExternalServiceUnavailable) {
+		code = cerr.CodeExternalServiceUnavailable
+		messageKey = cerr.DefaultMessageKey(code)
+		violationCode = string(code)
+	}
+
 	return cerr.NewPublic(
-		cerr.CodeServiceUnavailable,
-		"error.financial_core_checkout_payment_is_temporarily_unavailable",
+		code,
+		messageKey,
 		cause,
 		cerr.Details{
 			Fields: []string{},
 			Violations: []cerr.Violation{
 				{
-					Code:       "SERVICE_UNAVAILABLE",
-					MessageKey: "error.financial_core_checkout_payment_is_temporarily_unavailable",
+					Code:       violationCode,
+					MessageKey: messageKey,
 					Fields:     []string{},
 				},
 			},
@@ -978,16 +988,26 @@ func contractCancellationBlockedByPaymentAttemptError() error {
 // be accepted by Financial Core. The durable local canceling intent remains
 // available for background retry with the same Financial Core idempotency key.
 func contractCancellationFinancialCoreUnavailableError(cause error) error {
+	code := cerr.CodeServiceUnavailable
+	messageKey := cerr.MessageKey("error.contract_cancellation_financial_core_is_temporarily_unavailable")
+	violationCode := "SERVICE_UNAVAILABLE"
+
+	if cerr.IsCode(cause, cerr.CodeExternalServiceUnavailable) {
+		code = cerr.CodeExternalServiceUnavailable
+		messageKey = cerr.DefaultMessageKey(code)
+		violationCode = string(code)
+	}
+
 	return cerr.NewPublic(
-		cerr.CodeServiceUnavailable,
-		"error.contract_cancellation_financial_core_is_temporarily_unavailable",
+		code,
+		messageKey,
 		cause,
 		cerr.Details{
 			Fields: []string{},
 			Violations: []cerr.Violation{
 				{
-					Code:       "SERVICE_UNAVAILABLE",
-					MessageKey: "error.contract_cancellation_financial_core_is_temporarily_unavailable",
+					Code:       violationCode,
+					MessageKey: messageKey,
 					Fields:     []string{},
 				},
 			},

@@ -464,9 +464,17 @@ func installmentChargesRequireFinancialRecognitionError() error {
 // This does not mark the PaymentAttempt failed: FC may already have committed.
 // Local state remains created (or reconciliation_required) for recovery.
 func financialCoreInstallmentPaymentUnavailableError(cause error) error {
+	code := cerr.CodeServiceUnavailable
+	messageKey := cerr.MessageKey("error.default.service_unavailable")
+
+	if cerr.IsCode(cause, cerr.CodeExternalServiceUnavailable) {
+		code = cerr.CodeExternalServiceUnavailable
+		messageKey = cerr.DefaultMessageKey(code)
+	}
+
 	return cerr.NewPublic(
-		cerr.CodeServiceUnavailable,
-		"error.default.service_unavailable",
+		code,
+		messageKey,
 		cause,
 		cerr.Details{Fields: []string{}},
 	)

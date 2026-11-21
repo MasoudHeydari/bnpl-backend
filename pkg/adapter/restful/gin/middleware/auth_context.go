@@ -105,21 +105,21 @@ func authContextFromHeaders(c *gin.Context) (permission.AuthContext, error) {
 		return permission.AuthContext{}, err
 	}
 
-	//rawPermissions, ok := singleHeaderValue(c, header.AuthPermissions)
-	//if !ok {
-	//	return permission.AuthContext{}, authHeaderRequiredError(header.AuthPermissions)
-	//}
+	rawPermissions, ok := singleHeaderValue(c, header.AuthPermissions)
+	if !ok {
+		return permission.AuthContext{}, authHeaderRequiredError(header.AuthPermissions)
+	}
 
-	//permissions, err := permissionsFromHeader(rawPermissions)
-	//if err != nil {
-	//	return permission.AuthContext{}, err
-	//}
+	permissions, err := permissionsFromHeader(rawPermissions)
+	if err != nil {
+		return permission.AuthContext{}, err
+	}
 
 	return permission.AuthContext{
 		SubjectID:   model.SubjectID(subjectID),
 		TenantID:    model.TenantID(tenantID),
 		ContextID:   model.ContextID(contextID),
-		Permissions: []string{""},
+		Permissions: permissions,
 	}, nil
 }
 

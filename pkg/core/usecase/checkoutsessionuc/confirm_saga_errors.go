@@ -163,7 +163,9 @@ func confirmationExternalErrorClass(
 	var appErr *cerr.Error
 	if errors.As(err, &appErr) {
 		switch appErr.Code {
-		case cerr.CodeServiceUnavailable, cerr.CodeTooManyRequests:
+		case cerr.CodeServiceUnavailable,
+			cerr.CodeExternalServiceUnavailable,
+			cerr.CodeTooManyRequests:
 			if budgetExhausted {
 				return confirmationExternalManualReview
 			}
