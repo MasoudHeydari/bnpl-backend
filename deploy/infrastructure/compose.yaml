@@ -98,7 +98,53 @@ services:
     depends_on:
       - temporal
 
+  # ── Loki / Promtail / Grafana (log stack) ───────────────────────────────────
+  # Images bake configs (no host bind mounts). Promtail tails the shared
+  # dpay_service_logs volume; BNPL must mount the same volume and set LOG_FILE.
+  loki:
+    image: registry.hamdocker.ir/parstis-technology/dpay-loki:v0.1.0
+    restart: unless-stopped
+    volumes:
+      - dpay_loki_data:/loki
+    ports:
+      - "3100:3100"
+
+  promtail:
+    image: registry.hamdocker.ir/parstis-technology/dpay-promtail:v0.1.0
+    restart: unless-stopped
+    environment:
+      LOKI_PUSH_URL: http://loki.parstis-technology-dpay-dev.svc:3100/loki/api/v1/push
+      APPLICATION_ENV: development
+    volumes:
+      - dpay_promtail_positions:/var/lib/promtail
+      - dpay_service_logs:/var/log/services:ro
+    ports:
+      - "3101:3101"
+    depends_on:
+      - loki
+
+  grafana:
+    image: registry.hamdocker.ir/parstis-technology/dpay-grafana:v0.1.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      # Set the real password in the Darkoob panel (see secrets.example).
+      GF_SECURITY_ADMIN_PASSWORD:
+      GF_SERVER_ROOT_URL: http://grafana.parstis-technology-dpay-dev.svc:3000
+    volumes:
+      - dpay_grafana_data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      - loki
+
 volumes:
   dpay_postgres_data:
   dpay_redis_data:
   dpay_kafka_data:
+  dpay_loki_data:
+  dpay_promtail_positions:
+  dpay_grafana_data:
+  # Shared with BNPL (and other apps): each service writes under
+  # /var/log/services/<service-name>/… and Promtail tails the tree.
+  dpay_service_logs:

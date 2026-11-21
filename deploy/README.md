@@ -7,7 +7,7 @@ files into a unified manifest. Darkoob resolves service names as
 
 | Deployment | Always-on containers | Separate one-shot jobs |
 | --- | --- | --- |
-| infrastructure | Postgres, Redis, Kafka (`compose.yaml` service `kafka`), Temporal, Temporal UI | Kafka topics (`jobs.yaml` service `kafka-init`; image under `kafka-init/`) |
+| infrastructure | Postgres, Redis, Kafka (`compose.yaml` service `kafka`), Temporal, Temporal UI, Loki, Promtail, Grafana | Kafka topics (`jobs.yaml` service `kafka-init`; image under `kafka-init/`) |
 | gateway | Envoy | — |
 | bnpl (`bnpl/hamravesh`) | API and internal scheduled runtime | migrate, disposable dev bootstrap |
 | identity | API, outbox, revocation, notification workers | migrate, seed |
@@ -120,6 +120,12 @@ make postgres-image
 make postgres-push-to-hamravesh
 make kafka-init-image
 make kafka-init-push-to-hamravesh
+make loki-image
+make loki-push-to-hamravesh
+make promtail-image
+make promtail-push-to-hamravesh
+make grafana-image
+make grafana-push-to-hamravesh
 ```
 
 Or run inside an app directory:

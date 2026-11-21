@@ -30,6 +30,9 @@
 	gateway-image gateway-push-to-hamravesh \
 	postgres-image postgres-push-to-hamravesh \
 	kafka-init-image kafka-init-push-to-hamravesh \
+	loki-image loki-push-to-hamravesh \
+	promtail-image promtail-push-to-hamravesh \
+	grafana-image grafana-push-to-hamravesh \
 	identity-push-to-hamravesh customer-push-to-hamravesh \
 	financial-core-push-to-hamravesh notification-push-to-hamravesh
 
@@ -51,6 +54,12 @@ help:
 		'  make postgres-push-to-hamravesh' \
 		'  make kafka-init-image' \
 		'  make kafka-init-push-to-hamravesh' \
+		'  make loki-image' \
+		'  make loki-push-to-hamravesh' \
+		'  make promtail-image' \
+		'  make promtail-push-to-hamravesh' \
+		'  make grafana-image' \
+		'  make grafana-push-to-hamravesh' \
 		'' \
 		'External (push only; tag first if needed):' \
 		'  make identity-push-to-hamravesh' \
@@ -87,6 +96,24 @@ kafka-init-image:
 
 kafka-init-push-to-hamravesh:
 	$(MAKE) -C infrastructure kafka-init-push-to-hamravesh
+
+loki-image:
+	$(MAKE) -C infrastructure loki-image
+
+loki-push-to-hamravesh:
+	$(MAKE) -C infrastructure loki-push-to-hamravesh
+
+promtail-image:
+	$(MAKE) -C infrastructure promtail-image
+
+promtail-push-to-hamravesh:
+	$(MAKE) -C infrastructure promtail-push-to-hamravesh
+
+grafana-image:
+	$(MAKE) -C infrastructure grafana-image
+
+grafana-push-to-hamravesh:
+	$(MAKE) -C infrastructure grafana-push-to-hamravesh
 
 identity-push-to-hamravesh:
 	$(MAKE) -C identity push-to-hamravesh

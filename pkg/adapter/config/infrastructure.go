@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -168,6 +170,11 @@ type Slog struct {
 
 	// Format controls log output encoding.
 	Format corelog.Format `yaml:"format"`
+
+	// File is an optional append-only path for dual-write with stdout.
+	// Empty keeps stdout-only logging. Used on Hamravesh so Promtail can
+	// scrape a shared volume (LOG_FILE=/var/log/services/bnpl-service/bnpl.jsonl).
+	File string `yaml:"file"`
 }
 
 // newLoggerInfrastructure creates the configured logger.
@@ -193,6 +200,8 @@ func (l Logger) newNoopLoggerInfrastructure() (corelog.Logger, error) {
 
 // newSlogLoggerInfrastructure creates a slog-backed logger.
 func (l Logger) newSlogLoggerInfrastructure() (corelog.Logger, error) {
+	const op = "config.Logger.newSlogLoggerInfrastructure"
+
 	level, err := l.slogLevel()
 	if err != nil {
 		return nil, err
@@ -203,7 +212,33 @@ func (l Logger) newSlogLoggerInfrastructure() (corelog.Logger, error) {
 		return nil, err
 	}
 
-	return adapterslog.New(os.Stdout, level, format), nil
+	writer, err := l.slogWriter()
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
+
+	return adapterslog.New(writer, level, format), nil
+}
+
+// slogWriter returns stdout, or stdout+file when Slog.File is set.
+func (l Logger) slogWriter() (io.Writer, error) {
+	const op = "config.Logger.slogWriter"
+
+	path := strings.TrimSpace(l.Slog.File)
+	if path == "" {
+		return os.Stdout, nil
+	}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return nil, fmt.Errorf("%s: create log directory: %w", op, err)
+	}
+
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return nil, fmt.Errorf("%s: open log file: %w", op, err)
+	}
+
+	return io.MultiWriter(os.Stdout, file), nil
 }
 
 // slogLevel converts config log level to slog level.

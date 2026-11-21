@@ -188,6 +188,8 @@ infrastructure:
     slog:
       level: ${LOG_LEVEL}
       format: ${LOG_FORMAT}
+      # Optional dual-write path for Promtail on Hamravesh (empty = stdout only).
+      file: ${LOG_FILE}
 
   error_reporting:
     provider: ${ERROR_REPORTING_PROVIDER}

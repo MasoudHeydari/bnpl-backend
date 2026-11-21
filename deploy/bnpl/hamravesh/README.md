@@ -6,7 +6,7 @@ Independent BNPL deployment for namespace `parstis-technology-dpay-dev`.
 
 | File | Role |
 | --- | --- |
-| `compose.yaml` | Always-on `bnpl` app (Darkoob Compose import) |
+| `compose.yaml` | Always-on `bnpl` app (Darkoob Compose import; mounts `dpay_service_logs` for Loki) |
 | `jobs.yaml` | One-shot `bnpl-migrate` / `bnpl-init` / `bnpl-import-trusted-customers` |
 | `trusted-customers.csv` | Trusted-cohort mobiles baked into the runtime image for the import job |
 | `certs/` | Dev outbound gRPC mTLS PEMs baked into `runtime-development` |
@@ -27,11 +27,11 @@ import job uses the runtime image and the same runtime ENV shape as `compose.yam
 - Listen on `0.0.0.0` (`GIN_HOST=0.0.0.0`) so cluster traffic reaches the app.
 - Darkoob Compose import supports only: `image`, `command`, `entrypoint`,
   `ports`, `environment`, `volumes`, `depends_on` (Compose >= 3.0).
-- `jobs.yaml` must use exec-form arrays, e.g.
-  `command: ["db", "migrate"]` / `["db", "init-dev"]` /
-  `["policy-assignment", "import-trusted", ...]`. A single string like
-  `"db migrate"` becomes one Cobra argv and fails with
-  `unknown command "db migrate"`.
+- `jobs.yaml` must use **flow-form** exec arrays on one line, e.g.
+  `command: ["db", "migrate"]` /
+  `["policy-assignment", "import-trusted", "--file", "...", "--actor", "..."]`.
+  A single string or a block-style YAML list becomes one Cobra argv and fails
+  with `unknown command "policy-assignment import-trusted ..."`.
 - Development runtime images bake `certs/` into
   `/home/bnpluser/app/certs/{ca,bnpl-service}.{crt,key}` and bake
   `trusted-customers.csv` into
