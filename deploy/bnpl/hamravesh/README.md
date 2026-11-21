@@ -7,15 +7,18 @@ Independent BNPL deployment for namespace `parstis-technology-dpay-dev`.
 | File | Role |
 | --- | --- |
 | `compose.yaml` | Always-on `bnpl` app (Darkoob Compose import) |
-| `jobs.yaml` | One-shot `bnpl-migrate` / `bnpl-init` — ENV only for `configs/dbadmin.yaml` |
+| `jobs.yaml` | One-shot `bnpl-migrate` / `bnpl-init` / `bnpl-import-trusted-customers` |
+| `trusted-customers.csv` | Trusted-cohort mobiles baked into the runtime image for the import job |
 | `certs/` | Dev outbound gRPC mTLS PEMs baked into `runtime-development` |
 | `secrets.example` | Panel checklist for secret ENV only (not an `env_file`) |
 | `Makefile` | Build/push runtime + dbadmin images to `registry.hamdocker.ir` |
 
 Canonical BNPL runtime ENV: repo-root
 [`.env.dev.hamravesh.example`](../../../.env.dev.hamravesh.example)
-(keep in sync with `compose.yaml`). `jobs.yaml` only carries placeholders from
-[`configs/dbadmin.yaml`](../../../configs/dbadmin.yaml).
+(keep in sync with `compose.yaml`). Migrate/init jobs carry placeholders from
+[`configs/dbadmin.yaml`](../../../configs/dbadmin.yaml). The trusted-customer
+import job uses the runtime image and the same runtime ENV shape as `compose.yaml`
+`bnpl` (TLS paths point at image-baked certs under `/home/bnpluser/app/certs/`).
 
 ## Hamravesh constraints
 
@@ -24,14 +27,19 @@ Canonical BNPL runtime ENV: repo-root
 - Listen on `0.0.0.0` (`GIN_HOST=0.0.0.0`) so cluster traffic reaches the app.
 - Darkoob Compose import supports only: `image`, `command`, `entrypoint`,
   `ports`, `environment`, `volumes`, `depends_on` (Compose >= 3.0).
-- `jobs.yaml` must use exec-form arrays for dbadmin, e.g.
-  `command: ["db", "migrate"]` / `["db", "init-dev"]`. A single string like
+- `jobs.yaml` must use exec-form arrays, e.g.
+  `command: ["db", "migrate"]` / `["db", "init-dev"]` /
+  `["policy-assignment", "import-trusted", ...]`. A single string like
   `"db migrate"` becomes one Cobra argv and fails with
   `unknown command "db migrate"`.
 - Development runtime images bake `certs/` into
-  `/home/bnpluser/app/certs/{ca,bnpl-service}.{crt,key}`. Compose points
-  `EXTERNAL_*_GRPC_TLS_*_FILE` at those paths. Do not set
+  `/home/bnpluser/app/certs/{ca,bnpl-service}.{crt,key}` and bake
+  `trusted-customers.csv` into
+  `assets/csv/trusted-customers/trusted-customers.csv`. Do not set
   `BNPL_GRPC_*_PEM_BASE64` in Darkoob for this flow.
+- Run `bnpl-import-trusted-customers` once after Customer Reference and BNPL DB
+  are ready. Edit `trusted-customers.csv`, rebuild/push the runtime image, then
+  deploy the one-shot job. Import is additive/idempotent.
 
 ## Images
 
