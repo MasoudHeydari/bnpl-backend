@@ -891,13 +891,25 @@ static_resources:
                             end
                           
                             local permissions = claims["permissions"]
-                            if permissions ~= nil
-                              and type(permissions) ~= "table" then
-                              reject_invalid_principal(
-                                request_handle,
-                                "permissions must be a string array"
-                              )
-                              return
+                            if permissions ~= nil then
+                              if type(permissions) ~= "table" then
+                                reject_invalid_principal(
+                                  request_handle,
+                                  "permissions must be a string array"
+                                )
+                                return
+                              end
+
+                              -- Empty arrays are valid. Non-empty arrays must contain strings.
+                              for _, permission in ipairs(permissions) do
+                                if type(permission) ~= "string" then
+                                  reject_invalid_principal(
+                                    request_handle,
+                                    "permissions must be a string array"
+                                  )
+                                  return
+                                end
+                              end
                             end
                           
                             -- auth_mobile_number is Identity's canonical E.164 mobile claim.
