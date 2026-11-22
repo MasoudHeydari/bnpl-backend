@@ -807,7 +807,7 @@ INSERT INTO payment_attempts(
 		contractrp.New(),
 		outboxrp.New(),
 		uuidgen.New(),
-		"bnpl.installment_payment_reconciliation_requests",
+		newStubPaymentStatusRecoverer(),
 		"bnpl.audit.events.v1",
 		10,
 		time.Minute,
@@ -1079,6 +1079,7 @@ func TestPostgreSQLSubmittedPaymentResultTimeout_StillReconciles(t *testing.T) {
 
 	attemptID := uuid.New()
 	sessionID := "fc-session-submitted"
+	intentID := "pi-submitted-recover"
 	expiresAt := f.now.Add(-2 * time.Minute)
 	reason := model.PaymentResultTimeoutPaymentReconciliationReason
 	nextAt := f.now.Add(-time.Second)
@@ -1090,25 +1091,26 @@ func TestPostgreSQLSubmittedPaymentResultTimeout_StillReconciles(t *testing.T) {
 INSERT INTO payment_attempts(
 	id, contract_id, installment_id, amount_minor, currency, purpose, state, channel,
 	idempotency_key, request_fingerprint, created_at, updated_at, submitted_at,
-	financial_payment_session_id, financial_payment_expires_at,
+	financial_payment_intent_id, financial_payment_session_id, financial_payment_expires_at,
 	reconciliation_reason, reconciliation_requested_at, reconciliation_attempt_count,
 	next_reconciliation_at, financial_session_create_attempt_count
 ) VALUES (
 	$1, $2, $3, 100, 'IRR', 'installment_repayment', 'reconciliation_required', 'gateway',
-	$4, $5, $6, $6, $6, $7, $8, $9, $6, 1, $10, 3
-)`, attemptID, contract, installment, uuid.NewString(), "sha256:"+strings.Repeat("2", 64), f.now.Add(-30*time.Minute), sessionID, expiresAt, reason, nextAt)
+	$4, $5, $6, $6, $6, $7, $8, $9, $10, $6, 1, $11, 3
+)`, attemptID, contract, installment, uuid.NewString(), "sha256:"+strings.Repeat("2", 64), f.now.Add(-30*time.Minute), intentID, sessionID, expiresAt, reason, nextAt)
 	require.NoError(t, err)
 	_, err = tx.Exec(f.ctx, `INSERT INTO payment_attempt_items(payment_attempt_id,item_type,source_id,amount_minor,effect) VALUES($1,'principal',$2,100,'debit')`, attemptID, installment)
 	require.NoError(t, err)
 	require.NoError(t, tx.Commit(f.ctx))
 
+	recoverer := newStubPaymentStatusRecoverer()
 	reconUC, err := paymentattemptreconciliationuc.New(
 		f.pool,
 		paymentattemptrp.New(),
 		contractrp.New(),
 		outboxrp.New(),
 		uuidgen.New(),
-		"bnpl.installment_payment_reconciliation_requests",
+		recoverer,
 		"bnpl.audit.events.v1",
 		10,
 		time.Minute,
@@ -1121,7 +1123,17 @@ INSERT INTO payment_attempts(
 	require.NoError(t, err)
 	require.NoError(t, reconUC.ProcessDue(f.ctx))
 
-	require.Equal(t, 1, f.scalar(t, `
+	found := false
+	for _, call := range recoverer.calls {
+		if call.PaymentAttemptID == model.PaymentAttemptID(attemptID) {
+			// Seeded reconciliation_attempt_count=1 → next recovery generation is 2.
+			require.Equal(t, 2, call.Generation)
+			found = true
+			break
+		}
+	}
+	require.True(t, found, "expected GetPaymentStatus recovery for the submitted timeout attempt")
+	require.Zero(t, f.scalar(t, `
 SELECT count(*) FROM integration_outbox
 WHERE destination='bnpl.installment_payment_reconciliation_requests'
   AND message_key=$1

@@ -31,6 +31,25 @@ const (
 	maxPaymentResultFailureCodeLength  = 256
 )
 
+func isTrustedPaymentResultEnvelope(input ProcessInput) bool {
+	if input.SourceService == expectedPaymentResultSourceService &&
+		input.EventType == expectedPaymentResultEventType &&
+		input.EventVersion == expectedPaymentResultEventVersion {
+		return true
+	}
+
+	// BNPL-initiated GetPaymentStatus recovery uses a distinct envelope so we
+	// never invent a Financial Core Kafka event. Authority still comes from
+	// GetPaymentStatus inside resolveAuthoritative*.
+	if input.SourceService == PaymentStatusRecoverySourceService &&
+		input.EventType == PaymentStatusRecoveryEventType &&
+		input.EventVersion == paymentStatusRecoveryEventVersion {
+		return true
+	}
+
+	return false
+}
+
 func validateMinimumTrustedEnvelope(input ProcessInput) error {
 	const op = "financialcorepaymentresultuc.validateMinimumTrustedEnvelope"
 
@@ -42,29 +61,23 @@ func validateMinimumTrustedEnvelope(input ProcessInput) error {
 		return sourceServiceInvalidError()
 	}
 
-	if input.SourceService != expectedPaymentResultSourceService {
-		return unsupportedSourceServiceError(
-			fmt.Errorf("%s: unsupported payment result source service %q", op, input.SourceService),
-		)
-	}
-
 	if input.EventType == "" || len(input.EventType) > maxPaymentResultIdentifierLength {
 		return eventTypeInvalidError()
-	}
-
-	if input.EventType != expectedPaymentResultEventType {
-		return unsupportedEventTypeError(
-			fmt.Errorf("%s: unsupported payment result event type %q", op, input.EventType),
-		)
 	}
 
 	if input.EventVersion == "" || len(input.EventVersion) > 32 {
 		return eventVersionInvalidError()
 	}
 
-	if input.EventVersion != expectedPaymentResultEventVersion {
-		return unsupportedEventVersionError(
-			fmt.Errorf("%s: unsupported payment result event version %q", op, input.EventVersion),
+	if !isTrustedPaymentResultEnvelope(input) {
+		return unsupportedEventTypeError(
+			fmt.Errorf(
+				"%s: unsupported payment result envelope source=%q type=%q version=%q",
+				op,
+				input.SourceService,
+				input.EventType,
+				input.EventVersion,
+			),
 		)
 	}
 

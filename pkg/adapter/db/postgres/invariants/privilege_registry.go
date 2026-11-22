@@ -108,7 +108,7 @@ var privileges = []TablePrivilegePolicy{
 }
 
 // PrivilegeMigrationSHA256 fingerprints the reviewed baseline privilege grants.
-const PrivilegeMigrationSHA256 = "sha256:96109a9cf5822d93e374adeb952d9816b77bebe6100336d52c16f7efa9a19acb"
+const PrivilegeMigrationSHA256 = "sha256:a03f666671ba8b7f88f4d27216546aa2ef9ad591488dff960221a42b19dd644b"
 
 const PermissionHistoryMigration = "000_schema.sql"
-const PermissionHistoryMigrationSHA256 = "sha256:b9cc06a580a24f2173980bd1655692cfe02160e40f3863d96b39a9820fd421df"
+const PermissionHistoryMigrationSHA256 = "sha256:a03f666671ba8b7f88f4d27216546aa2ef9ad591488dff960221a42b19dd644b"

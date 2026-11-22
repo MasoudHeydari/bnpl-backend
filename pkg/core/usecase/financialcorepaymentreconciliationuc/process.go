@@ -276,6 +276,7 @@ func (uc *UseCase) Process(ctx context.Context, input ProcessInput) (ProcessOutp
 			case installmentpaymentreconciliation.FailedResultStatus:
 				return uc.handleFailed(
 					ctx,
+					tx,
 					inboxQ,
 					outboxQ,
 					paymentAttemptQ,
@@ -294,9 +295,6 @@ func (uc *UseCase) Process(ctx context.Context, input ProcessInput) (ProcessOutp
 					inboxQ,
 					outboxQ,
 					paymentAttemptQ,
-					contractQ,
-					installmentQ,
-					installmentChargeQ,
 					inboxID,
 					input,
 					attempt,
@@ -989,6 +987,7 @@ func (uc *UseCase) handleSucceeded(
 
 func (uc *UseCase) handleFailed(
 	ctx context.Context,
+	tx repo.Tx,
 	inboxQ repo.InboxTxQueryer,
 	outboxQ repo.OutboxTxQueryer,
 	paymentAttemptQ repo.PaymentAttemptTxQueryer,
@@ -1076,6 +1075,20 @@ func (uc *UseCase) handleFailed(
 		return err
 	}
 
+	// FAILED closes only the PaymentAttempt. Keep payment_pending and reopen
+	// the hosted checkout so Confirm can mint a replacement attempt — same
+	// policy as the payment-result path.
+	if failedAttempt.Purpose == model.CheckoutFirstInstallmentFinancialCorePaymentPurpose {
+		if err := uc.paymentResult.SyncCheckoutAfterRetryablePaymentTerminal(
+			ctx,
+			tx,
+			failedAttempt.ContractID,
+			now,
+		); err != nil {
+			return err
+		}
+	}
+
 	return uc.finishReconciliationAcknowledgement(
 		ctx,
 		inboxQ,
@@ -1100,9 +1113,6 @@ func (uc *UseCase) handleCanceled(
 	inboxQ repo.InboxTxQueryer,
 	outboxQ repo.OutboxTxQueryer,
 	paymentAttemptQ repo.PaymentAttemptTxQueryer,
-	contractQ repo.ContractTxQueryer,
-	installmentQ repo.InstallmentTxQueryer,
-	installmentChargeQ repo.InstallmentChargeTxQueryer,
 	inboxID model.InboxID,
 	input ProcessInput,
 	attempt model.PaymentAttempt,
@@ -1173,15 +1183,7 @@ func (uc *UseCase) handleCanceled(
 		return err
 	}
 
-	if err := uc.finalizeCanceledCheckoutContract(
-		ctx,
-		tx,
-		contractQ,
-		installmentQ,
-		installmentChargeQ,
-		canceledAttempt,
-		now,
-	); err != nil {
+	if err := uc.finalizeCanceledCheckoutContract(ctx, tx, canceledAttempt, now); err != nil {
 		return err
 	}
 
@@ -1217,16 +1219,16 @@ func (uc *UseCase) handleCanceled(
 	)
 }
 
-// finalizeCanceledCheckoutContract closes a payment_pending checkout only after
-// Financial Core has authoritatively resolved the payment as canceled.
-// Installment-repayment cancellations do not change the contract lifecycle.
-// The linked CheckoutSession is aligned so it cannot remain stuck in processing.
+// finalizeCanceledCheckoutContract aligns local checkout state after Financial
+// Core authoritatively canceled a checkout PaymentAttempt.
+//
+// CANCELLED closes only that attempt — not the whole purchase. The
+// payment_pending Contract is kept and the CheckoutSession returns to open so
+// Confirm can mint a replacement attempt, matching the payment-result path.
+// Installment-repayment cancellations do not touch checkout lifecycle.
 func (uc *UseCase) finalizeCanceledCheckoutContract(
 	ctx context.Context,
 	tx repo.Tx,
-	contractQ repo.ContractTxQueryer,
-	installmentQ repo.InstallmentTxQueryer,
-	installmentChargeQ repo.InstallmentChargeTxQueryer,
 	attempt model.PaymentAttempt,
 	now time.Time,
 ) error {
@@ -1234,28 +1236,12 @@ func (uc *UseCase) finalizeCanceledCheckoutContract(
 		return nil
 	}
 
-	contractRow, err := contractQ.LockByID(ctx, attempt.ContractID)
-	if err != nil {
-		return err
-	}
-
-	if contractRow.Status != model.PaymentPendingContractStatus {
-		return nil
-	}
-
-	if _, err := contractQ.MarkCanceledFromPaymentPending(ctx, contractRow.ID, now, now); err != nil {
-		return err
-	}
-
-	if _, err := installmentQ.ExpireOfferedByContractID(ctx, contractRow.ID, now); err != nil {
-		return err
-	}
-
-	if _, err := installmentChargeQ.CancelOfferedByContractID(ctx, contractRow.ID, now); err != nil {
-		return err
-	}
-
-	return uc.paymentResult.SyncCheckoutAfterPaymentPendingCanceled(ctx, tx, attempt.ContractID, now)
+	return uc.paymentResult.SyncCheckoutAfterRetryablePaymentTerminal(
+		ctx,
+		tx,
+		attempt.ContractID,
+		now,
+	)
 }
 
 func (uc *UseCase) handleNotFound(

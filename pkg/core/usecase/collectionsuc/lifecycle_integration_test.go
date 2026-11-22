@@ -858,7 +858,7 @@ VALUES ($1, 'principal', $2, 100, 'debit')
 		contractrp.New(),
 		outboxrp.New(),
 		uuidgen.New(),
-		"bnpl.installment_payment_reconciliation_requests",
+		newStubPaymentStatusRecoverer(),
 		"bnpl.audit.events.v1",
 		10,
 		time.Minute,

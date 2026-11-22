@@ -9,24 +9,30 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
-// UseCase schedules payment attempt reconciliation work through the transactional outbox.
-// It covers submitted-payment outcome uncertainty (for example payment_result_timeout).
-// Unsuccessful CreateCheckoutPayment rediscovery is intentionally not scheduled here.
+// UseCase schedules payment attempt outcome recovery through Financial Core
+// GetPaymentStatus. It covers submitted-payment outcome uncertainty (for
+// example payment_result_timeout) for installment_repayment and
+// checkout_first_installment when a payment_intent_id is already stored.
+//
+// The former Kafka topic bnpl.installment_payment_reconciliation_requested.v1
+// is not an operational FC consumer path and is not used here. Unsuccessful
+// CreateCheckoutPayment rediscovery remains outside this job (same-key Create
+// replay for checkout / customer-driven installment retries).
 type UseCase struct {
-	pool                              repo.Pool
-	paymentAttempt                    repo.PaymentAttempt
-	contract                          repo.Contract
-	outbox                            repo.Outbox
-	idGenerator                       identifier.Generator
-	reconciliationRequestsDestination string
-	auditDestination                  string
-	batchSize                         int
-	submittedExpiryGrace              time.Duration
-	retryBaseDelay                    time.Duration
-	retryMaxDelay                     time.Duration
-	maxAttempts                       int
-	clock                             clock.Clock
-	observer                          Observer
+	pool                 repo.Pool
+	paymentAttempt       repo.PaymentAttempt
+	contract             repo.Contract
+	outbox               repo.Outbox
+	idGenerator          identifier.Generator
+	paymentStatus        PaymentStatusRecoverer
+	auditDestination     string
+	batchSize            int
+	submittedExpiryGrace time.Duration
+	retryBaseDelay       time.Duration
+	retryMaxDelay        time.Duration
+	maxAttempts          int
+	clock                clock.Clock
+	observer             Observer
 }
 
 // New constructs a payment attempt reconciliation use case with transactional Audit emission.
@@ -36,7 +42,7 @@ func New(
 	contractRepo repo.Contract,
 	outbox repo.Outbox,
 	idGenerator identifier.Generator,
-	reconciliationRequestsDestination string,
+	paymentStatus PaymentStatusRecoverer,
 	auditDestination string,
 	batchSize int,
 	submittedExpiryGrace time.Duration,
@@ -52,7 +58,7 @@ func New(
 		contractRepo,
 		outbox,
 		idGenerator,
-		reconciliationRequestsDestination,
+		paymentStatus,
 		auditDestination,
 		batchSize,
 		submittedExpiryGrace,
@@ -70,7 +76,8 @@ func newUseCase(
 	contractRepo repo.Contract,
 	outbox repo.Outbox,
 	idGenerator identifier.Generator,
-	reconciliationRequestsDestination, auditDestination string,
+	paymentStatus PaymentStatusRecoverer,
+	auditDestination string,
 	batchSize int,
 	submittedExpiryGrace, retryBaseDelay, retryMaxDelay time.Duration,
 	maxAttempts int,
@@ -87,8 +94,8 @@ func newUseCase(
 		return nil, fmt.Errorf("%s: id generator is required", op)
 	}
 
-	if reconciliationRequestsDestination == "" {
-		return nil, fmt.Errorf("%s: reconciliation requests destination is required", op)
+	if paymentStatus == nil {
+		return nil, fmt.Errorf("%s: payment status recoverer is required", op)
 	}
 
 	if auditDestination == "" {
@@ -120,19 +127,19 @@ func newUseCase(
 	}
 
 	return &UseCase{
-		pool:                              pool,
-		paymentAttempt:                    paymentAttempt,
-		contract:                          contractRepo,
-		outbox:                            outbox,
-		idGenerator:                       idGenerator,
-		reconciliationRequestsDestination: reconciliationRequestsDestination,
-		auditDestination:                  auditDestination,
-		batchSize:                         batchSize,
-		submittedExpiryGrace:              submittedExpiryGrace,
-		retryBaseDelay:                    retryBaseDelay,
-		retryMaxDelay:                     retryMaxDelay,
-		maxAttempts:                       maxAttempts,
-		clock:                             clk,
-		observer:                          observer,
+		pool:                 pool,
+		paymentAttempt:       paymentAttempt,
+		contract:             contractRepo,
+		outbox:               outbox,
+		idGenerator:          idGenerator,
+		paymentStatus:        paymentStatus,
+		auditDestination:     auditDestination,
+		batchSize:            batchSize,
+		submittedExpiryGrace: submittedExpiryGrace,
+		retryBaseDelay:       retryBaseDelay,
+		retryMaxDelay:        retryMaxDelay,
+		maxAttempts:          maxAttempts,
+		clock:                clk,
+		observer:             observer,
 	}, nil
 }

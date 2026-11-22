@@ -66,6 +66,7 @@ func IsUniqueViolation(err error, constraint string) bool {
 // Constraint names/columns are intentionally not copied into public metadata.
 // Known business constraints should be remapped by the owning repository.
 func mapPgError(err *pgconn.PgError) error {
+	// FIXME: Is it possible to remove this map?
 	keys := map[string]struct{ constraint, key string }{
 		"BN001": {"installment_already_paid", "error.installment_already_paid"},
 		"BN002": {"installment_has_unsettled_charges", "error.installment_has_unsettled_charges"},

@@ -660,8 +660,11 @@ func (uc *UseCase) ensureCheckoutPaymentSession(
 
 	// CreateCheckoutPayment is idempotent. Retries reuse the attempt idempotency
 	// key and return the same immutable PaymentIntent/PaymentSession/PaymentLink.
-	// GetPaymentStatus cannot recover a missing PaymentURL after a timeout.
-	// The counter above is not reset when this HTTP call is retried by the client.
+	// When the response was lost and no payment_intent_id is stored, this same-key
+	// replay is the FC recovery path. GetPaymentStatus cannot recover a missing
+	// PaymentURL. reused_idempotent_result is not monetary success — terminal
+	// truth comes from GetPaymentStatus. The counter above is not reset when this
+	// HTTP call is retried by the client.
 	uc.observer.FinancialCoreRequestStarted(ctx, contractRow.ID, attempt.ID)
 
 	paymentResult, err := uc.checkoutPaymentClient.CreateCheckoutPayment(ctx, request)
@@ -672,6 +675,17 @@ func (uc *UseCase) ensureCheckoutPaymentSession(
 
 	requestNow := uc.clock.Now().UTC()
 	if err := uc.validateCheckoutPaymentResult(paymentResult, contractRow, requestNow); err != nil {
+		if handled, handledContract, handledAttempt, handledOut, handledErr := uc.handleNonActionableCheckoutPaymentCreateResult(
+			ctx,
+			contractRow,
+			attempt,
+			paymentResult,
+			err,
+			requestNow,
+		); handled {
+			return handledContract, handledAttempt, handledOut, handledErr
+		}
+
 		uc.observer.FinancialCoreFailed(ctx, contractRow.ID, attempt.ID, err)
 		return model.Contract{}, model.PaymentAttempt{}, CheckoutPaymentOutput{}, err
 	}
@@ -915,6 +929,96 @@ func (uc *UseCase) ensureCheckoutPaymentSession(
 	}
 
 	return savedContract, savedAttempt, paymentOutput, nil
+}
+
+// handleNonActionableCheckoutPaymentCreateResult handles CreateCheckoutPayment
+// responses that are not a usable requires_action customer session.
+//
+// Per FC: reused_idempotent_result is not monetary success; PROCESSING is not
+// failure; final status comes from GetPaymentStatus. When a payment_intent_id is
+// present we bind identity and leave outcome recovery to GetPaymentStatus.
+func (uc *UseCase) handleNonActionableCheckoutPaymentCreateResult(
+	ctx context.Context,
+	contractRow model.Contract,
+	attempt model.PaymentAttempt,
+	result extcheckoutpayment.CreateCheckoutPaymentResult,
+	validateErr error,
+	now time.Time,
+) (handled bool, outContract model.Contract, outAttempt model.PaymentAttempt, out CheckoutPaymentOutput, err error) {
+	if !errors.Is(validateErr, extcheckoutpayment.ErrUnsupportedPaymentStatus) {
+		return false, model.Contract{}, model.PaymentAttempt{}, CheckoutPaymentOutput{}, nil
+	}
+
+	paymentIntentID := strings.TrimSpace(result.PaymentIntentID)
+	if paymentIntentID == "" {
+		return false, model.Contract{}, model.PaymentAttempt{}, CheckoutPaymentOutput{}, nil
+	}
+
+	switch result.Status {
+	case extcheckoutpayment.ProcessingPaymentStatus,
+		extcheckoutpayment.SucceededPaymentStatus,
+		extcheckoutpayment.FailedPaymentStatus,
+		extcheckoutpayment.CanceledPaymentStatus,
+		extcheckoutpayment.ExpiredPaymentStatus:
+		// handled below
+
+	default:
+		return false, model.Contract{}, model.PaymentAttempt{}, CheckoutPaymentOutput{}, nil
+	}
+
+	var bound model.PaymentAttempt
+	bindErr := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
+		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
+			paymentAttemptQ := uc.paymentAttempt.Tx(tx)
+			locked, lockErr := paymentAttemptQ.LockByID(ctx, attempt.ID)
+			if lockErr != nil {
+				return lockErr
+			}
+
+			enriched, enrichErr := paymentAttemptQ.EnrichFinancialPaymentIdentityIfAbsent(
+				ctx,
+				locked.ID,
+				paymentIntentID,
+				optionalTrimmedString(strings.TrimSpace(result.PaymentSessionID)),
+				optionalTrimmedString(strings.TrimSpace(result.PaymentAttemptID)),
+				now,
+			)
+			if enrichErr != nil {
+				return enrichErr
+			}
+
+			if enriched.State == model.CreatedPaymentAttemptState ||
+				enriched.State == model.SubmittedPaymentAttemptState {
+				marked, markErr := paymentAttemptQ.MarkReconciliationRequired(
+					ctx,
+					enriched.ID,
+					model.PaymentResultTimeoutPaymentReconciliationReason,
+					nil,
+					nil,
+					now,
+				)
+				if markErr != nil {
+					bound = enriched
+					return nil
+				}
+
+				bound = marked
+				return nil
+			}
+
+			bound = enriched
+			return nil
+		})
+	})
+	if bindErr != nil {
+		return true, model.Contract{}, model.PaymentAttempt{}, CheckoutPaymentOutput{}, bindErr
+	}
+
+	uc.observer.FinancialCoreResponseReceived(ctx, contractRow.ID, attempt.ID)
+
+	// PROCESSING is not failure. Terminal statuses are applied by GetPaymentStatus
+	// recovery — not invented from this CreateCheckoutPayment replay.
+	return true, contractRow, bound, CheckoutPaymentOutput{}, checkoutPaymentSessionCreateInProgressError()
 }
 
 func paymentAttemptSessionMatchesResult(

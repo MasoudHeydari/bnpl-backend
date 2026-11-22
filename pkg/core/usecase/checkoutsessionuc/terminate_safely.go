@@ -288,8 +288,9 @@ func (uc *UseCase) evaluateSafeTerminationEvidence(
 		}
 
 		if !requiresPayment {
-			// Merchant-funding path with no payment attempt: absence of an
-			// attempt does not prove RecordMerchantEntitlement never ran.
+			// Conservative until FC confirms a lookup that proves
+			// RecordMerchantEntitlement never committed for this source.
+			// Absence of a local PaymentAttempt is not that proof.
 			return safeTerminationEvidence{
 				Safe:        false,
 				BlockReason: "merchant funding may have an unknown Financial Core entitlement effect",

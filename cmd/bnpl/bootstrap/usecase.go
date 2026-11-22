@@ -511,6 +511,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Repos.Contract,
 		a.Repos.Outbox,
 		a.Infrastructure.IdentifierGenerator,
+		financialCorePaymentResultUseCase,
 		a.Infrastructure.Clock,
 		paymentAttemptReconciliationObserver,
 	)

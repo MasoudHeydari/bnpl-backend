@@ -89,7 +89,13 @@ RETURNING` + paymentAttemptColumns
 	return row, nil
 }
 
-// ClaimExpiredSubmittedForReconciliation transitions expired submitted attempts.
+// ClaimExpiredSubmittedForReconciliation transitions expired submitted attempts
+// that already store a Financial Core payment_intent_id into
+// reconciliation_required so BNPL can recover via GetPaymentStatus.
+//
+// Covers installment_repayment and checkout_first_installment. Session-creation
+// uncertainty without an intent is not claimed here; checkout recovers that
+// path via same-key CreateCheckoutPayment replay.
 func ClaimExpiredSubmittedForReconciliation[Q postgres.Queryer](
 	ctx context.Context,
 	q Q,
@@ -108,21 +114,23 @@ WITH picked AS (
 	SELECT id
 	FROM payment_attempts
 	WHERE state = $1
-	  AND purpose = $2
+	  AND purpose IN ($2, $3)
+	  AND financial_payment_intent_id IS NOT NULL
+	  AND btrim(financial_payment_intent_id) <> ''
 	  AND financial_payment_expires_at IS NOT NULL
-	  AND financial_payment_expires_at <= $3
+	  AND financial_payment_expires_at <= $4
 	ORDER BY financial_payment_expires_at ASC
-	LIMIT $4
+	LIMIT $5
 	FOR UPDATE SKIP LOCKED
 )
 UPDATE payment_attempts AS p
 SET
-	state = $5,
-	reconciliation_reason = $6,
+	state = $6,
+	reconciliation_reason = $7,
 	reconciliation_attempt_count = 0,
-	reconciliation_requested_at = $7,
-	next_reconciliation_at = $8,
-	updated_at = $9
+	reconciliation_requested_at = $8,
+	next_reconciliation_at = $9,
+	updated_at = $10
 FROM picked
 WHERE p.id = picked.id
 RETURNING` + paymentAttemptColumnsP
@@ -134,6 +142,7 @@ RETURNING` + paymentAttemptColumnsP
 		query,
 		model.SubmittedPaymentAttemptState,
 		model.InstallmentRepaymentFinancialCorePaymentPurpose,
+		model.CheckoutFirstInstallmentFinancialCorePaymentPurpose,
 		expiryCutoff,
 		limit,
 		model.ReconciliationRequiredPaymentAttemptState,
@@ -144,7 +153,8 @@ RETURNING` + paymentAttemptColumnsP
 	)
 }
 
-// ClaimDueReconciliationRequired claims due reconciliation_required attempts for retry.
+// ClaimDueReconciliationRequired claims due reconciliation_required attempts for
+// GetPaymentStatus recovery (installment_repayment and checkout_first_installment).
 func ClaimDueReconciliationRequired[Q postgres.Queryer](
 	ctx context.Context,
 	q Q,
@@ -158,17 +168,17 @@ WITH picked AS (
 	SELECT id
 	FROM payment_attempts
 	WHERE state = $1
-	  AND purpose = $2
+	  AND purpose IN ($2, $3)
 	  AND next_reconciliation_at IS NOT NULL
-	  AND next_reconciliation_at <= $3
+	  AND next_reconciliation_at <= $4
 	ORDER BY next_reconciliation_at ASC, created_at ASC
-	LIMIT $4
+	LIMIT $5
 	FOR UPDATE SKIP LOCKED
 )
 UPDATE payment_attempts AS p
 SET
-	next_reconciliation_at = $5,
-	updated_at = $6
+	next_reconciliation_at = $6,
+	updated_at = $7
 FROM picked
 WHERE p.id = picked.id
 RETURNING` + paymentAttemptColumnsP
@@ -180,6 +190,7 @@ RETURNING` + paymentAttemptColumnsP
 		query,
 		model.ReconciliationRequiredPaymentAttemptState,
 		model.InstallmentRepaymentFinancialCorePaymentPurpose,
+		model.CheckoutFirstInstallmentFinancialCorePaymentPurpose,
 		now,
 		limit,
 		claimLeaseUntil,

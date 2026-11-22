@@ -12,6 +12,7 @@ const (
 
 	manualReviewReasonRetryBudgetExhausted = "retry_budget_exhausted"
 	manualReviewReasonRequestBuildFailed   = "request_build_failed"
+	manualReviewReasonMissingPaymentIntent = "missing_payment_intent_for_status_recovery"
 )
 
 // Observer records operational flow checkpoints for payment attempt

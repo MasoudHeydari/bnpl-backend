@@ -666,6 +666,7 @@ func (c *Config) NewPaymentAttemptReconciliationUseCase(
 	contractRepo repo.Contract,
 	outbox repo.Outbox,
 	idGenerator identifier.Generator,
+	paymentStatus paymentattemptreconciliationuc.PaymentStatusRecoverer,
 	clk clock.Clock,
 	observer paymentattemptreconciliationuc.Observer,
 ) (*paymentattemptreconciliationuc.UseCase, error) {
@@ -675,7 +676,7 @@ func (c *Config) NewPaymentAttemptReconciliationUseCase(
 		contractRepo,
 		outbox,
 		idGenerator,
-		c.InstallmentPaymentReconciliationRequestsTopic(),
+		paymentStatus,
 		c.AuditEventsTopic(),
 		clk,
 		observer,
