@@ -24,8 +24,6 @@ func TestMetricsIncrementsAndExposition(t *testing.T) {
 	m.PaymentAttemptCompleted(ctx, "succeeded", "financial_core")
 	m.InstallmentStateChanged(ctx, "scheduled", "due")
 	m.InstallmentStateChanged(ctx, "", "due")
-	m.WebhookDeliveryCompleted(ctx, "delivered")
-	m.WebhookDeliveryCompleted(ctx, "destination_disabled")
 
 	rec := httptest.NewRecorder()
 	m.ServeHTTP(rec, httptest.NewRequest("GET", "/metrics", nil))
@@ -40,8 +38,6 @@ func TestMetricsIncrementsAndExposition(t *testing.T) {
 	require.Contains(t, text, `bnpl_business_payment_attempts_completed_total{result="succeeded",channel="financial_core"} 1`)
 	require.Contains(t, text, `bnpl_business_installment_state_changes_total{from="scheduled",to="due"} 1`)
 	require.Contains(t, text, `bnpl_business_installment_state_changes_total{from="unknown",to="due"} 1`)
-	require.Contains(t, text, `bnpl_business_webhook_deliveries_total{outcome="delivered"} 1`)
-	require.Contains(t, text, `bnpl_business_webhook_deliveries_total{outcome="destination_disabled"} 1`)
 }
 
 func TestOutboundHTTPMetricsUseBoundedLabels(t *testing.T) {

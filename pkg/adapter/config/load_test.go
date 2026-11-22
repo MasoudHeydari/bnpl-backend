@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,7 +38,6 @@ usecases:
     ttl: 30m
     expiry_batch_size: 100
     lifecycle_events_destination: bnpl.merchant.checkout.events.v1
-    webhook_secret_encryption_keys: w1:ZGV2LW9ubHktd2ViaG9vay1lbmNyeXB0aW9uLWtleSE=
     otp_pepper_keys: o1:test-checkout-otp-pepper-0123456789ab
     customer_phone_encryption_keys: p1:ZGV2LW9ubHktY3VzdG9tZXItcGhvbmUta2V5LTAxMjM=
   outbox_publisher:
@@ -100,13 +98,6 @@ infrastructure:
 external:
   credit_assessment:
     provider: noop
-  webhook_dispatcher:
-    provider: http
-    noop:
-    http:
-      timeout: 10s
-      dial_timeout: 5s
-      max_response_bytes: 65536
   financial_core:
     provider: noop
     payment_return_url: https://bnpl.example/payments/return
@@ -134,10 +125,6 @@ func TestLoad_ValidMinimalConfig(t *testing.T) {
 	require.NotNil(t, cfg)
 	assert.Equal(t, Version, cfg.Versions.Config)
 	assert.Equal(t, DatabaseVersion, cfg.Versions.Database)
-	assert.Equal(t, "http", cfg.External.WebhookDispatcher.Provider)
-	assert.Equal(t, 10*time.Second, cfg.External.WebhookDispatcher.HTTP.Timeout)
-	assert.Equal(t, 5*time.Second, cfg.External.WebhookDispatcher.HTTP.DialTimeout)
-	assert.Equal(t, int64(65536), cfg.External.WebhookDispatcher.HTTP.MaxResponseBytes)
 }
 
 func TestLoad_FullConfigSections(t *testing.T) {

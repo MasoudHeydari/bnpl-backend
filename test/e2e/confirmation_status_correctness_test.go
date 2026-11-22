@@ -85,7 +85,7 @@ func TestE2E_ConfirmationStatus_ReconfirmAfterCompensateBeforeOfferRefresh(t *te
 		EvaluationGeneration: stale.Session.EvaluationGeneration,
 	})
 	require.NoError(t, progressErr)
-	require.Equal(t, model.CompletedCheckoutSessionStatus, progressed.Session.Status)
+	require.Equal(t, model.VerifyPendingCheckoutSessionStatus, progressed.Session.Status)
 	require.NotNil(t, progressed.Session.ContractID)
 	require.Equal(t, 1, h.countContractsForDecision(*progressed.Session.DecisionID))
 	require.NotEqual(t, decisionG1, *progressed.Session.DecisionID)

@@ -66,7 +66,6 @@ Permissionهای اولیه در [Provision](provision.md) seed می‌شوند�
 
 - `bnpl:checkout-sessions:create:merchant`
 - `bnpl:checkout-sessions:read:merchant`
-- `bnpl:checkout-webhooks:manage:merchant`
 - `bnpl:checkout-return-destinations:manage:merchant`
 
 مدیریت Terminal (provision/rotate/retire) هرگز در این مجموعه نیست.
@@ -85,7 +84,7 @@ Permissionهای اولیه در [Provision](provision.md) seed می‌شوند�
 
 ## مسیرهای استفاده‌کننده
 
-بعد از Authenticate موفق، Handlerهای Partner مثل Create/Cancel/Status Checkout و Upsert Destination از `MerchantPrincipal` / `AuthContext` استفاده می‌کنند. مستند Partner: [partner-checkout.md](../partner-checkout.md).
+بعد از Authenticate موفق، Handlerهای Partner مثل Create/Cancel/Status/Verify Checkout و Upsert Destination از `MerchantPrincipal` / `AuthContext` استفاده می‌کنند. مستند Partner: [partner-checkout.md](../partner-checkout.md).
 
 ## مرجع کد
 

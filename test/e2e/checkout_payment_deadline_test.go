@@ -200,7 +200,7 @@ func TestE2E_CheckoutDeadline_OnTimePaidAtAcceptedAfterLateEventDelivery(t *test
 	require.Equal(t, financialcorepaymentresultuc.ProcessResultPaymentApplied, out.Result)
 
 	completed := h.querySession(session.ID)
-	require.Equal(t, model.CompletedCheckoutSessionStatus, completed.Status)
+	require.Equal(t, model.VerifyPendingCheckoutSessionStatus, completed.Status)
 
 	finalContract := h.queryContractBySession(completed)
 	require.Equal(t, model.ActiveContractStatus, finalContract.Status)

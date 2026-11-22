@@ -24,7 +24,7 @@ func TestE2E_ConfirmSaga_L_FirstConfirmMintsAttemptAndSagaBusinessKey(t *testing
 
 	out, err := h.CheckoutSession.Confirm(h.ctx, confirmInputForSeed(seed))
 	require.NoError(t, err)
-	require.Equal(t, model.CompletedCheckoutSessionStatus, out.Session.Status)
+	require.Equal(t, model.VerifyPendingCheckoutSessionStatus, out.Session.Status)
 
 	session := h.querySession(seed.Session.ID)
 	h.assertAttemptMatchesSaga(session)
@@ -65,12 +65,12 @@ func TestE2E_ConfirmSaga_M_ConcurrentConfirmReusesSameAttempt(t *testing.T) {
 	)
 
 	session := h.querySession(seed.Session.ID)
-	if session.Status != model.CompletedCheckoutSessionStatus {
+	if session.Status != model.VerifyPendingCheckoutSessionStatus {
 		h.resumeUntilSessionCompleted(seed.Session.ID)
 		session = h.querySession(seed.Session.ID)
 	}
 
-	require.Equal(t, model.CompletedCheckoutSessionStatus, session.Status)
+	require.Equal(t, model.VerifyPendingCheckoutSessionStatus, session.Status)
 	require.Equal(t, 1, h.countConfirmationSagasForSession(session.ID))
 	require.NotNil(t, session.ConfirmationAttemptID)
 
@@ -156,7 +156,7 @@ func TestE2E_ConfirmSaga_N_NewConfirmAfterCompensateUsesNewAttemptAndFencesOldSa
 		EvaluationGeneration: started.Session.EvaluationGeneration,
 	})
 	require.NoError(t, err)
-	require.Equal(t, model.CompletedCheckoutSessionStatus, out.Session.Status)
+	require.Equal(t, model.VerifyPendingCheckoutSessionStatus, out.Session.Status)
 
 	newSession := h.querySession(seed.Session.ID)
 	require.NotNil(t, newSession.ConfirmationAttemptID)
@@ -176,11 +176,11 @@ func TestE2E_ConfirmSaga_O_CompletedReplayIsIdempotent(t *testing.T) {
 
 	first, err := h.CheckoutSession.Confirm(h.ctx, confirmInputForSeed(seed))
 	require.NoError(t, err)
-	require.Equal(t, model.CompletedCheckoutSessionStatus, first.Session.Status)
+	require.Equal(t, model.VerifyPendingCheckoutSessionStatus, first.Session.Status)
 
 	second, err := h.CheckoutSession.Confirm(h.ctx, confirmInputForSeed(seed))
 	require.NoError(t, err)
-	require.Equal(t, model.CompletedCheckoutSessionStatus, second.Session.Status)
+	require.Equal(t, model.VerifyPendingCheckoutSessionStatus, second.Session.Status)
 	require.Equal(t, first.Session.ContractID, second.Session.ContractID)
 	require.Equal(t, 1, h.countContractsForDecision(*first.Session.DecisionID))
 	assert.Equal(t, 1, h.fc.committedEntitlementCount())

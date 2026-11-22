@@ -75,8 +75,15 @@ func (uc *UseCase) GetPartnerStatus(
 				Currency:             found.Currency,
 			}
 
-			if status == model.CompletedCheckoutSessionStatus {
-				output.CompletedAt = found.CompletedAt
+			if status == model.VerifyPendingCheckoutSessionStatus {
+				output.VerificationDeadlineAt = found.VerificationDeadlineAt
+			}
+
+			if status == model.VerifiedByMerchantCheckoutSessionStatus {
+				output.VerifiedAt = found.MerchantVerifiedAt
+				if output.VerifiedAt == nil {
+					output.VerifiedAt = found.CompletedAt
+				}
 			}
 
 			return nil

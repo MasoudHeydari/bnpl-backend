@@ -32,7 +32,6 @@ type Metrics struct {
 	contracts         map[string]uint64
 	paymentAttempts   map[paymentAttemptLabels]uint64
 	installmentStates map[installmentStateLabels]uint64
-	webhookDeliveries map[string]uint64
 
 	shortLinksCreated       map[string]uint64
 	shortLinksResolved      map[string]uint64
@@ -95,7 +94,6 @@ func New() *Metrics {
 		contracts:                 make(map[string]uint64),
 		paymentAttempts:           make(map[paymentAttemptLabels]uint64),
 		installmentStates:         make(map[installmentStateLabels]uint64),
-		webhookDeliveries:         make(map[string]uint64),
 		shortLinksCreated:         make(map[string]uint64),
 		shortLinksResolved:        make(map[string]uint64),
 		repaymentReminderJobs:     make(map[string]uint64),
@@ -158,17 +156,6 @@ func (m *Metrics) InstallmentStateChanged(_ context.Context, from, to string) {
 		from: normalizeLabel(from),
 		to:   normalizeLabel(to),
 	}]++
-}
-
-// WebhookDeliveryCompleted increments bnpl_business_webhook_deliveries_total.
-//
-// Call once per classified delivery attempt, including permanent skips such as
-// a disabled destination.
-func (m *Metrics) WebhookDeliveryCompleted(_ context.Context, outcome string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	m.webhookDeliveries[normalizeLabel(outcome)]++
 }
 
 // ShortLinkCreated increments bnpl_business_short_links_created_total.
@@ -457,23 +444,6 @@ func (m *Metrics) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 			quoteLabel(labels.from),
 			quoteLabel(labels.to),
 			m.installmentStates[labels],
-		)
-	}
-
-	_, _ = io.WriteString(w, "# HELP bnpl_business_webhook_deliveries_total Total merchant webhook delivery attempts by classified outcome.\n")
-	_, _ = io.WriteString(w, "# TYPE bnpl_business_webhook_deliveries_total counter\n")
-	webhookKeys := make([]string, 0, len(m.webhookDeliveries))
-	for outcome := range m.webhookDeliveries {
-		webhookKeys = append(webhookKeys, outcome)
-	}
-
-	sort.Strings(webhookKeys)
-	for _, outcome := range webhookKeys {
-		_, _ = fmt.Fprintf(
-			w,
-			"bnpl_business_webhook_deliveries_total{outcome=%s} %d\n",
-			quoteLabel(outcome),
-			m.webhookDeliveries[outcome],
 		)
 	}
 

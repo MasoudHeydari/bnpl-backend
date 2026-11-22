@@ -49,7 +49,7 @@ Configure, per environment:
 - `IDENTITY_ORIGIN` / authentication-client settings — issued by the Identity team.
 - `HOSTED_CHECKOUT_ORIGIN` and hosted-app route — supplied by the deployment team. Merchant backends provide an opaque `checkout_url`; the frontend should not reconstruct it.
 - `APP_LOCALE` — optional initial UI locale; backend supports `en-US` and `fa-IR` via `Accept-Language`.
-- No frontend environment variable may contain `X-API-Key`, FC credentials, a webhook signing secret, or database secrets.
+- No frontend environment variable may contain `X-API-Key`, FC credentials, or database secrets.
 
 Use HTTPS; apply the gateway's CORS origin allowlist. CORS is a browser boundary, **not** the application's authentication mechanism. The backend Gin HTTP service is not intended to be reached directly by untrusted clients.
 
@@ -655,7 +655,7 @@ This endpoint **never** returns a payment URL, starts a Saga or creates financia
 
 `GET /api/v1/checkout-sessions/{token}/return` is a **navigation** endpoint, returning `302` to the merchant's registered destination. It does not accept arbitrary return destinations from query parameters. It appends `checkout_session_id` and optional `state` (opaque merchant state).
 
-The receiving merchant webpage must treat the return as UX only and ask its own backend to verify `status=completed` through Partner Inquiry or a signed lifecycle Webhook. It must **not** fulfill orders from browser query strings. The Hosted UI should likewise avoid claiming FC payment success on redirect alone.
+The receiving merchant webpage must treat the return as UX only and ask its own backend to poll Partner Inquiry until `verify_pending`, then call idempotent Partner `POST .../verify` until `verified_by_merchant`. It must **not** fulfill orders from browser query strings. The Hosted UI should likewise avoid claiming FC payment success or merchant acceptance on redirect alone.
 
 ### Hosted session status state machine
 

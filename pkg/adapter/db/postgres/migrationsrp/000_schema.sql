@@ -1050,39 +1050,6 @@ CREATE TABLE IF NOT EXISTS merchant_return_destinations (
 CREATE UNIQUE INDEX IF NOT EXISTS uq_merchant_return_destinations_name ON merchant_return_destinations (external_merchant_id, destination_name);
 
 -- -----------------------------------------------------------------------------
--- Merchant Webhook Destinations
--- -----------------------------------------------------------------------------
--- Pre-registered HTTP endpoint for merchant checkout lifecycle notifications.
--- Checkout requests never supply a webhook URL; BNPL resolves the destination
--- from this table so merchants cannot redirect notifications to arbitrary hosts.
---
--- Each merchant has at most one destination. destination_name is retained for
--- compatibility and always defaults to 'default'.
-CREATE TABLE IF NOT EXISTS merchant_webhook_destinations (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
-    external_merchant_id uuid NOT NULL,
-    -- Compatibility label; uniqueness is enforced on external_merchant_id alone.
-    destination_name text NOT NULL DEFAULT 'default',
-    webhook_url text NOT NULL,
-    enabled boolean NOT NULL DEFAULT TRUE,
-    -- Envelope-encrypted shared secret for HMAC request signing, stored as an
-    -- opaque encoded string. The plaintext secret is never stored. Empty
-    -- ciphertext means signing is not configured.
-    signing_secret_ciphertext text NOT NULL DEFAULT '',
-    -- Identifier of the key that encrypted signing_secret_ciphertext.
-    signing_secret_key_id text NOT NULL DEFAULT '',
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT fk_merchant_webhook_destinations_merchant FOREIGN KEY (external_merchant_id) REFERENCES merchant_profiles (external_merchant_id),
-    CONSTRAINT chk_merchant_webhook_destinations_text_lengths CHECK (char_length(destination_name) BETWEEN 1 AND 128 AND char_length(webhook_url) BETWEEN 1 AND 2048 AND char_length(signing_secret_ciphertext) <= 4096 AND char_length(signing_secret_key_id) <= 128),
-    CONSTRAINT chk_merchant_webhook_destinations_signing_secret CHECK ((signing_secret_ciphertext = '' AND signing_secret_key_id = '') OR (signing_secret_ciphertext <> '' AND signing_secret_key_id <> '')),
-    CONSTRAINT chk_merchant_webhook_destinations_webhook_url_scheme CHECK (webhook_url ~ '^https?://')
-);
-
--- One webhook destination per merchant.
-CREATE UNIQUE INDEX IF NOT EXISTS uq_merchant_webhook_destinations_merchant_id ON merchant_webhook_destinations (external_merchant_id);
-
--- -----------------------------------------------------------------------------
 -- Checkout Sessions
 -- -----------------------------------------------------------------------------
 -- Merchant integration boundary for one BNPL checkout.
@@ -1151,7 +1118,20 @@ CREATE TABLE IF NOT EXISTS checkout_sessions (
     contract_id uuid NULL,
     -- When the handoff stops being usable.
     expires_at timestamptz NOT NULL,
-    -- When the checkout completed; set exactly when status is 'completed'.
+    -- When BNPL recorded durable Financial Core success and entered verify_pending.
+    verification_pending_at timestamptz NULL,
+    -- Exclusive merchant Verify deadline computed once from verification policy.
+    verification_deadline_at timestamptz NULL,
+    -- Compile-time verification policy version that computed the deadline.
+    verification_policy_version text NULL,
+    -- When the merchant Idempotently verified the purchase (verified_by_merchant).
+    merchant_verified_at timestamptz NULL,
+    -- Authenticated partner terminal that performed Verify (audit only; never a secret).
+    merchant_verified_terminal_id uuid NULL,
+    -- When the merchant missed the verify deadline (cancellation_pending).
+    cancellation_pending_at timestamptz NULL,
+    -- When merchant verification succeeded; equals merchant_verified_at.
+    -- Never means Financial Core success alone.
     completed_at timestamptz NULL,
     -- When the checkout was canceled; set exactly when status is 'canceled'.
     canceled_at timestamptz NULL,
@@ -1180,7 +1160,7 @@ CREATE TABLE IF NOT EXISTS checkout_sessions (
     CONSTRAINT chk_checkout_sessions_offer_preparation_mode CHECK (offer_preparation_mode IN ('on_create', 'on_start')),
     CONSTRAINT chk_checkout_sessions_customer_phone_pair CHECK ((customer_phone_ciphertext IS NULL) = (customer_phone_key_id IS NULL)),
     CONSTRAINT chk_checkout_sessions_customer_phone_lengths CHECK ((customer_phone_ciphertext IS NULL OR char_length(customer_phone_ciphertext) BETWEEN 1 AND 1024) AND (customer_phone_key_id IS NULL OR char_length(customer_phone_key_id) BETWEEN 1 AND 128)),
-    CONSTRAINT chk_checkout_sessions_status CHECK (status IN ('open', 'confirming', 'processing', 'completed', 'canceled', 'expired', 'unavailable')),
+    CONSTRAINT chk_checkout_sessions_status CHECK (status IN ('open', 'confirming', 'processing', 'verify_pending', 'verified_by_merchant', 'cancellation_pending', 'canceled', 'expired', 'unavailable')),
     CONSTRAINT chk_checkout_sessions_confirming_attempt CHECK (status <> 'confirming' OR confirmation_attempt_id IS NOT NULL),
     CONSTRAINT chk_checkout_sessions_currency CHECK (currency IN ('IRR', 'EUR', 'USD')),
     CONSTRAINT chk_checkout_sessions_requested_amount_minor CHECK (requested_amount_minor > 0),
@@ -1189,8 +1169,39 @@ CREATE TABLE IF NOT EXISTS checkout_sessions (
     CONSTRAINT chk_checkout_sessions_cancellation_reason CHECK (cancellation_reason IS NULL OR cancellation_reason IN ('customer_canceled', 'merchant_canceled', 'technical_failure')),
     CONSTRAINT chk_checkout_sessions_credit_kind CHECK (credit_kind IS NULL OR credit_kind IN ('pay_in_installments', 'pay_next_month')),
     CONSTRAINT chk_checkout_sessions_evaluation_generation CHECK (evaluation_generation >= 1),
-    CONSTRAINT chk_checkout_sessions_contract_link CHECK ((status NOT IN ('processing', 'completed') OR contract_id IS NOT NULL) AND (status <> 'unavailable' OR contract_id IS NULL)),
-    CONSTRAINT chk_checkout_sessions_completed_at CHECK ((status = 'completed') = (completed_at IS NOT NULL) AND (completed_at IS NULL OR completed_at >= created_at)),
+    CONSTRAINT chk_checkout_sessions_contract_link CHECK (
+        (status NOT IN ('processing', 'verify_pending', 'verified_by_merchant', 'cancellation_pending') OR contract_id IS NOT NULL)
+        AND (status <> 'unavailable' OR contract_id IS NULL)
+    ),
+    CONSTRAINT chk_checkout_sessions_verification_window CHECK (
+        (status NOT IN ('verify_pending', 'verified_by_merchant', 'cancellation_pending')
+            AND verification_pending_at IS NULL
+            AND verification_deadline_at IS NULL
+            AND verification_policy_version IS NULL)
+        OR (
+            verification_pending_at IS NOT NULL
+            AND verification_deadline_at IS NOT NULL
+            AND verification_deadline_at > verification_pending_at
+            AND verification_policy_version IS NOT NULL
+            AND char_length(verification_policy_version) BETWEEN 1 AND 64
+        )
+    ),
+    CONSTRAINT chk_checkout_sessions_verified CHECK (
+        (status = 'verified_by_merchant'
+            AND merchant_verified_at IS NOT NULL
+            AND completed_at IS NOT NULL
+            AND completed_at = merchant_verified_at
+            AND merchant_verified_terminal_id IS NOT NULL
+            AND cancellation_pending_at IS NULL)
+        OR (status <> 'verified_by_merchant'
+            AND merchant_verified_at IS NULL
+            AND completed_at IS NULL
+            AND merchant_verified_terminal_id IS NULL)
+    ),
+    CONSTRAINT chk_checkout_sessions_cancellation_pending CHECK (
+        (status = 'cancellation_pending' AND cancellation_pending_at IS NOT NULL)
+        OR (status <> 'cancellation_pending' AND cancellation_pending_at IS NULL)
+    ),
     CONSTRAINT chk_checkout_sessions_canceled CHECK ((status = 'canceled' AND canceled_at IS NOT NULL AND cancellation_reason IS NOT NULL AND canceled_at >= created_at) OR (status <> 'canceled' AND canceled_at IS NULL AND cancellation_reason IS NULL))
 );
 
@@ -1211,13 +1222,18 @@ COMMENT ON COLUMN checkout_sessions.customer_phone_key_id IS 'Identifier of the 
 -- The create idempotency key is scoped per merchant.
 CREATE UNIQUE INDEX IF NOT EXISTS uq_checkout_sessions_idempotency_key ON checkout_sessions (merchant_profile_id, idempotency_key);
 
--- At most one non-terminal session per merchant order. Canceled, expired, and
--- unavailable attempts may be followed by a new attempt for the same order.
--- Completed orders are refused at the application layer (a second paid attempt
--- must not start); the partial unique index alone does not encode that rule.
+-- At most one active session per merchant order, including post-FC verification
+-- and cancellation-pending windows. Canceled, expired, unavailable, and
+-- verified_by_merchant attempts may be followed by application-layer rules for
+-- a new attempt; verified success is refused at the application layer.
 CREATE UNIQUE INDEX IF NOT EXISTS uq_checkout_sessions_active_merchant_order ON checkout_sessions (merchant_profile_id, merchant_order_id)
 WHERE
-    status IN ('open', 'confirming', 'processing');
+    status IN ('open', 'confirming', 'processing', 'verify_pending', 'cancellation_pending');
+
+-- Supports the merchant verification timeout worker.
+CREATE INDEX IF NOT EXISTS idx_checkout_sessions_verify_pending_deadline ON checkout_sessions (verification_deadline_at ASC, id ASC)
+WHERE
+    status = 'verify_pending';
 
 -- Supports resolving the most recent session for a merchant order.
 CREATE INDEX IF NOT EXISTS idx_checkout_sessions_merchant_order_created ON checkout_sessions (merchant_profile_id, merchant_order_id, created_at DESC, id DESC);
@@ -2560,13 +2576,9 @@ GRANT SELECT, INSERT ON bnpl.merchant_return_destinations TO bnpl;
 
 GRANT UPDATE (enabled, return_url, updated_at) ON bnpl.merchant_return_destinations TO bnpl;
 
-GRANT SELECT, INSERT ON bnpl.merchant_webhook_destinations TO bnpl;
-
-GRANT UPDATE (enabled, signing_secret_ciphertext, signing_secret_key_id, updated_at, webhook_url) ON bnpl.merchant_webhook_destinations TO bnpl;
-
 GRANT SELECT, INSERT ON bnpl.checkout_sessions TO bnpl;
 
-GRANT UPDATE (canceled_at, cancellation_reason, completed_at, confirmation_attempt_id, contract_id, credit_kind, customer_id, decision_id, evaluation_generation, expires_at, status, updated_at) ON bnpl.checkout_sessions TO bnpl;
+GRANT UPDATE (canceled_at, cancellation_pending_at, cancellation_reason, completed_at, confirmation_attempt_id, contract_id, credit_kind, customer_id, decision_id, evaluation_generation, expires_at, merchant_verified_at, merchant_verified_terminal_id, status, updated_at, verification_deadline_at, verification_pending_at, verification_policy_version) ON bnpl.checkout_sessions TO bnpl;
 
 GRANT SELECT, INSERT ON bnpl.otp_challenges TO bnpl;
 

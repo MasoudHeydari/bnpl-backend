@@ -72,20 +72,6 @@ func (q connQueryer) GetByContractID(
 	return GetByContractID(ctx, q.Conn, contractID)
 }
 
-func (q connQueryer) GetWebhookDestination(
-	ctx context.Context,
-	merchantID model.ExternalMerchantID,
-) (model.MerchantWebhookDestination, error) {
-	return GetWebhookDestination(ctx, q.Conn, merchantID)
-}
-
-func (q connQueryer) FindWebhookDestination(
-	ctx context.Context,
-	merchantID model.ExternalMerchantID,
-) (model.MerchantWebhookDestination, error) {
-	return FindWebhookDestination(ctx, q.Conn, merchantID)
-}
-
 func (q connQueryer) GetReturnDestination(
 	ctx context.Context,
 	merchantID model.ExternalMerchantID,
@@ -135,20 +121,6 @@ func (q txQueryer) GetByContractID(
 	contractID model.ContractID,
 ) (model.CheckoutSession, error) {
 	return GetByContractID(ctx, q.Tx, contractID)
-}
-
-func (q txQueryer) GetWebhookDestination(
-	ctx context.Context,
-	merchantID model.ExternalMerchantID,
-) (model.MerchantWebhookDestination, error) {
-	return GetWebhookDestination(ctx, q.Tx, merchantID)
-}
-
-func (q txQueryer) FindWebhookDestination(
-	ctx context.Context,
-	merchantID model.ExternalMerchantID,
-) (model.MerchantWebhookDestination, error) {
-	return FindWebhookDestination(ctx, q.Tx, merchantID)
 }
 
 func (q txQueryer) GetReturnDestination(
@@ -253,6 +225,50 @@ func (q txQueryer) UpdateStatus(
 		status,
 		updatedAt,
 	)
+}
+
+func (q txQueryer) MarkVerifyPending(
+	ctx context.Context,
+	id model.CheckoutSessionID,
+	verificationPendingAt time.Time,
+	verificationDeadlineAt time.Time,
+	verificationPolicyVersion string,
+	updatedAt time.Time,
+) (model.CheckoutSession, error) {
+	return MarkVerifyPending(
+		ctx,
+		q.Tx,
+		id,
+		verificationPendingAt,
+		verificationDeadlineAt,
+		verificationPolicyVersion,
+		updatedAt,
+	)
+}
+
+func (q txQueryer) MarkVerifiedByMerchant(
+	ctx context.Context,
+	id model.CheckoutSessionID,
+	terminalID model.MerchantTerminalID,
+	verifiedAt time.Time,
+) (model.CheckoutSession, error) {
+	return MarkVerifiedByMerchant(ctx, q.Tx, id, terminalID, verifiedAt)
+}
+
+func (q txQueryer) MarkCancellationPending(
+	ctx context.Context,
+	id model.CheckoutSessionID,
+	cancellationPendingAt time.Time,
+) (model.CheckoutSession, error) {
+	return MarkCancellationPending(ctx, q.Tx, id, cancellationPendingAt)
+}
+
+func (q txQueryer) ClaimDueVerifyPending(
+	ctx context.Context,
+	now time.Time,
+	limit int,
+) ([]model.CheckoutSession, error) {
+	return ClaimDueVerifyPending(ctx, q.Tx, now, limit)
 }
 
 func (q txQueryer) BindCustomer(
@@ -446,27 +462,6 @@ func (q txQueryer) UpsertReturnDestination(
 		merchantID,
 		destinationName,
 		returnURL,
-		enabled,
-		now,
-	)
-}
-
-func (q txQueryer) UpsertWebhookDestination(
-	ctx context.Context,
-	merchantID model.ExternalMerchantID,
-	webhookURL string,
-	signingSecretCiphertext string,
-	signingSecretKeyID string,
-	enabled bool,
-	now time.Time,
-) (model.MerchantWebhookDestination, error) {
-	return UpsertWebhookDestination(
-		ctx,
-		q.Tx,
-		merchantID,
-		webhookURL,
-		signingSecretCiphertext,
-		signingSecretKeyID,
 		enabled,
 		now,
 	)

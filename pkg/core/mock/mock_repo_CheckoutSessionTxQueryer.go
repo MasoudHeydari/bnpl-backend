@@ -201,6 +201,80 @@ func (_c *CheckoutSessionTxQueryer_BumpEvaluationGenerationCAS_Call) RunAndRetur
 	return _c
 }
 
+// ClaimDueVerifyPending provides a mock function for the type CheckoutSessionTxQueryer
+func (_mock *CheckoutSessionTxQueryer) ClaimDueVerifyPending(ctx context.Context, now time.Time, limit int) ([]model.CheckoutSession, error) {
+	ret := _mock.Called(ctx, now, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ClaimDueVerifyPending")
+	}
+
+	var r0 []model.CheckoutSession
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, time.Time, int) ([]model.CheckoutSession, error)); ok {
+		return returnFunc(ctx, now, limit)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, time.Time, int) []model.CheckoutSession); ok {
+		r0 = returnFunc(ctx, now, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]model.CheckoutSession)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, time.Time, int) error); ok {
+		r1 = returnFunc(ctx, now, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// CheckoutSessionTxQueryer_ClaimDueVerifyPending_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClaimDueVerifyPending'
+type CheckoutSessionTxQueryer_ClaimDueVerifyPending_Call struct {
+	*mock.Call
+}
+
+// ClaimDueVerifyPending is a helper method to define mock.On call
+//   - ctx context.Context
+//   - now time.Time
+//   - limit int
+func (_e *CheckoutSessionTxQueryer_Expecter) ClaimDueVerifyPending(ctx any, now any, limit any) *CheckoutSessionTxQueryer_ClaimDueVerifyPending_Call {
+	return &CheckoutSessionTxQueryer_ClaimDueVerifyPending_Call{Call: _e.mock.On("ClaimDueVerifyPending", ctx, now, limit)}
+}
+
+func (_c *CheckoutSessionTxQueryer_ClaimDueVerifyPending_Call) Run(run func(ctx context.Context, now time.Time, limit int)) *CheckoutSessionTxQueryer_ClaimDueVerifyPending_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 time.Time
+		if args[1] != nil {
+			arg1 = args[1].(time.Time)
+		}
+		var arg2 int
+		if args[2] != nil {
+			arg2 = args[2].(int)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *CheckoutSessionTxQueryer_ClaimDueVerifyPending_Call) Return(checkoutSessions []model.CheckoutSession, err error) *CheckoutSessionTxQueryer_ClaimDueVerifyPending_Call {
+	_c.Call.Return(checkoutSessions, err)
+	return _c
+}
+
+func (_c *CheckoutSessionTxQueryer_ClaimDueVerifyPending_Call) RunAndReturn(run func(ctx context.Context, now time.Time, limit int) ([]model.CheckoutSession, error)) *CheckoutSessionTxQueryer_ClaimDueVerifyPending_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ClampExpiresAt provides a mock function for the type CheckoutSessionTxQueryer
 func (_mock *CheckoutSessionTxQueryer) ClampExpiresAt(ctx context.Context, id model.CheckoutSessionID, expiresAt time.Time, updatedAt time.Time) (model.CheckoutSession, error) {
 	ret := _mock.Called(ctx, id, expiresAt, updatedAt)
@@ -535,72 +609,6 @@ func (_c *CheckoutSessionTxQueryer_ExpireOpenDue_Call) Return(checkoutSessions [
 }
 
 func (_c *CheckoutSessionTxQueryer_ExpireOpenDue_Call) RunAndReturn(run func(ctx context.Context, now time.Time, limit int) ([]model.CheckoutSession, error)) *CheckoutSessionTxQueryer_ExpireOpenDue_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// FindWebhookDestination provides a mock function for the type CheckoutSessionTxQueryer
-func (_mock *CheckoutSessionTxQueryer) FindWebhookDestination(ctx context.Context, merchantID model.ExternalMerchantID) (model.MerchantWebhookDestination, error) {
-	ret := _mock.Called(ctx, merchantID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for FindWebhookDestination")
-	}
-
-	var r0 model.MerchantWebhookDestination
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.ExternalMerchantID) (model.MerchantWebhookDestination, error)); ok {
-		return returnFunc(ctx, merchantID)
-	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.ExternalMerchantID) model.MerchantWebhookDestination); ok {
-		r0 = returnFunc(ctx, merchantID)
-	} else {
-		r0 = ret.Get(0).(model.MerchantWebhookDestination)
-	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, model.ExternalMerchantID) error); ok {
-		r1 = returnFunc(ctx, merchantID)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// CheckoutSessionTxQueryer_FindWebhookDestination_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindWebhookDestination'
-type CheckoutSessionTxQueryer_FindWebhookDestination_Call struct {
-	*mock.Call
-}
-
-// FindWebhookDestination is a helper method to define mock.On call
-//   - ctx context.Context
-//   - merchantID model.ExternalMerchantID
-func (_e *CheckoutSessionTxQueryer_Expecter) FindWebhookDestination(ctx any, merchantID any) *CheckoutSessionTxQueryer_FindWebhookDestination_Call {
-	return &CheckoutSessionTxQueryer_FindWebhookDestination_Call{Call: _e.mock.On("FindWebhookDestination", ctx, merchantID)}
-}
-
-func (_c *CheckoutSessionTxQueryer_FindWebhookDestination_Call) Run(run func(ctx context.Context, merchantID model.ExternalMerchantID)) *CheckoutSessionTxQueryer_FindWebhookDestination_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 model.ExternalMerchantID
-		if args[1] != nil {
-			arg1 = args[1].(model.ExternalMerchantID)
-		}
-		run(
-			arg0,
-			arg1,
-		)
-	})
-	return _c
-}
-
-func (_c *CheckoutSessionTxQueryer_FindWebhookDestination_Call) Return(merchantWebhookDestination model.MerchantWebhookDestination, err error) *CheckoutSessionTxQueryer_FindWebhookDestination_Call {
-	_c.Call.Return(merchantWebhookDestination, err)
-	return _c
-}
-
-func (_c *CheckoutSessionTxQueryer_FindWebhookDestination_Call) RunAndReturn(run func(ctx context.Context, merchantID model.ExternalMerchantID) (model.MerchantWebhookDestination, error)) *CheckoutSessionTxQueryer_FindWebhookDestination_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1015,72 +1023,6 @@ func (_c *CheckoutSessionTxQueryer_GetReturnDestination_Call) Return(merchantRet
 }
 
 func (_c *CheckoutSessionTxQueryer_GetReturnDestination_Call) RunAndReturn(run func(ctx context.Context, merchantID model.ExternalMerchantID, destinationName string) (model.MerchantReturnDestination, error)) *CheckoutSessionTxQueryer_GetReturnDestination_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// GetWebhookDestination provides a mock function for the type CheckoutSessionTxQueryer
-func (_mock *CheckoutSessionTxQueryer) GetWebhookDestination(ctx context.Context, merchantID model.ExternalMerchantID) (model.MerchantWebhookDestination, error) {
-	ret := _mock.Called(ctx, merchantID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetWebhookDestination")
-	}
-
-	var r0 model.MerchantWebhookDestination
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.ExternalMerchantID) (model.MerchantWebhookDestination, error)); ok {
-		return returnFunc(ctx, merchantID)
-	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.ExternalMerchantID) model.MerchantWebhookDestination); ok {
-		r0 = returnFunc(ctx, merchantID)
-	} else {
-		r0 = ret.Get(0).(model.MerchantWebhookDestination)
-	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, model.ExternalMerchantID) error); ok {
-		r1 = returnFunc(ctx, merchantID)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// CheckoutSessionTxQueryer_GetWebhookDestination_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetWebhookDestination'
-type CheckoutSessionTxQueryer_GetWebhookDestination_Call struct {
-	*mock.Call
-}
-
-// GetWebhookDestination is a helper method to define mock.On call
-//   - ctx context.Context
-//   - merchantID model.ExternalMerchantID
-func (_e *CheckoutSessionTxQueryer_Expecter) GetWebhookDestination(ctx any, merchantID any) *CheckoutSessionTxQueryer_GetWebhookDestination_Call {
-	return &CheckoutSessionTxQueryer_GetWebhookDestination_Call{Call: _e.mock.On("GetWebhookDestination", ctx, merchantID)}
-}
-
-func (_c *CheckoutSessionTxQueryer_GetWebhookDestination_Call) Run(run func(ctx context.Context, merchantID model.ExternalMerchantID)) *CheckoutSessionTxQueryer_GetWebhookDestination_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 model.ExternalMerchantID
-		if args[1] != nil {
-			arg1 = args[1].(model.ExternalMerchantID)
-		}
-		run(
-			arg0,
-			arg1,
-		)
-	})
-	return _c
-}
-
-func (_c *CheckoutSessionTxQueryer_GetWebhookDestination_Call) Return(merchantWebhookDestination model.MerchantWebhookDestination, err error) *CheckoutSessionTxQueryer_GetWebhookDestination_Call {
-	_c.Call.Return(merchantWebhookDestination, err)
-	return _c
-}
-
-func (_c *CheckoutSessionTxQueryer_GetWebhookDestination_Call) RunAndReturn(run func(ctx context.Context, merchantID model.ExternalMerchantID) (model.MerchantWebhookDestination, error)) *CheckoutSessionTxQueryer_GetWebhookDestination_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1745,6 +1687,78 @@ func (_c *CheckoutSessionTxQueryer_MarkCanceledSafely_Call) RunAndReturn(run fun
 	return _c
 }
 
+// MarkCancellationPending provides a mock function for the type CheckoutSessionTxQueryer
+func (_mock *CheckoutSessionTxQueryer) MarkCancellationPending(ctx context.Context, id model.CheckoutSessionID, cancellationPendingAt time.Time) (model.CheckoutSession, error) {
+	ret := _mock.Called(ctx, id, cancellationPendingAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MarkCancellationPending")
+	}
+
+	var r0 model.CheckoutSession
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CheckoutSessionID, time.Time) (model.CheckoutSession, error)); ok {
+		return returnFunc(ctx, id, cancellationPendingAt)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CheckoutSessionID, time.Time) model.CheckoutSession); ok {
+		r0 = returnFunc(ctx, id, cancellationPendingAt)
+	} else {
+		r0 = ret.Get(0).(model.CheckoutSession)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.CheckoutSessionID, time.Time) error); ok {
+		r1 = returnFunc(ctx, id, cancellationPendingAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// CheckoutSessionTxQueryer_MarkCancellationPending_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MarkCancellationPending'
+type CheckoutSessionTxQueryer_MarkCancellationPending_Call struct {
+	*mock.Call
+}
+
+// MarkCancellationPending is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id model.CheckoutSessionID
+//   - cancellationPendingAt time.Time
+func (_e *CheckoutSessionTxQueryer_Expecter) MarkCancellationPending(ctx any, id any, cancellationPendingAt any) *CheckoutSessionTxQueryer_MarkCancellationPending_Call {
+	return &CheckoutSessionTxQueryer_MarkCancellationPending_Call{Call: _e.mock.On("MarkCancellationPending", ctx, id, cancellationPendingAt)}
+}
+
+func (_c *CheckoutSessionTxQueryer_MarkCancellationPending_Call) Run(run func(ctx context.Context, id model.CheckoutSessionID, cancellationPendingAt time.Time)) *CheckoutSessionTxQueryer_MarkCancellationPending_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.CheckoutSessionID
+		if args[1] != nil {
+			arg1 = args[1].(model.CheckoutSessionID)
+		}
+		var arg2 time.Time
+		if args[2] != nil {
+			arg2 = args[2].(time.Time)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *CheckoutSessionTxQueryer_MarkCancellationPending_Call) Return(checkoutSession model.CheckoutSession, err error) *CheckoutSessionTxQueryer_MarkCancellationPending_Call {
+	_c.Call.Return(checkoutSession, err)
+	return _c
+}
+
+func (_c *CheckoutSessionTxQueryer_MarkCancellationPending_Call) RunAndReturn(run func(ctx context.Context, id model.CheckoutSessionID, cancellationPendingAt time.Time) (model.CheckoutSession, error)) *CheckoutSessionTxQueryer_MarkCancellationPending_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // MarkConfirming provides a mock function for the type CheckoutSessionTxQueryer
 func (_mock *CheckoutSessionTxQueryer) MarkConfirming(ctx context.Context, id model.CheckoutSessionID, attemptID model.ConfirmationAttemptID, updatedAt time.Time) (model.CheckoutSession, error) {
 	ret := _mock.Called(ctx, id, attemptID, updatedAt)
@@ -1891,6 +1905,174 @@ func (_c *CheckoutSessionTxQueryer_MarkExpiredSafely_Call) Return(checkoutSessio
 }
 
 func (_c *CheckoutSessionTxQueryer_MarkExpiredSafely_Call) RunAndReturn(run func(ctx context.Context, id model.CheckoutSessionID, updatedAt time.Time) (model.CheckoutSession, error)) *CheckoutSessionTxQueryer_MarkExpiredSafely_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// MarkVerifiedByMerchant provides a mock function for the type CheckoutSessionTxQueryer
+func (_mock *CheckoutSessionTxQueryer) MarkVerifiedByMerchant(ctx context.Context, id model.CheckoutSessionID, terminalID model.MerchantTerminalID, verifiedAt time.Time) (model.CheckoutSession, error) {
+	ret := _mock.Called(ctx, id, terminalID, verifiedAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MarkVerifiedByMerchant")
+	}
+
+	var r0 model.CheckoutSession
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CheckoutSessionID, model.MerchantTerminalID, time.Time) (model.CheckoutSession, error)); ok {
+		return returnFunc(ctx, id, terminalID, verifiedAt)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CheckoutSessionID, model.MerchantTerminalID, time.Time) model.CheckoutSession); ok {
+		r0 = returnFunc(ctx, id, terminalID, verifiedAt)
+	} else {
+		r0 = ret.Get(0).(model.CheckoutSession)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.CheckoutSessionID, model.MerchantTerminalID, time.Time) error); ok {
+		r1 = returnFunc(ctx, id, terminalID, verifiedAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// CheckoutSessionTxQueryer_MarkVerifiedByMerchant_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MarkVerifiedByMerchant'
+type CheckoutSessionTxQueryer_MarkVerifiedByMerchant_Call struct {
+	*mock.Call
+}
+
+// MarkVerifiedByMerchant is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id model.CheckoutSessionID
+//   - terminalID model.MerchantTerminalID
+//   - verifiedAt time.Time
+func (_e *CheckoutSessionTxQueryer_Expecter) MarkVerifiedByMerchant(ctx any, id any, terminalID any, verifiedAt any) *CheckoutSessionTxQueryer_MarkVerifiedByMerchant_Call {
+	return &CheckoutSessionTxQueryer_MarkVerifiedByMerchant_Call{Call: _e.mock.On("MarkVerifiedByMerchant", ctx, id, terminalID, verifiedAt)}
+}
+
+func (_c *CheckoutSessionTxQueryer_MarkVerifiedByMerchant_Call) Run(run func(ctx context.Context, id model.CheckoutSessionID, terminalID model.MerchantTerminalID, verifiedAt time.Time)) *CheckoutSessionTxQueryer_MarkVerifiedByMerchant_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.CheckoutSessionID
+		if args[1] != nil {
+			arg1 = args[1].(model.CheckoutSessionID)
+		}
+		var arg2 model.MerchantTerminalID
+		if args[2] != nil {
+			arg2 = args[2].(model.MerchantTerminalID)
+		}
+		var arg3 time.Time
+		if args[3] != nil {
+			arg3 = args[3].(time.Time)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *CheckoutSessionTxQueryer_MarkVerifiedByMerchant_Call) Return(checkoutSession model.CheckoutSession, err error) *CheckoutSessionTxQueryer_MarkVerifiedByMerchant_Call {
+	_c.Call.Return(checkoutSession, err)
+	return _c
+}
+
+func (_c *CheckoutSessionTxQueryer_MarkVerifiedByMerchant_Call) RunAndReturn(run func(ctx context.Context, id model.CheckoutSessionID, terminalID model.MerchantTerminalID, verifiedAt time.Time) (model.CheckoutSession, error)) *CheckoutSessionTxQueryer_MarkVerifiedByMerchant_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// MarkVerifyPending provides a mock function for the type CheckoutSessionTxQueryer
+func (_mock *CheckoutSessionTxQueryer) MarkVerifyPending(ctx context.Context, id model.CheckoutSessionID, verificationPendingAt time.Time, verificationDeadlineAt time.Time, verificationPolicyVersion string, updatedAt time.Time) (model.CheckoutSession, error) {
+	ret := _mock.Called(ctx, id, verificationPendingAt, verificationDeadlineAt, verificationPolicyVersion, updatedAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MarkVerifyPending")
+	}
+
+	var r0 model.CheckoutSession
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CheckoutSessionID, time.Time, time.Time, string, time.Time) (model.CheckoutSession, error)); ok {
+		return returnFunc(ctx, id, verificationPendingAt, verificationDeadlineAt, verificationPolicyVersion, updatedAt)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CheckoutSessionID, time.Time, time.Time, string, time.Time) model.CheckoutSession); ok {
+		r0 = returnFunc(ctx, id, verificationPendingAt, verificationDeadlineAt, verificationPolicyVersion, updatedAt)
+	} else {
+		r0 = ret.Get(0).(model.CheckoutSession)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.CheckoutSessionID, time.Time, time.Time, string, time.Time) error); ok {
+		r1 = returnFunc(ctx, id, verificationPendingAt, verificationDeadlineAt, verificationPolicyVersion, updatedAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// CheckoutSessionTxQueryer_MarkVerifyPending_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MarkVerifyPending'
+type CheckoutSessionTxQueryer_MarkVerifyPending_Call struct {
+	*mock.Call
+}
+
+// MarkVerifyPending is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id model.CheckoutSessionID
+//   - verificationPendingAt time.Time
+//   - verificationDeadlineAt time.Time
+//   - verificationPolicyVersion string
+//   - updatedAt time.Time
+func (_e *CheckoutSessionTxQueryer_Expecter) MarkVerifyPending(ctx any, id any, verificationPendingAt any, verificationDeadlineAt any, verificationPolicyVersion any, updatedAt any) *CheckoutSessionTxQueryer_MarkVerifyPending_Call {
+	return &CheckoutSessionTxQueryer_MarkVerifyPending_Call{Call: _e.mock.On("MarkVerifyPending", ctx, id, verificationPendingAt, verificationDeadlineAt, verificationPolicyVersion, updatedAt)}
+}
+
+func (_c *CheckoutSessionTxQueryer_MarkVerifyPending_Call) Run(run func(ctx context.Context, id model.CheckoutSessionID, verificationPendingAt time.Time, verificationDeadlineAt time.Time, verificationPolicyVersion string, updatedAt time.Time)) *CheckoutSessionTxQueryer_MarkVerifyPending_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.CheckoutSessionID
+		if args[1] != nil {
+			arg1 = args[1].(model.CheckoutSessionID)
+		}
+		var arg2 time.Time
+		if args[2] != nil {
+			arg2 = args[2].(time.Time)
+		}
+		var arg3 time.Time
+		if args[3] != nil {
+			arg3 = args[3].(time.Time)
+		}
+		var arg4 string
+		if args[4] != nil {
+			arg4 = args[4].(string)
+		}
+		var arg5 time.Time
+		if args[5] != nil {
+			arg5 = args[5].(time.Time)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+			arg4,
+			arg5,
+		)
+	})
+	return _c
+}
+
+func (_c *CheckoutSessionTxQueryer_MarkVerifyPending_Call) Return(checkoutSession model.CheckoutSession, err error) *CheckoutSessionTxQueryer_MarkVerifyPending_Call {
+	_c.Call.Return(checkoutSession, err)
+	return _c
+}
+
+func (_c *CheckoutSessionTxQueryer_MarkVerifyPending_Call) RunAndReturn(run func(ctx context.Context, id model.CheckoutSessionID, verificationPendingAt time.Time, verificationDeadlineAt time.Time, verificationPolicyVersion string, updatedAt time.Time) (model.CheckoutSession, error)) *CheckoutSessionTxQueryer_MarkVerifyPending_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -2307,102 +2489,6 @@ func (_c *CheckoutSessionTxQueryer_UpsertReturnDestination_Call) Return(merchant
 }
 
 func (_c *CheckoutSessionTxQueryer_UpsertReturnDestination_Call) RunAndReturn(run func(ctx context.Context, merchantID model.ExternalMerchantID, destinationName string, returnURL string, enabled *bool, now time.Time) (model.MerchantReturnDestination, error)) *CheckoutSessionTxQueryer_UpsertReturnDestination_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// UpsertWebhookDestination provides a mock function for the type CheckoutSessionTxQueryer
-func (_mock *CheckoutSessionTxQueryer) UpsertWebhookDestination(ctx context.Context, merchantID model.ExternalMerchantID, webhookURL string, signingSecretCiphertext string, signingSecretKeyID string, enabled bool, now time.Time) (model.MerchantWebhookDestination, error) {
-	ret := _mock.Called(ctx, merchantID, webhookURL, signingSecretCiphertext, signingSecretKeyID, enabled, now)
-
-	if len(ret) == 0 {
-		panic("no return value specified for UpsertWebhookDestination")
-	}
-
-	var r0 model.MerchantWebhookDestination
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.ExternalMerchantID, string, string, string, bool, time.Time) (model.MerchantWebhookDestination, error)); ok {
-		return returnFunc(ctx, merchantID, webhookURL, signingSecretCiphertext, signingSecretKeyID, enabled, now)
-	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.ExternalMerchantID, string, string, string, bool, time.Time) model.MerchantWebhookDestination); ok {
-		r0 = returnFunc(ctx, merchantID, webhookURL, signingSecretCiphertext, signingSecretKeyID, enabled, now)
-	} else {
-		r0 = ret.Get(0).(model.MerchantWebhookDestination)
-	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, model.ExternalMerchantID, string, string, string, bool, time.Time) error); ok {
-		r1 = returnFunc(ctx, merchantID, webhookURL, signingSecretCiphertext, signingSecretKeyID, enabled, now)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// CheckoutSessionTxQueryer_UpsertWebhookDestination_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpsertWebhookDestination'
-type CheckoutSessionTxQueryer_UpsertWebhookDestination_Call struct {
-	*mock.Call
-}
-
-// UpsertWebhookDestination is a helper method to define mock.On call
-//   - ctx context.Context
-//   - merchantID model.ExternalMerchantID
-//   - webhookURL string
-//   - signingSecretCiphertext string
-//   - signingSecretKeyID string
-//   - enabled bool
-//   - now time.Time
-func (_e *CheckoutSessionTxQueryer_Expecter) UpsertWebhookDestination(ctx any, merchantID any, webhookURL any, signingSecretCiphertext any, signingSecretKeyID any, enabled any, now any) *CheckoutSessionTxQueryer_UpsertWebhookDestination_Call {
-	return &CheckoutSessionTxQueryer_UpsertWebhookDestination_Call{Call: _e.mock.On("UpsertWebhookDestination", ctx, merchantID, webhookURL, signingSecretCiphertext, signingSecretKeyID, enabled, now)}
-}
-
-func (_c *CheckoutSessionTxQueryer_UpsertWebhookDestination_Call) Run(run func(ctx context.Context, merchantID model.ExternalMerchantID, webhookURL string, signingSecretCiphertext string, signingSecretKeyID string, enabled bool, now time.Time)) *CheckoutSessionTxQueryer_UpsertWebhookDestination_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 model.ExternalMerchantID
-		if args[1] != nil {
-			arg1 = args[1].(model.ExternalMerchantID)
-		}
-		var arg2 string
-		if args[2] != nil {
-			arg2 = args[2].(string)
-		}
-		var arg3 string
-		if args[3] != nil {
-			arg3 = args[3].(string)
-		}
-		var arg4 string
-		if args[4] != nil {
-			arg4 = args[4].(string)
-		}
-		var arg5 bool
-		if args[5] != nil {
-			arg5 = args[5].(bool)
-		}
-		var arg6 time.Time
-		if args[6] != nil {
-			arg6 = args[6].(time.Time)
-		}
-		run(
-			arg0,
-			arg1,
-			arg2,
-			arg3,
-			arg4,
-			arg5,
-			arg6,
-		)
-	})
-	return _c
-}
-
-func (_c *CheckoutSessionTxQueryer_UpsertWebhookDestination_Call) Return(merchantWebhookDestination model.MerchantWebhookDestination, err error) *CheckoutSessionTxQueryer_UpsertWebhookDestination_Call {
-	_c.Call.Return(merchantWebhookDestination, err)
-	return _c
-}
-
-func (_c *CheckoutSessionTxQueryer_UpsertWebhookDestination_Call) RunAndReturn(run func(ctx context.Context, merchantID model.ExternalMerchantID, webhookURL string, signingSecretCiphertext string, signingSecretKeyID string, enabled bool, now time.Time) (model.MerchantWebhookDestination, error)) *CheckoutSessionTxQueryer_UpsertWebhookDestination_Call {
 	_c.Call.Return(run)
 	return _c
 }

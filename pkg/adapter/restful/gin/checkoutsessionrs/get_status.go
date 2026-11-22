@@ -13,8 +13,8 @@ import (
 //
 //	@Summary		Get partner checkout status
 //	@Description	Authoritative BNPL outcome inquiry for a checkout owned by the authenticated merchant.
-//	@Description	Returns checkout_session_id, merchant_order_id, status, amount_minor, currency, and completed_at when completed.
-//	@Description	Read-only: never mutates checkout state or enqueues lifecycle events. Browser return parameters are never payment confirmation.
+//	@Description	Returns checkout_session_id, merchant_order_id, status, amount_minor, currency, verification_deadline_at when verify_pending, and verified_at when verified_by_merchant.
+//	@Description	Read-only: never mutates checkout state, never verifies, and never enqueues lifecycle events. Browser return parameters are never payment confirmation.
 //	@Description	Does not expose customer credit, installment offers, provider selection, or Financial Core payment identifiers.
 //	@Tags			Checkout Sessions
 //	@Produce		json

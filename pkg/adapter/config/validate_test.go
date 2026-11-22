@@ -10,7 +10,6 @@ import (
 	checkoutpaymentext "github.com/parstis/bnpl-backend/pkg/adapter/external/checkoutpayment"
 	creditassessmentext "github.com/parstis/bnpl-backend/pkg/adapter/external/creditassessment"
 	customerext "github.com/parstis/bnpl-backend/pkg/adapter/external/customer"
-	"github.com/parstis/bnpl-backend/pkg/adapter/external/merchantwebhook"
 	notificationext "github.com/parstis/bnpl-backend/pkg/adapter/external/notification"
 	adaptercache "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/cache"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/circuitbreaker"
@@ -138,9 +137,6 @@ func validConfig() *Config {
 				TTL:                        30 * time.Minute,
 				ExpiryBatchSize:            100,
 				LifecycleEventsDestination: "bnpl.merchant.checkout.events.v1",
-				WebhookSecretEncryptionKeys: KeyEntries{
-					{ID: "w1", Secret: model.NewSecret("ZGV2LW9ubHktd2ViaG9vay1lbmNyeXB0aW9uLWtleSE=")},
-				},
 				CustomerPhoneEncryptionKeys: KeyEntries{
 					{ID: "p1", Secret: model.NewSecret("ZGV2LW9ubHktY3VzdG9tZXItcGhvbmUta2V5LTAxMjM=")},
 				},
@@ -218,14 +214,6 @@ func validConfig() *Config {
 			},
 			Notification: ExternalNotification{
 				Provider: string(notificationext.NoopProvider),
-			},
-			WebhookDispatcher: ExternalWebhookDispatcher{
-				Provider: string(merchantwebhook.HTTPProvider),
-				HTTP: ExternalWebhookDispatcherHTTP{
-					Timeout:          10 * time.Second,
-					DialTimeout:      5 * time.Second,
-					MaxResponseBytes: 65536,
-				},
 			},
 		},
 		Versions: Versions{
@@ -534,41 +522,6 @@ func TestConfig_Validate_ProductionHTTPClientNoopForbidden(t *testing.T) {
 	err := cfg.Validate()
 	require.Error(t, err)
 	require.Contains(t, err.Error(), `http client provider "noop" is not allowed in production`)
-}
-
-func TestConfig_Validate_ProductionWebhookDispatcherNoopForbidden(t *testing.T) {
-	t.Parallel()
-
-	cfg := validConfig()
-	cfg.Runtime.Environment = "production"
-	cfg.Infrastructure.Logger.Provider = log.SlogProvider
-	cfg.Infrastructure.Messaging.Provider = messaging.KafkaProvider
-	cfg.Infrastructure.Messaging.Kafka = Kafka{
-		Brokers: []string{"localhost:9092"}, ClientID: "bnpl", GroupID: "bnpl",
-		Topics: Topics{
-			PaymentResults: "payment.results", AuditEvents: "audit.events",
-			PaymentApplicationResults:                        "payment.application.results",
-			InstallmentPaymentRequests:                       "installment.payment.requests",
-			InstallmentPaymentReconciliationRequests:         "installment.payment.reconciliation.requests",
-			InstallmentPaymentReconciliationResults:          "installment.payment.reconciliation.results",
-			InstallmentPaymentReconciliationAcknowledgements: "installment.payment.reconciliation.acknowledgements",
-			NotificationSMSRequests:                          "notification.sms.requests",
-				NotificationCommands:                          "notification.commands.v1",
-		},
-	}
-	cfg.Infrastructure.Task = enabledSagaExecutorTask(taskadapter.InProcessProvider)
-	cfg.Infrastructure.CircuitBreaker.Provider = circuitbreaker.GoBreakerProvider
-	cfg.External.CreditAssessment.Provider = string(creditassessmentext.CreditBureauProvider)
-	cfg.External.FinancialCore.Provider = string(checkoutpaymentext.GRPCProvider)
-	cfg.External.FinancialCore.GRPC.Address = "127.0.0.1:50052"
-	cfg.External.FinancialCore.GRPC.Timeout = time.Second
-	cfg.External.FinancialCore.GRPC.ConnectionTimeout = 10 * time.Second
-	requireProductionIdentityAndNotification(cfg)
-	cfg.External.WebhookDispatcher.Provider = string(merchantwebhook.NoopProvider)
-
-	err := cfg.Validate()
-	require.Error(t, err)
-	require.Contains(t, err.Error(), `external.webhook_dispatcher provider "noop" is not allowed in production`)
 }
 
 func TestExternalNotificationValidate(t *testing.T) {

@@ -159,8 +159,18 @@ const (
 	// ProcessingCheckoutSessionStatus indicates an authoritative external payment outcome is pending.
 	ProcessingCheckoutSessionStatus CheckoutSessionStatus = "processing"
 
-	// CompletedCheckoutSessionStatus indicates the checkout produced an activated contract.
-	CompletedCheckoutSessionStatus CheckoutSessionStatus = "completed"
+	// VerifyPendingCheckoutSessionStatus indicates Financial Core success is durable
+	// and BNPL awaits explicit merchant Verify. It is not merchant-verified success.
+	VerifyPendingCheckoutSessionStatus CheckoutSessionStatus = "verify_pending"
+
+	// VerifiedByMerchantCheckoutSessionStatus is the successful terminal checkout
+	// state after the merchant Idempotently verified the purchase.
+	VerifiedByMerchantCheckoutSessionStatus CheckoutSessionStatus = "verified_by_merchant"
+
+	// CancellationPendingCheckoutSessionStatus indicates the merchant missed the
+	// verify deadline. Financial compensation is not yet authoritative; contract
+	// and credit exposure remain until a future FC refund/reversal path.
+	CancellationPendingCheckoutSessionStatus CheckoutSessionStatus = "cancellation_pending"
 
 	// CanceledCheckoutSessionStatus indicates the merchant or customer abandoned the checkout.
 	CanceledCheckoutSessionStatus CheckoutSessionStatus = "canceled"
@@ -244,22 +254,22 @@ var checkoutSessionStatusTransitions = newStatusTransitionTable(
 			ConfirmingCheckoutSessionStatus,
 			// A replacement checkout payment is submitted against the Contract
 			// that is already linked. That handoff returns to processing without
-			// minting another ConfirmationAttempt. Authoritative success may also
-			// complete the session directly when the processing update was lost.
+			// minting another ConfirmationAttempt. Authoritative FC success may
+			// also enter verify_pending directly when the processing update was lost.
 			ProcessingCheckoutSessionStatus,
-			CompletedCheckoutSessionStatus,
+			VerifyPendingCheckoutSessionStatus,
 			CanceledCheckoutSessionStatus,
 			ExpiredCheckoutSessionStatus,
 			UnavailableCheckoutSessionStatus,
 		},
 		// confirming owns the session through contract/payment initialization.
 		// Safe local termination may cancel it only after financial-safety
-		// evidence is verified. Merchant-funding may jump to completed;
+		// evidence is verified. Merchant-funding may jump to verify_pending;
 		// initial-payment advances to processing; a failed init before FC may
 		// return to open so the customer can retry Confirm.
 		ConfirmingCheckoutSessionStatus: {
 			ProcessingCheckoutSessionStatus,
-			CompletedCheckoutSessionStatus,
+			VerifyPendingCheckoutSessionStatus,
 			OpenCheckoutSessionStatus,
 			CanceledCheckoutSessionStatus,
 			ExpiredCheckoutSessionStatus,
@@ -268,17 +278,24 @@ var checkoutSessionStatusTransitions = newStatusTransitionTable(
 		// Safe local termination may cancel or expire it only after verified
 		// absence of successful/unknown financial effect.
 		ProcessingCheckoutSessionStatus: {
-			CompletedCheckoutSessionStatus,
+			VerifyPendingCheckoutSessionStatus,
 			// Retryable payment failure returns the session to open so the
-			// customer may confirm again against the same Contract. Completed
-			// never regresses.
+			// customer may confirm again against the same Contract.
 			OpenCheckoutSessionStatus,
 			CanceledCheckoutSessionStatus,
 			ExpiredCheckoutSessionStatus,
 		},
+		VerifyPendingCheckoutSessionStatus: {
+			VerifiedByMerchantCheckoutSessionStatus,
+			CancellationPendingCheckoutSessionStatus,
+		},
+		// Future authoritative FC compensation may terminalize cancellation_pending.
+		CancellationPendingCheckoutSessionStatus: {
+			CanceledCheckoutSessionStatus,
+		},
 	},
 	[]CheckoutSessionStatus{
-		CompletedCheckoutSessionStatus,
+		VerifiedByMerchantCheckoutSessionStatus,
 		CanceledCheckoutSessionStatus,
 		ExpiredCheckoutSessionStatus,
 		UnavailableCheckoutSessionStatus,
@@ -311,11 +328,15 @@ func (s CheckoutSessionStatus) AllowsCustomerContinuation() bool {
 	return s == OpenCheckoutSessionStatus
 }
 
-// BlocksCancelAndExpiry reports whether cancel APIs and the expiry job must
-// refuse to close the session because Confirm or an in-flight payment owns it.
+// BlocksCancelAndExpiry reports whether cancel APIs and the open-session expiry
+// job must refuse to close the session because Confirm, payment, merchant
+// verification, or pending cancellation owns it.
 func (s CheckoutSessionStatus) BlocksCancelAndExpiry() bool {
 	switch s {
-	case ConfirmingCheckoutSessionStatus, ProcessingCheckoutSessionStatus:
+	case ConfirmingCheckoutSessionStatus,
+		ProcessingCheckoutSessionStatus,
+		VerifyPendingCheckoutSessionStatus,
+		CancellationPendingCheckoutSessionStatus:
 		return true
 
 	default:
@@ -324,17 +345,38 @@ func (s CheckoutSessionStatus) BlocksCancelAndExpiry() bool {
 }
 
 // IsActiveCheckoutAttempt reports whether the session still occupies the single
-// non-terminal slot for its merchant order.
+// active slot for its merchant order (including post-FC verification windows).
 func (s CheckoutSessionStatus) IsActiveCheckoutAttempt() bool {
 	switch s {
 	case OpenCheckoutSessionStatus,
 		ConfirmingCheckoutSessionStatus,
-		ProcessingCheckoutSessionStatus:
+		ProcessingCheckoutSessionStatus,
+		VerifyPendingCheckoutSessionStatus,
+		CancellationPendingCheckoutSessionStatus:
 		return true
 
 	default:
 		return false
 	}
+}
+
+// IsFinanciallySuccessful reports whether durable FC success is recorded on the
+// checkout conversation, regardless of merchant verification.
+func (s CheckoutSessionStatus) IsFinanciallySuccessful() bool {
+	switch s {
+	case VerifyPendingCheckoutSessionStatus,
+		VerifiedByMerchantCheckoutSessionStatus,
+		CancellationPendingCheckoutSessionStatus:
+		return true
+
+	default:
+		return false
+	}
+}
+
+// IsMerchantVerified reports whether the merchant accepted the purchase.
+func (s CheckoutSessionStatus) IsMerchantVerified() bool {
+	return s == VerifiedByMerchantCheckoutSessionStatus
 }
 
 // CheckoutSession is the merchant integration boundary for one BNPL checkout.
@@ -434,7 +476,30 @@ type CheckoutSession struct {
 	// ExpiresAt is when an open handoff stops being usable.
 	ExpiresAt time.Time `db:"expires_at" json:"expires_at"`
 
-	// CompletedAt is set when Status becomes completed.
+	// VerificationPendingAt is when BNPL recorded durable FC success and entered
+	// verify_pending. It anchors the merchant verify deadline.
+	VerificationPendingAt *time.Time `db:"verification_pending_at" json:"verification_pending_at,omitempty"`
+
+	// VerificationDeadlineAt is the exclusive deadline for merchant Verify.
+	VerificationDeadlineAt *time.Time `db:"verification_deadline_at" json:"verification_deadline_at,omitempty"`
+
+	// VerificationPolicyVersion snapshots the compile-time policy that computed
+	// VerificationDeadlineAt. Later policy revisions must not rewrite it.
+	VerificationPolicyVersion *string `db:"verification_policy_version" json:"verification_policy_version,omitempty"`
+
+	// MerchantVerifiedAt is when Status became verified_by_merchant.
+	// It is also persisted as CompletedAt for the successful terminal timestamp.
+	MerchantVerifiedAt *time.Time `db:"merchant_verified_at" json:"merchant_verified_at,omitempty"`
+
+	// MerchantVerifiedTerminalID is the authenticated partner terminal that
+	// performed Verify. It is audit evidence and never an API secret.
+	MerchantVerifiedTerminalID *MerchantTerminalID `db:"merchant_verified_terminal_id" json:"merchant_verified_terminal_id,omitempty"`
+
+	// CancellationPendingAt is when Status became cancellation_pending.
+	CancellationPendingAt *time.Time `db:"cancellation_pending_at" json:"cancellation_pending_at,omitempty"`
+
+	// CompletedAt is set when Status becomes verified_by_merchant. It equals
+	// MerchantVerifiedAt and must never mean FC success alone.
 	CompletedAt *time.Time `db:"completed_at" json:"completed_at,omitempty"`
 
 	// CanceledAt is set when Status becomes canceled.

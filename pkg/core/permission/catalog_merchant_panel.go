@@ -1,10 +1,10 @@
 package permission
 
 // Merchant-panel BNPL permissions from the Identity/FC catalog, plus BNPL-local
-// checkout integration-config permissions (webhooks, return destinations).
+// checkout integration-config permissions (return destinations).
 // Integration config is deliberately separate from the ordinary checkout
 // transaction permissions so a credential that can create and cancel checkouts
-// cannot re-point webhooks or change return URLs.
+// cannot change return URLs.
 
 var (
 	MerchantProfileReadMerchant = permission(
@@ -31,11 +31,6 @@ var (
 		"bnpl:checkout-sessions:read:merchant",
 		"Read merchant BNPL checkout sessions",
 		"Allows a merchant operator to read BNPL checkout sessions for the authenticated merchant.",
-	)
-	CheckoutWebhooksManageMerchant = permission(
-		"bnpl:checkout-webhooks:manage:merchant",
-		"Manage merchant BNPL checkout webhook",
-		"Allows a merchant operator to register or rotate the checkout lifecycle webhook endpoint and signing secret for the authenticated merchant.",
 	)
 	CheckoutReturnDestinationsManageMerchant = permission(
 		"bnpl:checkout-return-destinations:manage:merchant",
@@ -75,7 +70,6 @@ var merchantPanel = []Permission{
 	BranchesReadMerchant,
 	CheckoutSessionsCreateMerchant,
 	CheckoutSessionsReadMerchant,
-	CheckoutWebhooksManageMerchant,
 	CheckoutReturnDestinationsManageMerchant,
 	ContractsReadMerchant,
 	PaymentsReadMerchant,

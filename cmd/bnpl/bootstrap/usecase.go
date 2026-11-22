@@ -127,12 +127,11 @@ func (a *App) NewUseCases() (UseCases, error) {
 		return UseCases{}, fmt.Errorf("%s: initialize outbox publisher observer: %w", op, err)
 	}
 
-	// Webhook routing publisher is owned by External; OutboxPublisher only
-	// consumes the already-constructed messaging.Publisher.
+	// OutboxPublisher consumes the already-constructed messaging.Publisher.
 	outboxPublisherUseCase := a.Config.NewOutboxPublisherUseCase(
 		a.Pool,
 		a.Repos.Outbox,
-		a.External.WebhookPublisher,
+		a.Infrastructure.Publisher,
 		a.Infrastructure.Clock,
 		a.Infrastructure.Logger,
 		outboxPublisherObserver,
@@ -347,11 +346,6 @@ func (a *App) NewUseCases() (UseCases, error) {
 		return UseCases{}, fmt.Errorf("%s: initialize contract use case: %w", op, err)
 	}
 
-	webhookSecretBox, err := a.Config.Usecases.CheckoutSession.NewWebhookSecretBox()
-	if err != nil {
-		return UseCases{}, fmt.Errorf("%s: initialize webhook secret box: %w", op, err)
-	}
-
 	customerPhoneBox, err := a.Config.Usecases.CheckoutSession.NewCustomerPhoneBox()
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize customer phone box: %w", op, err)
@@ -425,7 +419,6 @@ func (a *App) NewUseCases() (UseCases, error) {
 		contractUseCase,
 		a.Repos.Outbox,
 		a.Infrastructure.IdentifierGenerator,
-		webhookSecretBox,
 		customerPhoneBox,
 		a.Infrastructure.Clock,
 		a.External.CustomerResolver,

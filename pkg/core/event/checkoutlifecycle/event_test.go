@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewEvent_CompletedIncludesCommercialFields(t *testing.T) {
+func TestNewEvent_VerifiedByMerchantIncludesCommercialFields(t *testing.T) {
 	t.Parallel()
 
-	completedAt := time.Date(
+	verifiedAt := time.Date(
 		2026,
 		10,
 		5,
@@ -23,17 +23,17 @@ func TestNewEvent_CompletedIncludesCommercialFields(t *testing.T) {
 		time.UTC,
 	)
 	event, err := NewEvent(
-		"session:bnpl.checkout.completed.v1:completed",
-		EventTypeCompleted,
-		completedAt,
+		"session:bnpl.checkout.verified_by_merchant.v1:verified_by_merchant",
+		EventTypeVerifiedByMerchant,
+		verifiedAt,
 		EventData{
-			CheckoutSessionID:  "11111111-1111-1111-1111-111111111111",
+			CheckoutSessionID:  "cs_" + strings.Repeat("a", 64),
 			MerchantOrderID:    "DAMZ-ORDER-1001",
 			ExternalMerchantID: "22222222-2222-2222-2222-222222222222",
-			Status:             "completed",
+			Status:             "verified_by_merchant",
 			AmountMinor:        120_000_000,
 			Currency:           "IRR",
-			CompletedAt:        &completedAt,
+			VerifiedAt:         &verifiedAt,
 			MerchantState:      "cart-42",
 		},
 	)
@@ -44,7 +44,7 @@ func TestNewEvent_CompletedIncludesCommercialFields(t *testing.T) {
 
 	require.Contains(t, string(raw), `"amount_minor":120000000`)
 	require.Contains(t, string(raw), `"currency":"IRR"`)
-	require.Contains(t, string(raw), `"completed_at":"2026-10-05T10:30:12Z"`)
+	require.Contains(t, string(raw), `"verified_at":"2026-10-05T10:30:12Z"`)
 
 	for _, term := range []string{
 		"provider_code",
@@ -54,12 +54,13 @@ func TestNewEvent_CompletedIncludesCommercialFields(t *testing.T) {
 		"invoice_id",
 		"available_credit",
 		"installment",
+		"x-notification-caller",
 	} {
-		require.Falsef(t, strings.Contains(string(raw), term), "webhook payload must not contain %q", term)
+		require.Falsef(t, strings.Contains(string(raw), term), "payload must not contain %q", term)
 	}
 }
 
-func TestNewEvent_NonCompletedOmitsCompletedAt(t *testing.T) {
+func TestNewEvent_CanceledOmitsVerifiedAt(t *testing.T) {
 	t.Parallel()
 
 	event, err := NewEvent(
@@ -76,7 +77,7 @@ func TestNewEvent_NonCompletedOmitsCompletedAt(t *testing.T) {
 			time.UTC,
 		),
 		EventData{
-			CheckoutSessionID:  "11111111-1111-1111-1111-111111111111",
+			CheckoutSessionID:  "cs_" + strings.Repeat("a", 64),
 			MerchantOrderID:    "DAMZ-ORDER-1001",
 			ExternalMerchantID: "22222222-2222-2222-2222-222222222222",
 			Status:             "canceled",
@@ -88,6 +89,7 @@ func TestNewEvent_NonCompletedOmitsCompletedAt(t *testing.T) {
 
 	raw, err := json.Marshal(event)
 	require.NoError(t, err)
+	require.NotContains(t, string(raw), "verified_at")
 	require.NotContains(t, string(raw), "completed_at")
 	require.Contains(t, string(raw), `"amount_minor":120000000`)
 }

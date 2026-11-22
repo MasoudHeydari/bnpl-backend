@@ -7,8 +7,8 @@ import "net/netip"
 // package; the HTTP adapter only enforces the injected policy at resolve/dial
 // time.
 //
-// Default outbound HTTP traffic must not inherit a webhook-specific policy
-// unless a secure profile is explicitly constructed with one.
+// Default outbound HTTP traffic must not inherit a restrictive policy unless a
+// secure profile is explicitly constructed with one.
 type NetworkPolicy interface {
 	// CheckHost rejects forbidden hostnames before DNS lookup.
 	CheckHost(host string) error

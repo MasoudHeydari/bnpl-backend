@@ -6,8 +6,14 @@ import (
 )
 
 const (
-	// EventTypeCompleted is published when a checkout produces an activated contract.
-	EventTypeCompleted = "bnpl.checkout.completed.v1"
+	// EventTypeVerifyPending is published when durable FC success awaits merchant Verify.
+	EventTypeVerifyPending = "bnpl.checkout.verify_pending.v1"
+
+	// EventTypeVerifiedByMerchant is published when the merchant verified the purchase.
+	EventTypeVerifiedByMerchant = "bnpl.checkout.verified_by_merchant.v1"
+
+	// EventTypeCancellationPending is published when the merchant missed the verify deadline.
+	EventTypeCancellationPending = "bnpl.checkout.cancellation_pending.v1"
 
 	// EventTypeCanceled is published when a checkout is abandoned by customer or merchant.
 	EventTypeCanceled = "bnpl.checkout.canceled.v1"
@@ -32,8 +38,8 @@ const (
 // the transactional outbox.
 //
 // Payment internals (attempt ids, Financial Core payment ids, risk reason codes)
-// are intentionally absent. Merchants learn outcome through these events or the
-// status API — never from browser return query parameters.
+// are intentionally absent. Merchants learn outcome through Partner Inquiry and
+// Verify — never from browser return query parameters or webhooks.
 type Event struct {
 	// EventID uniquely identifies this lifecycle event for merchant deduplication.
 	EventID string `json:"event_id"`
@@ -57,9 +63,7 @@ type Event struct {
 // EventData carries merchant-safe checkout lifecycle details.
 //
 // It never includes customer credit, installment schedules, provider selection,
-// or Financial Core payment identifiers. Merchants verify outcomes with
-// event_id, signature, checkout_session_id, merchant_order_id, amount_minor,
-// currency, and status.
+// or Financial Core payment identifiers.
 type EventData struct {
 	// CheckoutSessionID is the merchant-visible checkout identifier.
 	CheckoutSessionID string `json:"checkout_session_id"`
@@ -79,8 +83,11 @@ type EventData struct {
 	// Currency is the checkout currency.
 	Currency string `json:"currency"`
 
-	// CompletedAt is set only for completed events.
-	CompletedAt *time.Time `json:"completed_at,omitempty"`
+	// VerificationDeadlineAt is set for verify_pending events.
+	VerificationDeadlineAt *time.Time `json:"verification_deadline_at,omitempty"`
+
+	// VerifiedAt is set for verified_by_merchant events.
+	VerifiedAt *time.Time `json:"verified_at,omitempty"`
 
 	// Reason elaborates cancellation when Status is canceled.
 	Reason string `json:"reason,omitempty"`
@@ -96,7 +103,12 @@ func NewEvent(eventID string, eventType string, occurredAt time.Time, data Event
 	}
 
 	switch eventType {
-	case EventTypeCompleted, EventTypeCanceled, EventTypeExpired, EventTypeUnavailable:
+	case EventTypeVerifyPending,
+		EventTypeVerifiedByMerchant,
+		EventTypeCancellationPending,
+		EventTypeCanceled,
+		EventTypeExpired,
+		EventTypeUnavailable:
 		// Allowed lifecycle types.
 
 	default:

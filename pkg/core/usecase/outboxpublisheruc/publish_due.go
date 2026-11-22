@@ -180,8 +180,7 @@ func (uc *UseCase) persistPublishOutcome(
 	// A claimed message already consumed one delivery attempt.
 	//
 	// Once the configured retry budget is exhausted, or the publisher reports a
-	// permanent failure (messaging.NonRetryable, for example a disabled webhook
-	// destination or a non-retryable 4xx), the message is moved to the failed
+	// permanent failure (messaging.NonRetryable), the message is moved to the failed
 	// state and will no longer be retried.
 	if msg.AttemptCount >= msg.MaxAttempts || messaging.IsNonRetryable(publishErr) {
 		if markErr := outbox.MarkFailed(

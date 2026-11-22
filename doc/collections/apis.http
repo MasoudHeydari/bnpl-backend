@@ -11,9 +11,11 @@
 # After a JSON body only ### may follow; plain # there is parsed as body.
 #
 # Suggested partner → hosted checkout flow:
-#   Merchant terminal Provision → Partner return/webhook destinations →
+#   Merchant terminal Provision → Partner return destination →
 #   Partner Create → Hosted GET → Hosted Start → Hosted Confirm (+ OTP) →
-#   Hosted Return / Partner Get status. No x-auth-* on Hosted or Partner routes.
+#   Hosted Return (UX only) → Partner Get status (verify_pending) →
+#   Partner Verify → Partner Get status (verified_by_merchant).
+#   No x-auth-* on Hosted or Partner routes.
 
 ### Health — Liveness
 # Checks that the process is alive (K8s liveness). No dependency probes.
@@ -141,23 +143,6 @@ X-API-Key: {{merchant.api_key}}
   "enabled": true
 }
 
-### Partner config — Upsert webhook destination
-# Registers/rotates the merchant lifecycle webhook URL + signing secret.
-# Why: merchant learns checkout outcomes via signed webhooks, not return URL.
-# Auth: X-Terminal-Id + X-API-Key. Requires
-# bnpl:checkout-webhooks:manage:merchant on the terminal.
-PUT {{base_url}}/api/v1/partner/webhook-destination
-Accept: application/json
-Content-Type: application/json
-X-Terminal-Id: {{merchant.terminal_id}}
-X-API-Key: {{merchant.api_key}}
-
-{
-  "webhook_url": "{{merchant.webhook_url}}",
-  "signing_secret": "{{merchant.signing_secret}}",
-  "enabled": true
-}
-
 ### Partner checkout — Create session
 # Opens a merchant-owned checkout session and returns checkout_url + expires_at.
 # checkout_session_id is an opaque public token (cs_<64 hex>), never a UUID.
@@ -187,13 +172,32 @@ X-API-Key: {{merchant.api_key}}
 
 ### Partner checkout — Get session status
 # Merchant inquiry of authoritative checkout status (no credit/offer details).
-# Why: poll/confirm outcome instead of trusting browser return.
+# Why: poll outcome instead of trusting browser return. Returns
+# verification_deadline_at when verify_pending; verified_at when verified_by_merchant.
 # Auth: X-Terminal-Id + X-API-Key. Requires
 # bnpl:checkout-sessions:read:merchant on the terminal.
 GET {{base_url}}/api/v1/partner/checkout-sessions/{{runtime.checkout_session_id}}
 Accept: application/json
 X-Terminal-Id: {{merchant.terminal_id}}
 X-API-Key: {{merchant.api_key}}
+
+### Partner checkout — Verify session (merchant)
+# Explicit merchant acceptance after durable FC success (status verify_pending).
+# Why: browser return is UX only; fulfillment requires verified_by_merchant.
+# Auth: X-Terminal-Id + X-API-Key. Requires
+# bnpl:checkout-sessions:create:merchant (CheckoutSessionsCreateMerchant).
+# Body merchant_order_id must match the value used at Partner Create.
+# Idempotent when already verified. Prerequisite: Inquiry shows verify_pending
+# within verification_deadline_at.
+POST {{base_url}}/api/v1/partner/checkout-sessions/{{runtime.checkout_session_id}}/verify
+Accept: application/json
+Content-Type: application/json
+X-Terminal-Id: {{merchant.terminal_id}}
+X-API-Key: {{merchant.api_key}}
+
+{
+  "merchant_order_id": "{{runtime.merchant_order_id}}"
+}
 
 ### Partner checkout — Cancel session (merchant)
 # Merchant cancels a non-terminal checkout session; returns return_url.
@@ -275,7 +279,7 @@ Accept: application/json
 
 ### Hosted checkout — Return
 # Unauthenticated browser return handoff (status, merchant_state, return_url).
-# return_url is not payment truth — merchant should still poll status/webhooks.
+# UX only — merchant backend must Inquire and Verify; never fulfill from redirect.
 GET {{base_url}}/api/v1/checkout-sessions/{{runtime.checkout_session_id}}/return
 Accept: application/json
 

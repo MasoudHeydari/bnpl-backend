@@ -433,7 +433,7 @@ Poll هیچ Saga، PaymentAttempt، Session پرداخت یا URL جدیدی ا�
 
 `GET /checkout-sessions/{token}/return` یک **Navigation** است و با HTTP `302` به URL ثبت‌شدهٔ Merchant می‌رود. مقصد را از Query String انتخاب نمی‌کند. پارامتر `checkout_session_id` و در صورت وجود `state` را به Return می‌برد.
 
-این صرفاً UX است؛ Merchant باید برای Fulfillment، `status=completed` را با Partner Inquiry یا Webhook امضاشده بررسی کند. Frontend نیز نباید صرف Redirect نتیجهٔ FC را موفق اعلام کند.
+این صرفاً UX است؛ Merchant باید برای Fulfillment از Partner Inquiry به `verify_pending` برسد و سپس `POST .../verify` بزند تا `verified_by_merchant` شود. Frontend نیز نباید صرف Redirect نتیجهٔ FC یا پذیرش فروشنده را موفق اعلام کند.
 
 ### وضعیت‌های Session
 

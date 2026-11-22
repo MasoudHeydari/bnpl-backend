@@ -30,11 +30,6 @@ type BusinessMetrics interface {
 	// InstallmentStateChanged records a committed installment lifecycle transition.
 	InstallmentStateChanged(ctx context.Context, from string, to string)
 
-	// WebhookDeliveryCompleted records the classified outcome of one webhook
-	// delivery attempt (for example delivered, retryable_failure,
-	// permanent_failure, destination_disabled).
-	WebhookDeliveryCompleted(ctx context.Context, outcome string)
-
 	// ShortLinkCreated records a persisted short link by creation mode
 	// (generated or alias).
 	ShortLinkCreated(ctx context.Context, mode string)

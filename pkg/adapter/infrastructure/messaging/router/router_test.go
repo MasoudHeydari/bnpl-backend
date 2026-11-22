@@ -25,13 +25,13 @@ func TestRouterSelectsPublisherByPrefix(t *testing.T) {
 
 	fallback, hooks := &recordingPublisher{}, &recordingPublisher{}
 
-	r, err := messagingrouter.New(fallback, messagingrouter.Route{Prefix: "webhook://", Publisher: hooks})
+	r, err := messagingrouter.New(fallback, messagingrouter.Route{Prefix: "test://", Publisher: hooks})
 	require.NoError(t, err)
 
-	require.NoError(t, r.Publish(context.Background(), "webhook://merchant/1", messaging.Message{}))
+	require.NoError(t, r.Publish(context.Background(), "test://merchant/1", messaging.Message{}))
 	require.NoError(t, r.Publish(context.Background(), "merchant-checkout-events", messaging.Message{}))
 
-	require.Equal(t, []string{"webhook://merchant/1"}, hooks.topics)
+	require.Equal(t, []string{"test://merchant/1"}, hooks.topics)
 	require.Equal(t, []string{"merchant-checkout-events"}, fallback.topics)
 }
 

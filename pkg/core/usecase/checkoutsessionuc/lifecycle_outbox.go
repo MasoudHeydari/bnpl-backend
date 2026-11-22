@@ -11,19 +11,13 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/identifier"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
-	"github.com/parstis/bnpl-backend/pkg/core/webhook"
 )
 
 // LifecycleOutbox enqueues merchant-facing checkout lifecycle events in the
 // caller's database transaction.
 //
-// Every event is written to the Kafka merchant-checkout-events destination and,
-// when the merchant has an enabled webhook destination, also to a logical
-// webhook://merchant/<external_merchant_id> outbox row. The HTTP dispatcher loads the
-// current URL/secret at delivery time so disable/rotate/update applies to
-// pending retries.
+// Every event is written to the Kafka merchant-checkout-events destination.
 type LifecycleOutbox struct {
-	checkoutSession repo.CheckoutSession
 	merchantProfile repo.MerchantProfile
 	outbox          repo.Outbox
 	idGenerator     identifier.Generator
@@ -32,17 +26,12 @@ type LifecycleOutbox struct {
 
 // NewLifecycleOutbox constructs a lifecycle event enqueuer.
 func NewLifecycleOutbox(
-	checkoutSession repo.CheckoutSession,
 	merchantProfile repo.MerchantProfile,
 	outbox repo.Outbox,
 	idGenerator identifier.Generator,
 	destination string,
 ) (*LifecycleOutbox, error) {
 	const op = "checkoutsessionuc.NewLifecycleOutbox"
-
-	if checkoutSession == nil {
-		return nil, fmt.Errorf("%s: checkout session repository is required", op)
-	}
 
 	if merchantProfile == nil {
 		return nil, fmt.Errorf("%s: merchant profile repository is required", op)
@@ -61,7 +50,6 @@ func NewLifecycleOutbox(
 	}
 
 	return &LifecycleOutbox{
-		checkoutSession: checkoutSession,
 		merchantProfile: merchantProfile,
 		outbox:          outbox,
 		idGenerator:     idGenerator,
@@ -86,7 +74,6 @@ func (l *LifecycleOutbox) Enqueue(
 	const op = "checkoutsessionuc.LifecycleOutbox.Enqueue"
 
 	merchantProfileQ := l.merchantProfile.Tx(tx)
-	sessionQ := l.checkoutSession.Tx(tx)
 	outboxQ := l.outbox.Tx(tx)
 
 	profile, err := merchantProfileQ.GetByID(ctx, session.MerchantProfileID)
@@ -104,13 +91,23 @@ func (l *LifecycleOutbox) Enqueue(
 		MerchantState:      session.MerchantState,
 	}
 
-	if eventType == checkoutlifecycle.EventTypeCompleted {
-		if session.CompletedAt != nil {
-			completedAt := session.CompletedAt.UTC()
-			data.CompletedAt = &completedAt
+	switch eventType {
+	case checkoutlifecycle.EventTypeVerifyPending:
+		if session.VerificationDeadlineAt != nil {
+			deadline := session.VerificationDeadlineAt.UTC()
+			data.VerificationDeadlineAt = &deadline
+		}
+
+	case checkoutlifecycle.EventTypeVerifiedByMerchant:
+		if session.MerchantVerifiedAt != nil {
+			verifiedAt := session.MerchantVerifiedAt.UTC()
+			data.VerifiedAt = &verifiedAt
+		} else if session.CompletedAt != nil {
+			verifiedAt := session.CompletedAt.UTC()
+			data.VerifiedAt = &verifiedAt
 		} else {
-			completedAt := now.UTC()
-			data.CompletedAt = &completedAt
+			verifiedAt := now.UTC()
+			data.VerifiedAt = &verifiedAt
 		}
 	}
 
@@ -145,29 +142,6 @@ func (l *LifecycleOutbox) Enqueue(
 	})
 	if err != nil {
 		return fmt.Errorf("%s: insert lifecycle outbox message: %w", op, err)
-	}
-
-	// Optional HTTP webhook delivery via logical destination. Lookup is only to
-	// decide whether to enqueue; URL/secret are resolved at dispatch time.
-	_, webhookErr := sessionQ.GetWebhookDestination(ctx, profile.ExternalMerchantID)
-	switch {
-	case webhookErr == nil:
-		webhookDestination := webhook.MerchantDestination(profile.ExternalMerchantID)
-
-		_, err = outboxQ.Create(ctx, repo.CreateOutboxMessage{
-			Destination:   webhookDestination,
-			MessageKey:    session.PublicToken.String(),
-			EventType:     eventType,
-			AggregateType: &aggregateType,
-			Payload:       payload,
-			CreatedAt:     now,
-		})
-		if err != nil {
-			return fmt.Errorf("%s: insert webhook outbox message: %w", op, err)
-		}
-
-	case !cerr.IsCode(webhookErr, cerr.CodeResourceNotFound):
-		return fmt.Errorf("%s: resolve webhook destination: %w", op, webhookErr)
 	}
 
 	return nil

@@ -2,6 +2,8 @@ package standard_test
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
@@ -15,8 +17,46 @@ import (
 	lognoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/noop"
 	metricsnoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/metrics/noop"
 	corehttpclient "github.com/parstis/bnpl-backend/pkg/core/httpclient"
-	webhookpolicy "github.com/parstis/bnpl-backend/pkg/core/policy/webhook"
 )
+
+var errBlockedAddress = errors.New("address is not allowed")
+
+// testPolicy is a minimal comparable corehttpclient.NetworkPolicy: it blocks
+// private/link-local/unspecified addresses and, unless allowLoopback is set,
+// loopback addresses.
+type testPolicy struct {
+	allowLoopback bool
+}
+
+func strictPolicy() testPolicy { return testPolicy{} }
+
+func developmentPolicy() testPolicy { return testPolicy{allowLoopback: true} }
+
+func (p testPolicy) CheckHost(host string) error {
+	if host == "" {
+		return fmt.Errorf("host is empty")
+	}
+
+	return nil
+}
+
+func (p testPolicy) CheckAddr(addr netip.Addr) error {
+	addr = addr.Unmap()
+
+	if addr.IsLoopback() {
+		if p.allowLoopback {
+			return nil
+		}
+
+		return errBlockedAddress
+	}
+
+	if !addr.IsValid() || addr.IsUnspecified() || addr.IsPrivate() || addr.IsLinkLocalUnicast() {
+		return errBlockedAddress
+	}
+
+	return nil
+}
 
 type fakeResolver struct {
 	addrs []netip.Addr
@@ -69,8 +109,8 @@ func TestSecureProfile_IndependentTimeout(t *testing.T) {
 
 	client := newStandardClient(t, 5*time.Second)
 	profile, err := client.NewSecureProfile(corehttpclient.SecureProfileConfig{
-		Name:          "webhook",
-		NetworkPolicy: webhookpolicy.Development(),
+		Name:          "development",
+		NetworkPolicy: developmentPolicy(),
 		Timeout:       100 * time.Millisecond,
 		DialTimeout:   time.Second,
 	})
@@ -93,7 +133,7 @@ func TestSecureProfile_BlocksPrivateDNS(t *testing.T) {
 	client := newStandardClient(t, time.Second)
 	profile, err := client.NewSecureProfile(corehttpclient.SecureProfileConfig{
 		Name:          "secure",
-		NetworkPolicy: webhookpolicy.Strict(),
+		NetworkPolicy: strictPolicy(),
 		Timeout:       time.Second,
 		DialTimeout:   time.Second,
 	})
@@ -112,7 +152,7 @@ func TestSecureProfile_BlocksPrivateDNS(t *testing.T) {
 
 	_, err = client.DoWithSecureProfile(req, profile)
 	require.Error(t, err)
-	require.ErrorIs(t, err, webhookpolicy.ErrBlockedAddress)
+	require.ErrorIs(t, err, errBlockedAddress)
 }
 
 func TestSecureProfile_RejectsInvalidConfig(t *testing.T) {
@@ -122,7 +162,7 @@ func TestSecureProfile_RejectsInvalidConfig(t *testing.T) {
 
 	_, err := client.NewSecureProfile(corehttpclient.SecureProfileConfig{
 		Name:          "bad",
-		NetworkPolicy: webhookpolicy.Strict(),
+		NetworkPolicy: strictPolicy(),
 		Timeout:       0,
 		DialTimeout:   time.Second,
 	})
@@ -142,7 +182,7 @@ func TestSecureProfile_ReusesSameHandle(t *testing.T) {
 	client := newStandardClient(t, time.Second)
 	cfg := corehttpclient.SecureProfileConfig{
 		Name:          "reuse",
-		NetworkPolicy: webhookpolicy.Development(),
+		NetworkPolicy: developmentPolicy(),
 		Timeout:       time.Second,
 		DialTimeout:   time.Second,
 	}
@@ -162,8 +202,8 @@ func TestSecureProfile_RejectsChangedConfiguration(t *testing.T) {
 
 	client := newStandardClient(t, time.Second)
 	cfg := corehttpclient.SecureProfileConfig{
-		Name:          "merchant-webhook",
-		NetworkPolicy: webhookpolicy.Strict(),
+		Name:          "strict-profile",
+		NetworkPolicy: strictPolicy(),
 		Timeout:       10 * time.Second,
 		DialTimeout:   2 * time.Second,
 	}
@@ -176,7 +216,7 @@ func TestSecureProfile_RejectsChangedConfiguration(t *testing.T) {
 	require.ErrorContains(t, err, "different configuration")
 
 	weakerPolicy := cfg
-	weakerPolicy.NetworkPolicy = webhookpolicy.Development()
+	weakerPolicy.NetworkPolicy = developmentPolicy()
 	_, err = client.NewSecureProfile(weakerPolicy)
 	require.ErrorContains(t, err, "different configuration")
 }
@@ -188,7 +228,7 @@ func TestSecureProfile_RejectsAnotherClientProfile(t *testing.T) {
 	first := newStandardClient(t, time.Second)
 	second := newStandardClient(t, time.Second)
 	profile, err := first.NewSecureProfile(corehttpclient.SecureProfileConfig{
-		Name: "owner", NetworkPolicy: webhookpolicy.Strict(),
+		Name: "owner", NetworkPolicy: strictPolicy(),
 		Timeout: time.Second, DialTimeout: time.Second,
 	})
 	require.NoError(t, err)

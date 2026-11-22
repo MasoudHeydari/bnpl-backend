@@ -650,7 +650,6 @@ var preservedE2ETables = []string{
 	"policy_assignments",
 	"policy_assignment_imports",
 	"policy_assignment_import_items",
-	"merchant_webhook_destinations",
 	"merchant_terminals",
 	"merchant_terminal_credentials",
 	"merchant_terminal_issuance_deliveries",

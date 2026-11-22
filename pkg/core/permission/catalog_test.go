@@ -26,12 +26,11 @@ func TestCatalogParity(t *testing.T) {
 		seenCodes[perm.Code] = struct{}{}
 	}
 
-	require.Len(t, all, 60, "expected 55 FC codes + credit-limits:create:self + 2 checkout integration manage codes + merchant-terminals:manage:merchant + merchants:credit-kinds:update:any")
+	require.Len(t, all, 59, "expected 55 FC codes + credit-limits:create:self + 1 checkout integration manage code + merchant-terminals:manage:merchant + merchants:credit-kinds:update:any")
 	require.Contains(t, seenCodes, "bnpl:credit-limits:create:self")
 	require.Contains(t, seenCodes, "bnpl:decisions:create:self")
 	require.Contains(t, seenCodes, "bnpl:contracts:approve")
 	require.Contains(t, seenCodes, "bnpl:contracts:reject")
-	require.Contains(t, seenCodes, "bnpl:checkout-webhooks:manage:merchant")
 	require.Contains(t, seenCodes, "bnpl:checkout-return-destinations:manage:merchant")
 	require.Contains(t, seenCodes, "bnpl:merchant-terminals:manage:merchant")
 	require.Contains(t, seenCodes, "bnpl:merchants:read:any")

@@ -148,7 +148,7 @@ func TestE2E_ConfirmSaga_CompensationRejectsStaleGenerationConfirm(t *testing.T)
 		EvaluationGeneration: stale.Session.EvaluationGeneration,
 	})
 	require.NoError(t, progressErr)
-	require.Equal(t, model.CompletedCheckoutSessionStatus, progressed.Session.Status)
+	require.Equal(t, model.VerifyPendingCheckoutSessionStatus, progressed.Session.Status)
 	require.NotNil(t, progressed.Session.ContractID)
 	require.Equal(t, 1, h.fc.committedEntitlementCount())
 	require.Equal(t, 2, h.countConfirmationSagasForSession(seed.Session.ID))
@@ -283,7 +283,7 @@ func TestE2E_ConfirmSaga_TransientFCFailureRetriesAfterDelay(t *testing.T) {
 	h.driveWithExecutor(restarted, sagaID)
 
 	session := h.querySession(seed.Session.ID)
-	require.Equal(t, model.CompletedCheckoutSessionStatus, session.Status)
+	require.Equal(t, model.VerifyPendingCheckoutSessionStatus, session.Status)
 	require.Equal(t, 1, h.fc.committedEntitlementCount())
 	require.Equal(t, 1, h.countContractsForDecision(*session.DecisionID))
 }
@@ -387,7 +387,7 @@ func TestE2E_ConfirmSaga_HTTPCancellationLeavesSagaRecoverable(t *testing.T) {
 
 	session := h.querySession(seed.Session.ID)
 	require.NotNil(t, session.ContractID)
-	require.NotEqual(t, model.CompletedCheckoutSessionStatus, session.Status)
+	require.NotEqual(t, model.VerifyPendingCheckoutSessionStatus, session.Status)
 	require.Equal(t, model.PaymentPendingContractStatus, h.queryContractBySession(session).Status)
 
 	h.fc.setEntitlementDelay(0)
@@ -396,7 +396,7 @@ func TestE2E_ConfirmSaga_HTTPCancellationLeavesSagaRecoverable(t *testing.T) {
 	h.driveWithExecutor(h.newWorkerExecutor("e2e-cancel-restart"), sagaID)
 
 	completed := h.querySession(seed.Session.ID)
-	require.Equal(t, model.CompletedCheckoutSessionStatus, completed.Status)
+	require.Equal(t, model.VerifyPendingCheckoutSessionStatus, completed.Status)
 	require.Equal(t, 1, h.fc.committedEntitlementCount())
 	require.Equal(t, *session.ContractID, *completed.ContractID)
 }

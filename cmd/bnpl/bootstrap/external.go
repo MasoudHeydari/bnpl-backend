@@ -16,13 +16,12 @@ import (
 	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"
 	extinstallmentpayment "github.com/parstis/bnpl-backend/pkg/core/external/installmentpayment"
 	extnotification "github.com/parstis/bnpl-backend/pkg/core/external/notification"
-	"github.com/parstis/bnpl-backend/pkg/core/messaging"
 )
 
 // External holds business-facing external system adapters assembled for App.
 //
 // These clients implement core external ports (credit assessment, Financial
-// Core payment/cancellation, merchant webhook delivery). Transport details stay
+// Core payment/cancellation). Transport details stay
 // in adapter packages.
 type External struct {
 	// BotMessaging coordinates all enabled Telegram/Bale bot integrations.
@@ -52,16 +51,11 @@ type External struct {
 	// ContractCancellationClient requests contract cancellation from Financial Core.
 	ContractCancellationClient extcontractcancellation.Client
 
-	// WebhookPublisher routes webhook:// destinations to the merchant webhook
-	// adapter and leaves every other destination on the messaging fallback.
-	WebhookPublisher messaging.Publisher
-
 	// closers tracks closable transports created during NewExternal.
 	closers []io.Closer
 }
 
-// Close releases external system resources such as gRPC client connections and
-// webhook HTTP deliverer transports.
+// Close releases external system resources such as gRPC client connections.
 func (e External) Close() error {
 	var err error
 
@@ -79,7 +73,7 @@ func (e External) Close() error {
 // NewExternal constructs external system adapters required by App.
 //
 // Providers are selected from configuration. Closable transports (for example
-// gRPC connections and webhook HTTP deliverers) are tracked so Close can
+// gRPC connections) are tracked so Close can
 // release them on partial failure or process shutdown.
 func (a *App) NewExternal() (_ External, err error) {
 	const op = "bootstrap.App.NewExternal"
@@ -87,8 +81,7 @@ func (a *App) NewExternal() (_ External, err error) {
 	external := External{}
 
 	// Close adapters already created when a later constructor fails. Without
-	// this guard, a partially initialized application leaks gRPC connections
-	// and webhook HTTP transports.
+	// this guard, a partially initialized application leaks gRPC connections.
 	defer func() {
 		if err != nil {
 			err = errors.Join(err, external.Close())
@@ -198,24 +191,6 @@ func (a *App) NewExternal() (_ External, err error) {
 	external.ContractCancellationClient, err = a.Config.NewExternalContractCancellationClient()
 	if err != nil {
 		return External{}, fmt.Errorf("%s: initialize external contract cancellation client: %w", op, err)
-	}
-
-	var webhookCloser io.Closer
-	external.WebhookPublisher, webhookCloser, err = a.Config.NewExternalWebhookRoutingPublisher(
-		a.Pool,
-		a.Repos.CheckoutSession,
-		a.Infrastructure.Publisher,
-		a.Infrastructure.Clock,
-		a.Infrastructure.Logger,
-		a.Infrastructure.Metrics,
-		a.Infrastructure.HTTPClient,
-	)
-	if err != nil {
-		return External{}, fmt.Errorf("%s: initialize external webhook publisher: %w", op, err)
-	}
-
-	if webhookCloser != nil {
-		external.closers = append(external.closers, webhookCloser)
 	}
 
 	return external, nil

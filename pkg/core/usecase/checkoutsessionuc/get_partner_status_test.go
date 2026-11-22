@@ -11,17 +11,18 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 )
 
-func TestGetPartnerStatus_CompletedIncludesCommercialFields(t *testing.T) {
+func TestGetPartnerStatus_VerifiedIncludesCommercialFields(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 
-	completedAt := h.now.Add(-time.Minute)
+	verifiedAt := h.now.Add(-time.Minute)
 	session := h.session(
-		withStatus(model.CompletedCheckoutSessionStatus),
+		withStatus(model.VerifiedByMerchantCheckoutSessionStatus),
 		func(s *model.CheckoutSession) {
 			s.RequestedAmountMinor = 120_000_000
 			s.Currency = model.Currency("IRR")
-			s.CompletedAt = &completedAt
+			s.MerchantVerifiedAt = &verifiedAt
+			s.CompletedAt = &verifiedAt
 			s.MerchantOrderID = "DAMZ-ORDER-1001"
 		},
 	)
@@ -41,11 +42,12 @@ func TestGetPartnerStatus_CompletedIncludesCommercialFields(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, h.publicToken, output.CheckoutSessionToken)
 	require.Equal(t, "DAMZ-ORDER-1001", output.MerchantOrderID)
-	require.Equal(t, model.CompletedCheckoutSessionStatus, output.Status)
+	require.Equal(t, model.VerifiedByMerchantCheckoutSessionStatus, output.Status)
 	require.EqualValues(t, 120_000_000, output.AmountMinor)
 	require.Equal(t, model.Currency("IRR"), output.Currency)
-	require.NotNil(t, output.CompletedAt)
-	require.True(t, output.CompletedAt.Equal(completedAt))
+	require.NotNil(t, output.VerifiedAt)
+	require.True(t, output.VerifiedAt.Equal(verifiedAt))
+	require.Nil(t, output.VerificationDeadlineAt)
 }
 
 func TestGetPartnerStatus_OpenPastExpiryProjectsExpiredWithoutWrite(t *testing.T) {
@@ -76,7 +78,8 @@ func TestGetPartnerStatus_OpenPastExpiryProjectsExpiredWithoutWrite(t *testing.T
 	})
 	require.NoError(t, err)
 	require.Equal(t, model.ExpiredCheckoutSessionStatus, output.Status)
-	require.Nil(t, output.CompletedAt)
+	require.Nil(t, output.VerifiedAt)
+	require.Nil(t, output.VerificationDeadlineAt)
 	require.EqualValues(t, 50_000, output.AmountMinor)
 }
 

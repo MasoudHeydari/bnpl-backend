@@ -202,7 +202,6 @@ func newConfirmSagaHarness(t *testing.T, opts confirmSagaHarnessOptions) *confir
 	require.NoError(t, err)
 
 	lifecycle, err := checkoutsessionuc.NewLifecycleOutbox(
-		repos.CheckoutSession,
 		repos.MerchantProfile,
 		repos.Outbox,
 		infra.IdentifierGenerator,
@@ -241,9 +240,6 @@ func newConfirmSagaHarness(t *testing.T, opts confirmSagaHarnessOptions) *confir
 		cancellationSagaDefinition,
 		confirmationSagaDefinition,
 	)
-	require.NoError(t, err)
-
-	webhookSecretBox, err := cfg.Usecases.CheckoutSession.NewWebhookSecretBox()
 	require.NoError(t, err)
 
 	customerPhoneBox, err := cfg.Usecases.CheckoutSession.NewCustomerPhoneBox()
@@ -289,7 +285,6 @@ func newConfirmSagaHarness(t *testing.T, opts confirmSagaHarnessOptions) *confir
 		contractUC,
 		repos.Outbox,
 		infra.IdentifierGenerator,
-		webhookSecretBox,
 		customerPhoneBox,
 		fixedClock,
 		customerResolver,
@@ -578,7 +573,7 @@ func (h *confirmSagaHarness) resumeUntilSessionCompleted(sessionID model.Checkou
 	h.t.Helper()
 
 	session := h.querySession(sessionID)
-	if session.Status == model.CompletedCheckoutSessionStatus {
+	if session.Status == model.VerifyPendingCheckoutSessionStatus {
 		return
 	}
 
@@ -592,7 +587,7 @@ func (h *confirmSagaHarness) resumeUntilSessionCompleted(sessionID model.Checkou
 
 	for step := 0; step < maxSteps; step++ {
 		session = h.querySession(sessionID)
-		if session.Status == model.CompletedCheckoutSessionStatus {
+		if session.Status == model.VerifyPendingCheckoutSessionStatus {
 			return
 		}
 

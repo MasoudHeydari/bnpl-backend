@@ -29,9 +29,6 @@ func (BusinessMetrics) PaymentAttemptCompleted(context.Context, string, string) 
 // InstallmentStateChanged intentionally discards the observation.
 func (BusinessMetrics) InstallmentStateChanged(context.Context, string, string) {}
 
-// WebhookDeliveryCompleted intentionally discards the observation.
-func (BusinessMetrics) WebhookDeliveryCompleted(context.Context, string) {}
-
 // ShortLinkCreated intentionally discards the observation.
 func (BusinessMetrics) ShortLinkCreated(context.Context, string) {}
 

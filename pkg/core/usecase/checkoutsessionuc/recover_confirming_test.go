@@ -42,7 +42,7 @@ func TestRecoverStaleConfirming_RelinksAndFinalizesRecognizedContract(t *testing
 	confirming := h.confirmingSession()
 	linked := h.confirmingSession(withContract(h.contractID))
 	processing := h.session(withStatus(model.ProcessingCheckoutSessionStatus), withContract(h.contractID))
-	completed := h.session(withStatus(model.CompletedCheckoutSessionStatus), withContract(h.contractID))
+	verifyPending := h.verifyPendingSession(withContract(h.contractID))
 
 	entitlementID, receivableID := "fc-entitlement", "fc-receivable"
 	recognized := h.createdContract(false)
@@ -65,10 +65,9 @@ func TestRecoverStaleConfirming_RelinksAndFinalizesRecognizedContract(t *testing
 	}, nil).Once()
 	h.contractTx.EXPECT().GetByID(h.ctx, h.contractID).Return(recognized.Contract, nil).Once()
 	h.sessionTx.EXPECT().LockByContractID(h.ctx, h.contractID).Return(processing, nil).Once()
-	h.sessionTx.EXPECT().UpdateStatus(h.ctx, h.sessionID, model.CompletedCheckoutSessionStatus, h.now).
-		Return(completed, nil).Once()
-	h.expectLifecycleEvent(completed, checkoutlifecycle.EventTypeCompleted)
-	h.sessionTx.EXPECT().LockByContractID(h.ctx, h.contractID).Return(completed, nil).Once()
+	h.expectMarkVerifyPending(verifyPending)
+	h.expectLifecycleEvent(verifyPending, checkoutlifecycle.EventTypeVerifyPending)
+	h.sessionTx.EXPECT().LockByContractID(h.ctx, h.contractID).Return(verifyPending, nil).Once()
 
 	output, err := h.uc.RecoverStaleConfirmingSessions(h.ctx)
 	require.NoError(t, err)
@@ -84,7 +83,7 @@ func TestRecoverStaleConfirming_ResumesLinkedActivationPending(t *testing.T) {
 	h := newHarness(t)
 	h.expectPool(1, 2)
 	processing := h.session(withStatus(model.ProcessingCheckoutSessionStatus), withContract(h.contractID))
-	completed := h.session(withStatus(model.CompletedCheckoutSessionStatus), withContract(h.contractID))
+	verifyPending := h.verifyPendingSession(withContract(h.contractID))
 	pending := h.createdContract(false)
 	pending.Contract.DecisionID = h.decisionID
 	pending.Contract.Status = model.PaymentPendingContractStatus
@@ -108,10 +107,9 @@ func TestRecoverStaleConfirming_ResumesLinkedActivationPending(t *testing.T) {
 	}, nil).Once()
 	h.contractTx.EXPECT().GetByID(h.ctx, h.contractID).Return(recognized.Contract, nil).Once()
 	h.sessionTx.EXPECT().LockByContractID(h.ctx, h.contractID).Return(processing, nil).Once()
-	h.sessionTx.EXPECT().UpdateStatus(h.ctx, h.sessionID, model.CompletedCheckoutSessionStatus, h.now).
-		Return(completed, nil).Once()
-	h.expectLifecycleEvent(completed, checkoutlifecycle.EventTypeCompleted)
-	h.sessionTx.EXPECT().LockByContractID(h.ctx, h.contractID).Return(completed, nil).Once()
+	h.expectMarkVerifyPending(verifyPending)
+	h.expectLifecycleEvent(verifyPending, checkoutlifecycle.EventTypeVerifyPending)
+	h.sessionTx.EXPECT().LockByContractID(h.ctx, h.contractID).Return(verifyPending, nil).Once()
 
 	output, err := h.uc.RecoverStaleConfirmingSessions(h.ctx)
 	require.NoError(t, err)

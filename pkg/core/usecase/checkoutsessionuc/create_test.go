@@ -247,7 +247,7 @@ func TestCreatePartner_NewAttemptRejectedWhenOrderAlreadyCompleted(t *testing.T)
 	h.expectKeyNotFound()
 
 	completed := h.session(
-		withStatus(model.CompletedCheckoutSessionStatus),
+		withStatus(model.VerifiedByMerchantCheckoutSessionStatus),
 		withContract(h.contractID),
 		func(s *model.CheckoutSession) { s.IdempotencyKey = "attempt-0" },
 	)

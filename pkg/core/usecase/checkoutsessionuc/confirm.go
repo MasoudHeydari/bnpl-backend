@@ -155,7 +155,10 @@ func (uc *UseCase) beginConfirm(
 					}
 
 					switch locked.Status {
-					case model.CompletedCheckoutSessionStatus, model.ProcessingCheckoutSessionStatus:
+					case model.ProcessingCheckoutSessionStatus,
+						model.VerifyPendingCheckoutSessionStatus,
+						model.VerifiedByMerchantCheckoutSessionStatus,
+						model.CancellationPendingCheckoutSessionStatus:
 						if locked.ContractID == nil {
 							return checkoutSessionNotContinuableError(
 								fmt.Errorf("%s: checkout session status is %q without contract", op, locked.Status),
@@ -275,8 +278,8 @@ func (uc *UseCase) beginConfirm(
 
 	// Idempotent replay paths that already hold a contract. An unlinked
 	// confirming claim is owned by another operation, not retried here.
-	if result.Session.Status == model.CompletedCheckoutSessionStatus ||
-		result.Session.Status == model.ProcessingCheckoutSessionStatus ||
+	if result.Session.Status == model.ProcessingCheckoutSessionStatus ||
+		result.Session.Status.IsFinanciallySuccessful() ||
 		(result.Session.ContractID != nil &&
 			(result.Session.Status == model.ConfirmingCheckoutSessionStatus ||
 				result.Session.Status == model.OpenCheckoutSessionStatus)) {
@@ -828,8 +831,9 @@ func (uc *UseCase) replayConfirm(
 		return ConfirmOutput{}, err
 	}
 
-	// Terminal success is read-only: never re-enter payment submission.
-	if session.Status == model.CompletedCheckoutSessionStatus {
+	// Durable FC success (verify_pending / verified / cancellation_pending) is
+	// read-only for Confirm: never re-enter payment submission.
+	if session.Status.IsFinanciallySuccessful() {
 		return ConfirmOutput{
 			Session:         session,
 			Contract:        contract,
@@ -1024,8 +1028,8 @@ func hasFinancialRecognition(contract model.Contract) bool {
 // completeRecognizedCheckout verifies durable contract recognition before
 // changing merchant-visible checkout state. Contract activation and this
 // transition are separate short transactions to keep FC calls outside DB locks.
-// Replaying completion is idempotent because ApplyPaymentSucceeded locks the
-// session and emits a completed event only for a real state transition.
+// Replaying is idempotent because ApplyPaymentSucceeded locks the session and
+// emits verify_pending only for a real state transition.
 func (uc *UseCase) completeRecognizedCheckout(
 	ctx context.Context,
 	contract model.Contract,
@@ -1042,7 +1046,7 @@ func (uc *UseCase) completeRecognizedCheckout(
 		)
 	}
 
-	var completed model.CheckoutSession
+	var session model.CheckoutSession
 	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
 			contractQ := uc.contract.Tx(tx)
@@ -1065,7 +1069,7 @@ func (uc *UseCase) completeRecognizedCheckout(
 
 			checkoutSessionQ := uc.checkoutSession.Tx(tx)
 			var findErr error
-			completed, findErr = checkoutSessionQ.LockByContractID(ctx, current.ID)
+			session, findErr = checkoutSessionQ.LockByContractID(ctx, current.ID)
 			return findErr
 		})
 	})
@@ -1073,13 +1077,13 @@ func (uc *UseCase) completeRecognizedCheckout(
 		return model.CheckoutSession{}, err
 	}
 
-	if completed.Status != model.CompletedCheckoutSessionStatus {
+	if !session.Status.IsFinanciallySuccessful() {
 		return model.CheckoutSession{}, checkoutConfirmationInProgressError(
-			fmt.Errorf("%s: checkout is not completed", op),
+			fmt.Errorf("%s: checkout is not financially successful", op),
 		)
 	}
 
-	return completed, nil
+	return session, nil
 }
 
 func (uc *UseCase) loadCheckoutPaymentAttempt(
@@ -1149,7 +1153,7 @@ func (uc *UseCase) finishConfirm(
 					if !alreadyLinked {
 						if locked.Status != model.ConfirmingCheckoutSessionStatus &&
 							locked.Status != model.ProcessingCheckoutSessionStatus &&
-							locked.Status != model.CompletedCheckoutSessionStatus {
+							!locked.Status.IsFinanciallySuccessful() {
 							return checkoutSessionNotContinuableError(
 								fmt.Errorf("%s: session status is %q after create contract", op, locked.Status),
 							)
@@ -1198,73 +1202,6 @@ func (uc *UseCase) finishConfirm(
 	return linked, nil
 }
 
-// ApplyPaymentSucceeded marks the checkout completed after Financial Core
-// authoritatively activated the linked contract.
-//
-// Late success against a terminal non-completed session is a reconciliation
-// conflict: evidence is recorded and the error surfaces for operators. Success
-// never silently disappears.
-func (uc *UseCase) ApplyPaymentSucceeded(
-	ctx context.Context,
-	tx repo.Tx,
-	contractID model.ContractID,
-	now time.Time,
-) error {
-	const op = "checkoutsessionuc.UseCase.ApplyPaymentSucceeded"
-
-	sessionQ := uc.checkoutSession.Tx(tx)
-
-	locked, err := sessionQ.LockByContractID(ctx, contractID)
-	if err != nil {
-		if cerr.IsCode(err, cerr.CodeResourceNotFound) {
-			return nil
-		}
-
-		return fmt.Errorf("%s: lock checkout session by contract: %w", op, err)
-	}
-
-	switch locked.Status {
-	case model.CompletedCheckoutSessionStatus:
-		return nil
-
-	case model.ProcessingCheckoutSessionStatus,
-		model.ConfirmingCheckoutSessionStatus,
-		model.OpenCheckoutSessionStatus:
-		// Normal and recoverable paths into completed.
-
-	default:
-		return uc.recordCheckoutPaymentStateConflict(
-			ctx,
-			tx,
-			locked,
-			contractID,
-			now,
-		)
-	}
-
-	if transitionErr := locked.Status.ValidateTransitionTo(model.CompletedCheckoutSessionStatus); transitionErr != nil {
-		return uc.recordCheckoutPaymentStateConflict(
-			ctx,
-			tx,
-			locked,
-			contractID,
-			now,
-		)
-	}
-
-	updated, err := sessionQ.UpdateStatus(ctx, locked.ID, model.CompletedCheckoutSessionStatus, now)
-	if err != nil {
-		return err
-	}
-
-	return uc.lifecycle.Enqueue(
-		ctx,
-		tx,
-		updated,
-		checkoutlifecycle.EventTypeCompleted,
-		now,
-	)
-}
 
 // ApplyPaymentRetryableFailure returns a processing checkout to open after a
 // terminal FAILED/CANCELED payment attempt while keeping the same Decision and
@@ -1289,7 +1226,9 @@ func (uc *UseCase) ApplyPaymentRetryableFailure(
 	}
 
 	switch locked.Status {
-	case model.CompletedCheckoutSessionStatus:
+	case model.VerifyPendingCheckoutSessionStatus,
+		model.VerifiedByMerchantCheckoutSessionStatus,
+		model.CancellationPendingCheckoutSessionStatus:
 		// Authoritative success already won; stale failure must not regress.
 		return nil
 

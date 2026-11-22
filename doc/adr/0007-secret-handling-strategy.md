@@ -81,7 +81,7 @@ The Go application does not read `~/.pgpass` or `dist/.db/.pgpass`. The Makefile
 Financial platforms require broader secret categories:
 
 - Payment gateway API keys
-- Merchant webhook signing secrets
+- Merchant terminal API keys (pepper-keyed verifiers; show-once issuance ciphertext)
 - PII encryption keys
 - JWT signing keys for admin and merchant APIs
 

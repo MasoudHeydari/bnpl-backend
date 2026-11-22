@@ -34,7 +34,7 @@ func TestE2E_ConfirmSaga_A_HappyPathMerchantFundingCompletes(t *testing.T) {
 	out, err := h.CheckoutSession.Confirm(h.ctx, confirmInputForSeed(seed))
 	require.NoError(t, err)
 	require.False(t, out.PaymentRequired, "expected merchant-funding (v2) checkout policy")
-	require.Equal(t, model.CompletedCheckoutSessionStatus, out.Session.Status)
+	require.Equal(t, model.VerifyPendingCheckoutSessionStatus, out.Session.Status)
 
 	contractRow := h.queryContractBySession(out.Session)
 	assert.NotNil(t, contractRow.FinancialMerchantEntitlementID)
@@ -69,7 +69,7 @@ func TestE2E_ConfirmSaga_B_ResumeAfterCrashBeforeContractPrepare(t *testing.T) {
 
 	out, err := h.CheckoutSession.Confirm(h.ctx, confirmInputForSeed(seed))
 	require.NoError(t, err)
-	require.Equal(t, model.CompletedCheckoutSessionStatus, out.Session.Status)
+	require.Equal(t, model.VerifyPendingCheckoutSessionStatus, out.Session.Status)
 }
 
 // Requirement B: crash after Contract commit, before Checkout linkage — resume links once.
@@ -209,7 +209,7 @@ func TestE2E_ConfirmSaga_G_LostFCResponseAfterCommitRetriesOnce(t *testing.T) {
 	}
 
 	session := h.querySession(seed.Session.ID)
-	require.Equal(t, model.CompletedCheckoutSessionStatus, session.Status)
+	require.Equal(t, model.VerifyPendingCheckoutSessionStatus, session.Status)
 	assert.Equal(t, 1, h.fc.committedEntitlementCount())
 }
 
@@ -224,7 +224,7 @@ func TestE2E_ConfirmSaga_H_DelayedFCResponseCompletesAfterResume(t *testing.T) {
 
 	out, err := h.CheckoutSession.Confirm(h.ctx, confirmInputForSeed(seed))
 	require.NoError(t, err)
-	require.Equal(t, model.CompletedCheckoutSessionStatus, out.Session.Status)
+	require.Equal(t, model.VerifyPendingCheckoutSessionStatus, out.Session.Status)
 }
 
 // Stale confirming recovery job resumes an abandoned claim (supports A–C liveness).
@@ -256,7 +256,7 @@ func TestE2E_ConfirmSaga_I_RecoverStaleConfirmingResumesSaga(t *testing.T) {
 	assert.Equal(t, 1, output.ResumedCount)
 
 	session := h.querySession(seed.Session.ID)
-	require.Equal(t, model.CompletedCheckoutSessionStatus, session.Status)
+	require.Equal(t, model.VerifyPendingCheckoutSessionStatus, session.Status)
 }
 
 // Requirement E: overlapping Confirm calls create one Contract and one Saga.
@@ -294,12 +294,12 @@ func TestE2E_ConfirmSaga_J_ConcurrentConfirmSingleContract(t *testing.T) {
 	)
 
 	session := h.querySession(seed.Session.ID)
-	if session.Status != model.CompletedCheckoutSessionStatus {
+	if session.Status != model.VerifyPendingCheckoutSessionStatus {
 		h.resumeUntilSessionCompleted(seed.Session.ID)
 		session = h.querySession(seed.Session.ID)
 	}
 
-	require.Equal(t, model.CompletedCheckoutSessionStatus, session.Status)
+	require.Equal(t, model.VerifyPendingCheckoutSessionStatus, session.Status)
 	require.NotNil(t, session.DecisionID)
 	require.Equal(t, 1, h.countContractsForDecision(*session.DecisionID))
 	assert.Equal(t, 1, h.fc.committedEntitlementCount())
@@ -369,12 +369,12 @@ func TestE2E_ConfirmSaga_K_StaleWorkerFencedAfterLeaseExpiry(t *testing.T) {
 	}
 
 	session := h.querySession(seed.Session.ID)
-	if session.Status != model.CompletedCheckoutSessionStatus {
+	if session.Status != model.VerifyPendingCheckoutSessionStatus {
 		h.resumeUntilSessionCompleted(seed.Session.ID)
 		session = h.querySession(seed.Session.ID)
 	}
 
-	require.Equal(t, model.CompletedCheckoutSessionStatus, session.Status)
+	require.Equal(t, model.VerifyPendingCheckoutSessionStatus, session.Status)
 	require.NotNil(t, session.DecisionID)
 	require.Equal(t, 1, h.countContractsForDecision(*session.DecisionID))
 	assert.Equal(t, 1, h.fc.committedEntitlementCount())

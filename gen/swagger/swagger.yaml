@@ -533,8 +533,6 @@ definitions:
       checkout_session_id:
         example: cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
         type: string
-      completed_at:
-        type: string
       currency:
         allOf:
         - $ref: '#/definitions/model.Currency'
@@ -548,10 +546,16 @@ definitions:
         - open
         - confirming
         - processing
-        - completed
+        - verify_pending
+        - verified_by_merchant
+        - cancellation_pending
         - canceled
         - expired
         - unavailable
+      verification_deadline_at:
+        type: string
+      verified_at:
+        type: string
     type: object
   checkoutsessionrs.StatusSuccessSchema:
     properties:
@@ -572,36 +576,33 @@ definitions:
     required:
     - return_url
     type: object
-  checkoutsessionrs.UpsertWebhookDestinationRequestSchema:
+  checkoutsessionrs.VerifyByMerchantRequestSchema:
     properties:
-      enabled:
-        description: Enabled is optional. Omit to preserve the stored value (true
-          on create).
-        type: boolean
-      signing_secret:
-        description: |-
-          SigningSecret is write-only. Omit to keep the stored secret; send a value
-          of at least 32 bytes to rotate it. Required on first registration.
-        maxLength: 512
-        minLength: 32
-        type: string
-      webhook_url:
-        maxLength: 2048
+      merchant_order_id:
+        maxLength: 256
         type: string
     required:
-    - webhook_url
+    - merchant_order_id
     type: object
-  checkoutsessionrs.WebhookDestinationResponseSchema:
+  checkoutsessionrs.VerifyByMerchantResponseSchema:
     properties:
-      enabled:
-        type: boolean
-      webhook_url:
+      checkout_session_id:
+        example: cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+        type: string
+      merchant_order_id:
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/model.CheckoutSessionStatus'
+        enum:
+        - verified_by_merchant
+      verified_at:
         type: string
     type: object
-  checkoutsessionrs.WebhookDestinationSuccessSchema:
+  checkoutsessionrs.VerifyByMerchantSuccessSchema:
     properties:
       data:
-        $ref: '#/definitions/checkoutsessionrs.WebhookDestinationResponseSchema'
+        $ref: '#/definitions/checkoutsessionrs.VerifyByMerchantResponseSchema'
       meta:
         $ref: '#/definitions/serdser.SuccessMetaNoPagination'
     type: object
@@ -2017,7 +2018,9 @@ definitions:
     - open
     - confirming
     - processing
-    - completed
+    - verify_pending
+    - verified_by_merchant
+    - cancellation_pending
     - canceled
     - expired
     - unavailable
@@ -2026,7 +2029,9 @@ definitions:
     - OpenCheckoutSessionStatus
     - ConfirmingCheckoutSessionStatus
     - ProcessingCheckoutSessionStatus
-    - CompletedCheckoutSessionStatus
+    - VerifyPendingCheckoutSessionStatus
+    - VerifiedByMerchantCheckoutSessionStatus
+    - CancellationPendingCheckoutSessionStatus
     - CanceledCheckoutSessionStatus
     - ExpiredCheckoutSessionStatus
     - UnavailableCheckoutSessionStatus
@@ -3707,8 +3712,7 @@ paths:
       description: Unauthenticated browser navigation only. Redirects to the merchant
         ReturnURL persisted at checkout creation. Never accepts a destination URL
         from the request. Browser arrival is NOT payment or order-fulfillment authority
-        — merchants must trust Partner Inquiry status=completed or the verified bnpl.checkout.completed.v1
-        webhook.
+        — merchants must trust Partner Inquiry status=completed.
       parameters:
       - description: Public checkout session token (cs_<64 hex>)
         in: path
@@ -6367,8 +6371,8 @@ paths:
     get:
       description: |-
         Authoritative BNPL outcome inquiry for a checkout owned by the authenticated merchant.
-        Returns checkout_session_id, merchant_order_id, status, amount_minor, currency, and completed_at when completed.
-        Read-only: never mutates checkout state or enqueues lifecycle events. Browser return parameters are never payment confirmation.
+        Returns checkout_session_id, merchant_order_id, status, amount_minor, currency, verification_deadline_at when verify_pending, and verified_at when verified_by_merchant.
+        Read-only: never mutates checkout state, never verifies, and never enqueues lifecycle events. Browser return parameters are never payment confirmation.
         Does not expose customer credit, installment offers, provider selection, or Financial Core payment identifiers.
       parameters:
       - description: Public numeric terminal identifier of the partner
@@ -6798,6 +6802,155 @@ paths:
       summary: Select or replace partner checkout credit kind
       tags:
       - Checkout Sessions
+  /api/v1/partner/checkout-sessions/{checkout_session_id}/verify:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Records explicit merchant acceptance after durable Financial Core success (status verify_pending).
+        Idempotent: repeating Verify for an already verified checkout owned by the same merchant with a matching merchant_order_id returns the stored verification receipt.
+        Never activates contracts, releases credit, or treats browser redirects as payment confirmation.
+      parameters:
+      - description: Public numeric terminal identifier of the partner
+        in: header
+        name: X-Terminal-Id
+        required: true
+        type: string
+      - description: Secret API key of the partner terminal
+        in: header
+        name: X-API-Key
+        required: true
+        type: string
+      - description: Optional; reused when present otherwise generated. Always returned.
+        in: header
+        name: X-Trace-Id
+        type: string
+      - description: Optional; reused when present otherwise generated. Always returned.
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Optional; reused when present otherwise generated. Always returned.
+        in: header
+        name: X-Correlation-Id
+        type: string
+      - description: Public checkout session token (cs_<64 hex>)
+        in: path
+        name: checkout_session_id
+        required: true
+        type: string
+      - description: Merchant verification request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/checkoutsessionrs.VerifyByMerchantRequestSchema'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Checkout verified by merchant
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/checkoutsessionrs.VerifyByMerchantSuccessSchema'
+        "400":
+          description: Bad Request
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "401":
+          description: Unauthorized
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "403":
+          description: Forbidden
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "404":
+          description: Not Found
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "409":
+          description: Conflict
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          headers:
+            X-Correlation-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Request-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+            X-Trace-Id:
+              description: 'Always set: reuse inbound value or generate'
+              type: string
+          schema:
+            $ref: '#/definitions/serdser.ErrorResponse'
+      security:
+      - TerminalAPIKey: []
+        TerminalID: []
+      summary: Verify partner checkout session
+      tags:
+      - Checkout Sessions
   /api/v1/partner/return-destinations/{destination_name}:
     put:
       consumes:
@@ -6923,124 +7076,6 @@ paths:
       - TerminalAPIKey: []
         TerminalID: []
       summary: Upsert merchant return destination
-      tags:
-      - Checkout Sessions
-  /api/v1/partner/webhook-destination:
-    put:
-      consumes:
-      - application/json
-      description: |-
-        Registers or updates the single lifecycle webhook endpoint for the authenticated merchant (one webhook per merchant; there are no named destinations).
-        Checkout requests never supply a webhook URL; lifecycle events resolve the destination from this registry.
-        The signing secret is write-only and is never echoed in the response. Omit signing_secret to keep the stored secret; send a new value (at least 32 bytes) to rotate it. The first registration requires a secret.
-        enabled is optional: omit it to preserve the stored value (true on first registration).
-        Requires the dedicated bnpl:checkout-webhooks:manage:merchant permission; an ordinary checkout-create credential cannot re-point or rotate webhooks.
-      parameters:
-      - description: Public numeric terminal identifier of the partner
-        in: header
-        name: X-Terminal-Id
-        required: true
-        type: string
-      - description: Secret API key of the partner terminal
-        in: header
-        name: X-API-Key
-        required: true
-        type: string
-      - description: Optional; reused when present otherwise generated. Always returned.
-        in: header
-        name: X-Trace-Id
-        type: string
-      - description: Optional; reused when present otherwise generated. Always returned.
-        in: header
-        name: X-Request-Id
-        type: string
-      - description: Optional; reused when present otherwise generated. Always returned.
-        in: header
-        name: X-Correlation-Id
-        type: string
-      - description: Webhook destination configuration
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/checkoutsessionrs.UpsertWebhookDestinationRequestSchema'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Success
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/checkoutsessionrs.WebhookDestinationSuccessSchema'
-        "400":
-          description: Bad Request
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "401":
-          description: Unauthorized
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "403":
-          description: Forbidden
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          headers:
-            X-Correlation-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Request-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-            X-Trace-Id:
-              description: 'Always set: reuse inbound value or generate'
-              type: string
-          schema:
-            $ref: '#/definitions/serdser.ErrorResponse'
-      security:
-      - TerminalAPIKey: []
-        TerminalID: []
-      summary: Upsert merchant webhook endpoint
       tags:
       - Checkout Sessions
   /api/v1/payments:

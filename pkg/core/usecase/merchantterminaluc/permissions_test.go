@@ -88,7 +88,7 @@ func TestAuthenticateDropsUnknownStoredPermissions(t *testing.T) {
 	require.NotContains(t, principal.Permissions, "bnpl:not-a-real-permission:manage:merchant")
 }
 
-func TestAuthenticateWithoutWebhookPermissionOmitsGrant(t *testing.T) {
+func TestAuthenticateWithoutReturnDestinationPermissionOmitsGrant(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
@@ -97,7 +97,7 @@ func TestAuthenticateWithoutWebhookPermissionOmitsGrant(t *testing.T) {
 
 	trimmed := make([]string, 0, len(h.terminals.permissions[terminalID]))
 	for _, code := range h.terminals.permissions[terminalID] {
-		if code == permission.CheckoutWebhooksManageMerchant.Code {
+		if code == permission.CheckoutReturnDestinationsManageMerchant.Code {
 			continue
 		}
 
@@ -108,7 +108,7 @@ func TestAuthenticateWithoutWebhookPermissionOmitsGrant(t *testing.T) {
 
 	principal, err := h.uc.Authenticate(h.ctx, issued.TerminalID, issued.APIKey)
 	require.NoError(t, err)
-	require.NotContains(t, principal.Permissions, permission.CheckoutWebhooksManageMerchant.Code)
+	require.NotContains(t, principal.Permissions, permission.CheckoutReturnDestinationsManageMerchant.Code)
 	require.Contains(t, principal.Permissions, permission.CheckoutSessionsCreateMerchant.Code)
 }
 

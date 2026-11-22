@@ -282,7 +282,6 @@ func (c *Config) NewCheckoutSessionUseCase(
 	contractUC *contractuc.UseCase,
 	outbox repo.Outbox,
 	idGenerator identifier.Generator,
-	webhookSecretBox secretbox.Box,
 	customerPhoneBox secretbox.Box,
 	clk clock.Clock,
 	customerResolver extcustomer.Resolver,
@@ -322,7 +321,6 @@ func (c *Config) NewCheckoutSessionUseCase(
 		contractUC,
 		outbox,
 		idGenerator,
-		webhookSecretBox,
 		customerPhoneBox,
 		returnURLPolicyForEnvironment(env),
 		clk,
@@ -1076,40 +1074,6 @@ func (c *Config) NewExternalContractCancellationClient() (
 	error,
 ) {
 	return c.External.FinancialCore.newExternalContractCancellationClient()
-}
-
-// NewExternalWebhookRoutingPublisher constructs the webhook destination router.
-//
-// webhook://merchant/<id> rows are handled by the configured webhook provider;
-// every other destination keeps using fallback. The optional closer owns HTTP
-// deliverer resources only — never the messaging fallback publisher.
-func (c *Config) NewExternalWebhookRoutingPublisher(
-	pool repo.Pool,
-	checkoutSession repo.CheckoutSession,
-	fallback messaging.Publisher,
-	clk clock.Clock,
-	logger corelog.Logger,
-	businessMetrics coremetrics.BusinessMetrics,
-	httpClient corehttpclient.Client,
-) (messaging.Publisher, io.Closer, error) {
-	const op = "config.Config.NewExternalWebhookRoutingPublisher"
-
-	env, err := c.Runtime.ParsedEnvironment()
-	if err != nil {
-		return nil, nil, fmt.Errorf("%s: parse runtime environment: %w", op, err)
-	}
-
-	return c.External.WebhookDispatcher.newRoutingPublisher(
-		c.Usecases.CheckoutSession,
-		env,
-		pool,
-		checkoutSession,
-		fallback,
-		clk,
-		logger,
-		businessMetrics,
-		httpClient,
-	)
 }
 
 // String returns a JSON representation of c Config struct with secrets redacted.

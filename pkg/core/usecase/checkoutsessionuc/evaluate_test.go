@@ -252,7 +252,9 @@ func TestRecordEvaluation_RefusesToLinkDecisionOntoNonOpenSession(t *testing.T) 
 	statuses := []model.CheckoutSessionStatus{
 		model.ConfirmingCheckoutSessionStatus,
 		model.ProcessingCheckoutSessionStatus,
-		model.CompletedCheckoutSessionStatus,
+		model.VerifyPendingCheckoutSessionStatus,
+		model.VerifiedByMerchantCheckoutSessionStatus,
+		model.CancellationPendingCheckoutSessionStatus,
 		model.CanceledCheckoutSessionStatus,
 		model.ExpiredCheckoutSessionStatus,
 	}
@@ -291,9 +293,6 @@ func TestLifecycleOutbox_EventIDIsStableForOneLogicalTransition(t *testing.T) {
 	h.merchantTx.EXPECT().
 		GetByID(h.ctx, unavailable.MerchantProfileID).
 		Return(model.MerchantProfile{ID: unavailable.MerchantProfileID, ExternalMerchantID: h.merchantID}, nil).Twice()
-	h.sessionTx.EXPECT().
-		GetWebhookDestination(h.ctx, h.merchantID).
-		Return(model.MerchantWebhookDestination{}, cerr.ResourceNotFound(errors.New("no webhook"))).Twice()
 	h.outboxTx.EXPECT().
 		Create(h.ctx, testifymock.Anything).
 		RunAndReturn(func(_ context.Context, message repo.CreateOutboxMessage) (model.OutboxMessage, error) {

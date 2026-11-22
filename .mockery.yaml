@@ -299,12 +299,6 @@ packages:
         config:
           structname: SecretBox
 
-  github.com/parstis/bnpl-backend/pkg/core/webhook:
-    interfaces:
-      Deliverer:
-        config:
-          structname: WebhookDeliverer
-
   github.com/parstis/bnpl-backend/pkg/core/external/botmessage:
     interfaces:
       BatchSender:

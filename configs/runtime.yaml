@@ -89,8 +89,6 @@ usecases:
     ttl: ${CHECKOUT_SESSION_TTL}
     expiry_batch_size: ${CHECKOUT_SESSION_EXPIRY_BATCH_SIZE}
     lifecycle_events_destination: ${KAFKA_TOPIC_MERCHANT_CHECKOUT_EVENTS}
-    webhook_secret_encryption_active_key_id: ${WEBHOOK_SECRET_ENCRYPTION_ACTIVE_KEY_ID}
-    webhook_secret_encryption_keys: ${WEBHOOK_SECRET_ENCRYPTION_KEYS}
     otp_template_id: ${CHECKOUT_SESSION_OTP_TEMPLATE_ID}
     otp_active_pepper_key_id: ${CHECKOUT_SESSION_OTP_ACTIVE_PEPPER_KEY_ID}
     otp_pepper_keys: ${CHECKOUT_SESSION_OTP_PEPPER_KEYS}
@@ -401,6 +399,17 @@ infrastructure:
           interval: ${TASK_CHECKOUT_SESSION_CONFIRMING_RECOVERY_INTERVAL}
           run_on_start: ${TASK_CHECKOUT_SESSION_CONFIRMING_RECOVERY_RUN_ON_START}
 
+      checkout_verification_expiry:
+        enabled: ${TASK_CHECKOUT_VERIFICATION_EXPIRY_ENABLED}
+        execution: ${TASK_CHECKOUT_VERIFICATION_EXPIRY_EXECUTION}
+        handler: ${TASK_CHECKOUT_VERIFICATION_EXPIRY_HANDLER}
+        trigger:
+          type: ${TASK_CHECKOUT_VERIFICATION_EXPIRY_TRIGGER_TYPE}
+          cron: ${TASK_CHECKOUT_VERIFICATION_EXPIRY_CRON}
+          timezone: ${TASK_CHECKOUT_VERIFICATION_EXPIRY_TIMEZONE}
+          interval: ${TASK_CHECKOUT_VERIFICATION_EXPIRY_INTERVAL}
+          run_on_start: ${TASK_CHECKOUT_VERIFICATION_EXPIRY_RUN_ON_START}
+
       merchant_terminal_issuance_scrub:
         enabled: ${TASK_MERCHANT_TERMINAL_ISSUANCE_SCRUB_ENABLED}
         execution: ${TASK_MERCHANT_TERMINAL_ISSUANCE_SCRUB_EXECUTION}
@@ -520,16 +529,6 @@ external:
 
     creditbureau:
       # future settings live here
-
-  webhook_dispatcher:
-    provider: ${EXTERNAL_WEBHOOK_DISPATCHER_PROVIDER}
-
-    noop:
-
-    http:
-      timeout: ${EXTERNAL_WEBHOOK_DISPATCHER_HTTP_TIMEOUT}
-      dial_timeout: ${EXTERNAL_WEBHOOK_DISPATCHER_HTTP_DIAL_TIMEOUT}
-      max_response_bytes: ${EXTERNAL_WEBHOOK_DISPATCHER_HTTP_MAX_RESPONSE_BYTES}
 
   financial_core:
     provider: ${EXTERNAL_FINANCIAL_CORE_PROVIDER}

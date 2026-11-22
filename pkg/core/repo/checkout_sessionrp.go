@@ -9,10 +9,10 @@ import (
 
 // CheckoutSessionQueryer defines read-only checkout session operations.
 //
-// The repository also owns the two merchant configuration tables the hosted
-// checkout boundary depends on: pre-registered return destinations and the
-// merchant webhook destination. They exist only to serve checkout handoffs, so
-// keeping them behind one port avoids spreading the boundary across repos.
+// The repository also owns the merchant configuration table the hosted
+// checkout boundary depends on: pre-registered return destinations. It exists
+// only to serve checkout handoffs, so keeping it behind one port avoids
+// spreading the boundary across repos.
 type CheckoutSessionQueryer interface {
 	// GetByID returns the checkout session identified by id.
 	GetByID(ctx context.Context, id model.CheckoutSessionID) (model.CheckoutSession, error)
@@ -40,22 +40,6 @@ type CheckoutSessionQueryer interface {
 
 	// GetByContractID returns the checkout session linked to contractID.
 	GetByContractID(ctx context.Context, contractID model.ContractID) (model.CheckoutSession, error)
-
-	// GetWebhookDestination returns the enabled webhook destination registered
-	// for the merchant. A merchant has at most one destination.
-	GetWebhookDestination(
-		ctx context.Context,
-		merchantID model.ExternalMerchantID,
-	) (model.MerchantWebhookDestination, error)
-
-	// FindWebhookDestination returns the merchant's webhook destination whether
-	// or not it is enabled, so the dispatcher can distinguish a disabled
-	// destination (permanent, auditable) from a missing one. Returns
-	// cerr.ResourceNotFound when the merchant has none.
-	FindWebhookDestination(
-		ctx context.Context,
-		merchantID model.ExternalMerchantID,
-	) (model.MerchantWebhookDestination, error)
 
 	// GetReturnDestination returns the enabled return destination registered under destinationName.
 	GetReturnDestination(
@@ -135,15 +119,54 @@ type CheckoutSessionTxQueryer interface {
 		updatedAt time.Time,
 	) (model.CheckoutSession, error)
 
-	// UpdateStatus transitions a checkout session to status. It stamps
-	// completed_at when status is completed. Use MarkCanceled to cancel and
-	// MarkConfirming to enter confirming.
+	// UpdateStatus transitions a checkout session to status for simple lifecycle
+	// moves that do not stamp verification audit columns. Prefer the dedicated
+	// MarkVerifyPending / MarkVerifiedByMerchant / MarkCancellationPending
+	// methods for post-FC verification transitions.
 	UpdateStatus(
 		ctx context.Context,
 		id model.CheckoutSessionID,
 		status model.CheckoutSessionStatus,
 		updatedAt time.Time,
 	) (model.CheckoutSession, error)
+
+	// MarkVerifyPending records durable FC success and starts the merchant
+	// verification window. Only open/confirming/processing rows match. Rows
+	// already in verify_pending/verified_by_merchant/cancellation_pending are
+	// reported as Conflict so callers can treat them as idempotent recognition.
+	MarkVerifyPending(
+		ctx context.Context,
+		id model.CheckoutSessionID,
+		verificationPendingAt time.Time,
+		verificationDeadlineAt time.Time,
+		verificationPolicyVersion string,
+		updatedAt time.Time,
+	) (model.CheckoutSession, error)
+
+	// MarkVerifiedByMerchant accepts merchant Verify while status is
+	// verify_pending and now is strictly before verification_deadline_at.
+	MarkVerifiedByMerchant(
+		ctx context.Context,
+		id model.CheckoutSessionID,
+		terminalID model.MerchantTerminalID,
+		verifiedAt time.Time,
+	) (model.CheckoutSession, error)
+
+	// MarkCancellationPending moves due verify_pending rows to
+	// cancellation_pending using the stored deadline (now >= deadline).
+	MarkCancellationPending(
+		ctx context.Context,
+		id model.CheckoutSessionID,
+		cancellationPendingAt time.Time,
+	) (model.CheckoutSession, error)
+
+	// ClaimDueVerifyPending locks up to limit verify_pending rows whose
+	// verification_deadline_at is at or before now (FOR UPDATE SKIP LOCKED).
+	ClaimDueVerifyPending(
+		ctx context.Context,
+		now time.Time,
+		limit int,
+	) ([]model.CheckoutSession, error)
 
 	// MarkConfirming atomically moves an open checkout session with a linked
 	// Decision to confirming, mints confirmation_attempt_id, so Confirm owns it.
@@ -253,19 +276,6 @@ type CheckoutSessionTxQueryer interface {
 		enabled *bool,
 		now time.Time,
 	) (model.MerchantReturnDestination, error)
-
-	// UpsertWebhookDestination registers or updates the merchant's single webhook
-	// destination. The signing secret is stored envelope-encrypted. An empty
-	// ciphertext on update preserves the stored secret rather than wiping it.
-	UpsertWebhookDestination(
-		ctx context.Context,
-		merchantID model.ExternalMerchantID,
-		webhookURL string,
-		signingSecretCiphertext string,
-		signingSecretKeyID string,
-		enabled bool,
-		now time.Time,
-	) (model.MerchantWebhookDestination, error)
 
 	// BindCustomer attaches the trusted customer identity to a checkout session
 	// without allowing a conflicting overwrite.

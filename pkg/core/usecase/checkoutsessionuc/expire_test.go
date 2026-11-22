@@ -126,8 +126,8 @@ func TestTransitionToExpired(t *testing.T) {
 			message: "error.checkout_payment_is_in_progress_and_must_be_resolved_before_expiry",
 		},
 		{
-			name:    "completed is not expired",
-			status:  model.CompletedCheckoutSessionStatus,
+			name:    "verified_by_merchant is not expired",
+			status:  model.VerifiedByMerchantCheckoutSessionStatus,
 			message: "error.checkout_session_cannot_continue_in_its_current_state",
 		},
 		{

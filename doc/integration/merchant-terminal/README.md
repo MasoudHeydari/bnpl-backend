@@ -33,7 +33,7 @@
 - **ذخیره:** فقط HMAC verifier (pepper شده) + ciphertext رمزشده برای Replay کوتاه‌مدت.
 - **وضعیت Credential:** `active` → `retiring` → `retired` (یا مستقیم `retired` وقتی grace=0).
 - **Permission پنل:** `bnpl:merchant-terminals:manage:merchant`.
-- **Permission پارتنر (seed در Provision):** create/read checkout، manage webhook destination، manage return destination.
+- **Permission پارتنر (seed در Provision):** create/read checkout (شامل Verify)، manage return destination.
 
 ## تنظیمات پیش‌فرض (local / `.env.example`)
 

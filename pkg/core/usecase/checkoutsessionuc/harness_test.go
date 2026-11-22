@@ -27,6 +27,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	checkoutcatalog "github.com/parstis/bnpl-backend/pkg/core/policy/checkout/catalog"
 	checkoutorigin "github.com/parstis/bnpl-backend/pkg/core/policy/checkoutorigin"
+	checkoutverificationv1 "github.com/parstis/bnpl-backend/pkg/core/policy/checkoutverification/v1"
 	otppolicy "github.com/parstis/bnpl-backend/pkg/core/policy/otp"
 	returndestination "github.com/parstis/bnpl-backend/pkg/core/policy/returndestination"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
@@ -204,7 +205,6 @@ type harness struct {
 	phoneCanonicalizeErr error
 	jurisdictions        domaincapability.OriginationJurisdictions
 	customerPhoneBox     *mock.SecretBox
-	webhookSecretBox     *mock.SecretBox
 	otpChallenges        *fakeOTPRepo
 	otpUC                *otpusecase.UseCase
 	otpRandom            *sequentialReader
@@ -275,7 +275,6 @@ func newHarness(t *testing.T) *harness {
 		notification:       mock.NewNotificationSubmitter(t),
 		phoneCanonicalizer: mock.NewPhoneCanonicalizer(t),
 		customerPhoneBox:   mock.NewSecretBox(t),
-		webhookSecretBox:   mock.NewSecretBox(t),
 		otpChallenges:      newFakeOTPRepo(),
 		otpRandom:          newSequentialReader(),
 		sessionID:          model.CheckoutSessionID(uuid.New()),
@@ -364,7 +363,6 @@ func newHarness(t *testing.T) *harness {
 	chargeRepo.EXPECT().Tx(h.tx).Return(h.chargeTx).Maybe()
 
 	lifecycle, err := NewLifecycleOutbox(
-		sessionRepo,
 		merchantRepo,
 		outboxRepo,
 		mock.NewIdentifierGenerator(t),
@@ -451,7 +449,6 @@ func newHarness(t *testing.T) *harness {
 		contractUC:                 h.contracts,
 		lifecycle:                  lifecycle,
 		random:                     rand.Reader,
-		webhookSecretBox:           h.webhookSecretBox,
 		customerPhoneBox:           h.customerPhoneBox,
 		returnURLPolicy:            returndestination.Development(),
 		clock:                      adapterclock.NewFixed(now, time.UTC),
@@ -556,19 +553,6 @@ func (h *harness) installDefaultCoreCollaborators() {
 			return strings.TrimPrefix(ciphertext, "sb1."), nil
 		}).
 		Maybe()
-
-	h.webhookSecretBox.EXPECT().
-		Encrypt(testifymock.Anything).
-		RunAndReturn(func(plaintext string) (string, string, error) {
-			return "sb1." + plaintext, "test", nil
-		}).
-		Maybe()
-	h.webhookSecretBox.EXPECT().
-		Decrypt(testifymock.Anything, testifymock.Anything).
-		RunAndReturn(func(ciphertext string, _ string) (string, error) {
-			return strings.TrimPrefix(ciphertext, "sb1."), nil
-		}).
-		Maybe()
 }
 
 // expectPool registers connCalls Pool.Conn invocations that never open a
@@ -666,6 +650,41 @@ func withStatus(status model.CheckoutSessionStatus) func(*model.CheckoutSession)
 	return func(s *model.CheckoutSession) { s.Status = status }
 }
 
+// verifyPendingSession builds a session after durable FC success, with the
+// merchant verification window stamped by the compile-time v1 policy.
+func (h *harness) verifyPendingSession(mods ...func(*model.CheckoutSession)) model.CheckoutSession {
+	pendingAt := h.now.UTC()
+	deadlineAt := checkoutverificationv1.New().DeadlineAt(pendingAt)
+	version := checkoutverificationv1.PolicyVersion
+	base := []func(*model.CheckoutSession){
+		withStatus(model.VerifyPendingCheckoutSessionStatus),
+		func(s *model.CheckoutSession) {
+			s.VerificationPendingAt = &pendingAt
+			s.VerificationDeadlineAt = &deadlineAt
+			s.VerificationPolicyVersion = &version
+		},
+	}
+
+	return h.session(append(base, mods...)...)
+}
+
+// expectMarkVerifyPending expects MarkVerifyPending with the harness clock and
+// v1 verification policy deadline, returning session.
+func (h *harness) expectMarkVerifyPending(session model.CheckoutSession) {
+	h.t.Helper()
+
+	pendingAt := h.now.UTC()
+	deadlineAt := checkoutverificationv1.New().DeadlineAt(pendingAt)
+	h.sessionTx.EXPECT().MarkVerifyPending(
+		h.ctx,
+		h.sessionID,
+		pendingAt,
+		deadlineAt,
+		checkoutverificationv1.PolicyVersion,
+		pendingAt,
+	).Return(session, nil).Once()
+}
+
 func withConfirmationAttempt(id model.ConfirmationAttemptID) func(*model.CheckoutSession) {
 	return func(s *model.CheckoutSession) { s.ConfirmationAttemptID = &id }
 }
@@ -740,7 +759,7 @@ func (h *harness) expectCustomerLock() {
 }
 
 // expectLifecycleEvent expects exactly one merchant lifecycle outbox row of
-// eventType for session. The merchant has no webhook destination.
+// eventType for session.
 func (h *harness) expectLifecycleEvent(session model.CheckoutSession, eventType string) {
 	h.t.Helper()
 
@@ -751,9 +770,6 @@ func (h *harness) expectLifecycleEvent(session model.CheckoutSession, eventType 
 			ExternalMerchantID: h.merchantID,
 			Status:             model.ActiveMerchantStatus,
 		}, nil).Once()
-	h.sessionTx.EXPECT().
-		GetWebhookDestination(h.ctx, h.merchantID).
-		Return(model.MerchantWebhookDestination{}, cerr.ResourceNotFound(errors.New("no webhook"))).Once()
 	h.outboxTx.EXPECT().
 		Create(h.ctx, testifymock.MatchedBy(func(message repo.CreateOutboxMessage) bool {
 			if message.Destination != testMerchantEventsDestination || message.EventType != eventType {

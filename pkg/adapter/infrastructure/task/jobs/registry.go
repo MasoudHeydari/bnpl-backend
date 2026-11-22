@@ -104,6 +104,9 @@ func (r Registry) Resolve(handler string) (coretask.Job, error) {
 	case "checkout_session_confirming_recovery":
 		return checkoutsessionjob.RecoverConfirming(r.logger, r.checkoutsessionuc), nil
 
+	case "checkout_verification_expiry":
+		return checkoutsessionjob.VerificationExpiry(r.logger, r.checkoutsessionuc), nil
+
 	case "saga_executor":
 		return sagajob.Executor(r.logger, r.sagaexecutoruc), nil
 

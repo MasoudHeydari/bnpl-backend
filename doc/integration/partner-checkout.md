@@ -2,7 +2,7 @@
 
 **زبان:** فارسی · [English](partner-checkout.en.md)  
 **راهنمای Frontend خود BNPL:** [فارسی](../frontend/bnpl-frontend.fa.md) / [English](../frontend/bnpl-frontend.en.md)  
-> **به‌روزرسانی قرارداد (۲۰ نوامبر ۲۰۲۶):** دو محصول اعتباری + Partner `PUT .../credit-kind` با `expected_evaluation_generation`. Create فقط `credit_kinds[]` می‌دهد و Offer نمی‌سازد. changelog شناسه: [changelog](../frontend/bnpl-frontend-external-ids-changelog.fa.md).
+> **به‌روزرسانی قرارداد (۲۳ نوامبر ۲۰۲۶):** پس از موفقیت پایدار Financial Core، Session به `verify_pending` می‌رود. Fulfill فقط بعد از Partner `POST .../verify` (یا Inquiry با `status=verified_by_merchant`). وب‌هوک lifecycle برای Merchant حذف شده است. دو محصول اعتباری + `PUT .../credit-kind` از ۲۰ نوامبر پابرجاست. changelog شناسه: [changelog](../frontend/bnpl-frontend-external-ids-changelog.fa.md).
 
 **مخاطب:** تیم Backend، Frontend، QA و عملیات همهٔ Merchantها؛ از جمله Damz، دیجی‌کالا و سایر فروشگاه‌ها.  
 **وضعیت:** قرارداد اجرایی فعلی.  
@@ -17,11 +17,11 @@
 
 ### اصول مسئولیت‌ها
 
-1. **Merchant Backend** فقط `/api/v1/partner/**` را با `X-Terminal-Id` و `X-API-Key` صدا می‌زند و هرگز این اسرار یا signing secret وب‌هوک را در Browser قرار نمی‌دهد.
+1. **Merchant Backend** فقط `/api/v1/partner/**` را با `X-Terminal-Id` و `X-API-Key` صدا می‌زند و هرگز این اسرار را در Browser قرار نمی‌دهد.
 2. **فروشگاه Merchant** لیست `credit_kinds[]` را به مشتری نشان می‌دهد و انتخاب را از طریق Backend با `PUT .../credit-kind` ثبت می‌کند.
 3. **Frontend Merchant** کاربر را فقط به `checkout_url` شفاف/opaque برمی‌گرداند؛ محصول را داخل Hosted انتخاب نمی‌کند.
 4. **Hosted Checkout BNPL** مسیرهای توکن عمومی را اجرا می‌کند و نمی‌تواند `credit_kind` انتخاب‌شده توسط Partner را عوض کند.
-5. **تکمیل سفارش** فقط با Partner Inquiry به `status=completed` یا وب‌هوک امضاشدهٔ `bnpl.checkout.completed.v1` قطعی است؛ Redirect مرورگر یا PSP کافی نیست.
+5. **تکمیل سفارش** با Partner `POST .../verify` در وضعیت `verify_pending` و سپس Inquiry با `status=verified_by_merchant` قطعی است؛ Redirect مرورگر یا PSP کافی نیست و جایگزین Verify نیست.
 6. اعمال fulfillment سمت Merchant باید **idempotent** باشد.
 
 ## ۲. نقشهٔ بازیگران و مسیرها
@@ -42,9 +42,10 @@ Merchant Backend -- X-Terminal-Id / X-API-Key --> BNPL /api/v1/partner/
 Merchant Frontend -- checkout_url --> BNPL Hosted Checkout
                                        |
                                        | GET/START/OTP/CONFIRM/...
+                                       | GET .../return  (فقط UX)
                                        |
-Merchant Backend <-- webhook امضاشده --+
-Merchant Backend -- GET Inquiry ------> BNPL
+Merchant Backend -- GET Inquiry ------> BNPL  (تا verify_pending)
+Merchant Backend -- POST .../verify --> BNPL  (merchant_order_id؛ سپس Fulfill)
 ~~~
 
 | سطح | مسیر | احراز هویت | مصرف‌کننده |
@@ -74,10 +75,9 @@ Merchant Backend -- GET Inquiry ------> BNPL
 
 | Permission روی Terminal | عملیات |
 | --- | --- |
-| `bnpl:checkout-sessions:create:merchant` | Create و Cancel |
+| `bnpl:checkout-sessions:create:merchant` (`CheckoutSessionsCreateMerchant`) | Create، Select credit kind، Verify (`POST .../verify`) و Cancel |
 | `bnpl:checkout-sessions:read:merchant` | Inquiry |
 | `bnpl:checkout-return-destinations:manage:merchant` | پیکربندی Return Destination |
-| `bnpl:checkout-webhooks:manage:merchant` | پیکربندی Webhook |
 
 تغییر/Rotate کلید به‌معنی اعطای Permission جدید نیست. `403` با کلید صحیح می‌تواند نشان‌دهندهٔ نبود Permission باشد.
 
@@ -116,28 +116,7 @@ X-API-Key: ...
 
 `enabled` اختیاری است و با حذف آن، مقدار ذخیره‌شده حفظ می‌شود (بار اول `true`). URL باید معتبر و مطلق باشد، بدون Userinfo/Query/Fragment و whitespace غیرمجاز؛ در Production از HTTPS استفاده کنید. پاسخ `200` در `data` شامل `destination_name`، `return_url` و `enabled` است.
 
-### ۳.۴. ثبت Webhook Destination
-
-~~~http
-PUT /api/v1/partner/webhook-destination
-Content-Type: application/json
-X-Terminal-Id: ...
-X-API-Key: ...
-~~~
-
-~~~json
-{
-  "webhook_url": "https://shop.example/webhooks/bnpl",
-  "signing_secret": "<long-random-secret-at-least-32-bytes>",
-  "enabled": true
-}
-~~~
-
-در پیاده‌سازی فعلی یک Webhook Destination برای هر Merchant نگهداری می‌شود، نه برای هر سفارش. `signing_secret` بار اول الزامی است؛ بعداً حذف آن یعنی استفاده از Secret ذخیره‌شده و ارسال مقدار جدید یعنی Rotation. طول Secret بین ۳۲ تا ۵۱۲ کاراکتر است؛ پاسخ، آن را برنمی‌گرداند و فقط `webhook_url` و `enabled` را دارد. `enabled` با حذف، مقدار قبلی را حفظ می‌کند.
-
-Webhook URL مستقل از Return URL است؛ مقصد Webhook نباید مستقیماً از ورودی Checkout Create گرفته شود. پیش از استفادهٔ واقعی، از HTTPS و دسترسی و Policy مقصد مطابق محیط BNPL اطمینان حاصل کنید.
-
-### ۳.۵. Online Store و تنظیم شعبه
+### ۳.۴. Online Store و تنظیم شعبه
 
 برای Create، Merchant به `external_online_store_id` معتبر و متعلق به همان Merchant نیاز دارد. BNPL از این شناسه، Merchant Branch آنلاین و سیاست‌های آن را پیدا می‌کند؛ Merchant حق ندارد به‌جای آن `external_merchant_id` یا `external_branch_id` دلخواه بفرستد.
 
@@ -152,9 +131,11 @@ Webhook URL مستقل از Return URL است؛ مقصد Webhook نباید مس
 | `POST` | `/api/v1/partner/checkout-sessions` | `bnpl:checkout-sessions:create:merchant` |
 | `PUT` | `/api/v1/partner/checkout-sessions/{checkout_session_id}/credit-kind` | `bnpl:checkout-sessions:create:merchant` |
 | `GET` | `/api/v1/partner/checkout-sessions/{checkout_session_id}` | `bnpl:checkout-sessions:read:merchant` |
+| `POST` | `/api/v1/partner/checkout-sessions/{checkout_session_id}/verify` | `bnpl:checkout-sessions:create:merchant` |
 | `POST` | `/api/v1/partner/checkout-sessions/{checkout_session_id}/cancel` | `bnpl:checkout-sessions:create:merchant` |
 | `PUT` | `/api/v1/partner/return-destinations/{destination_name}` | `bnpl:checkout-return-destinations:manage:merchant` |
-| `PUT` | `/api/v1/partner/webhook-destination` | `bnpl:checkout-webhooks:manage:merchant` |
+
+API پیکربندی Webhook Destination برای Partner وجود ندارد.
 
 ### Hosted BNPL Customer UI (نباید از Merchant Backend فراخوانی شود)
 
@@ -278,14 +259,14 @@ X-API-Key: ...
 2. **START** فقط بعد از Partner `PUT .../credit-kind`. body اختیاری `{"evaluation_generation":N}`؛ بدون انتخاب قبلی ادامه نمی‌دهد و kind را override نمی‌کند. Offer را برای kind انتخاب‌شده آماده/برمی‌گرداند و **SMS نمی‌فرستد**.
 3. **OTP**: `POST .../otp` با `{"evaluation_generation":N}`؛ پاسخ شامل `otp_sent` و محدودیت‌های صدور مجدد است.
 4. **CONFIRM**: `POST .../confirm` با `{"evaluation_generation":N,"otp":"123456"}`. `reconfirm_required=true` یعنی Offer تازه + OTP نسل جدید.
-5. **تکمیل پرداخت**: `payment_required=true` + `redirect_url` فقط ادامهٔ UX است، نه تسویه. `payment_required=false` هم تا `completed` authoritative قطعی نیست.
+5. **تکمیل پرداخت**: `payment_required=true` + `redirect_url` فقط ادامهٔ UX است، نه تسویه. موفقیت پایدار FC Session را به `verify_pending` می‌برد تا Merchant Verify کند؛ Hosted `completed` جایگزین Verify نیست.
 6. **ابهام Confirm**: `GET .../confirmation-status` فقط‌خواندنی است؛ Payment URL جدید نمی‌سازد. وضعیت‌هایی مثل `payment_action_required` / `retry_available` / `needs_attention` را از `next_action` دنبال کنید.
 
 برای `confirmation-status`، حالت `payment_action_required` به این معنی نیست که Poll خودش لینک جدید می‌سازد؛ ادامهٔ مجاز پرداخت باید از فلو احراز هویت و Confirm پیروی کند. محدودیت‌های صدور مجدد OTP با `otp_next_issue_at` و `otp_availability` هدایت می‌شوند.
 
 ### Browser Return
 
-`GET /api/v1/checkout-sessions/{token}/return` پاسخ **HTTP 302** به Return URL ثبت‌شده و ذخیره‌شده در Checkout است. پارامترهای خروجی صرفاً `checkout_session_id` و در صورت وجود `state=merchant_state` هستند. ورودی مثل `?url=...` مقصد را عوض نمی‌کند. صفحهٔ Merchant بعد از بازگشت باید Pending نشان دهد و از Backend Merchant وضعیت را بپرسد؛ از Query String موفقیت را استنتاج نکند.
+`GET /api/v1/checkout-sessions/{token}/return` پاسخ **HTTP 302** به Return URL ثبت‌شده و ذخیره‌شده در Checkout است. این دست‌به‌دست‌شدن **فقط UX** است. پارامترهای خروجی صرفاً `checkout_session_id` و در صورت وجود `state=merchant_state` هستند. ورودی مثل `?url=...` مقصد را عوض نمی‌کند. صفحهٔ Merchant بعد از بازگشت باید Pending نشان دهد و از Backend بخواهد Inquiry کند و در صورت `verify_pending`، Verify بزند؛ از Query String موفقیت، Verify یا Fulfill را استنتاج نکند.
 
 ## ۸. Inquiry و نهایی‌کردن سفارش
 
@@ -295,22 +276,22 @@ X-Terminal-Id: ...
 X-API-Key: ...
 ~~~
 
-`200` در `data`:
+`200` در `data` (بسته به وضعیت):
 
 ~~~json
 {
   "checkout_session_id": "cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   "merchant_order_id": "ORDER-1001",
-  "status": "completed",
+  "status": "verify_pending",
   "amount_minor": 120000000,
   "currency": "IRR",
-  "completed_at": "2026-11-04T13:03:00Z"
+  "verification_deadline_at": "2026-11-04T13:33:00Z"
 }
 ~~~
 
-`completed_at` فقط هنگام تکمیل وجود دارد. Inquiry وضعیت را **نمی‌نویسد**؛ ممکن است Session بازِ گذشته از Deadline را در پاسخ `expired` نشان دهد، بدون اینکه الزاماً همان لحظه State در DB تغییر کند. دسترسی به Session Merchant دیگر `404` است تا امکان Enumeration ایجاد نشود.
+وقتی `status=verified_by_merchant` باشد، Inquiry به‌جای `verification_deadline_at` فیلد `verified_at` را برمی‌گرداند. Inquiry وضعیت را **نمی‌نویسد**؛ ممکن است Session بازِ گذشته از Deadline را در پاسخ `expired` نشان دهد، بدون اینکه الزاماً همان لحظه State در DB تغییر کند. دسترسی به Session Merchant دیگر `404` است تا امکان Enumeration ایجاد نشود.
 
-پیش از Fulfill، دقیقاً این پنج مورد را با سفارش ذخیره‌شدهٔ Merchant تطبیق دهید: `checkout_session_id`، `merchant_order_id`، `amount_minor`، `currency` و `status == completed`. عملیات Fulfill باید در DB خود Merchant Idempotent و اتمیک باشد.
+پیش از Fulfill، دقیقاً این پنج مورد را با سفارش ذخیره‌شدهٔ Merchant تطبیق دهید: `checkout_session_id`، `merchant_order_id`، `amount_minor`، `currency` و `status == verified_by_merchant`. وقتی Inquiry هنوز `verify_pending` است، ابتدا Verify را صدا بزنید. عملیات Fulfill باید در DB خود Merchant Idempotent و اتمیک باشد.
 
 ### وضعیت‌های Checkout برای Merchant
 
@@ -319,12 +300,14 @@ X-API-Key: ...
 | `open` | Checkout قابل ادامه؛ Offer ممکن است هنوز تهیه نشده باشد | خیر |
 | `confirming` | تأیید مشتری/آغاز عملیات در حال انجام | خیر |
 | `processing` | نتیجهٔ معتبر عملیات مالی هنوز در راه است | خیر |
-| `completed` | Checkout با نتیجهٔ معتبر کامل شده است | **بله، پس از تطبیق** |
+| `verify_pending` | موفقیت پایدار FC ثبت شده؛ Merchant باید قبل از Deadline Verify کند | خیر — Verify کنید |
+| `verified_by_merchant` | Merchant در پنجرهٔ Verify پذیرش کرده است | **بله، پس از تطبیق** |
+| `cancellation_pending` | پنجرهٔ Verify تمام شده (یا لغو در جریان است)؛ قابل Fulfill نیست | خیر |
 | `canceled` | لغوشده توسط مشتری یا Merchant | خیر |
 | `expired` | مهلت Checkout پایان یافته | خیر |
 | `unavailable` | امکان ارائهٔ اعتبار/تکمیل پیشنهاد وجود ندارد | خیر |
 
-هیچ وضعیت Merchant-facing به نام `failed` در این State Machine وجود ندارد؛ خطای پرداخت قابل تکرار ممکن است Checkout را دوباره به `open` ببرد. `confirming/processing` را پرداخت موفق یا قابل Cancel فرض نکنید.
+هیچ وضعیت Merchant-facing به نام `failed` یا `completed` برای Fulfill در این State Machine وجود ندارد؛ خطای پرداخت قابل تکرار ممکن است Checkout را دوباره به `open` ببرد. `confirming` / `processing` / `verify_pending` را پرداخت قابل Fulfill فرض نکنید.
 
 ## ۹. لغو Checkout توسط Merchant
 
@@ -334,82 +317,52 @@ X-Terminal-Id: ...
 X-API-Key: ...
 ~~~
 
-در صورت مجاز بودن، `200` و `data` شامل `checkout_session_id`، `status=canceled` و `return_url` است. لغو Session از پیش `canceled` Idempotent است. فقط Checkout باز و قابل لغو را می‌توان لغو کرد؛ اگر Confirm/Payment شروع شده یا نتیجه مبهم است، درخواست می‌تواند `409 CONFLICT` بدهد. `completed`، `expired` و `unavailable` قابل لغو نیستند. در Conflict، Inquiry کنید و پرداخت نامعلوم را «ناموفق» فرض نکنید.
+در صورت مجاز بودن، `200` و `data` شامل `checkout_session_id`، `status=canceled` و `return_url` است. لغو Session از پیش `canceled` Idempotent است. فقط Checkout باز و قابل لغو را می‌توان لغو کرد؛ اگر Confirm/Payment شروع شده، نتیجه مبهم است یا Session در `verify_pending` است، درخواست می‌تواند `409 CONFLICT` بدهد. `verified_by_merchant`، `cancellation_pending`، `expired` و `unavailable` از این مسیر Partner قابل لغو نیستند. در Conflict، Inquiry کنید و پرداخت نامعلوم را «ناموفق» فرض نکنید.
 
-## ۱۰. Webhook: امضا، Event و تحویل حداقل یک‌بار
+## ۱۰. Verify توسط Merchant — پذیرش صریح پس از موفقیت FC
 
-وقتی Destination فعال باشد، رویدادهای وضعیت Checkout از Transactional Outbox برای Delivery HTTP آماده می‌شوند. انتشار حداقل یک‌بار است؛ دریافت تکراری کاملاً طبیعی است. اگر Webhook نرسید، Inquiry همچنان مسیر معتبر دریافت نتیجه است.
+پس از ثبت موفقیت پایدار Financial Core، Session به `verify_pending` می‌رود و `verification_deadline_at` ذخیره می‌شود. Merchant Backend باید در همان پنجره Verify را صدا بزند. Browser Return فقط UX است و جایگزین این فراخوانی نیست.
 
-| `event_type` | `data.status` |
-| --- | --- |
-| `bnpl.checkout.completed.v1` | `completed` |
-| `bnpl.checkout.canceled.v1` | `canceled` |
-| `bnpl.checkout.expired.v1` | `expired` |
-| `bnpl.checkout.unavailable.v1` | `unavailable` |
+~~~http
+POST /api/v1/partner/checkout-sessions/{checkout_session_id}/verify
+Content-Type: application/json
+X-Terminal-Id: ...
+X-API-Key: ...
+~~~
 
-ساختار Envelope:
+Permission: `bnpl:checkout-sessions:create:merchant` (`CheckoutSessionsCreateMerchant`).
 
 ~~~json
 {
-  "event_id": "cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef:bnpl.checkout.completed.v1:completed",
-  "event_type": "bnpl.checkout.completed.v1",
-  "event_version": "1",
-  "producer": "bnpl-backend",
-  "occurred_at": "2026-11-04T13:03:00Z",
+  "merchant_order_id": "ORDER-1001"
+}
+~~~
+
+پاسخ موفق `200`:
+
+~~~json
+{
   "data": {
     "checkout_session_id": "cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     "merchant_order_id": "ORDER-1001",
-    "external_merchant_id": "22222222-2222-4222-8222-222222222222",
-    "status": "completed",
-    "amount_minor": 120000000,
-    "currency": "IRR",
-    "completed_at": "2026-11-04T13:03:00Z",
-    "merchant_state": "CART-1001"
+    "status": "verified_by_merchant",
+    "verified_at": "2026-11-04T13:05:12Z"
   }
 }
 ~~~
 
-`completed_at` تنها روی رویداد تکمیل، `reason` در لغو (مثل `customer_canceled` / `merchant_canceled` / `technical_failure`) و `merchant_state` تنها در صورت وجود معنی‌دارند. هیچ شناسهٔ Financial Core، PSP، PaymentAttempt یا جزئیات اعتبار مشتری در Event نیست.
-
-`event_id` از توکن عمومی + نوع Event + Status ساخته می‌شود و در Retry همان رویداد ثابت می‌ماند:
-
-~~~text
-{checkout_session_id}:{event_type}:{status}
-~~~
-
-### Headers و HMAC دقیق
-
-| Header | مقدار |
+| قاعده | قرارداد |
 | --- | --- |
-| `Content-Type` | `application/json` |
-| `User-Agent` | `bnpl-webhook/1` |
-| `X-BNPL-Webhook-Id` | همان `event_id` |
-| `X-BNPL-Webhook-Timestamp` | Unix seconds زمان **همین تلاش Delivery** |
-| `X-BNPL-Webhook-Signature` | `v1=<hex lower-case HMAC-SHA256>` |
-| `X-BNPL-Webhook-Event` | `event_type` در صورت وجود Header مربوطه در Outbox |
+| پنجره | **۳۰ دقیقه** از موفقیت پایدار FC؛ سیاست `checkout_merchant_verification/v1` |
+| منبع Deadline | `verification_deadline_at` ذخیره‌شده روی Session (Inquiry در `verify_pending` آن را برمی‌گرداند) |
+| Body | `merchant_order_id` الزامی و باید با Checkout مطابقت داشته باشد؛ حداکثر ۲۵۶ کاراکتر |
+| Idempotency | تکرار Verify برای Session از پیش `verified_by_merchant` با همان مالک و همان `merchant_order_id` رسید ذخیره‌شده را برمی‌گرداند |
+| سفارش/وضعیت نادرست | Conflict — Inquiry کنید و Fulfill نکنید |
+| بعد از Deadline | Conflict (`verification_deadline_passed`) — Session در (یا به) `cancellation_pending` است |
 
-پیام Canonical برای HMAC دقیقاً اتصال UTF-8 این اجزاست:
+### Job انقضای Verify
 
-~~~text
-v1\n<event-id>\n<unix-timestamp-decimal>\n<raw-http-body>
-~~~
-
-یعنی بین سه فیلد اول LF واقعی قرار دارد و `body` **بایت‌های خام** HTTP است، نه JSON بازسازی‌شده. نمونهٔ مرجع برای Receiver:
-
-~~~python
-import hashlib
-import hmac
-
-def verify_webhook(secret: bytes, event_id: str, timestamp: str,
-                   raw_body: bytes, received_signature: str) -> bool:
-    canonical = (f"v1\n{event_id}\n{timestamp}\n").encode("utf-8") + raw_body
-    expected = "v1=" + hmac.new(secret, canonical, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(expected, received_signature)
-~~~
-
-Receiver همچنین باید Timestamp را عددی و تازه بودن آن را نسبت به پنجرهٔ توافق‌شده کنترل کند، `event_id` را برای Dedupe در DB ذخیره کند، نتیجه را اتمیک اعمال کند و فقط بعد از ثبت پایدار `2xx` بدهد؛ Duplicate قبلاً ثبت‌شده نیز می‌تواند `2xx` بگیرد. روی رویداد `completed` هم ابتدا سفارش/مبلغ/ارز/توکن تطبیق شود.
-
-Secret در سمت BNPL هنگام ارسال از Registry فعلی خوانده می‌شود؛ تغییر مقصد یا Rotation می‌تواند روی Deliveryهای معوق اثر بگذارد. گیرنده باید برنامهٔ Rotation و Retry داشته باشد.
+Task زمان‌بندی‌شدهٔ `checkout_verification_expiry` (بازهٔ تقریبی `1m`، envهای `TASK_CHECKOUT_VERIFICATION_EXPIRY_*`) ردیف‌های `verify_pending` سررسیدشده را با **`verification_deadline_at` ذخیره‌شده** ادعا می‌کند و بدون Refund مشتری و بدون آزادسازی exposure اعتبار، آن‌ها را به `cancellation_pending` می‌برد. جبران مالی authoritative مسیر جداگانه‌ای دارد؛ پس از پایان پنجرهٔ Verify نباید Fulfill شود.
 
 ## ۱۱. Idempotency، Error و سناریوهای شکست
 
@@ -418,9 +371,9 @@ Secret در سمت BNPL هنگام ارسال از Registry فعلی خواند�
 - اگر Create Timeout/قطع ارتباط داشت، **همان `idempotency_key` و همان مفاد تجاری** را دوباره بفرستید.
 - `idempotency_key` در **Body Create** است، نه Header `Idempotency-Key` مربوط به Provision ترمینال.
 - استفادهٔ دوباره از یک Key با شرایط تجاری یا `customer_phone` متفاوت، Conflict است. شماره Canonical توسط BNPL مقایسه می‌شود.
-- برای تلاش تازه پس از وضعیت Terminal ناموفق (`canceled`/`expired`/`unavailable`)، **Key جدید** بدهید. یک سفارش `completed` نباید Checkout تازه بگیرد.
+- برای تلاش تازه پس از وضعیت Terminal ناموفق (`canceled`/`expired`/`unavailable`/`cancellation_pending`)، **Key جدید** بدهید. یک سفارش `verified_by_merchant` نباید Checkout تازه بگیرد.
 - اگر یک Checkout فعال برای همان `merchant_order_id` وجود دارد، با Key جدید نباید عملیات پرداخت موازی برای همان سفارش بسازید؛ ابتدا وضعیت قبلی را تعیین تکلیف کنید.
-- Merchant باید نتیجهٔ Webhook و Fulfill را نیز Idempotent پردازش کند.
+- Merchant باید Verify و Fulfill را Idempotent پردازش کند؛ پارامترهای Browser Return را سیگنال authoritative نداند.
 
 ### پاسخ خطا
 
@@ -470,11 +423,13 @@ Secret در سمت BNPL هنگام ارسال از Registry فعلی خواند�
 | OTP دوباره در Challenge معتبر | رفتار محدود و Idempotent، نه SMS بی‌قیدوشرط |
 | Confirm با OTP/Generation نادرست | رد یا درخواست Reconfirm، بدون نهایی‌سازی غیرمجاز |
 | Confirm Timeout | `confirmation-status` برای وضعیت؛ نه فرض Success |
-| Webhook دوبار | یک Fulfillment |
-| Browser Return پیش از Webhook | نمایش Pending و Inquiry Backend |
+| Inquiry با `verify_pending` | فراخوانی Verify با `merchant_order_id` منطبق |
+| Verify دوبار با همان order id | رسید Idempotent با `verified_by_merchant` |
+| Verify بعد از Deadline | Conflict؛ `cancellation_pending`؛ بدون Fulfill |
+| فقط Browser Return | Pending، سپس Inquiry و Verify — هرگز Fulfill از Redirect |
 | Merchant Cancel همزمان با Confirm | ممکن است Conflict؛ Inquiry، بدون فرض لغو مالی |
 | Inquiry برای Session Merchant دیگر | `404` |
-| Session `completed` و Key جدید برای همان سفارش | عدم ایجاد Checkout دوم |
+| Session `verified_by_merchant` و Key جدید برای همان سفارش | عدم ایجاد Checkout دوم |
 | انقضای Session در حالی که Open است | `expired`، عدم Fulfillment |
 
 ## ۱۲. نمونهٔ عملی Backend Merchant
@@ -487,11 +442,6 @@ curl -sS -X PUT "$BNPL_API_BASE/api/v1/partner/return-destinations/default" \
   -H "X-Terminal-Id: $TERMINAL_ID" -H "X-API-Key: $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"return_url":"https://shop.example/checkout/bnpl/return","enabled":true}'
-
-curl -sS -X PUT "$BNPL_API_BASE/api/v1/partner/webhook-destination" \
-  -H "X-Terminal-Id: $TERMINAL_ID" -H "X-API-Key: $API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"webhook_url":"https://shop.example/webhooks/bnpl","signing_secret":"<long-random-secret-at-least-32-bytes>","enabled":true}'
 
 CREATE=$(curl -sS -X POST "$BNPL_API_BASE/api/v1/partner/checkout-sessions" \
   -H "X-Terminal-Id: $TERMINAL_ID" -H "X-API-Key: $API_KEY" \
@@ -516,6 +466,12 @@ curl -sS -X PUT "$BNPL_API_BASE/api/v1/partner/checkout-sessions/$CHECKOUT_SESSI
   -H "Content-Type: application/json" \
   -d "{\"credit_kind\":\"pay_in_installments\",\"expected_evaluation_generation\":$EVAL_GEN}"
 
+# پس از پرداخت Hosted و Inquiry با status=verify_pending:
+curl -sS -X POST "$BNPL_API_BASE/api/v1/partner/checkout-sessions/$CHECKOUT_SESSION_ID/verify" \
+  -H "X-Terminal-Id: $TERMINAL_ID" -H "X-API-Key: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"merchant_order_id":"ORDER-1001"}'
+
 curl -sS "$BNPL_API_BASE/api/v1/partner/checkout-sessions/$CHECKOUT_SESSION_ID" \
   -H "X-Terminal-Id: $TERMINAL_ID" -H "X-API-Key: $API_KEY"
 ~~~
@@ -526,7 +482,7 @@ Backend Merchant باید پس از Create توکن، generation، Key، شنا�
 window.location.assign(checkout_url); // returned by BNPL; do not reconstruct
 ~~~
 
-در صفحهٔ Return از Backend خودش نتیجهٔ Inquiry را بگیرد. **Merchant Backend هرگز `/start`، `/otp`، `/confirm` یا `/return` توکنی را صدا نمی‌زند.**
+در صفحهٔ Return از Backend خودش Inquiry و در صورت نیاز Verify را بگیرد. Redirect مرورگر به‌تنهایی Fulfill نیست. **Merchant Backend هرگز `/start`، `/otp`، `/confirm` یا `/return` توکنی را صدا نمی‌زند.**
 
 ## ۱۳. چک‌لیست راه‌اندازی و مالکیت مسئولیت‌ها
 
@@ -534,14 +490,14 @@ window.location.assign(checkout_url); // returned by BNPL; do not reconstruct
 
 - [ ] Terminal Credential را از پنل گرفته و در Secret Manager ذخیره کرده است.
 - [ ] تمام Partner APIها را با دو Header ترمینال، در Backend و روی HTTPS صدا می‌زند.
-- [ ] Permissionهای ترمینال برای Create/Read/Config روشن‌اند.
+- [ ] Permissionهای ترمینال برای Create/Read/Verify/Return Destination روشن‌اند.
 - [ ] `external_online_store_id` و `return_destination` درست Provision شده‌اند.
-- [ ] Webhook Destination و Secret بلند/تصادفی ثبت شده‌اند.
 - [ ] `customer_phone` در Create از منبع قابل اعتماد سفارش می‌آید؛ `customer_reference` هویت مشتری نیست.
 - [ ] حالت `on_create` و `on_start` را بدون hardcode کردن نوع Merchant تحمل می‌کند.
 - [ ] Idempotency Key/توکن/مبلغ/ارز سفارش را پایدار ذخیره می‌کند.
-- [ ] فقط از Inquiry یا Webhook امضاشدهٔ `completed` با تطبیق کامل، سفارش را Fulfill می‌کند.
-- [ ] Webhook را با Raw Body + HMAC + Timestamp + Dedupe دریافت می‌کند.
+- [ ] فقط با Partner Verify و Inquiry `verified_by_merchant` (با تطبیق کامل) سفارش را Fulfill می‌کند؛ Browser Return فقط UX است.
+- [ ] Verify را در `verify_pending` و قبل از `verification_deadline_at` با `merchant_order_id` منطبق صدا می‌زند.
+- [ ] Timeout Verify / `cancellation_pending` را غیرقابل Fulfill می‌داند و Success جعل نمی‌کند.
 - [ ] Retry و سناریوی Timeout و Return زودهنگام را پوشش می‌دهد.
 
 **Merchant Frontend**
@@ -564,9 +520,9 @@ window.location.assign(checkout_url); // returned by BNPL; do not reconstruct
 - آدرس API در Sandbox/Production و Origin صفحهٔ Hosted Checkout.
 - Terminal ID و روش تحویل امن API Key، مشخصات Merchant Panel و Provision.
 - `external_online_store_id`های واقعی و Mode هر Branch (`on_create` یا `on_start`).
-- Return URL و نام Destination مورد توافق، Webhook URL و روش مدیریت Secret.
+- Return URL و نام Destination مورد توافق.
 - اکانت‌های تست، شماره‌های مجاز تست OTP و دادهٔ آزمون مناسب محیط.
-- پنجرهٔ توافق‌شدهٔ Freshness برای Webhook، Policy Retry و Runbook Rotation.
+- پنجرهٔ ۳۰ دقیقه‌ای Verify Merchant (`checkout_merchant_verification/v1`) و رفتار Job `checkout_verification_expiry`.
 - سیاست دسترسی به `data.offer.available_credit_minor` در پاسخ Partner `on_create`؛ این فیلد **اکنون در کد وجود دارد** و تصمیم تغییر آن، موضوعی مستقل از مستندسازی است.
 
 ## ۱۵. نقشهٔ سورس برای نگه‌داری قرارداد
@@ -583,10 +539,11 @@ window.location.assign(checkout_url); // returned by BNPL; do not reconstruct
 | Mode و Customer Resolution | `model/merchant_branch_profile.go`؛ `checkoutsessionuc/external_prepare.go` |
 | Hosted GET/START/OTP/Confirm/Status/Return | `checkoutsessionrs/hosted_external.go`؛ `checkoutsessionrs/request_otp.go`؛ `checkoutsessionrs/confirmation_status.go`؛ `checkoutsessionuc/external_start.go`؛ `checkoutsessionuc/external_otp_request.go` |
 | Inquiry/Cancel | `checkoutsessionuc/get_partner_status.go`؛ `checkoutsessionrs/cancel.go` |
-| Webhook Event و Signature | `core/event/checkoutlifecycle/event.go`؛ `checkoutsessionuc/lifecycle_outbox.go`؛ `merchantwebhook/http/signature.go`؛ `merchantwebhook/http/dispatcher.go` |
+| Merchant Verify | `checkoutsessionrs/verify_by_merchant.go`؛ `checkoutsessionuc/verify_by_merchant.go`؛ `policy/checkoutverification/v1` |
+| Job انقضای Verify | `task/jobs/checkoutsession/verification_expiry.go`؛ `checkoutsessionuc/expire_pending_verifications.go` |
 | پاسخ‌های استاندارد | `pkg/adapter/restful/gin/serdser/success_response.go`؛ `error_response.go` |
 
 مسیرهای بالا زیر `pkg/core/` یا `pkg/adapter/` مطابق نام پکیج قرار می‌گیرند. هنگام تغییر قرارداد، نخست DTO/Route/Use Case را بررسی و سپس **همین یک سند** را به‌روزرسانی کنید؛ مستند جداگانه برای Internal/External Partner ایجاد نکنید.
 
 
-**قاعدهٔ نگه‌داری ترجمه:** هر تغییر در Route، DTO، Permission، Webhook یا State Machine باید همزمان در [فارسی](partner-checkout.md) و [English](partner-checkout.en.md) اعمال شود.
+**قاعدهٔ نگه‌داری ترجمه:** هر تغییر در Route، DTO، Permission، پنجرهٔ Verify یا State Machine باید همزمان در [فارسی](partner-checkout.md) و [English](partner-checkout.en.md) اعمال شود.

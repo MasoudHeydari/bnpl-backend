@@ -44,7 +44,7 @@ type MerchantTerminal struct {
 
 	// IssuanceEncryptionKeys are all AES-256 keys (base64, 32 bytes) accepted for
 	// decrypting held API keys, including the active one. These keys are
-	// deliberately separate from the webhook secret keys.
+	// deliberately separate from other secret key rings.
 	IssuanceEncryptionKeys KeyEntries `yaml:"issuance_encryption_keys"`
 }
 

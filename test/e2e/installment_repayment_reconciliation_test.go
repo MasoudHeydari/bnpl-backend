@@ -30,7 +30,7 @@ func TestE2E_InstallmentRepayment_LostFCResponse_ExpiresWithoutSessionRediscover
 
 	out, err := h.CheckoutSession.Confirm(h.ctx, confirmInputForSeed(seed))
 	require.NoError(t, err)
-	require.Equal(t, model.CompletedCheckoutSessionStatus, out.Session.Status)
+	require.Equal(t, model.VerifyPendingCheckoutSessionStatus, out.Session.Status)
 
 	contractRow := h.queryContractBySession(out.Session)
 	require.Equal(t, model.ActiveContractStatus, contractRow.Status)

@@ -271,7 +271,9 @@ func (uc *UseCase) evaluateOTPIssuanceBlockersOutsideTx(
 	now time.Time,
 ) (blocked bool, err error) {
 	switch status {
-	case model.CompletedCheckoutSessionStatus,
+	case model.VerifiedByMerchantCheckoutSessionStatus,
+		model.VerifyPendingCheckoutSessionStatus,
+		model.CancellationPendingCheckoutSessionStatus,
 		model.CanceledCheckoutSessionStatus,
 		model.ExpiredCheckoutSessionStatus,
 		model.UnavailableCheckoutSessionStatus:

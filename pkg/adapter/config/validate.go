@@ -887,11 +887,6 @@ func (e External) validate(environment string, httpClient HTTPClient) error {
 		return err
 	}
 
-	e.WebhookDispatcher.ApplyDefaults()
-	if err := e.WebhookDispatcher.validate(env); err != nil {
-		return err
-	}
-
 	return nil
 }
 

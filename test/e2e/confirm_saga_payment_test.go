@@ -138,7 +138,7 @@ func TestE2E_ConfirmSaga_U_PaymentSuccessActivatesContractAndCompletesCheckout(t
 	h.processPaymentResult(input)
 
 	session := h.querySession(seed.Session.ID)
-	require.Equal(t, model.CompletedCheckoutSessionStatus, session.Status)
+	require.Equal(t, model.VerifyPendingCheckoutSessionStatus, session.Status)
 
 	contractRow = h.queryContractBySession(session)
 	require.Equal(t, model.ActiveContractStatus, contractRow.Status)
@@ -194,7 +194,7 @@ func TestE2E_ConfirmSaga_W_DuplicatePaymentSuccessDoesNotDoubleApply(t *testing.
 	require.Equal(t, financialcorepaymentresultuc.ProcessResultAlreadyApplied, second.Result)
 
 	session := h.querySession(seed.Session.ID)
-	require.Equal(t, model.CompletedCheckoutSessionStatus, session.Status)
+	require.Equal(t, model.VerifyPendingCheckoutSessionStatus, session.Status)
 	require.Equal(t, contractRow.ID, *session.ContractID)
 
 	activated := h.queryContractBySession(session)
@@ -253,7 +253,7 @@ func TestE2E_ConfirmSaga_X_StaleFailureAfterSuccessDoesNotRegress(t *testing.T) 
 	require.NoError(t, err)
 
 	session := h.querySession(seed.Session.ID)
-	require.Equal(t, model.CompletedCheckoutSessionStatus, session.Status)
+	require.Equal(t, model.VerifyPendingCheckoutSessionStatus, session.Status)
 
 	contractRow = h.queryContractBySession(session)
 	require.Equal(t, model.ActiveContractStatus, contractRow.Status)

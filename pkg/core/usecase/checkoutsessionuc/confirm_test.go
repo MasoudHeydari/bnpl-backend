@@ -27,9 +27,9 @@ func TestConfirm_MatchingGenerationClaimsSessionAndLinksContract(t *testing.T) {
 			wantStatus:      model.ProcessingCheckoutSessionStatus,
 		},
 		{
-			name:            "merchant funding completes only after FC recognition",
+			name:            "merchant funding reaches verify_pending only after FC recognition",
 			paymentRequired: false,
-			wantStatus:      model.CompletedCheckoutSessionStatus,
+			wantStatus:      model.VerifyPendingCheckoutSessionStatus,
 		},
 	}
 
@@ -81,9 +81,8 @@ func TestConfirm_MatchingGenerationClaimsSessionAndLinksContract(t *testing.T) {
 
 				h.contractTx.EXPECT().GetByID(h.ctx, h.contractID).Return(recognized.Contract, nil).Once()
 				h.sessionTx.EXPECT().LockByContractID(h.ctx, h.contractID).Return(processing, nil).Once()
-				h.sessionTx.EXPECT().UpdateStatus(h.ctx, h.sessionID, model.CompletedCheckoutSessionStatus, h.now).
-					Return(final, nil).Once()
-				h.expectLifecycleEvent(final, checkoutlifecycle.EventTypeCompleted)
+				h.expectMarkVerifyPending(final)
+				h.expectLifecycleEvent(final, checkoutlifecycle.EventTypeVerifyPending)
 				h.sessionTx.EXPECT().LockByContractID(h.ctx, h.contractID).Return(final, nil).Once()
 
 				h.expectConfirmProjectionLock(final)
@@ -317,7 +316,7 @@ func TestConfirm_RetryWhileConfirmingWithoutDecisionOrContractIsRejected(t *test
 	require.Empty(t, h.contracts.calls)
 }
 
-func TestConfirm_RetryAfterProcessingOrCompletedReplaysExistingContract(t *testing.T) {
+func TestConfirm_RetryAfterProcessingOrFinancialSuccessReplaysExistingContract(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -337,8 +336,16 @@ func TestConfirm_RetryAfterProcessingOrCompletedReplaysExistingContract(t *testi
 			policyVersion:   "v1",
 		},
 		{
-			name:            "completed is read-only",
-			status:          model.CompletedCheckoutSessionStatus,
+			name:            "verify_pending is read-only financial success",
+			status:          model.VerifyPendingCheckoutSessionStatus,
+			paymentRequired: false,
+			connOnly:        1,
+			txCalls:         1,
+			policyVersion:   "",
+		},
+		{
+			name:            "verified_by_merchant is read-only terminal success",
+			status:          model.VerifiedByMerchantCheckoutSessionStatus,
 			paymentRequired: false,
 			connOnly:        1,
 			txCalls:         1,
@@ -388,7 +395,7 @@ func TestConfirm_RetryByAnotherCustomerIsRejected(t *testing.T) {
 
 	other := model.CustomerID(uuid.New())
 	existing := h.session(
-		withStatus(model.CompletedCheckoutSessionStatus),
+		withStatus(model.VerifyPendingCheckoutSessionStatus),
 		withContract(h.contractID),
 		withCustomer(&other),
 	)

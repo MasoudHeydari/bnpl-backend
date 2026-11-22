@@ -98,6 +98,10 @@ const (
 	// SuccessCodeCheckoutSessionCanceled indicates that an eligible checkout session was canceled.
 	SuccessCodeCheckoutSessionCanceled SuccessCode = "CHECKOUT_SESSION_CANCELED"
 
+	// SuccessCodeCheckoutSessionVerified indicates that a merchant verified a
+	// financially successful checkout (or replayed a prior verification).
+	SuccessCodeCheckoutSessionVerified SuccessCode = "CHECKOUT_SESSION_VERIFIED"
+
 	// SuccessCodeCheckoutSessionConfirmed indicates that Confirm & Pay linked a contract.
 	SuccessCodeCheckoutSessionConfirmed SuccessCode = "CHECKOUT_SESSION_CONFIRMED"
 
@@ -121,9 +125,6 @@ const (
 
 	// SuccessCodeMerchantReturnDestinationUpserted indicates a return destination was saved.
 	SuccessCodeMerchantReturnDestinationUpserted SuccessCode = "MERCHANT_RETURN_DESTINATION_UPSERTED"
-
-	// SuccessCodeMerchantWebhookDestinationUpserted indicates a webhook destination was saved.
-	SuccessCodeMerchantWebhookDestinationUpserted SuccessCode = "MERCHANT_WEBHOOK_DESTINATION_UPSERTED"
 
 	// SuccessCodeMerchantTerminalProvisioned indicates a partner terminal and its first API key were issued.
 	SuccessCodeMerchantTerminalProvisioned SuccessCode = "MERCHANT_TERMINAL_PROVISIONED"
@@ -178,6 +179,8 @@ var (
 	SuccessMessageCheckoutSessionStarted = SuccessMessageKey{value: "success.checkout_session_started"}
 	// SuccessMessageCheckoutSessionCanceled reports a successful checkout cancellation.
 	SuccessMessageCheckoutSessionCanceled = SuccessMessageKey{value: "success.checkout_session_canceled"}
+	// SuccessMessageCheckoutSessionVerified reports a successful merchant Verify.
+	SuccessMessageCheckoutSessionVerified = SuccessMessageKey{value: "success.checkout_session_verified"}
 	// SuccessMessageCheckoutSessionConfirmed reports a successful Confirm & Pay.
 	SuccessMessageCheckoutSessionConfirmed = SuccessMessageKey{value: "success.checkout_session_confirmed"}
 	// SuccessMessageCheckoutSessionReconfirmRequired reports a stale offer that needs reconfirmation.
@@ -195,8 +198,6 @@ var (
 	SuccessMessageCheckoutCreditKindSelected = SuccessMessageKey{value: "success.checkout_credit_kind_selected"}
 	// SuccessMessageMerchantReturnDestinationUpserted reports a saved return destination.
 	SuccessMessageMerchantReturnDestinationUpserted = SuccessMessageKey{value: "success.merchant_return_destination_upserted"}
-	// SuccessMessageMerchantWebhookDestinationUpserted reports a saved webhook destination.
-	SuccessMessageMerchantWebhookDestinationUpserted = SuccessMessageKey{value: "success.merchant_webhook_destination_upserted"}
 	// SuccessMessageMerchantTerminalProvisioned reports an issued partner terminal.
 	SuccessMessageMerchantTerminalProvisioned = SuccessMessageKey{value: "success.merchant_terminal_provisioned"}
 	// SuccessMessageMerchantTerminalReturned reports listed partner terminals

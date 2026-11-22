@@ -10,7 +10,6 @@ func TestNewUseCases_NoopConfig(t *testing.T) {
 	t.Parallel()
 
 	app := testAppWithInfrastructure(t, noopTestConfig())
-
 	usecases, err := app.NewUseCases()
 	require.NoError(t, err)
 
@@ -31,12 +30,10 @@ func TestNewUseCases_NoopConfig(t *testing.T) {
 	require.NotNil(t, usecases.CustomerCredit)
 }
 
-func TestNewUseCases_InjectsExternalWebhookPublisher(t *testing.T) {
+func TestNewUseCases_InitializesOutboxPublisher(t *testing.T) {
 	t.Parallel()
 
 	app := testAppWithInfrastructure(t, noopTestConfig())
-	require.NotNil(t, app.External.WebhookPublisher)
-
 	usecases, err := app.NewUseCases()
 	require.NoError(t, err)
 	require.NotNil(t, usecases.OutboxPublisher)

@@ -37,6 +37,12 @@ const checkoutSessionColumns = `
 	cancellation_reason,
 	evaluation_generation,
 	expires_at,
+	verification_pending_at,
+	verification_deadline_at,
+	verification_policy_version,
+	merchant_verified_at,
+	merchant_verified_terminal_id,
+	cancellation_pending_at,
 	completed_at,
 	canceled_at,
 	created_at,
@@ -49,17 +55,6 @@ const merchantReturnDestinationColumns = `
 	destination_name,
 	return_url,
 	enabled,
-	created_at,
-	updated_at
-`
-
-const merchantWebhookDestinationColumns = `
-	id,
-	external_merchant_id,
-	webhook_url,
-	enabled,
-	signing_secret_ciphertext,
-	signing_secret_key_id,
 	created_at,
 	updated_at
 `
@@ -390,9 +385,9 @@ FOR UPDATE
 	)
 }
 
-// UpdateStatus transitions a checkout session to status and stamps completed_at
-// when the new status is completed. Cancellation goes through MarkCanceled so
-// the reason and canceled_at are always recorded together.
+// UpdateStatus transitions a checkout session to status for simple lifecycle
+// moves. Verification transitions use MarkVerifyPending /
+// MarkVerifiedByMerchant / MarkCancellationPending.
 func UpdateStatus[Q postgres.Queryer](
 	ctx context.Context,
 	q Q,
@@ -407,11 +402,7 @@ func UpdateStatus[Q postgres.Queryer](
 	const query = `
 UPDATE checkout_sessions
 SET status = $2::text,
-	updated_at = $3::timestamptz,
-	completed_at = CASE
-		WHEN $2::text = 'completed' THEN COALESCE(completed_at, $3::timestamptz)
-		ELSE completed_at
-	END
+	updated_at = $3::timestamptz
 WHERE id = $1
 RETURNING` + checkoutSessionColumns
 
@@ -423,6 +414,189 @@ RETURNING` + checkoutSessionColumns
 		id,
 		status,
 		updatedAt,
+	)
+}
+
+// MarkVerifyPending records durable FC success and starts the merchant verify window.
+func MarkVerifyPending[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	id model.CheckoutSessionID,
+	verificationPendingAt time.Time,
+	verificationDeadlineAt time.Time,
+	verificationPolicyVersion string,
+	updatedAt time.Time,
+) (model.CheckoutSession, error) {
+	if err := postgres.RequiredTime("verification_pending_at", verificationPendingAt); err != nil {
+		return model.CheckoutSession{}, err
+	}
+
+	if err := postgres.RequiredTime("verification_deadline_at", verificationDeadlineAt); err != nil {
+		return model.CheckoutSession{}, err
+	}
+
+	if err := postgres.RequiredTime("updated_at", updatedAt); err != nil {
+		return model.CheckoutSession{}, err
+	}
+
+	const query = `
+UPDATE checkout_sessions
+SET status = 'verify_pending',
+	verification_pending_at = $2::timestamptz,
+	verification_deadline_at = $3::timestamptz,
+	verification_policy_version = $4::text,
+	updated_at = $5::timestamptz
+WHERE id = $1
+  AND status IN ('open', 'confirming', 'processing')
+  AND contract_id IS NOT NULL
+RETURNING` + checkoutSessionColumns
+
+	row, err := postgres.QueryOne[model.CheckoutSession](
+		ctx,
+		q,
+		"mark checkout session verify pending",
+		query,
+		id,
+		verificationPendingAt.UTC(),
+		verificationDeadlineAt.UTC(),
+		verificationPolicyVersion,
+		updatedAt.UTC(),
+	)
+	if err != nil {
+		if cerr.IsCode(err, cerr.CodeResourceNotFound) {
+			return model.CheckoutSession{}, cerr.Conflict(fmt.Errorf(
+				"checkout session %s cannot enter verify_pending", id,
+			))
+		}
+
+		return model.CheckoutSession{}, err
+	}
+
+	return row, nil
+}
+
+// MarkVerifiedByMerchant accepts merchant Verify before the stored deadline.
+func MarkVerifiedByMerchant[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	id model.CheckoutSessionID,
+	terminalID model.MerchantTerminalID,
+	verifiedAt time.Time,
+) (model.CheckoutSession, error) {
+	if err := postgres.RequiredTime("merchant_verified_at", verifiedAt); err != nil {
+		return model.CheckoutSession{}, err
+	}
+
+	const query = `
+UPDATE checkout_sessions
+SET status = 'verified_by_merchant',
+	merchant_verified_at = $2::timestamptz,
+	completed_at = $2::timestamptz,
+	merchant_verified_terminal_id = $3::uuid,
+	updated_at = $2::timestamptz
+WHERE id = $1
+  AND status = 'verify_pending'
+  AND verification_deadline_at IS NOT NULL
+  AND $2::timestamptz < verification_deadline_at
+RETURNING` + checkoutSessionColumns
+
+	row, err := postgres.QueryOne[model.CheckoutSession](
+		ctx,
+		q,
+		"mark checkout session verified by merchant",
+		query,
+		id,
+		verifiedAt.UTC(),
+		terminalID,
+	)
+	if err != nil {
+		if cerr.IsCode(err, cerr.CodeResourceNotFound) {
+			return model.CheckoutSession{}, cerr.Conflict(fmt.Errorf(
+				"checkout session %s cannot be verified by merchant", id,
+			))
+		}
+
+		return model.CheckoutSession{}, err
+	}
+
+	return row, nil
+}
+
+// MarkCancellationPending moves a due verify_pending session to cancellation_pending.
+func MarkCancellationPending[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	id model.CheckoutSessionID,
+	cancellationPendingAt time.Time,
+) (model.CheckoutSession, error) {
+	if err := postgres.RequiredTime("cancellation_pending_at", cancellationPendingAt); err != nil {
+		return model.CheckoutSession{}, err
+	}
+
+	const query = `
+UPDATE checkout_sessions
+SET status = 'cancellation_pending',
+	cancellation_pending_at = $2::timestamptz,
+	updated_at = $2::timestamptz
+WHERE id = $1
+  AND status = 'verify_pending'
+  AND verification_deadline_at IS NOT NULL
+  AND verification_deadline_at <= $2::timestamptz
+RETURNING` + checkoutSessionColumns
+
+	row, err := postgres.QueryOne[model.CheckoutSession](
+		ctx,
+		q,
+		"mark checkout session cancellation pending",
+		query,
+		id,
+		cancellationPendingAt.UTC(),
+	)
+	if err != nil {
+		if cerr.IsCode(err, cerr.CodeResourceNotFound) {
+			return model.CheckoutSession{}, cerr.Conflict(fmt.Errorf(
+				"checkout session %s cannot enter cancellation_pending", id,
+			))
+		}
+
+		return model.CheckoutSession{}, err
+	}
+
+	return row, nil
+}
+
+// ClaimDueVerifyPending locks due verify_pending rows for the timeout worker.
+func ClaimDueVerifyPending[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	now time.Time,
+	limit int,
+) ([]model.CheckoutSession, error) {
+	if err := postgres.RequiredTime("now", now); err != nil {
+		return nil, err
+	}
+
+	if limit <= 0 {
+		return nil, fmt.Errorf("checkoutsessionrp.ClaimDueVerifyPending: limit must be positive")
+	}
+
+	const query = `
+SELECT` + checkoutSessionColumns + `
+FROM checkout_sessions
+WHERE status = 'verify_pending'
+  AND verification_deadline_at IS NOT NULL
+  AND verification_deadline_at <= $1::timestamptz
+ORDER BY verification_deadline_at ASC, id ASC
+LIMIT $2
+FOR UPDATE SKIP LOCKED`
+
+	return postgres.QueryAll[model.CheckoutSession](
+		ctx,
+		q,
+		"claim due verify pending checkout sessions",
+		query,
+		now.UTC(),
+		limit,
 	)
 }
 
@@ -1125,105 +1299,5 @@ RETURNING` + merchantReturnDestinationColumns
 		returnURL,
 		enabled,
 		now,
-	)
-}
-
-// UpsertWebhookDestination registers or updates the merchant's single webhook
-// destination. The signing secret is persisted only as envelope ciphertext plus
-// the key id that produced it.
-func UpsertWebhookDestination[Q postgres.Queryer](
-	ctx context.Context,
-	q Q,
-	merchantID model.ExternalMerchantID,
-	webhookURL string,
-	signingSecretCiphertext string,
-	signingSecretKeyID string,
-	enabled bool,
-	now time.Time,
-) (model.MerchantWebhookDestination, error) {
-	if err := postgres.RequiredTime("updated_at", now); err != nil {
-		return model.MerchantWebhookDestination{}, err
-	}
-
-	const query = `
-INSERT INTO merchant_webhook_destinations (
-	external_merchant_id,
-	webhook_url,
-	signing_secret_ciphertext,
-	signing_secret_key_id,
-	enabled,
-	created_at,
-	updated_at
-)
-VALUES ($1, $2, $3, $4, $5, $6, $6)
-ON CONFLICT (external_merchant_id) DO UPDATE
-SET webhook_url = EXCLUDED.webhook_url,
-	signing_secret_ciphertext = CASE
-		WHEN EXCLUDED.signing_secret_ciphertext = ''
-			THEN merchant_webhook_destinations.signing_secret_ciphertext
-		ELSE EXCLUDED.signing_secret_ciphertext
-	END,
-	signing_secret_key_id = CASE
-		WHEN EXCLUDED.signing_secret_ciphertext = ''
-			THEN merchant_webhook_destinations.signing_secret_key_id
-		ELSE EXCLUDED.signing_secret_key_id
-	END,
-	enabled = EXCLUDED.enabled,
-	updated_at = EXCLUDED.updated_at
-RETURNING` + merchantWebhookDestinationColumns
-
-	return postgres.QueryOne[model.MerchantWebhookDestination](
-		ctx,
-		q,
-		"upsert merchant webhook destination",
-		query,
-		merchantID,
-		webhookURL,
-		signingSecretCiphertext,
-		signingSecretKeyID,
-		enabled,
-		now,
-	)
-}
-
-// GetWebhookDestination returns the merchant's enabled webhook destination.
-func GetWebhookDestination[Q postgres.Queryer](
-	ctx context.Context,
-	q Q,
-	merchantID model.ExternalMerchantID,
-) (model.MerchantWebhookDestination, error) {
-	const query = `SELECT` + merchantWebhookDestinationColumns + `
-FROM merchant_webhook_destinations
-WHERE external_merchant_id = $1
-  AND enabled = true
-`
-
-	return postgres.QueryOne[model.MerchantWebhookDestination](
-		ctx,
-		q,
-		"get merchant webhook destination",
-		query,
-		merchantID,
-	)
-}
-
-// FindWebhookDestination returns the merchant's webhook destination regardless
-// of its enabled flag.
-func FindWebhookDestination[Q postgres.Queryer](
-	ctx context.Context,
-	q Q,
-	merchantID model.ExternalMerchantID,
-) (model.MerchantWebhookDestination, error) {
-	const query = `SELECT` + merchantWebhookDestinationColumns + `
-FROM merchant_webhook_destinations
-WHERE external_merchant_id = $1
-`
-
-	return postgres.QueryOne[model.MerchantWebhookDestination](
-		ctx,
-		q,
-		"find merchant webhook destination",
-		query,
-		merchantID,
 	)
 }

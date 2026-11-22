@@ -22,6 +22,8 @@ const (
 	ConfirmationStatusReconfirmRequired     = "reconfirm_required"
 	ConfirmationStatusRetryAvailable        = "retry_available"
 	ConfirmationStatusCompleted             = "completed"
+	ConfirmationStatusAwaitingMerchant      = "awaiting_merchant_verification"
+	ConfirmationStatusCancellationPending   = "cancellation_pending"
 	ConfirmationStatusNeedsAttention        = "needs_attention"
 	ConfirmationStatusCanceled              = "canceled"
 	ConfirmationStatusExpired               = "expired"
@@ -36,12 +38,14 @@ const (
 	ConfirmationNextActionWaitPaymentResult = "wait_payment_result"
 	ConfirmationNextActionRetryPayment      = "retry_payment"
 	ConfirmationNextActionReconfirm         = "reconfirm"
-	ConfirmationNextActionShowSuccess       = "show_success"
-	ConfirmationNextActionShowPendingReview = "show_pending_review"
-	ConfirmationNextActionShowCanceled      = "show_canceled"
-	ConfirmationNextActionShowExpired       = "show_expired"
-	ConfirmationNextActionShowUnavailable   = "show_unavailable"
-	ConfirmationNextActionStartConfirm      = "start_confirm"
+	ConfirmationNextActionShowSuccess                 = "show_success"
+	ConfirmationNextActionShowAwaitingMerchant        = "show_awaiting_merchant_verification"
+	ConfirmationNextActionShowCancellationPending     = "show_cancellation_pending"
+	ConfirmationNextActionShowPendingReview           = "show_pending_review"
+	ConfirmationNextActionShowCanceled                = "show_canceled"
+	ConfirmationNextActionShowExpired                 = "show_expired"
+	ConfirmationNextActionShowUnavailable             = "show_unavailable"
+	ConfirmationNextActionStartConfirm                = "start_confirm"
 )
 
 const defaultConfirmationStatusPollSeconds = 3
@@ -188,10 +192,22 @@ func (uc *UseCase) projectConfirmationStatus(
 	now time.Time,
 ) (confirmationStatusProjection, error) {
 	switch status {
-	case model.CompletedCheckoutSessionStatus:
+	case model.VerifiedByMerchantCheckoutSessionStatus:
 		return confirmationStatusProjection{
 			confirmationStatus: ConfirmationStatusCompleted,
 			nextAction:         ConfirmationNextActionShowSuccess,
+		}, nil
+
+	case model.VerifyPendingCheckoutSessionStatus:
+		return confirmationStatusProjection{
+			confirmationStatus: ConfirmationStatusAwaitingMerchant,
+			nextAction:         ConfirmationNextActionShowAwaitingMerchant,
+		}, nil
+
+	case model.CancellationPendingCheckoutSessionStatus:
+		return confirmationStatusProjection{
+			confirmationStatus: ConfirmationStatusCancellationPending,
+			nextAction:         ConfirmationNextActionShowCancellationPending,
 		}, nil
 
 	case model.CanceledCheckoutSessionStatus:

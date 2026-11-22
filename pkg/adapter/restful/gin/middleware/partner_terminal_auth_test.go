@@ -239,25 +239,6 @@ func TestPartnerTerminalAuth_ManagePermissionsFromPrincipal(t *testing.T) {
 		wantStatus  int
 	}{
 		{
-			name:        "webhook without grant",
-			method:      http.MethodPut,
-			route:       "/webhook-destination",
-			required:    permission.CheckoutWebhooksManageMerchant,
-			permissions: []string{permission.CheckoutSessionsCreateMerchant.Code},
-			wantStatus:  http.StatusForbidden,
-		},
-		{
-			name:     "webhook with grant",
-			method:   http.MethodPut,
-			route:    "/webhook-destination",
-			required: permission.CheckoutWebhooksManageMerchant,
-			permissions: []string{
-				permission.CheckoutSessionsCreateMerchant.Code,
-				permission.CheckoutWebhooksManageMerchant.Code,
-			},
-			wantStatus: http.StatusOK,
-		},
-		{
 			name:        "return destination without grant",
 			method:      http.MethodPut,
 			route:       "/return-destinations/default",
@@ -379,12 +360,6 @@ func TestPartnerRoutes_WithoutGatewayScope_ReachPermissionCheck(t *testing.T) {
 			method:   http.MethodPut,
 			path:     "/return-destinations/default",
 			required: permission.CheckoutReturnDestinationsManageMerchant,
-		},
-		{
-			name:     "webhook destination",
-			method:   http.MethodPut,
-			path:     "/webhook-destination",
-			required: permission.CheckoutWebhooksManageMerchant,
 		},
 	}
 

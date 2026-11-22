@@ -4,7 +4,7 @@
 INSERT INTO bnpl.merchant_profiles (id, external_merchant_id, display_name, legal_name, logo_url, support_phone, support_email, status, funding_models, settlement_models, currencies, risk_tier, max_amount_minor, max_amount_currency, max_tenure_months, requires_branch_mode, jurisdiction, created_at, updated_at)
 VALUES
     ('dc520782-b4a1-4c3e-840a-8ce04f7bfacb', '1e7c3dd4-0e8b-4ec1-aede-2a119f3ffecc', 'Damz', 'Damz LLC', '', '', '', 'active', '["platform_funded"]', '["direct"]', '["IRR"]', 'low', 2000000000, 'IRR', 4, FALSE, 'IR', '2026-07-04 16:00:28.257+00', '2026-07-04 16:00:28.973+00'),
-    ('2813b97e-086f-47d2-b9c0-48d74e32a9c7', '27afba8d-9fa8-400d-853a-fdf35619ad3a', 'Digikala', 'Digikala LLC', '', '', '', 'active', '["platform_funded"]', '["direct"]', '["IRR"]', 'low', 1000000000, 'IRR', 4, FALSE, 'IR', '2026-07-04 16:00:28.257+00', '2026-07-04 16:00:28.973+00');
+    ('2813b97e-086f-47d2-b9c0-48d74e32a9c7', '27afba8d-9fa8-400d-853a-fdf35619ad3a', 'DMart', 'DMart LLC', '', '', '', 'active', '["platform_funded"]', '["direct"]', '["IRR"]', 'low', 1000000000, 'IRR', 4, FALSE, 'IR', '2026-07-04 16:00:28.257+00', '2026-07-04 16:00:28.973+00');
 
 -- ============================================================
 -- 2. merchant_branch_profiles (4 records)

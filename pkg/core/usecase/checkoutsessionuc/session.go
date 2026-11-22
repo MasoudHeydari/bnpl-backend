@@ -101,11 +101,11 @@ func (uc *UseCase) createOrReplaySessionTx(
 		// (created under a legacy key) is still the current attempt.
 		existing, err = sessionQ.LockByMerchantOrderID(ctx, profile.ID, request.MerchantOrderID)
 		if err == nil && !existing.Status.IsActiveCheckoutAttempt() {
-			// A completed checkout already produced the order's contract. A new
-			// idempotency key must not start a second paid attempt for it.
-			if existing.Status == model.CompletedCheckoutSessionStatus {
+			// A financially successful checkout already produced the order's
+			// contract. A new idempotency key must not start a second paid attempt.
+			if existing.Status.IsFinanciallySuccessful() {
 				return model.CheckoutSession{}, "", merchantOrderConflictError(
-					fmt.Errorf("%s: merchant order already has a completed checkout", op),
+					fmt.Errorf("%s: merchant order already has a successful checkout", op),
 				)
 			}
 

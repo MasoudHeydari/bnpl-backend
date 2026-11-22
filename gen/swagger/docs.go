@@ -1695,7 +1695,7 @@ const docTemplate = `{
         },
         "/api/v1/checkout-sessions/{token}/return": {
             "get": {
-                "description": "Unauthenticated browser navigation only. Redirects to the merchant ReturnURL persisted at checkout creation. Never accepts a destination URL from the request. Browser arrival is NOT payment or order-fulfillment authority — merchants must trust Partner Inquiry status=completed or the verified bnpl.checkout.completed.v1 webhook.",
+                "description": "Unauthenticated browser navigation only. Redirects to the merchant ReturnURL persisted at checkout creation. Never accepts a destination URL from the request. Browser arrival is NOT payment or order-fulfillment authority — merchants must trust Partner Inquiry status=completed.",
                 "produces": [
                     "application/json"
                 ],
@@ -5368,7 +5368,7 @@ const docTemplate = `{
                         "TerminalID": []
                     }
                 ],
-                "description": "Authoritative BNPL outcome inquiry for a checkout owned by the authenticated merchant.\nReturns checkout_session_id, merchant_order_id, status, amount_minor, currency, and completed_at when completed.\nRead-only: never mutates checkout state or enqueues lifecycle events. Browser return parameters are never payment confirmation.\nDoes not expose customer credit, installment offers, provider selection, or Financial Core payment identifiers.",
+                "description": "Authoritative BNPL outcome inquiry for a checkout owned by the authenticated merchant.\nReturns checkout_session_id, merchant_order_id, status, amount_minor, currency, verification_deadline_at when verify_pending, and verified_at when verified_by_merchant.\nRead-only: never mutates checkout state, never verifies, and never enqueues lifecycle events. Browser return parameters are never payment confirmation.\nDoes not expose customer credit, installment offers, provider selection, or Financial Core payment identifiers.",
                 "produces": [
                     "application/json"
                 ],
@@ -5975,15 +5975,15 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/partner/return-destinations/{destination_name}": {
-            "put": {
+        "/api/v1/partner/checkout-sessions/{checkout_session_id}/verify": {
+            "post": {
                 "security": [
                     {
                         "TerminalAPIKey": [],
                         "TerminalID": []
                     }
                 ],
-                "description": "Registers or updates a symbolic browser-return destination for the authenticated merchant.\ndestination_name must match ^[a-z0-9]+(-[a-z0-9]+)*$ and be 1..64 characters (lowercase kebab-case).\nCheckout create selects destinations by name only; arbitrary return URLs are never accepted on checkout requests.\nProduction requires https return_url; development/test may use http only for localhost/loopback.\nLeading or trailing whitespace in return_url is rejected (not trimmed).\nenabled is optional: omit it to preserve the stored value (true on first registration).\nRequires the dedicated bnpl:checkout-return-destinations:manage:merchant permission.",
+                "description": "Records explicit merchant acceptance after durable Financial Core success (status verify_pending).\nIdempotent: repeating Verify for an already verified checkout owned by the same merchant with a matching merchant_order_id returns the stored verification receipt.\nNever activates contracts, releases credit, or treats browser redirects as payment confirmation.",
                 "consumes": [
                     "application/json"
                 ],
@@ -5993,7 +5993,7 @@ const docTemplate = `{
                 "tags": [
                     "Checkout Sessions"
                 ],
-                "summary": "Upsert merchant return destination",
+                "summary": "Verify partner checkout session",
                 "parameters": [
                     {
                         "type": "string",
@@ -6028,29 +6028,27 @@ const docTemplate = `{
                         "in": "header"
                     },
                     {
-                        "maxLength": 64,
-                        "minLength": 1,
                         "type": "string",
-                        "description": "Lowercase kebab-case destination name matching ^[a-z0-9]+(-[a-z0-9]+)*$",
-                        "name": "destination_name",
+                        "description": "Public checkout session token (cs_\u003c64 hex\u003e)",
+                        "name": "checkout_session_id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Return destination configuration",
+                        "description": "Merchant verification request",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/checkoutsessionrs.UpsertReturnDestinationRequestSchema"
+                            "$ref": "#/definitions/checkoutsessionrs.VerifyByMerchantRequestSchema"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Success",
+                        "description": "Checkout verified by merchant",
                         "schema": {
-                            "$ref": "#/definitions/checkoutsessionrs.ReturnDestinationSuccessSchema"
+                            "$ref": "#/definitions/checkoutsessionrs.VerifyByMerchantSuccessSchema"
                         },
                         "headers": {
                             "X-Correlation-Id": {
@@ -6127,6 +6125,46 @@ const docTemplate = `{
                             }
                         }
                     },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -6150,7 +6188,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/partner/webhook-destination": {
+        "/api/v1/partner/return-destinations/{destination_name}": {
             "put": {
                 "security": [
                     {
@@ -6158,7 +6196,7 @@ const docTemplate = `{
                         "TerminalID": []
                     }
                 ],
-                "description": "Registers or updates the single lifecycle webhook endpoint for the authenticated merchant (one webhook per merchant; there are no named destinations).\nCheckout requests never supply a webhook URL; lifecycle events resolve the destination from this registry.\nThe signing secret is write-only and is never echoed in the response. Omit signing_secret to keep the stored secret; send a new value (at least 32 bytes) to rotate it. The first registration requires a secret.\nenabled is optional: omit it to preserve the stored value (true on first registration).\nRequires the dedicated bnpl:checkout-webhooks:manage:merchant permission; an ordinary checkout-create credential cannot re-point or rotate webhooks.",
+                "description": "Registers or updates a symbolic browser-return destination for the authenticated merchant.\ndestination_name must match ^[a-z0-9]+(-[a-z0-9]+)*$ and be 1..64 characters (lowercase kebab-case).\nCheckout create selects destinations by name only; arbitrary return URLs are never accepted on checkout requests.\nProduction requires https return_url; development/test may use http only for localhost/loopback.\nLeading or trailing whitespace in return_url is rejected (not trimmed).\nenabled is optional: omit it to preserve the stored value (true on first registration).\nRequires the dedicated bnpl:checkout-return-destinations:manage:merchant permission.",
                 "consumes": [
                     "application/json"
                 ],
@@ -6168,7 +6206,7 @@ const docTemplate = `{
                 "tags": [
                     "Checkout Sessions"
                 ],
-                "summary": "Upsert merchant webhook endpoint",
+                "summary": "Upsert merchant return destination",
                 "parameters": [
                     {
                         "type": "string",
@@ -6203,12 +6241,21 @@ const docTemplate = `{
                         "in": "header"
                     },
                     {
-                        "description": "Webhook destination configuration",
+                        "maxLength": 64,
+                        "minLength": 1,
+                        "type": "string",
+                        "description": "Lowercase kebab-case destination name matching ^[a-z0-9]+(-[a-z0-9]+)*$",
+                        "name": "destination_name",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Return destination configuration",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/checkoutsessionrs.UpsertWebhookDestinationRequestSchema"
+                            "$ref": "#/definitions/checkoutsessionrs.UpsertReturnDestinationRequestSchema"
                         }
                     }
                 ],
@@ -6216,7 +6263,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Success",
                         "schema": {
-                            "$ref": "#/definitions/checkoutsessionrs.WebhookDestinationSuccessSchema"
+                            "$ref": "#/definitions/checkoutsessionrs.ReturnDestinationSuccessSchema"
                         },
                         "headers": {
                             "X-Correlation-Id": {
@@ -8205,9 +8252,6 @@ const docTemplate = `{
                     "type": "string",
                     "example": "cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
                 },
-                "completed_at": {
-                    "type": "string"
-                },
                 "currency": {
                     "allOf": [
                         {
@@ -8224,7 +8268,9 @@ const docTemplate = `{
                         "open",
                         "confirming",
                         "processing",
-                        "completed",
+                        "verify_pending",
+                        "verified_by_merchant",
+                        "cancellation_pending",
                         "canceled",
                         "expired",
                         "unavailable"
@@ -8234,6 +8280,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/model.CheckoutSessionStatus"
                         }
                     ]
+                },
+                "verification_deadline_at": {
+                    "type": "string"
+                },
+                "verified_at": {
+                    "type": "string"
                 }
             }
         },
@@ -8264,44 +8316,48 @@ const docTemplate = `{
                 }
             }
         },
-        "checkoutsessionrs.UpsertWebhookDestinationRequestSchema": {
+        "checkoutsessionrs.VerifyByMerchantRequestSchema": {
             "type": "object",
             "required": [
-                "webhook_url"
+                "merchant_order_id"
             ],
             "properties": {
-                "enabled": {
-                    "description": "Enabled is optional. Omit to preserve the stored value (true on create).",
-                    "type": "boolean"
-                },
-                "signing_secret": {
-                    "description": "SigningSecret is write-only. Omit to keep the stored secret; send a value\nof at least 32 bytes to rotate it. Required on first registration.",
+                "merchant_order_id": {
                     "type": "string",
-                    "maxLength": 512,
-                    "minLength": 32
-                },
-                "webhook_url": {
-                    "type": "string",
-                    "maxLength": 2048
+                    "maxLength": 256
                 }
             }
         },
-        "checkoutsessionrs.WebhookDestinationResponseSchema": {
+        "checkoutsessionrs.VerifyByMerchantResponseSchema": {
             "type": "object",
             "properties": {
-                "enabled": {
-                    "type": "boolean"
+                "checkout_session_id": {
+                    "type": "string",
+                    "example": "cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
                 },
-                "webhook_url": {
+                "merchant_order_id": {
+                    "type": "string"
+                },
+                "status": {
+                    "enum": [
+                        "verified_by_merchant"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.CheckoutSessionStatus"
+                        }
+                    ]
+                },
+                "verified_at": {
                     "type": "string"
                 }
             }
         },
-        "checkoutsessionrs.WebhookDestinationSuccessSchema": {
+        "checkoutsessionrs.VerifyByMerchantSuccessSchema": {
             "type": "object",
             "properties": {
                 "data": {
-                    "$ref": "#/definitions/checkoutsessionrs.WebhookDestinationResponseSchema"
+                    "$ref": "#/definitions/checkoutsessionrs.VerifyByMerchantResponseSchema"
                 },
                 "meta": {
                     "$ref": "#/definitions/serdser.SuccessMetaNoPagination"
@@ -10435,7 +10491,9 @@ const docTemplate = `{
                 "open",
                 "confirming",
                 "processing",
-                "completed",
+                "verify_pending",
+                "verified_by_merchant",
+                "cancellation_pending",
                 "canceled",
                 "expired",
                 "unavailable"
@@ -10444,7 +10502,9 @@ const docTemplate = `{
                 "OpenCheckoutSessionStatus",
                 "ConfirmingCheckoutSessionStatus",
                 "ProcessingCheckoutSessionStatus",
-                "CompletedCheckoutSessionStatus",
+                "VerifyPendingCheckoutSessionStatus",
+                "VerifiedByMerchantCheckoutSessionStatus",
+                "CancellationPendingCheckoutSessionStatus",
                 "CanceledCheckoutSessionStatus",
                 "ExpiredCheckoutSessionStatus",
                 "UnavailableCheckoutSessionStatus"

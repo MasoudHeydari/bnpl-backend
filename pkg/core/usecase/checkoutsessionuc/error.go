@@ -319,6 +319,33 @@ func checkoutConfirmationCannotContinueError(cause error) error {
 	)
 }
 
+// checkoutVerificationConflictError reports a Verify request that is not
+// acceptable in the current checkout state (wrong status, order mismatch, etc.).
+func checkoutVerificationConflictError(cause error) error {
+	return cerr.NewPublic(
+		cerr.CodeConflict,
+		"error.checkout_verification_conflict",
+		cause,
+		cerr.Details{
+			Fields:     []string{},
+			Violations: []cerr.Violation{},
+		},
+	)
+}
+
+// checkoutVerificationDeadlinePassedError reports Verify after the stored deadline.
+func checkoutVerificationDeadlinePassedError(cause error) error {
+	return cerr.NewPublic(
+		cerr.CodeConflict,
+		"error.checkout_verification_deadline_passed",
+		cause,
+		cerr.Details{
+			Fields:     []string{},
+			Violations: []cerr.Violation{},
+		},
+	)
+}
+
 // merchantOrderConflictError reports a reused merchant order reference carrying
 // different commercial terms. The stored session is never mutated.
 func merchantOrderConflictError(cause error) error {
@@ -434,18 +461,6 @@ func isDeterministicOfferNoLongerHonorable(err error) bool {
 	}
 
 	return false
-}
-
-func webhookSigningSecretRequiredError() error {
-	return validationError("REQUIRED", "signing_secret", "error.webhook_signing_secret_required")
-}
-
-func webhookSigningSecretTooShortError() error {
-	return validationError("MIN_LENGTH", "signing_secret", "error.webhook_signing_secret_too_short")
-}
-
-func webhookSigningSecretTooLongError() error {
-	return validationError("MAX_LENGTH", "signing_secret", "error.webhook_signing_secret_too_long")
 }
 
 // checkoutOTPRequiredError rejects a confirm that carries no one-time code.

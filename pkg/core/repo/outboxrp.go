@@ -53,7 +53,7 @@ type OutboxQueryer interface {
 	) error
 
 	// MarkSkipped marks a claimed message as intentionally not delivered.
-	// Used when a configured provider (for example webhook noop) skips I/O.
+	// Used when a configured publisher intentionally skips I/O.
 	MarkSkipped(
 		ctx context.Context,
 		outboxID model.OutboxID,

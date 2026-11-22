@@ -67,9 +67,8 @@ const (
 	// PublishedOutboxStatus means the message was delivered successfully.
 	PublishedOutboxStatus OutboxStatus = "published"
 
-	// SkippedOutboxStatus means delivery was intentionally skipped (for example
-	// external.webhook_dispatcher.provider=noop). It is terminal and must not be read as
-	// a successful merchant delivery.
+	// SkippedOutboxStatus means delivery was intentionally skipped by the
+	// publisher. It is terminal and must not be read as a successful delivery.
 	SkippedOutboxStatus OutboxStatus = "skipped"
 
 	// FailedOutboxStatus means the message exceeded retry limits.

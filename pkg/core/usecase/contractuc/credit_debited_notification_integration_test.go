@@ -104,17 +104,19 @@ remaining_principal_amount_minor,status,expires_at,activated_at
 		contractID, decisionID, uuid.NewString(), customerID, accountID, merchantID, now.Add(time.Hour), now,
 	)
 	publicToken := "cs_" + strings.Repeat("a", 64)
+	verifyDeadline := now.Add(30 * time.Minute)
 	mustExec(
 		`INSERT INTO checkout_sessions(
 id,public_token,origin,merchant_profile_id,merchant_branch_profile_id,external_online_store_id,
 idempotency_key,merchant_order_id,offer_preparation_mode,customer_id,return_destination,return_url,
-requested_amount_minor,currency,status,decision_id,contract_id,expires_at,completed_at,credit_kind
+requested_amount_minor,currency,status,decision_id,contract_id,expires_at,credit_kind,
+verification_pending_at,verification_deadline_at,verification_policy_version
 ) VALUES(
 $1,$2,'internal',$3,$4,$5,$6,$7,'on_start',$8,'default','https://merchant.example/return',
-100,'IRR','completed',$9,$10,$11,$12,'pay_next_month'
+100,'IRR','verify_pending',$9,$10,$11,'pay_next_month',$12,$13,'v1'
 )`,
 		sessionID, publicToken, merchantID, branchID, uuid.New(), uuid.NewString(), uuid.NewString(),
-		customerID, decisionID, contractID, now.Add(time.Hour), now,
+		customerID, decisionID, contractID, now.Add(time.Hour), now, verifyDeadline,
 	)
 
 	uc := &UseCase{

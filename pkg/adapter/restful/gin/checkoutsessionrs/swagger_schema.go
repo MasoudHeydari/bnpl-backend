@@ -88,6 +88,18 @@ type CancelSuccessSchema struct {
 	Meta serdser.SuccessMetaNoPagination `json:"meta"`
 }
 
+// VerifyByMerchantRequestSchema is a schema-only merchant Verify request body.
+type VerifyByMerchantRequestSchema verifyByMerchantRequest
+
+// VerifyByMerchantResponseSchema is a schema-only merchant Verify response.
+type VerifyByMerchantResponseSchema verifyByMerchantResponse
+
+// VerifyByMerchantSuccessSchema is a schema-only success envelope for merchant Verify.
+type VerifyByMerchantSuccessSchema struct {
+	Data VerifyByMerchantResponseSchema  `json:"data"`
+	Meta serdser.SuccessMetaNoPagination `json:"meta"`
+}
+
 // ConfirmRequestSchema is a schema-only Confirm & Pay request body.
 type ConfirmRequestSchema confirmRequest
 
@@ -122,18 +134,6 @@ type ReturnDestinationResponseSchema returnDestinationResponse
 type ReturnDestinationSuccessSchema struct {
 	Data ReturnDestinationResponseSchema `json:"data"`
 	Meta serdser.SuccessMetaNoPagination `json:"meta"`
-}
-
-// UpsertWebhookDestinationRequestSchema is a schema-only webhook destination body.
-type UpsertWebhookDestinationRequestSchema upsertWebhookDestinationRequest
-
-// WebhookDestinationResponseSchema is a schema-only webhook destination response.
-type WebhookDestinationResponseSchema webhookDestinationResponse
-
-// WebhookDestinationSuccessSchema is a schema-only success envelope for webhook destinations.
-type WebhookDestinationSuccessSchema struct {
-	Data WebhookDestinationResponseSchema `json:"data"`
-	Meta serdser.SuccessMetaNoPagination  `json:"meta"`
 }
 
 // HostedExternalGetResponseSchema is a schema-only hosted external page projection.

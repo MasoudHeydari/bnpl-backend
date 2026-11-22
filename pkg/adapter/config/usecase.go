@@ -260,14 +260,6 @@ type CheckoutSession struct {
 	// lifecycle outbox events (completed/canceled/expired/unavailable).
 	LifecycleEventsDestination string `yaml:"lifecycle_events_destination"`
 
-	// WebhookSecretEncryptionActiveKeyID selects the AES-GCM key that encrypts
-	// new merchant webhook signing secrets.
-	WebhookSecretEncryptionActiveKeyID string `yaml:"webhook_secret_encryption_active_key_id"`
-
-	// WebhookSecretEncryptionKeys are all AES-256 keys (base64, 32 bytes) accepted
-	// for decrypting stored webhook signing secrets, including the active one.
-	WebhookSecretEncryptionKeys KeyEntries `yaml:"webhook_secret_encryption_keys"`
-
 	// CustomerPhoneEncryptionActiveKeyID selects the AES-GCM key that encrypts
 	// the customer phone supplied on external partner checkout creation.
 	CustomerPhoneEncryptionActiveKeyID string `yaml:"customer_phone_encryption_active_key_id"`
@@ -304,7 +296,6 @@ func (c CheckoutSession) newConfirmationSagaDefinition(
 	const op = "config.CheckoutSession.newConfirmationSagaDefinition"
 
 	lifecycle, err := checkoutsessionuc.NewLifecycleOutbox(
-		checkoutSession,
 		merchantProfile,
 		outbox,
 		idGenerator,
@@ -352,7 +343,6 @@ func (c CheckoutSession) newUseCase(
 	contractUC *contractuc.UseCase,
 	outbox repo.Outbox,
 	idGenerator identifier.Generator,
-	webhookSecretBox secretbox.Box,
 	customerPhoneBox secretbox.Box,
 	returnURLPolicy returndestination.Policy,
 	clk clock.Clock,
@@ -398,7 +388,6 @@ func (c CheckoutSession) newUseCase(
 		outbox,
 		idGenerator,
 		c.LifecycleEventsDestination,
-		webhookSecretBox,
 		customerPhoneBox,
 		returnURLPolicy,
 		clk,

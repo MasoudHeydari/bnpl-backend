@@ -72,7 +72,10 @@ func (uc *UseCase) applyPaymentPendingContractTerminal(
 	case model.CanceledCheckoutSessionStatus, model.ExpiredCheckoutSessionStatus:
 		return nil
 
-	case model.CompletedCheckoutSessionStatus, model.UnavailableCheckoutSessionStatus:
+	case model.VerifiedByMerchantCheckoutSessionStatus,
+		model.UnavailableCheckoutSessionStatus,
+		model.VerifyPendingCheckoutSessionStatus,
+		model.CancellationPendingCheckoutSessionStatus:
 		return nil
 
 	case model.OpenCheckoutSessionStatus,

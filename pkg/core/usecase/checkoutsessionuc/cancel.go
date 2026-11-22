@@ -248,7 +248,7 @@ func (uc *UseCase) cancel(
 
 	// The return URL is built only after the cancellation commits, so a client
 	// that follows it never observes a checkout that is still open. Browser
-	// return parameters are UX only — merchants must confirm via status/webhook.
+	// return parameters are UX only — merchants must confirm via the status endpoint.
 	returnURL, err := merchantReturnURL(session)
 	if err != nil {
 		return CancelOutput{}, err

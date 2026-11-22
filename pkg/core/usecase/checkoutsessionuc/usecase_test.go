@@ -50,7 +50,6 @@ type newDeps struct {
 	decision                   *decisionuc.UseCase
 	contractUC                 *contractuc.UseCase
 	outbox                     repo.Outbox
-	webhookSecretBox           secretbox.Box
 	customerPhoneBox           secretbox.Box
 	checkoutURLs               checkouturl.Builder
 	ttl                        time.Duration
@@ -170,7 +169,6 @@ func newTestDeps(t *testing.T) newDeps {
 		decision:                   &decisionuc.UseCase{},
 		contractUC:                 &contractuc.UseCase{},
 		outbox:                     mock.NewOutbox(t),
-		webhookSecretBox:           newTestSecretBox(t),
 		customerPhoneBox:           newTestSecretBox(t),
 		checkoutURLs:               mustTestCheckoutURLs(t),
 		ttl:                        30 * time.Minute,
@@ -220,7 +218,6 @@ func (d newDeps) newUseCase(t *testing.T) (*UseCase, error) {
 		d.outbox,
 		mock.NewIdentifierGenerator(t),
 		"bnpl.merchant.checkout.events.v1",
-		d.webhookSecretBox,
 		d.customerPhoneBox,
 		returndestination.Development(),
 		mock.NewClock(t),
@@ -263,7 +260,6 @@ func mustStubConfirmationSaga(
 	}
 
 	lifecycle, err := NewLifecycleOutbox(
-		d.checkoutSession,
 		d.merchantProfile,
 		d.outbox,
 		mock.NewIdentifierGenerator(t),

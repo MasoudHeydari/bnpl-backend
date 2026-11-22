@@ -418,7 +418,7 @@ func (rs *resource) ConfirmHostedExternal(c *gin.Context) {
 // ReturnHostedExternal handles GET /api/v1/checkout-sessions/{token}/return.
 //
 //	@Summary		Return from hosted external checkout
-//	@Description	Unauthenticated browser navigation only. Redirects to the merchant ReturnURL persisted at checkout creation. Never accepts a destination URL from the request. Browser arrival is NOT payment or order-fulfillment authority — merchants must trust Partner Inquiry status=completed or the verified bnpl.checkout.completed.v1 webhook.
+//	@Description	Unauthenticated browser navigation only. Redirects to the merchant ReturnURL persisted at checkout creation. Never accepts a destination URL from the request. Browser arrival is NOT payment or order-fulfillment authority — merchants must trust Partner Inquiry status=completed.
 //	@Tags			Checkout Sessions
 //	@Produce		json
 //	@Param			token	path		string	true	"Public checkout session token (cs_<64 hex>)"

@@ -13,7 +13,6 @@ import (
 	checkoutpaymentext "github.com/parstis/bnpl-backend/pkg/adapter/external/checkoutpayment"
 	creditassessmentext "github.com/parstis/bnpl-backend/pkg/adapter/external/creditassessment"
 	customerext "github.com/parstis/bnpl-backend/pkg/adapter/external/customer"
-	"github.com/parstis/bnpl-backend/pkg/adapter/external/merchantwebhook"
 	notificationext "github.com/parstis/bnpl-backend/pkg/adapter/external/notification"
 	adaptercache "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/cache"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/circuitbreaker"
@@ -41,9 +40,6 @@ func noopTestConfig() *config.Config {
 				TTL:                        30 * time.Minute,
 				ExpiryBatchSize:            100,
 				LifecycleEventsDestination: "bnpl.merchant.checkout.events.v1",
-				WebhookSecretEncryptionKeys: config.KeyEntries{
-					{ID: "w1", Secret: model.NewSecret("ZGV2LW9ubHktd2ViaG9vay1lbmNyeXB0aW9uLWtleSE=")},
-				},
 				CustomerPhoneEncryptionKeys: config.KeyEntries{
 					{ID: "p1", Secret: model.NewSecret("ZGV2LW9ubHktY3VzdG9tZXItcGhvbmUta2V5LTAxMjM=")},
 				},
@@ -206,9 +202,6 @@ func noopTestConfig() *config.Config {
 			},
 			Notification: config.ExternalNotification{
 				Provider: string(notificationext.NoopProvider),
-			},
-			WebhookDispatcher: config.ExternalWebhookDispatcher{
-				Provider: string(merchantwebhook.NoopProvider),
 			},
 		},
 	}

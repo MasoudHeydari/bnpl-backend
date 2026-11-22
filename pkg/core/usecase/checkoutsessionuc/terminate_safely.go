@@ -114,7 +114,10 @@ func (uc *UseCase) terminateCheckoutSafelyTx(
 	case model.CanceledCheckoutSessionStatus, model.ExpiredCheckoutSessionStatus:
 		return TerminateCheckoutSafelyOutput{Session: locked, AlreadyTerminal: true}, nil
 
-	case model.CompletedCheckoutSessionStatus, model.UnavailableCheckoutSessionStatus:
+	case model.VerifiedByMerchantCheckoutSessionStatus,
+		model.UnavailableCheckoutSessionStatus,
+		model.VerifyPendingCheckoutSessionStatus,
+		model.CancellationPendingCheckoutSessionStatus:
 		return TerminateCheckoutSafelyOutput{}, checkoutSessionNotCancelableError(
 			fmt.Errorf("%s: checkout session status is %q", op, locked.Status),
 		)

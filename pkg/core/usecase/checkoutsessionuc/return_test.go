@@ -113,7 +113,7 @@ func TestGetReturn_CompletedReturnURLCarriesOnlyCheckoutIdentityAndState(t *test
 	h := newHarness(t)
 	h.expectPool(1, 0)
 
-	completed := h.session(withStatus(model.CompletedCheckoutSessionStatus), withContract(h.contractID))
+	completed := h.session(withStatus(model.VerifyPendingCheckoutSessionStatus), withContract(h.contractID))
 	h.expectReturnLookup(completed, nil)
 	h.expectCustomerLookup()
 
@@ -122,7 +122,7 @@ func TestGetReturn_CompletedReturnURLCarriesOnlyCheckoutIdentityAndState(t *test
 		ExternalCustomerID: h.profileID,
 	})
 	require.NoError(t, err)
-	require.Equal(t, model.CompletedCheckoutSessionStatus, output.Session.Status)
+	require.Equal(t, model.VerifyPendingCheckoutSessionStatus, output.Session.Status)
 
 	parsed, err := url.Parse(output.ReturnURL)
 	require.NoError(t, err)

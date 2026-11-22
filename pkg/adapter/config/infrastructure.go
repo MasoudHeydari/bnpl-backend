@@ -1123,6 +1123,10 @@ type ScheduledTasks struct {
 	// CheckoutSessionConfirmingRecovery releases stale unlinked confirming claims.
 	CheckoutSessionConfirmingRecovery TaskDefinition `yaml:"checkout_session_confirming_recovery"`
 
+	// CheckoutVerificationExpiry moves due verify_pending checkouts to
+	// cancellation_pending. The commercial verify timeout itself is policy-fixed.
+	CheckoutVerificationExpiry TaskDefinition `yaml:"checkout_verification_expiry"`
+
 	// MerchantTerminalIssuanceScrub clears ciphertext from expired issuance
 	// deliveries, leaving idempotency tombstones.
 	MerchantTerminalIssuanceScrub TaskDefinition `yaml:"merchant_terminal_issuance_scrub"`
@@ -1351,6 +1355,10 @@ func (t Task) getTaskDefinitions() ([]TaskDefinitionEntry, error) {
 		{
 			TaskDefinition: t.Scheduled.CheckoutSessionConfirmingRecovery,
 			Name:           "checkout_session_confirming_recovery",
+		},
+		{
+			TaskDefinition: t.Scheduled.CheckoutVerificationExpiry,
+			Name:           "checkout_verification_expiry",
 		},
 		{
 			TaskDefinition: t.Scheduled.MerchantTerminalIssuanceScrub,

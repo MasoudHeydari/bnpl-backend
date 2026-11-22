@@ -11,6 +11,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/clock"
 	"github.com/parstis/bnpl-backend/pkg/core/event/checkoutlifecycle"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
+	checkoutverificationv1 "github.com/parstis/bnpl-backend/pkg/core/policy/checkoutverification/v1"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 	"github.com/parstis/bnpl-backend/pkg/core/saga"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/contractuc"
@@ -756,7 +757,7 @@ func (s *confirmSessionLinkedStep) ExecuteTx(
 	if !alreadyLinked {
 		if session.Status != model.ConfirmingCheckoutSessionStatus &&
 			session.Status != model.ProcessingCheckoutSessionStatus &&
-			session.Status != model.CompletedCheckoutSessionStatus {
+			!session.Status.IsFinanciallySuccessful() {
 			return saga.StepResult{}, fmt.Errorf("%s: session status is %q", op, session.Status)
 		}
 
@@ -767,7 +768,7 @@ func (s *confirmSessionLinkedStep) ExecuteTx(
 	}
 
 	if attached.Status != model.ProcessingCheckoutSessionStatus &&
-		attached.Status != model.CompletedCheckoutSessionStatus {
+		!attached.Status.IsFinanciallySuccessful() {
 		if transitionErr := attached.Status.ValidateTransitionTo(model.ProcessingCheckoutSessionStatus); transitionErr != nil {
 			return saga.StepResult{}, cerr.InternalError(fmt.Errorf("%s: %w", op, transitionErr))
 		}
@@ -935,7 +936,7 @@ func (s *confirmPaymentSubmittedStep) ExecuteTx(
 	}
 
 	if session.Status != model.ProcessingCheckoutSessionStatus &&
-		session.Status != model.CompletedCheckoutSessionStatus {
+		!session.Status.IsFinanciallySuccessful() {
 		reason := fmt.Sprintf("session %s is %s after payment submit", sessionID, session.Status)
 		return saga.StepResult{Outcome: saga.StepOutcomeReconcile, Reason: &reason}, nil
 	}
@@ -1006,9 +1007,9 @@ func (s *confirmMerchantRecognizedStep) ExecuteTx(
 	return saga.StepResult{Outcome: saga.StepOutcomeCompleted}, nil
 }
 
-// finalizeRecognizedCheckoutTx marks the linked checkout completed after
+// finalizeRecognizedCheckoutTx marks the linked checkout verify_pending after
 // durable Financial Core recognition. Shared by the merchant-recognized Saga
-// step and UseCase.ApplyPaymentSucceeded.
+// step; UseCase.ApplyPaymentSucceeded uses the same transition rules.
 func finalizeRecognizedCheckoutTx(
 	ctx context.Context,
 	tx repo.Tx,
@@ -1031,24 +1032,48 @@ func finalizeRecognizedCheckoutTx(
 	}
 
 	switch locked.Status {
-	case model.CompletedCheckoutSessionStatus:
+	case model.VerifyPendingCheckoutSessionStatus,
+		model.VerifiedByMerchantCheckoutSessionStatus,
+		model.CancellationPendingCheckoutSessionStatus:
 		return nil
 
 	case model.ProcessingCheckoutSessionStatus,
 		model.ConfirmingCheckoutSessionStatus,
 		model.OpenCheckoutSessionStatus:
-		// Normal and recoverable paths into completed.
+		// Normal and recoverable paths into verify_pending.
 
 	default:
-		return fmt.Errorf("%s: session %s status %s cannot complete", op, locked.ID, locked.Status)
+		return fmt.Errorf("%s: session %s status %s cannot enter verify_pending", op, locked.ID, locked.Status)
 	}
 
-	if transitionErr := locked.Status.ValidateTransitionTo(model.CompletedCheckoutSessionStatus); transitionErr != nil {
+	if transitionErr := locked.Status.ValidateTransitionTo(model.VerifyPendingCheckoutSessionStatus); transitionErr != nil {
 		return fmt.Errorf("%s: %w", op, transitionErr)
 	}
 
-	updated, err := sessionQ.UpdateStatus(ctx, locked.ID, model.CompletedCheckoutSessionStatus, now)
+	policy := checkoutverificationv1.New()
+	pendingAt := now.UTC()
+	deadlineAt := policy.DeadlineAt(pendingAt)
+
+	updated, err := sessionQ.MarkVerifyPending(
+		ctx,
+		locked.ID,
+		pendingAt,
+		deadlineAt,
+		policy.Version(),
+		pendingAt,
+	)
 	if err != nil {
+		if cerr.IsCode(err, cerr.CodeConflict) {
+			replay, getErr := sessionQ.GetByID(ctx, locked.ID)
+			if getErr != nil {
+				return fmt.Errorf("%s: reload after verify_pending conflict: %w", op, getErr)
+			}
+
+			if replay.Status.IsFinanciallySuccessful() {
+				return nil
+			}
+		}
+
 		return err
 	}
 
@@ -1056,7 +1081,7 @@ func finalizeRecognizedCheckoutTx(
 		ctx,
 		tx,
 		updated,
-		checkoutlifecycle.EventTypeCompleted,
+		checkoutlifecycle.EventTypeVerifyPending,
 		now,
 	)
 }

@@ -117,7 +117,7 @@ func TestToConfirmResponse_MerchantFundingOmitsRedirect(t *testing.T) {
 	resp := toConfirmResponse(checkoutsessionuc.ConfirmOutput{
 		Session: model.CheckoutSession{
 			ID:                   model.CheckoutSessionID(uuid.New()),
-			Status:               model.CompletedCheckoutSessionStatus,
+			Status:               model.VerifyPendingCheckoutSessionStatus,
 			EvaluationGeneration: 1,
 		},
 		Contract: model.Contract{
@@ -130,7 +130,7 @@ func TestToConfirmResponse_MerchantFundingOmitsRedirect(t *testing.T) {
 	require.False(t, resp.PaymentRequired)
 	require.Empty(t, resp.RedirectURL)
 	require.Empty(t, resp.ExpiresAt)
-	require.Equal(t, model.CompletedCheckoutSessionStatus, resp.Status)
+	require.Equal(t, model.VerifyPendingCheckoutSessionStatus, resp.Status)
 
 	raw, err := json.Marshal(resp)
 	require.NoError(t, err)
@@ -149,7 +149,7 @@ func TestConfirmRequestSchema_HasNoProviderCode(t *testing.T) {
 func TestToStatusResponse_EnrichedMerchantInquiry(t *testing.T) {
 	t.Parallel()
 
-	completedAt := time.Date(
+	verifiedAt := time.Date(
 		2026,
 		10,
 		5,
@@ -164,10 +164,10 @@ func TestToStatusResponse_EnrichedMerchantInquiry(t *testing.T) {
 	raw, err := json.Marshal(toStatusResponse(checkoutsessionuc.GetPartnerStatusOutput{
 		CheckoutSessionToken: token,
 		MerchantOrderID:      "DAMZ-ORDER-1001",
-		Status:               model.CompletedCheckoutSessionStatus,
+		Status:               model.VerifiedByMerchantCheckoutSessionStatus,
 		AmountMinor:          120_000_000,
 		Currency:             model.Currency("IRR"),
-		CompletedAt:          &completedAt,
+		VerifiedAt:           &verifiedAt,
 	}))
 	require.NoError(t, err)
 
@@ -175,17 +175,17 @@ func TestToStatusResponse_EnrichedMerchantInquiry(t *testing.T) {
 	require.NoError(t, json.Unmarshal(raw, &decoded))
 	require.Equal(t, token.String(), decoded["checkout_session_id"])
 	require.Equal(t, "DAMZ-ORDER-1001", decoded["merchant_order_id"])
-	require.Equal(t, "completed", decoded["status"])
+	require.Equal(t, "verified_by_merchant", decoded["status"])
 	require.EqualValues(t, 120_000_000, decoded["amount_minor"])
 	require.Equal(t, "IRR", decoded["currency"])
-	require.Equal(t, "2026-10-05T10:30:12Z", decoded["completed_at"])
+	require.Equal(t, "2026-10-05T10:30:12Z", decoded["verified_at"])
 	require.NotContains(t, decoded, "available_credit_minor")
 	require.NotContains(t, decoded, "installments")
 	require.NotContains(t, decoded, "offer")
 	assertNoExternalPaymentLeak(t, string(raw))
 }
 
-func TestToStatusResponse_NonCompletedOmitsCompletedAt(t *testing.T) {
+func TestToStatusResponse_NonVerifiedOmitsVerifiedAt(t *testing.T) {
 	t.Parallel()
 
 	raw, err := json.Marshal(toStatusResponse(checkoutsessionuc.GetPartnerStatusOutput{
@@ -199,22 +199,9 @@ func TestToStatusResponse_NonCompletedOmitsCompletedAt(t *testing.T) {
 
 	var decoded map[string]any
 	require.NoError(t, json.Unmarshal(raw, &decoded))
-	require.NotContains(t, decoded, "completed_at")
+	require.NotContains(t, decoded, "verified_at")
+	require.NotContains(t, decoded, "verification_deadline_at")
 	assertNoExternalPaymentLeak(t, string(raw))
-}
-
-func TestToWebhookDestinationResponse_HasNoNameOrSecret(t *testing.T) {
-	t.Parallel()
-
-	raw, err := json.Marshal(toWebhookDestinationResponse(checkoutsessionuc.UpsertWebhookDestinationOutput{
-		Destination: model.MerchantWebhookDestination{
-			WebhookURL:              "https://merchant.example/hook",
-			Enabled:                 true,
-			SigningSecretCiphertext: "cipher",
-		},
-	}))
-	require.NoError(t, err)
-	require.JSONEq(t, `{"webhook_url":"https://merchant.example/hook","enabled":true}`, string(raw))
 }
 
 func assertNoExternalPaymentLeak(t *testing.T, raw string) {

@@ -22,7 +22,7 @@ func TestReturnExternal_CompletedRedirectsToRegisteredMerchantURL(t *testing.T) 
 	h := newHarness(t)
 	h.expectPool(1, 0)
 
-	completed := h.session(withStatus(model.CompletedCheckoutSessionStatus))
+	completed := h.session(withStatus(model.VerifyPendingCheckoutSessionStatus))
 	h.expectExternalReturnLookup(completed, nil)
 
 	output, err := h.uc.ReturnExternal(h.ctx, ReturnExternalInput{Token: h.publicToken})
@@ -52,7 +52,7 @@ func TestReturnExternal_OmitsStateQueryWhenMerchantStateEmpty(t *testing.T) {
 	h.expectPool(1, 0)
 
 	completed := h.session(
-		withStatus(model.CompletedCheckoutSessionStatus),
+		withStatus(model.VerifyPendingCheckoutSessionStatus),
 		func(s *model.CheckoutSession) { s.MerchantState = "" },
 	)
 	h.expectExternalReturnLookup(completed, nil)
@@ -88,7 +88,7 @@ func TestReturnExternal_InternalOriginIsNotFound(t *testing.T) {
 	h := newHarness(t)
 	h.expectPool(1, 0)
 
-	internalSession := h.session(withStatus(model.CompletedCheckoutSessionStatus))
+	internalSession := h.session(withStatus(model.VerifyPendingCheckoutSessionStatus))
 	internalSession.Origin = model.InternalCheckoutSessionOrigin
 	h.expectExternalReturnLookup(internalSession, nil)
 

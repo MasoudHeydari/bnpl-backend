@@ -33,7 +33,7 @@ func TestGetExternalConfirmationStatus_Completed(t *testing.T) {
 	h := newHarness(t)
 	h.expectPool(1, 0)
 
-	session := h.session(withStatus(model.CompletedCheckoutSessionStatus), withContract(h.contractID))
+	session := h.session(withStatus(model.VerifiedByMerchantCheckoutSessionStatus), withContract(h.contractID))
 	h.sessionCQ.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(session, nil).Once()
 
 	got, err := h.uc.GetExternalConfirmationStatus(h.ctx, GetExternalConfirmationStatusInput{Token: h.publicToken})

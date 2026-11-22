@@ -38,8 +38,7 @@ All other updates are column grants derived from the current SQL write paths.
 - `payment_attempt_items`: SELECT, INSERT.
 - `checkout_decision_allocations`: SELECT, INSERT. UPDATE columns: `decision_id`.
 - `merchant_return_destinations`: SELECT, INSERT. UPDATE columns: `enabled`, `return_url`, `updated_at`.
-- `merchant_webhook_destinations`: SELECT, INSERT. UPDATE columns: `enabled`, `signing_secret_ciphertext`, `signing_secret_key_id`, `updated_at`, `webhook_url`.
-- `checkout_sessions`: SELECT, INSERT. UPDATE columns: `canceled_at`, `cancellation_reason`, `completed_at`, `confirmation_attempt_id`, `contract_id`, `customer_id`, `decision_id`, `evaluation_generation`, `expires_at`, `status`, `updated_at`.
+- `checkout_sessions`: SELECT, INSERT. UPDATE columns: `canceled_at`, `cancellation_pending_at`, `cancellation_reason`, `completed_at`, `confirmation_attempt_id`, `contract_id`, `credit_kind`, `customer_id`, `decision_id`, `evaluation_generation`, `expires_at`, `merchant_verified_at`, `merchant_verified_terminal_id`, `status`, `updated_at`, `verification_deadline_at`, `verification_pending_at`, `verification_policy_version`.
 - `otp_challenges`: SELECT, INSERT. UPDATE columns: `attempt_count`, `context_version`, `expires_at`, `issue_id`, `next_issue_at`, `notification_accepted_at`, `notification_request_id`, `send_count`, `updated_at`, `verified_at`, `verifier`.
 - `otp_rate_limits`: SELECT, INSERT. UPDATE columns: `send_count`, `updated_at`, `window_started_at`.
 - `merchant_terminals`: SELECT, INSERT. UPDATE columns: `id`.

@@ -79,7 +79,6 @@ shutdown. Database management is not part of the Runtime binary.
 | `db/postgres/outboxrp` | Integration outbox repository |
 | `infrastructure/health` | Lifecycle state and composite dependency checkers |
 | `infrastructure/*` | Cache, clock, log, messaging (incl. destination router), task, trace, fingerprint, circuit breaker, secretbox adapters |
-| `external/merchantwebhook` | Provider root (`http` / `noop` identifiers). Concrete HTTP delivery lives in `merchantwebhook/http`; noop in `merchantwebhook/noop`. Pure destination rules live in `pkg/core/policy/webhook`. |
 | `cmd/bnpl/command` | CLI wiring |
 
 ## Merchant checkout context
@@ -106,7 +105,7 @@ Policies under `pkg/core/policy` fall into two families. Pick the family by **se
 
 ### Versioned Business Policies
 
-Examples: `checkout`, `initialcreditlimit`.
+Examples: `checkout`, `initialcreditlimit`, `checkoutverification`.
 
 Characteristics:
 
@@ -119,7 +118,7 @@ Keep the existing `contract.go` / `registry.go` / `catalog/` / `vN/` pattern. Do
 
 ### Runtime / Boundary Policies
 
-Examples: `checkoutorigin`, `returndestination`, `webhook`.
+Examples: `checkoutorigin`, `returndestination`.
 
 Characteristics:
 
@@ -137,10 +136,9 @@ origin, err := policy.Parse(raw)
 policy := returndestination.Strict() // or Development()
 err := policy.ValidateName(name)
 err := policy.ValidateURL(raw)
-
-policy := webhook.Strict() // or Development()
-parsed, err := policy.ValidateURL(raw)
 ```
+
+Merchant post-FC acceptance uses the versioned business policy family `checkoutverification` (`checkout_merchant_verification/v1`: 30-minute verify window). Job `checkout_verification_expiry` enforces the stored `verification_deadline_at`.
 
 Config/Bootstrap maps `production`/`staging` → `Strict`, and `development`/`test` → `Development`. Core packages must not call `os.Getenv` or branch on environment names.
 

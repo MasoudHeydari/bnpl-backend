@@ -58,16 +58,4 @@ var (
 		"outbox.lease.lost",
 		"outbox lease lost",
 	)
-	WebhookDelivered = define(
-		"webhook.delivered",
-		"merchant webhook delivered",
-	)
-	WebhookDeliveryFailed = define(
-		"webhook.delivery_failed",
-		"merchant webhook delivery failed",
-	)
-	WebhookDeliverySkipped = define(
-		"webhook.delivery_skipped",
-		"merchant webhook delivery skipped",
-	)
 )

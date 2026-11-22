@@ -72,7 +72,6 @@ type UseCase struct {
 	contractUC                 contractCreator
 	lifecycle                  *LifecycleOutbox
 	random                     io.Reader
-	webhookSecretBox           secretbox.Box
 	customerPhoneBox           secretbox.Box
 	returnURLPolicy            returndestination.Policy
 	clock                      clock.Clock
@@ -101,9 +100,8 @@ type UseCase struct {
 // origin. ttl bounds how long a newly created open session stays usable.
 // expiryBatchSize bounds how many open sessions one expiry sweep processes.
 // merchantCheckoutEventsDestination is the outbox destination (topic) of
-// merchant-facing lifecycle events. webhookSecretBox and customerPhoneBox
-// envelope-encrypt webhook signing secrets and external customer phones at
-// rest; they use separate key rings. Public checkout tokens are drawn from
+// merchant-facing lifecycle events. customerPhoneBox envelope-encrypts
+// external customer phones at rest. Public checkout tokens are drawn from
 // crypto/rand.
 //
 // Partner checkout: customerResolver maps the Merchant-asserted phone to a
@@ -132,7 +130,6 @@ func New(
 	outbox repo.Outbox,
 	idGenerator identifier.Generator,
 	merchantCheckoutEventsDestination string,
-	webhookSecretBox secretbox.Box,
 	customerPhoneBox secretbox.Box,
 	returnURLPolicy returndestination.Policy,
 	clk clock.Clock,
@@ -224,10 +221,6 @@ func New(
 		return nil, fmt.Errorf("%s: identifier generator is required", op)
 	}
 
-	if webhookSecretBox == nil {
-		return nil, fmt.Errorf("%s: webhook secret box is required", op)
-	}
-
 	if customerPhoneBox == nil {
 		return nil, fmt.Errorf("%s: customer phone box is required", op)
 	}
@@ -241,7 +234,6 @@ func New(
 	}
 
 	lifecycle, err := NewLifecycleOutbox(
-		checkoutSession,
 		merchantProfile,
 		outbox,
 		idGenerator,
@@ -318,7 +310,6 @@ func New(
 		contractUC:                 contractUC,
 		lifecycle:                  lifecycle,
 		random:                     rand.Reader,
-		webhookSecretBox:           webhookSecretBox,
 		customerPhoneBox:           customerPhoneBox,
 		returnURLPolicy:            returnURLPolicy,
 		clock:                      clk,

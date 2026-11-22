@@ -82,38 +82,6 @@ func parseKeyEntries(raw string) (KeyEntries, error) {
 	return entries, nil
 }
 
-// WebhookSecretEncryptionConfig returns the webhook secret encryption settings.
-// Key secrets are base64 (standard or URL-safe) encoded 32-byte AES-256 keys.
-// Decode errors never include key material.
-func (c CheckoutSession) WebhookSecretEncryptionConfig() (secretbox.Config, error) {
-	const op = "config.CheckoutSession.WebhookSecretEncryptionConfig"
-
-	cfg, err := secretBoxConfig(c.WebhookSecretEncryptionActiveKeyID, c.WebhookSecretEncryptionKeys)
-	if err != nil {
-		return secretbox.Config{}, fmt.Errorf("%s: %w", op, err)
-	}
-
-	return cfg, nil
-}
-
-// NewWebhookSecretBox constructs the AES-GCM box that protects merchant webhook
-// signing secrets at rest.
-func (c CheckoutSession) NewWebhookSecretBox() (*secretbox.Box, error) {
-	const op = "config.CheckoutSession.NewWebhookSecretBox"
-
-	cfg, err := c.WebhookSecretEncryptionConfig()
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", op, err)
-	}
-
-	box, err := secretbox.New(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("%s: create secret box: %w", op, err)
-	}
-
-	return box, nil
-}
-
 // CustomerPhoneEncryptionConfig returns the customer phone encryption settings.
 // Key secrets are base64 (standard or URL-safe) encoded 32-byte AES-256 keys.
 // Decode errors never include key material.
@@ -146,15 +114,11 @@ func (c CheckoutSession) NewCustomerPhoneBox() (*secretbox.Box, error) {
 	return box, nil
 }
 
-// validateSecrets validates webhook secret and customer phone encryption settings.
+// validateSecrets validates customer phone encryption settings.
 func (c CheckoutSession) validateSecrets() error {
 	const op = "config.CheckoutSession.validateSecrets"
 
 	// Validation reuses the constructors so config and runtime rules cannot drift.
-	if _, err := c.NewWebhookSecretBox(); err != nil {
-		return fmt.Errorf("%s: invalid usecases.checkout_session webhook secret encryption settings: %w", op, err)
-	}
-
 	if _, err := c.NewCustomerPhoneBox(); err != nil {
 		return fmt.Errorf("%s: invalid usecases.checkout_session customer phone encryption settings: %w", op, err)
 	}

@@ -81,7 +81,6 @@ infrastructure:
   versions:         # Config and database schema semver (validated at load)
 external:
   credit_assessment:  # noop | creditbureau
-  webhook_dispatcher: # noop | http; HTTP limits under http:
   financial_core:     # noop | grpc; payment_return_url (HTTPS); checkout_payment_provider_code (local FC: sandbox_payment)
 ```
 
@@ -430,16 +429,18 @@ See [security.md](security.md).
 
 Go code defaults only the config **file path**. Provider defaults and operational values come from `.env` / operator-provided environment, not from Go constants.
 
-### External Webhook Dispatcher
+### Checkout merchant verification expiry
+
+After durable Financial Core success, Partner checkout sessions enter `verify_pending` with a stored `verification_deadline_at` (policy `checkout_merchant_verification/v1`, 30-minute window). Scheduled task `checkout_verification_expiry` under `infrastructure.task.scheduled` claims due rows and moves them to `cancellation_pending` without refund or credit exposure release.
 
 | Key | Source | Required | Default | Notes |
 | --- | --- | --- | --- | --- |
-| `EXTERNAL_WEBHOOK_DISPATCHER_PROVIDER` | env | Yes | `http` | `http` or `noop`; `noop` forbidden in production |
-| `EXTERNAL_WEBHOOK_DISPATCHER_HTTP_TIMEOUT` | env | When http | `10s` | Zero uses deliverer default; must not be negative |
-| `EXTERNAL_WEBHOOK_DISPATCHER_HTTP_DIAL_TIMEOUT` | env | When http | `5s` | Zero uses deliverer default; must not be negative |
-| `EXTERNAL_WEBHOOK_DISPATCHER_HTTP_MAX_RESPONSE_BYTES` | env | When http | `65536` | Zero uses deliverer default; must not be negative |
+| `TASK_CHECKOUT_VERIFICATION_EXPIRY_ENABLED` | env | Yes when task provider is `inprocess` | see `.env.example` | Enables the job |
+| `TASK_CHECKOUT_VERIFICATION_EXPIRY_HANDLER` | env | Yes when enabled | `checkout_verification_expiry` | Handler name wired in bootstrap |
+| `TASK_CHECKOUT_VERIFICATION_EXPIRY_TRIGGER_TYPE` | env | Yes when enabled | `interval` | Interval trigger |
+| `TASK_CHECKOUT_VERIFICATION_EXPIRY_INTERVAL` | env | Yes when enabled | `1m` | Sweep cadence; deadline comes from stored `verification_deadline_at`, not this interval |
 
-Provider-specific settings live under `external.webhook_dispatcher.http` / `noop`. Bootstrap wires the selected adapter in `NewExternal`; OutboxPublisher only receives the ready `messaging.Publisher`.
+There is no `external.webhook_dispatcher` configuration. Merchant fulfillment uses Partner `POST .../verify`, not outbound merchant webhooks.
 
 ### External Financial Core
 

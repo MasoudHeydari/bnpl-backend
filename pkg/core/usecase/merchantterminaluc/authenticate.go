@@ -100,6 +100,7 @@ func (uc *UseCase) Authenticate(
 
 			principal = merchantterminal.MerchantPrincipal{
 				ExternalMerchantID: terminal.ExternalMerchantID,
+				MerchantTerminalID: terminal.ID,
 				TerminalID:         terminal.TerminalID,
 				CredentialID:       matched.ID,
 				CredentialVersion:  matched.Version,

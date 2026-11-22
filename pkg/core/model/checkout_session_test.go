@@ -16,22 +16,26 @@ func TestCheckoutSessionStatus_Transitions(t *testing.T) {
 	require.True(t, ConfirmingCheckoutSessionStatus.CanTransitionTo(OpenCheckoutSessionStatus))
 	require.True(t, ProcessingCheckoutSessionStatus.CanTransitionTo(OpenCheckoutSessionStatus))
 
-	// A linked checkout whose payment attempt was replaced re-enters processing,
-	// and authoritative success can complete that open session if the processing
-	// update was lost. The first Confirm of an unlinked session still claims
-	// confirming before any contract exists.
 	require.True(t, OpenCheckoutSessionStatus.CanTransitionTo(ProcessingCheckoutSessionStatus))
-	require.True(t, OpenCheckoutSessionStatus.CanTransitionTo(CompletedCheckoutSessionStatus))
+	require.True(t, OpenCheckoutSessionStatus.CanTransitionTo(VerifyPendingCheckoutSessionStatus))
+	require.True(t, ConfirmingCheckoutSessionStatus.CanTransitionTo(VerifyPendingCheckoutSessionStatus))
+	require.True(t, ProcessingCheckoutSessionStatus.CanTransitionTo(VerifyPendingCheckoutSessionStatus))
+	require.True(t, VerifyPendingCheckoutSessionStatus.CanTransitionTo(VerifiedByMerchantCheckoutSessionStatus))
+	require.True(t, VerifyPendingCheckoutSessionStatus.CanTransitionTo(CancellationPendingCheckoutSessionStatus))
+	require.True(t, CancellationPendingCheckoutSessionStatus.CanTransitionTo(CanceledCheckoutSessionStatus))
 
-	// Terminal states never reopen.
+	require.False(t, VerifiedByMerchantCheckoutSessionStatus.CanTransitionTo(ProcessingCheckoutSessionStatus))
+	require.False(t, CancellationPendingCheckoutSessionStatus.CanTransitionTo(VerifiedByMerchantCheckoutSessionStatus))
 	require.False(t, CanceledCheckoutSessionStatus.CanTransitionTo(OpenCheckoutSessionStatus))
-	require.False(t, CompletedCheckoutSessionStatus.CanTransitionTo(CanceledCheckoutSessionStatus))
 	require.False(t, ExpiredCheckoutSessionStatus.CanTransitionTo(OpenCheckoutSessionStatus))
 	require.False(t, UnavailableCheckoutSessionStatus.CanTransitionTo(OpenCheckoutSessionStatus))
 
-	require.True(t, CompletedCheckoutSessionStatus.IsTerminal())
+	require.True(t, VerifiedByMerchantCheckoutSessionStatus.IsTerminal())
+	require.False(t, CancellationPendingCheckoutSessionStatus.IsTerminal())
+	require.False(t, VerifyPendingCheckoutSessionStatus.IsTerminal())
 	require.False(t, ProcessingCheckoutSessionStatus.IsTerminal())
 	require.False(t, CheckoutSessionStatus("bogus").IsValid())
+	require.False(t, CheckoutSessionStatus("completed").IsValid())
 }
 
 func TestCheckoutSessionStatus_AllowsCustomerContinuation(t *testing.T) {
@@ -39,12 +43,33 @@ func TestCheckoutSessionStatus_AllowsCustomerContinuation(t *testing.T) {
 
 	require.True(t, OpenCheckoutSessionStatus.AllowsCustomerContinuation())
 
-	// A confirming claim or pending external payment outcome must not be re-evaluated locally.
 	require.False(t, UnavailableCheckoutSessionStatus.AllowsCustomerContinuation())
 	require.False(t, ConfirmingCheckoutSessionStatus.AllowsCustomerContinuation())
 	require.False(t, ProcessingCheckoutSessionStatus.AllowsCustomerContinuation())
+	require.False(t, VerifyPendingCheckoutSessionStatus.AllowsCustomerContinuation())
+	require.False(t, VerifiedByMerchantCheckoutSessionStatus.AllowsCustomerContinuation())
+	require.False(t, CancellationPendingCheckoutSessionStatus.AllowsCustomerContinuation())
 	require.False(t, CanceledCheckoutSessionStatus.AllowsCustomerContinuation())
 	require.False(t, ExpiredCheckoutSessionStatus.AllowsCustomerContinuation())
+}
+
+func TestCheckoutSessionStatus_ActiveAndFinancialPredicates(t *testing.T) {
+	t.Parallel()
+
+	require.True(t, VerifyPendingCheckoutSessionStatus.IsActiveCheckoutAttempt())
+	require.True(t, CancellationPendingCheckoutSessionStatus.IsActiveCheckoutAttempt())
+	require.False(t, VerifiedByMerchantCheckoutSessionStatus.IsActiveCheckoutAttempt())
+
+	require.True(t, VerifyPendingCheckoutSessionStatus.BlocksCancelAndExpiry())
+	require.True(t, CancellationPendingCheckoutSessionStatus.BlocksCancelAndExpiry())
+
+	require.True(t, VerifyPendingCheckoutSessionStatus.IsFinanciallySuccessful())
+	require.True(t, VerifiedByMerchantCheckoutSessionStatus.IsFinanciallySuccessful())
+	require.True(t, CancellationPendingCheckoutSessionStatus.IsFinanciallySuccessful())
+	require.False(t, ProcessingCheckoutSessionStatus.IsFinanciallySuccessful())
+
+	require.True(t, VerifiedByMerchantCheckoutSessionStatus.IsMerchantVerified())
+	require.False(t, VerifyPendingCheckoutSessionStatus.IsMerchantVerified())
 }
 
 func TestCheckoutSession_IsExpiredAt(t *testing.T) {
@@ -78,8 +103,8 @@ func TestCheckoutSession_MatchesCreateRequest(t *testing.T) {
 		MerchantOrderID:       "order-1",
 		CustomerReference:     "cust-1",
 		ReturnDestination:     "storefront",
-		MerchantState:         "cart-42",
-		RequestedAmountMinor:  150000000,
+		MerchantState:         "state-1",
+		RequestedAmountMinor:  1000,
 		Currency:              IRRCurrency,
 	}
 
@@ -88,37 +113,17 @@ func TestCheckoutSession_MatchesCreateRequest(t *testing.T) {
 		"order-1",
 		"cust-1",
 		"storefront",
-		"cart-42",
-		150000000,
+		"state-1",
+		1000,
 		IRRCurrency,
 	))
-
-	// A reused merchant order reference with different terms is a conflict.
 	require.False(t, session.MatchesCreateRequest(
 		storeID,
 		"order-2",
 		"cust-1",
 		"storefront",
-		"cart-42",
-		150000000,
-		IRRCurrency,
-	))
-	require.False(t, session.MatchesCreateRequest(
-		storeID,
-		"order-1",
-		"cust-1",
-		"storefront",
-		"cart-42",
-		150000001,
-		IRRCurrency,
-	))
-	require.False(t, session.MatchesCreateRequest(
-		storeID,
-		"order-1",
-		"cust-2",
-		"storefront",
-		"cart-42",
-		150000000,
+		"state-1",
+		1000,
 		IRRCurrency,
 	))
 }

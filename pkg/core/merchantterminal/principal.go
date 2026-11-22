@@ -12,6 +12,9 @@ type MerchantPrincipal struct {
 	// ExternalMerchantID is the merchant that owns the authenticated terminal.
 	ExternalMerchantID model.ExternalMerchantID
 
+	// MerchantTerminalID is the internal terminal primary key.
+	MerchantTerminalID model.MerchantTerminalID
+
 	// TerminalID is the public terminal identifier that was presented.
 	TerminalID model.TerminalID
 

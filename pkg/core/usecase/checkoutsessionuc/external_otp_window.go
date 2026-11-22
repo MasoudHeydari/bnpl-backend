@@ -71,7 +71,7 @@ func otpIssuanceBlockedByConfirmation(confirmationStatus string, session model.C
 
 func isTerminalCheckoutStatus(status model.CheckoutSessionStatus) bool {
 	switch status {
-	case model.CompletedCheckoutSessionStatus,
+	case model.VerifiedByMerchantCheckoutSessionStatus,
 		model.CanceledCheckoutSessionStatus,
 		model.ExpiredCheckoutSessionStatus,
 		model.UnavailableCheckoutSessionStatus:

@@ -172,8 +172,11 @@ type GetPartnerStatusOutput struct {
 	// Currency is the checkout currency.
 	Currency model.Currency
 
-	// CompletedAt is set only when Status is completed.
-	CompletedAt *time.Time
+	// VerificationDeadlineAt is set when Status is verify_pending.
+	VerificationDeadlineAt *time.Time
+
+	// VerifiedAt is set when Status is verified_by_merchant.
+	VerifiedAt *time.Time
 }
 
 // CancelByMerchantInput carries a merchant cancellation.
@@ -266,7 +269,7 @@ type GetReturnInput struct {
 //
 // ReturnURL carries only checkout_session_id and the opaque merchant state.
 // It never encodes payment truth; merchants must confirm outcomes through the
-// status endpoint or signed webhooks.
+// status endpoint.
 type GetReturnOutput struct {
 	// Session is the checkout session the customer is bound to.
 	Session model.CheckoutSession
@@ -295,27 +298,6 @@ type UpsertReturnDestinationInput struct {
 // UpsertReturnDestinationOutput returns the persisted return destination.
 type UpsertReturnDestinationOutput struct {
 	Destination model.MerchantReturnDestination
-}
-
-// UpsertWebhookDestinationInput registers the merchant's single lifecycle
-// webhook endpoint.
-type UpsertWebhookDestinationInput struct {
-	ExternalMerchantID model.ExternalMerchantID
-	WebhookURL         string
-
-	// SigningSecret is write-only. Nil preserves the stored secret; a non-nil
-	// value rotates it. The first registration must supply a secret of at least
-	// model.MinMerchantWebhookSigningSecretLength bytes.
-	SigningSecret *string
-
-	// Enabled is optional. Nil preserves the stored value on update and defaults
-	// to true on create.
-	Enabled *bool
-}
-
-// UpsertWebhookDestinationOutput returns the persisted webhook destination.
-type UpsertWebhookDestinationOutput struct {
-	Destination model.MerchantWebhookDestination
 }
 
 // OfferInstallment is one installment in the projected schedule.

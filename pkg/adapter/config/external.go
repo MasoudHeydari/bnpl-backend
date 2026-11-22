@@ -49,9 +49,6 @@ type External struct {
 
 	// BotMessaging configures outbound and inbound bot messaging integrations.
 	BotMessaging ExternalBotMessaging `yaml:"bot_messaging"`
-
-	// WebhookDispatcher configures outbound merchant webhook delivery.
-	WebhookDispatcher ExternalWebhookDispatcher `yaml:"webhook_dispatcher"`
 }
 
 // ExternalBotMessaging configures bot-based messaging integrations.

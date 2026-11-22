@@ -10,7 +10,7 @@ import (
 
 // Route sends messages whose destination starts with Prefix to Publisher.
 type Route struct {
-	// Prefix is the destination scheme prefix, for example "webhook://".
+	// Prefix is the destination scheme prefix, for example "test://".
 	Prefix string
 
 	// Publisher receives matching messages.
@@ -64,6 +64,5 @@ func (r *Router) Publish(ctx context.Context, topic string, msg messaging.Messag
 }
 
 // Close is a no-op: the router does not own the publishers it dispatches to.
-// Infrastructure owns the messaging fallback; External owns webhook HTTP
-// deliverer resources when that route is configured.
+// Infrastructure owns the messaging fallback.
 func (r *Router) Close() error { return nil }

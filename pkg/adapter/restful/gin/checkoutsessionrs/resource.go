@@ -63,19 +63,17 @@ func RegisterPartner(
 		authMW.RequireAny(permission.CheckoutSessionsCreateMerchant),
 		rs.CancelByMerchant,
 	)
+	sessions.POST(
+		"/:checkout_session_id/verify",
+		authMW.RequireAny(permission.CheckoutSessionsCreateMerchant),
+		rs.VerifyByMerchant,
+	)
 
 	returnDestinations := router.Group("/return-destinations")
 	returnDestinations.PUT(
 		"/:destination_name",
 		authMW.RequireAny(permission.CheckoutReturnDestinationsManageMerchant),
 		rs.UpsertReturnDestination,
-	)
-
-	webhookDestination := router.Group("/webhook-destination")
-	webhookDestination.PUT(
-		"",
-		authMW.RequireAny(permission.CheckoutWebhooksManageMerchant),
-		rs.UpsertWebhookDestination,
 	)
 }
 

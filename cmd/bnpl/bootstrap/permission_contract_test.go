@@ -55,16 +55,16 @@ func protectedRoutePermissions() []protectedRoutePermission {
 			Permission:  permission.CheckoutSessionsCreateMerchant,
 		},
 		{
+			Method:      http.MethodPost,
+			GinPath:     "/api/v1/partner/checkout-sessions/" + uuid.NewString() + "/verify",
+			SwaggerPath: "/api/v1/partner/checkout-sessions/{checkout_session_id}/verify",
+			Permission:  permission.CheckoutSessionsCreateMerchant,
+		},
+		{
 			Method:      http.MethodPut,
 			GinPath:     "/api/v1/partner/return-destinations/default",
 			SwaggerPath: "/api/v1/partner/return-destinations/{destination_name}",
 			Permission:  permission.CheckoutReturnDestinationsManageMerchant,
-		},
-		{
-			Method:      http.MethodPut,
-			GinPath:     "/api/v1/partner/webhook-destination",
-			SwaggerPath: "/api/v1/partner/webhook-destination",
-			Permission:  permission.CheckoutWebhooksManageMerchant,
 		},
 		{
 			Method:      http.MethodPost,
@@ -228,7 +228,6 @@ func allEndpointPermissions() []permission.Permission {
 		permission.BranchesReadMerchant,
 		permission.CheckoutSessionsCreateMerchant,
 		permission.CheckoutSessionsReadMerchant,
-		permission.CheckoutWebhooksManageMerchant,
 		permission.CheckoutReturnDestinationsManageMerchant,
 		permission.MerchantProfileReadMerchant,
 		permission.MerchantTerminalsManageMerchant,

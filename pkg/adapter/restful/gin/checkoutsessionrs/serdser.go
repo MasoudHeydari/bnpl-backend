@@ -103,18 +103,31 @@ type selectCreditKindResponse struct {
 // It never includes customer credit, installment offer details, provider
 // selection, or Financial Core payment identifiers.
 type statusResponse struct {
-	CheckoutSessionID string                      `json:"checkout_session_id" example:"cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"`
-	MerchantOrderID   string                      `json:"merchant_order_id"`
-	Status            model.CheckoutSessionStatus `json:"status" enums:"open,confirming,processing,completed,canceled,expired,unavailable"`
-	AmountMinor       uint64                      `json:"amount_minor" example:"120000000"`
-	Currency          model.Currency              `json:"currency" example:"IRR"`
-	CompletedAt       *time.Time                  `json:"completed_at,omitempty"`
+	CheckoutSessionID      string                      `json:"checkout_session_id" example:"cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"`
+	MerchantOrderID        string                      `json:"merchant_order_id"`
+	Status                 model.CheckoutSessionStatus `json:"status" enums:"open,confirming,processing,verify_pending,verified_by_merchant,cancellation_pending,canceled,expired,unavailable"`
+	AmountMinor            uint64                      `json:"amount_minor" example:"120000000"`
+	Currency               model.Currency              `json:"currency" example:"IRR"`
+	VerificationDeadlineAt *time.Time                  `json:"verification_deadline_at,omitempty"`
+	VerifiedAt             *time.Time                  `json:"verified_at,omitempty"`
 }
 
 type cancelResponse struct {
 	CheckoutSessionID string                      `json:"checkout_session_id" example:"cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"`
 	Status            model.CheckoutSessionStatus `json:"status" enums:"canceled"`
 	ReturnURL         string                      `json:"return_url"`
+}
+
+// verifyByMerchantRequest is the partner Verify body.
+type verifyByMerchantRequest struct {
+	MerchantOrderID string `json:"merchant_order_id" binding:"required,max=256" maxLength:"256"`
+}
+
+type verifyByMerchantResponse struct {
+	CheckoutSessionID string                      `json:"checkout_session_id" example:"cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"`
+	MerchantOrderID   string                      `json:"merchant_order_id"`
+	Status            model.CheckoutSessionStatus `json:"status" enums:"verified_by_merchant"`
+	VerifiedAt        time.Time                   `json:"verified_at"`
 }
 
 // confirmRequest carries the offer version (evaluation_generation) the customer
@@ -153,7 +166,7 @@ type confirmResponse struct {
 //
 // return_url carries only checkout_session_id and the opaque merchant state.
 // Neither it nor merchant_state is payment truth; merchants confirm outcomes via
-// the status endpoint or signed webhooks.
+// the status endpoint.
 type returnResponse struct {
 	CheckoutSessionID uuid.UUID                   `json:"checkout_session_id" format:"uuid"`
 	Status            model.CheckoutSessionStatus `json:"status" enums:"open,confirming,processing,completed,canceled,expired,unavailable"`
@@ -172,22 +185,6 @@ type returnDestinationResponse struct {
 	DestinationName string `json:"destination_name"`
 	ReturnURL       string `json:"return_url"`
 	Enabled         bool   `json:"enabled"`
-}
-
-type upsertWebhookDestinationRequest struct {
-	WebhookURL string `json:"webhook_url" binding:"required,max=2048"`
-
-	// SigningSecret is write-only. Omit to keep the stored secret; send a value
-	// of at least 32 bytes to rotate it. Required on first registration.
-	SigningSecret *string `json:"signing_secret,omitempty" binding:"omitempty,max=512" minLength:"32" maxLength:"512"`
-
-	// Enabled is optional. Omit to preserve the stored value (true on create).
-	Enabled *bool `json:"enabled,omitempty"`
-}
-
-type webhookDestinationResponse struct {
-	WebhookURL string `json:"webhook_url"`
-	Enabled    bool   `json:"enabled"`
 }
 
 func toCreatePartnerInput(c *gin.Context) (checkoutsessionuc.CreatePartnerInput, bool) {
@@ -400,12 +397,60 @@ func toOfferResponse(offer checkoutsessionuc.Offer) OfferSchema {
 
 func toStatusResponse(output checkoutsessionuc.GetPartnerStatusOutput) statusResponse {
 	return statusResponse{
+		CheckoutSessionID:      output.CheckoutSessionToken.String(),
+		MerchantOrderID:        output.MerchantOrderID,
+		Status:                 output.Status,
+		AmountMinor:            output.AmountMinor,
+		Currency:               output.Currency,
+		VerificationDeadlineAt: output.VerificationDeadlineAt,
+		VerifiedAt:             output.VerifiedAt,
+	}
+}
+
+func toVerifyByMerchantInput(c *gin.Context) (checkoutsessionuc.VerifyByMerchantInput, bool) {
+	const op = "checkoutsessionrs.toVerifyByMerchantInput"
+
+	token, ok := checkoutSessionTokenParam(c)
+	if !ok {
+		return checkoutsessionuc.VerifyByMerchantInput{}, false
+	}
+
+	principal, ok := merchantterminal.MerchantPrincipalFromContext(c.Request.Context())
+	if !ok {
+		serdser.SerErr(c, cerr.Unauthorized(
+			fmt.Errorf("%s: partner terminal principal is missing", op),
+		))
+		return checkoutsessionuc.VerifyByMerchantInput{}, false
+	}
+
+	if principal.MerchantTerminalID.IsZero() {
+		serdser.SerErr(c, cerr.Unauthorized(
+			fmt.Errorf("%s: authenticated terminal id is missing", op),
+		))
+		return checkoutsessionuc.VerifyByMerchantInput{}, false
+	}
+
+	var req verifyByMerchantRequest
+	if !serdser.Bind(c, &req, binding.JSON) {
+		return checkoutsessionuc.VerifyByMerchantInput{}, false
+	}
+
+	return checkoutsessionuc.VerifyByMerchantInput{
+		CheckoutSessionToken: token,
+		ExternalMerchantID:   principal.ExternalMerchantID,
+		MerchantOrderID:      req.MerchantOrderID,
+		TerminalID:           principal.MerchantTerminalID,
+	}, true
+}
+
+func toVerifyByMerchantResponse(
+	output checkoutsessionuc.VerifyByMerchantOutput,
+) verifyByMerchantResponse {
+	return verifyByMerchantResponse{
 		CheckoutSessionID: output.CheckoutSessionToken.String(),
 		MerchantOrderID:   output.MerchantOrderID,
 		Status:            output.Status,
-		AmountMinor:       output.AmountMinor,
-		Currency:          output.Currency,
-		CompletedAt:       output.CompletedAt,
+		VerifiedAt:        output.VerifiedAt.UTC(),
 	}
 }
 
@@ -479,34 +524,6 @@ func toReturnDestinationResponse(
 		DestinationName: output.Destination.DestinationName,
 		ReturnURL:       output.Destination.ReturnURL,
 		Enabled:         output.Destination.Enabled,
-	}
-}
-
-func toUpsertWebhookDestinationInput(c *gin.Context) (checkoutsessionuc.UpsertWebhookDestinationInput, bool) {
-	merchantID, ok := authenticatedMerchantID(c)
-	if !ok {
-		return checkoutsessionuc.UpsertWebhookDestinationInput{}, false
-	}
-
-	var req upsertWebhookDestinationRequest
-	if !serdser.Bind(c, &req, binding.JSON) {
-		return checkoutsessionuc.UpsertWebhookDestinationInput{}, false
-	}
-
-	return checkoutsessionuc.UpsertWebhookDestinationInput{
-		ExternalMerchantID: merchantID,
-		WebhookURL:         strings.TrimSpace(req.WebhookURL),
-		SigningSecret:      req.SigningSecret,
-		Enabled:            req.Enabled,
-	}, true
-}
-
-func toWebhookDestinationResponse(
-	output checkoutsessionuc.UpsertWebhookDestinationOutput,
-) webhookDestinationResponse {
-	return webhookDestinationResponse{
-		WebhookURL: output.Destination.WebhookURL,
-		Enabled:    output.Destination.Enabled,
 	}
 }
 

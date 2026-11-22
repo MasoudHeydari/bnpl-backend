@@ -80,7 +80,7 @@ func TestConfirmExternal_CompletedRejectsEvenWithFreshOTP(t *testing.T) {
 	h.expectPool(0, 1)
 
 	pending := h.session(
-		withStatus(model.CompletedCheckoutSessionStatus),
+		withStatus(model.VerifyPendingCheckoutSessionStatus),
 		withContract(h.contractID),
 	)
 	h.seedOTPChallenge(pending, testOTPCode)

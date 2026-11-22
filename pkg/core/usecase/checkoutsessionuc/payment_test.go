@@ -20,7 +20,7 @@ func notFoundSession() error {
 	return cerr.ResourceNotFound(errors.New("no checkout session for contract"))
 }
 
-func TestApplyPaymentSucceeded_AdvancesInFlightSessionsToCompleted(t *testing.T) {
+func TestApplyPaymentSucceeded_AdvancesInFlightSessionsToVerifyPending(t *testing.T) {
 	t.Parallel()
 
 	for _, status := range []model.CheckoutSessionStatus{
@@ -33,13 +33,11 @@ func TestApplyPaymentSucceeded_AdvancesInFlightSessionsToCompleted(t *testing.T)
 			h := newHarness(t)
 
 			inFlight := h.session(withStatus(status), withContract(h.contractID))
-			completed := h.session(withStatus(model.CompletedCheckoutSessionStatus), withContract(h.contractID))
+			verifyPending := h.verifyPendingSession(withContract(h.contractID))
 
 			h.sessionTx.EXPECT().LockByContractID(h.ctx, h.contractID).Return(inFlight, nil).Once()
-			h.sessionTx.EXPECT().
-				UpdateStatus(h.ctx, h.sessionID, model.CompletedCheckoutSessionStatus, h.now).
-				Return(completed, nil).Once()
-			h.expectLifecycleEvent(completed, checkoutlifecycle.EventTypeCompleted)
+			h.expectMarkVerifyPending(verifyPending)
+			h.expectLifecycleEvent(verifyPending, checkoutlifecycle.EventTypeVerifyPending)
 
 			require.NoError(t, h.uc.ApplyPaymentSucceeded(h.ctx, h.tx, h.contractID, h.now))
 		})
@@ -52,17 +50,15 @@ func TestApplyPaymentSucceeded_DuplicateSuccessIsIdempotent(t *testing.T) {
 	h := newHarness(t)
 
 	processing := h.session(withStatus(model.ProcessingCheckoutSessionStatus), withContract(h.contractID))
-	completed := h.session(withStatus(model.CompletedCheckoutSessionStatus), withContract(h.contractID))
+	verifyPending := h.verifyPendingSession(withContract(h.contractID))
 
-	// First delivery completes the session and emits exactly one event.
+	// First delivery records verify_pending and emits exactly one event.
 	h.sessionTx.EXPECT().LockByContractID(h.ctx, h.contractID).Return(processing, nil).Once()
-	h.sessionTx.EXPECT().
-		UpdateStatus(h.ctx, h.sessionID, model.CompletedCheckoutSessionStatus, h.now).
-		Return(completed, nil).Once()
-	h.expectLifecycleEvent(completed, checkoutlifecycle.EventTypeCompleted)
+	h.expectMarkVerifyPending(verifyPending)
+	h.expectLifecycleEvent(verifyPending, checkoutlifecycle.EventTypeVerifyPending)
 
-	// Redelivery sees completed: no UpdateStatus, no outbox row (strict mocks).
-	h.sessionTx.EXPECT().LockByContractID(h.ctx, h.contractID).Return(completed, nil).Once()
+	// Redelivery sees verify_pending: no MarkVerifyPending, no outbox row (strict mocks).
+	h.sessionTx.EXPECT().LockByContractID(h.ctx, h.contractID).Return(verifyPending, nil).Once()
 
 	require.NoError(t, h.uc.ApplyPaymentSucceeded(h.ctx, h.tx, h.contractID, h.now))
 	require.NoError(t, h.uc.ApplyPaymentSucceeded(h.ctx, h.tx, h.contractID, h.now))
@@ -96,7 +92,7 @@ func TestApplyPaymentSucceeded_LateSuccessOnTerminalSessionRecordsConflict(t *te
 			h.sessionTx.EXPECT().LockByContractID(h.ctx, h.contractID).Return(terminal, nil).Once()
 
 			// Evidence is written, but the terminal status is never rewritten
-			// (UpdateStatus is not expected).
+			// (MarkVerifyPending / UpdateStatus is not expected).
 			h.outboxTx.EXPECT().
 				Create(h.ctx, testifymock.MatchedBy(func(message repo.CreateOutboxMessage) bool {
 					if message.Destination != testMerchantEventsDestination ||
@@ -165,8 +161,9 @@ func TestApplyPaymentRetryableFailure_IgnoresStaleFailureOutsideProcessing(t *te
 	t.Parallel()
 
 	statuses := []model.CheckoutSessionStatus{
-		// Authoritative success already won; a stale FAILED must not regress it.
-		model.CompletedCheckoutSessionStatus,
+		// Authoritative financial success already won; a stale FAILED must not regress it.
+		model.VerifyPendingCheckoutSessionStatus,
+		model.VerifiedByMerchantCheckoutSessionStatus,
 		model.OpenCheckoutSessionStatus,
 		model.ConfirmingCheckoutSessionStatus,
 		model.CanceledCheckoutSessionStatus,
@@ -188,23 +185,21 @@ func TestApplyPaymentRetryableFailure_IgnoresStaleFailureOutsideProcessing(t *te
 	}
 }
 
-func TestApplyPaymentRetryableFailure_StaleFailureAfterSuccessDoesNotRegressCompleted(t *testing.T) {
+func TestApplyPaymentRetryableFailure_StaleFailureAfterSuccessDoesNotRegressVerifyPending(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
 
 	processing := h.session(withStatus(model.ProcessingCheckoutSessionStatus), withContract(h.contractID))
-	completed := h.session(withStatus(model.CompletedCheckoutSessionStatus), withContract(h.contractID))
+	verifyPending := h.verifyPendingSession(withContract(h.contractID))
 
 	// SUCCEEDED lands first.
 	h.sessionTx.EXPECT().LockByContractID(h.ctx, h.contractID).Return(processing, nil).Once()
-	h.sessionTx.EXPECT().
-		UpdateStatus(h.ctx, h.sessionID, model.CompletedCheckoutSessionStatus, h.now).
-		Return(completed, nil).Once()
-	h.expectLifecycleEvent(completed, checkoutlifecycle.EventTypeCompleted)
+	h.expectMarkVerifyPending(verifyPending)
+	h.expectLifecycleEvent(verifyPending, checkoutlifecycle.EventTypeVerifyPending)
 
 	// A stale FAILED arrives afterwards and must be a no-op.
-	h.sessionTx.EXPECT().LockByContractID(h.ctx, h.contractID).Return(completed, nil).Once()
+	h.sessionTx.EXPECT().LockByContractID(h.ctx, h.contractID).Return(verifyPending, nil).Once()
 
 	require.NoError(t, h.uc.ApplyPaymentSucceeded(h.ctx, h.tx, h.contractID, h.now))
 	require.NoError(t, h.uc.ApplyPaymentRetryableFailure(h.ctx, h.tx, h.contractID, h.now))
