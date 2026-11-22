@@ -90,8 +90,10 @@ func (d checkoutSessionDeps) newUseCase(t *testing.T) *UseCase {
 		d.checkoutPayment,
 		cancellationClient,
 		d.outbox,
+		mock.NewCheckoutSession(t),
 		d.clock,
 		"bnpl.audit.events.v1",
+		"notification.commands.v1",
 		d.idGenerator,
 		"https://bnpl.example/payments/return",
 		5*time.Minute,
@@ -103,6 +105,7 @@ func (d checkoutSessionDeps) newUseCase(t *testing.T) *UseCase {
 		mustTestOriginationJurisdictions(t),
 		lognoop.New(),
 		metricsnoop.New(),
+		false,
 		AllowAllNewCreditUsage{},
 		newTestObserver(t),
 	)

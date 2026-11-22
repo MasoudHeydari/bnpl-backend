@@ -600,11 +600,12 @@ func (uc *UseCase) finalizeMerchantFundingActivation(
 			}
 
 			if plan.ActiveExposureAmountMinor > 0 {
-				if _, err = creditAccountQ.AddExposure(ctx, account.ID, plan.ActiveExposureAmountMinor, now); err != nil {
-					return err
+				updatedAccount, addErr := creditAccountQ.AddExposure(ctx, account.ID, plan.ActiveExposureAmountMinor, now)
+				if addErr != nil {
+					return addErr
 				}
 
-				if _, err = creditAccountQ.AppendTransaction(
+				creditTransaction, appendErr := creditAccountQ.AppendTransaction(
 					ctx,
 					account.ID,
 					model.ExposureIncreasedCreditTransactionType,
@@ -614,6 +615,19 @@ func (uc *UseCase) finalizeMerchantFundingActivation(
 					model.ContractCreditTransactionReferenceType,
 					activated.ID.UUID(),
 					now,
+					now,
+				)
+				if appendErr != nil {
+					return appendErr
+				}
+
+				if err = uc.enqueueCreditDebitedNotification(
+					ctx,
+					tx,
+					activated,
+					updatedAccount,
+					creditTransaction,
+					plan.ActiveExposureAmountMinor,
 					now,
 				); err != nil {
 					return err

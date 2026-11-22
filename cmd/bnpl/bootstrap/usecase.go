@@ -331,6 +331,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.External.CheckoutPaymentClient,
 		a.External.ContractCancellationClient,
 		a.Repos.Outbox,
+		a.Repos.CheckoutSession,
 		a.Infrastructure.Clock,
 		a.Infrastructure.IdentifierGenerator,
 		a.Repos.Saga,

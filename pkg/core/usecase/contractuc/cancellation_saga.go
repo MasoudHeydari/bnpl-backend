@@ -498,6 +498,10 @@ func (s *cancellationExternalAcceptedStep) ExecuteTx(
 			return saga.StepResult{Outcome: saga.StepOutcomeReconcile, Reason: &reason}, nil
 		}
 
+		// TODO: Define a separate notification contract for credit restoration.
+		// When exposure decreases due to contract cancellation or other
+		// credit-restoring events, consider notifying the customer.
+		// Do not reuse the credit-debited notification for this purpose.
 		if _, err = accountQ.ReduceExposureIfSufficient(ctx, account.ID, contractRow.RemainingPrincipalAmountMinor, now); err != nil {
 			return saga.StepResult{}, err
 		}

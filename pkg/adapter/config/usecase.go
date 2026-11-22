@@ -538,6 +538,16 @@ type Contract struct {
 
 	// ExpiryBatchSize configures how many contracts are expired per batch.
 	ExpiryBatchSize int `yaml:"expiry_batch_size"`
+
+	// CreditDebitedNotification gates SMS commands after definitive credit debit.
+	CreditDebitedNotification CreditDebitedNotification `yaml:"credit_debited_notification"`
+}
+
+// CreditDebitedNotification configures credit-debited SMS command publication.
+// Keep disabled until Notification confirms production consumption.
+type CreditDebitedNotification struct {
+	// Enabled controls whether activation exposure increases enqueue a command.
+	Enabled bool `yaml:"enabled"`
 }
 
 func (c Contract) newUseCase(
@@ -555,8 +565,10 @@ func (c Contract) newUseCase(
 	checkoutPaymentClient extcheckoutpayment.Client,
 	contractCancellationClient extcontractcancellation.Client,
 	outbox repo.Outbox,
+	checkoutSession repo.CheckoutSession,
 	clk clock.Clock,
 	auditDestination string,
+	notificationCommandsTopic string,
 	idGenerator identifier.Generator,
 	paymentReturnURL string,
 	cancellationSagaRepo repo.Saga,
@@ -586,8 +598,10 @@ func (c Contract) newUseCase(
 		checkoutPaymentClient,
 		contractCancellationClient,
 		outbox,
+		checkoutSession,
 		clk,
 		auditDestination,
+		notificationCommandsTopic,
 		idGenerator,
 		paymentReturnURL,
 		c.PaymentResultProcessingGracePeriod,
@@ -599,6 +613,7 @@ func (c Contract) newUseCase(
 		jurisdictions,
 		logger,
 		businessMetrics,
+		c.CreditDebitedNotification.Enabled,
 		newCreditUsageGuard,
 		observer,
 	)

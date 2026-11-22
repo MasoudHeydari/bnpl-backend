@@ -1,11 +1,11 @@
 // Package notificationsms defines BNPL outbound notification request envelopes
 // published through the transactional outbox to Kafka.
 //
-// Repayment reminders and collections default notices publish Command envelopes
-// to topic notification.commands.v1 with Kafka header
-// x-notification-caller: bnpl-backend. Legacy Event / EventV2 payloads for
-// notification.sms.requests are retained only for historical reference and
-// must not be used for new reminder publishes.
+// Repayment reminders, collections default notices, and credit-debited SMS
+// commands publish Command envelopes to topic notification.commands.v1 with
+// Kafka header x-notification-caller: bnpl-backend. Legacy Event / EventV2
+// payloads for notification.sms.requests are retained only for historical
+// reference and must not be used for new publishes.
 //
 // Notification Service resolves the authorized delivery destination from
 // customer_id (CRS external id), renders SMS from template_code + variables,

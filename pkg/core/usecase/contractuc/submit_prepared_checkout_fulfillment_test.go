@@ -82,8 +82,10 @@ func (d submitPreparedFulfillmentDeps) useCase(t *testing.T) *UseCase {
 		d.checkoutPayment,
 		cancellationClient,
 		mock.NewOutbox(t),
+		mock.NewCheckoutSession(t),
 		d.clock,
 		"bnpl.audit.events.v1",
+		"notification.commands.v1",
 		mock.NewIdentifierGenerator(t),
 		"https://bnpl.example/payments/return",
 		5*time.Minute,
@@ -95,6 +97,7 @@ func (d submitPreparedFulfillmentDeps) useCase(t *testing.T) *UseCase {
 		mustTestOriginationJurisdictions(t),
 		lognoop.New(),
 		metricsnoop.New(),
+		false,
 		AllowAllNewCreditUsage{},
 		newTestObserver(t),
 	)

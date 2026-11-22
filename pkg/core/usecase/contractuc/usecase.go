@@ -45,13 +45,19 @@ type UseCase struct {
 	checkoutPaymentClient      extcheckoutpayment.Client
 	contractCancellationClient extcontractcancellation.Client
 	outbox                     repo.Outbox
+	checkoutSession            repo.CheckoutSession
 	clock                      clock.Clock
 	logger                     log.Logger
 	observer                   Observer
 	auditDestination           string
+	notificationCommandsTopic  string
 	idGenerator                identifier.Generator
 	businessMetrics            coremetrics.BusinessMetrics
 	paymentReturnURL           string
+
+	// creditDebitedNotificationEnabled gates credit-debited SMS outbox inserts.
+	// Default false until Notification confirms production readiness.
+	creditDebitedNotificationEnabled bool
 
 	// jurisdictions gates creation of a first Contract for a Decision.
 	// It must not be used to block servicing/replay of an existing Contract.
@@ -111,8 +117,10 @@ func New(
 	checkoutPaymentClient extcheckoutpayment.Client,
 	contractCancellationClient extcontractcancellation.Client,
 	outbox repo.Outbox,
+	checkoutSession repo.CheckoutSession,
 	clk clock.Clock,
 	auditDestination string,
+	notificationCommandsTopic string,
 	idGenerator identifier.Generator,
 	paymentReturnURL string,
 	paymentResultProcessingGracePeriod time.Duration,
@@ -124,6 +132,7 @@ func New(
 	jurisdictions domaincapability.OriginationJurisdictions,
 	logger log.Logger,
 	businessMetrics coremetrics.BusinessMetrics,
+	creditDebitedNotificationEnabled bool,
 	newCreditUsageGuard NewCreditUsageGuard,
 	observer Observer,
 ) (*UseCase, error) {
@@ -185,8 +194,16 @@ func New(
 		return nil, fmt.Errorf("%s: contract audit outbox repository is required", op)
 	}
 
+	if checkoutSession == nil {
+		return nil, fmt.Errorf("%s: checkout session repository is required", op)
+	}
+
 	if auditDestination == "" {
 		return nil, fmt.Errorf("%s: contract audit destination is required", op)
+	}
+
+	if strings.TrimSpace(notificationCommandsTopic) == "" {
+		return nil, fmt.Errorf("%s: notification commands topic is required", op)
 	}
 
 	if idGenerator == nil {
@@ -268,35 +285,38 @@ func New(
 	}
 
 	return &UseCase{
-		pool:                               pool,
-		customerProfile:                    customerProfile,
-		merchantProfile:                    merchantProfile,
-		creditAccount:                      creditAccount,
-		decision:                           decision,
-		contract:                           contractRepo,
-		checkoutDecisionAllocation:         checkoutDecisionAllocation,
-		checkoutPolicies:                   checkoutPolicies,
-		installment:                        installment,
-		installmentCharge:                  installmentCharge,
-		paymentAttempt:                     paymentAttempt,
-		checkoutPaymentClient:              checkoutPaymentClient,
-		contractCancellationClient:         contractCancellationClient,
-		outbox:                             outbox,
-		clock:                              clk,
-		logger:                             logger,
-		observer:                           observer,
-		auditDestination:                   auditDestination,
-		idGenerator:                        idGenerator,
-		paymentReturnURL:                   strings.TrimSpace(paymentReturnURL),
-		jurisdictions:                      jurisdictions,
-		cancellationSagaRepo:               cancellationSagaRepo,
-		cancellationSagaExecutor:           cancellationSagaExecutor,
-		cancellationSagaDefinition:         cancellationSagaDefinition,
-		PaymentResultProcessingGracePeriod: paymentResultProcessingGracePeriod,
-		ExpiryBatchSize:                    expiryBatchSize,
-		CancellationSaga:                   cancellationSaga,
-		businessMetrics:                    businessMetrics,
-		newCreditUsageGuard:                newCreditUsageGuard,
-		hostedCheckoutSync:                 noopHostedCheckoutSync{},
+		pool:                                 pool,
+		customerProfile:                      customerProfile,
+		merchantProfile:                      merchantProfile,
+		creditAccount:                        creditAccount,
+		decision:                             decision,
+		contract:                             contractRepo,
+		checkoutDecisionAllocation:           checkoutDecisionAllocation,
+		checkoutPolicies:                     checkoutPolicies,
+		installment:                          installment,
+		installmentCharge:                    installmentCharge,
+		paymentAttempt:                       paymentAttempt,
+		checkoutPaymentClient:                checkoutPaymentClient,
+		contractCancellationClient:           contractCancellationClient,
+		outbox:                               outbox,
+		checkoutSession:                      checkoutSession,
+		clock:                                clk,
+		logger:                               logger,
+		observer:                             observer,
+		auditDestination:                     auditDestination,
+		notificationCommandsTopic:            strings.TrimSpace(notificationCommandsTopic),
+		idGenerator:                          idGenerator,
+		paymentReturnURL:                     strings.TrimSpace(paymentReturnURL),
+		jurisdictions:                        jurisdictions,
+		cancellationSagaRepo:                 cancellationSagaRepo,
+		cancellationSagaExecutor:             cancellationSagaExecutor,
+		cancellationSagaDefinition:           cancellationSagaDefinition,
+		PaymentResultProcessingGracePeriod:   paymentResultProcessingGracePeriod,
+		ExpiryBatchSize:                      expiryBatchSize,
+		CancellationSaga:                     cancellationSaga,
+		businessMetrics:                      businessMetrics,
+		creditDebitedNotificationEnabled:     creditDebitedNotificationEnabled,
+		newCreditUsageGuard:                  newCreditUsageGuard,
+		hostedCheckoutSync:                   noopHostedCheckoutSync{},
 	}, nil
 }

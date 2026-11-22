@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -576,6 +577,7 @@ func (c *Config) NewContractUseCase(
 	checkoutPaymentClient extcheckoutpayment.Client,
 	contractCancellationClient extcontractcancellation.Client,
 	outbox repo.Outbox,
+	checkoutSession repo.CheckoutSession,
 	clk clock.Clock,
 	idGenerator identifier.Generator,
 	cancellationSagaRepo repo.Saga,
@@ -587,6 +589,11 @@ func (c *Config) NewContractUseCase(
 	newCreditUsageGuard contractuc.NewCreditUsageGuard,
 	observer contractuc.Observer,
 ) (*contractuc.UseCase, error) {
+	notificationCommandsTopic := strings.TrimSpace(c.Infrastructure.Messaging.Kafka.Topics.NotificationCommands)
+	if notificationCommandsTopic == "" {
+		notificationCommandsTopic = "notification.commands.v1"
+	}
+
 	return c.Usecases.Contract.newUseCase(
 		pool,
 		customerProfile,
@@ -602,8 +609,10 @@ func (c *Config) NewContractUseCase(
 		checkoutPaymentClient,
 		contractCancellationClient,
 		outbox,
+		checkoutSession,
 		clk,
 		c.AuditEventsTopic(),
+		notificationCommandsTopic,
 		idGenerator,
 		c.External.FinancialCore.PaymentReturnURL,
 		cancellationSagaRepo,

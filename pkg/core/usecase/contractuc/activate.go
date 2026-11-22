@@ -423,11 +423,17 @@ func (uc *UseCase) activateFromFinancialCorePaymentResultInTx(
 	appliedChargeCount += firstAppliedCount
 
 	if remainingPrincipal > 0 {
-		if _, err = creditAccountQ.AddExposure(ctx, creditAccount.ID, remainingPrincipal, now); err != nil {
-			return ActivateOutput{}, err
+		updatedAccount, addErr := creditAccountQ.AddExposure(ctx, creditAccount.ID, remainingPrincipal, now)
+		if addErr != nil {
+			return ActivateOutput{}, addErr
 		}
 
-		if _, err = creditAccountQ.AppendTransaction(
+		debitOccurredAt := input.PaidAt
+		if debitOccurredAt.IsZero() {
+			debitOccurredAt = now
+		}
+
+		creditTransaction, appendErr := creditAccountQ.AppendTransaction(
 			ctx,
 			creditAccount.ID,
 			model.ExposureIncreasedCreditTransactionType,
@@ -436,8 +442,21 @@ func (uc *UseCase) activateFromFinancialCorePaymentResultInTx(
 			model.ContractActivatedCreditTransactionReason,
 			model.ContractCreditTransactionReferenceType,
 			contractRow.ID.UUID(),
-			input.PaidAt,
+			debitOccurredAt,
 			now,
+		)
+		if appendErr != nil {
+			return ActivateOutput{}, appendErr
+		}
+
+		if err = uc.enqueueCreditDebitedNotification(
+			ctx,
+			tx,
+			activatedContract,
+			updatedAccount,
+			creditTransaction,
+			remainingPrincipal,
+			debitOccurredAt,
 		); err != nil {
 			return ActivateOutput{}, err
 		}

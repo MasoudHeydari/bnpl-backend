@@ -123,8 +123,10 @@ func (d originationDeps) newUseCase(t *testing.T) *UseCase {
 		d.checkoutPayment,
 		d.contractCancellation,
 		d.outbox,
+		mock.NewCheckoutSession(t),
 		d.clock,
 		"audit-events",
+		"notification.commands.v1",
 		mock.NewIdentifierGenerator(t),
 		"https://bnpl.example/payments/return",
 		5*time.Minute,
@@ -136,6 +138,7 @@ func (d originationDeps) newUseCase(t *testing.T) *UseCase {
 		jurisdictions,
 		lognoop.New(),
 		metricsnoop.New(),
+		false,
 		AllowAllNewCreditUsage{},
 		newTestObserver(t),
 	)

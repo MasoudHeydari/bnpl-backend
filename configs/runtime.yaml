@@ -106,6 +106,9 @@ usecases:
   contract:
     payment_result_processing_grace_period: ${CONTRACT_PAYMENT_RESULT_PROCESSING_GRACE_PERIOD}
     expiry_batch_size: ${CONTRACT_EXPIRY_BATCH_SIZE}
+    credit_debited_notification:
+      # Keep false until Notification confirms production command consumption.
+      enabled: ${CONTRACT_CREDIT_DEBITED_NOTIFICATION_ENABLED}
 
   customer_credit_limit:
 
