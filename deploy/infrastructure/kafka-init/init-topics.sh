@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Create the topics required by the local BNPL integration environment.
+# Create the topics required by the BNPL integration environment.
 # This is intentionally a one-shot initialization task, not a broker entrypoint.
 #
 # Important: --create --if-not-exists does NOT change partition count on an
@@ -8,7 +8,7 @@
 # alters the topic up to the desired partition count when needed.
 set -euo pipefail
 
-bootstrap_server="kafka.parstis-technology-dpay-dev.svc:29092"
+bootstrap_server="${KAFKA_BOOTSTRAP_SERVER:-kafka.parstis-technology-dpay-dev.svc:29092}"
 partitions=3
 replication_factor=1
 
@@ -90,11 +90,3 @@ for topic in "${topics[@]}"; do
 done
 
 echo 'Local Kafka topic initialization completed.'
-
-financial.provider.commands.v1
-document.owner.lifecycle.v1
-financial.core.payment.application.results.v1
-financial.core.installment.payment.requests.v1
-bnpl.installment.payment.reconciliation.requests.v1
-financial.core.installment.payment.reconciliation.results.v1
-bnpl.installment.payment.reconciliation.acknowledgements.v1

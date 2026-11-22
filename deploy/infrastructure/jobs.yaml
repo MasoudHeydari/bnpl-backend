@@ -9,23 +9,25 @@ services:
     restart: "no"
     profiles: ["bootstrap"]
     environment:
-      # Keep in sync with docker-compose.local.yml kafka-init defaults.
+      # Keep in sync with docker-compose.local.yml kafka-init defaults and
+      # .env.example KAFKA_TOPIC_* values (v1 naming).
       # Space-separated list; init-topics.sh deduplicates identical names.
       # Set here (Darkoob job ENV), not on the always-on kafka broker service.
+      # notification.sms.requests is intentionally omitted — reminders use
+      # notification.commands.v1 only.
       KAFKA_TOPICS: >-
-        bnpl.merchant.checkout.events
-        financial-core.payment-results
+        bnpl.merchant.checkout.events.v1
+        financial.core.payment.results.v1
         bnpl.audit.events.v1
-        financial_core.payment_application_results
-        financial_core.installment_payment_requests
-        bnpl.installment_payment_reconciliation_requests
-        financial_core.installment_payment_reconciliation_results
-        bnpl.installment_payment_reconciliation_acknowledgements
-        notification.sms.requests
-        document.lifecycle
-        document.owner.lifecycle
-        financial.events
-        financial.provider.commands
+        financial.core.payment.application.results.v1
+        financial.core.installment.payment.requests.v1
+        bnpl.installment.payment.reconciliation.requests.v1
+        financial.core.installment.payment.reconciliation.results.v1
+        bnpl.installment.payment.reconciliation.acknowledgements.v1
+        document.lifecycle.v1
+        document.owner.lifecycle.v1
+        financial.events.v1
+        financial.provider.commands.v1
         identity.auth.revocations.v1
         identity.outbox.v1
         notification.commands.v1
