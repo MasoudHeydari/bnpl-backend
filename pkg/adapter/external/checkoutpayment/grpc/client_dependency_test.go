@@ -52,9 +52,9 @@ func TestMapFinancialCoreDependencyError(t *testing.T) {
 			wantIs:    context.DeadlineExceeded,
 		},
 		{
-			name:   "grpc canceled preserves cancellation",
-			err:    status.Error(codes.Canceled, "canceled"),
-			wantIs: context.Canceled,
+			name:      "grpc canceled is ambiguous not local cancellation",
+			err:       status.Error(codes.Canceled, "canceled"),
+			wantClass: extcheckoutpayment.FailureClassAmbiguous,
 		},
 		{
 			name:   "context canceled preserves cancellation",
@@ -74,15 +74,45 @@ func TestMapFinancialCoreDependencyError(t *testing.T) {
 			wantCode:  cerr.CodeInvalidArgument,
 		},
 		{
+			name:      "failed precondition is distinct from invalid argument",
+			err:       status.Error(codes.FailedPrecondition, "scope missing"),
+			wantClass: extcheckoutpayment.FailureClassPermanentFailedPrecondition,
+			wantCode:  cerr.CodeConflict,
+		},
+		{
+			name:      "unauthenticated is permanent auth",
+			err:       status.Error(codes.Unauthenticated, "token"),
+			wantClass: extcheckoutpayment.FailureClassPermanentAuth,
+			wantCode:  cerr.CodeUnauthorized,
+		},
+		{
+			name:      "permission denied is permanent auth",
+			err:       status.Error(codes.PermissionDenied, "acl"),
+			wantClass: extcheckoutpayment.FailureClassPermanentAuth,
+			wantCode:  cerr.CodeForbidden,
+		},
+		{
 			name:      "already exists is a permanent conflict",
 			err:       status.Error(codes.AlreadyExists, "identity"),
 			wantClass: extcheckoutpayment.FailureClassPermanentConflict,
 			wantCode:  cerr.CodeConflict,
 		},
 		{
-			name:      "internal grpc code is unknown",
+			name:      "not found keeps external outcome unknown",
+			err:       status.Error(codes.NotFound, "missing"),
+			wantClass: extcheckoutpayment.FailureClassNotFound,
+			wantCode:  cerr.CodeResourceNotFound,
+		},
+		{
+			name:      "internal grpc code is ambiguous",
 			err:       status.Error(codes.Internal, "bug"),
-			wantClass: extcheckoutpayment.FailureClassUnknown,
+			wantClass: extcheckoutpayment.FailureClassAmbiguous,
+			wantCode:  cerr.CodeInternalError,
+		},
+		{
+			name:      "unknown grpc code is ambiguous",
+			err:       status.Error(codes.Unknown, "mystery"),
+			wantClass: extcheckoutpayment.FailureClassAmbiguous,
 			wantCode:  cerr.CodeInternalError,
 		},
 	}
@@ -175,7 +205,12 @@ func TestMapFinancialCoreDependencyError_PreservesStatusMessageWithoutDetails(t 
 		status.Error(codes.FailedPrecondition, "Merchant settlement FinancialScope is not configured for this merchant."),
 	)
 	require.Error(t, got)
-	require.True(t, cerr.IsCode(got, cerr.CodeInvalidArgument))
+	require.True(t, cerr.IsCode(got, cerr.CodeConflict))
+
+	var classified *extcheckoutpayment.ClassifiedFailure
+	require.ErrorAs(t, got, &classified)
+	require.Equal(t, extcheckoutpayment.FailureClassPermanentFailedPrecondition, classified.Class)
+
 	require.Contains(t, got.Error(), "grpc_code=FailedPrecondition")
 	require.Contains(
 		t,

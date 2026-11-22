@@ -437,7 +437,7 @@ Example event envelope:
 }
 ~~~
 
-`completed_at` is present on completion, `reason` on cancellation where available (such as `customer_canceled` or `merchant_canceled`), and `merchant_state` when specified. No PSP/FC/PaymentAttempt identifiers or customer credit details are published in this merchant event.
+`completed_at` is present on completion, `reason` on cancellation where available (such as `customer_canceled`, `merchant_canceled`, or `technical_failure`), and `merchant_state` when specified. No PSP/FC/PaymentAttempt identifiers or customer credit details are published in this merchant event.
 
 `event_id` is stable per logical transition:
 

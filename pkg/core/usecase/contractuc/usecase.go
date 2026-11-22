@@ -83,6 +83,11 @@ type UseCase struct {
 	// newCreditUsageGuard fail-closes new credit commitments when collections
 	// default (or other) restrictions prohibit new credit usage.
 	newCreditUsageGuard NewCreditUsageGuard
+
+	// hostedCheckoutSync aligns CheckoutSession state when a payment_pending
+	// contract is safely expired. Wired after construction to avoid a
+	// checkoutsessionuc ↔ contractuc import cycle; defaults to noop.
+	hostedCheckoutSync HostedCheckoutSync
 }
 
 // New constructs the checkout contract use case with payment-attempt persistence,
@@ -292,5 +297,6 @@ func New(
 		CancellationSaga:                   cancellationSaga,
 		businessMetrics:                    businessMetrics,
 		newCreditUsageGuard:                newCreditUsageGuard,
+		hostedCheckoutSync:                 noopHostedCheckoutSync{},
 	}, nil
 }

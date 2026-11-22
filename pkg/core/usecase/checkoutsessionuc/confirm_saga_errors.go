@@ -138,6 +138,8 @@ func confirmationExternalErrorClass(
 			return confirmationExternalRetry
 
 		case extcheckoutpayment.FailureClassAmbiguous:
+			// DeadlineExceeded, gRPC Canceled, Unknown, Internal: look up /
+			// replay with the same identity; after budget escalate to reconcile.
 			if budgetExhausted {
 				return confirmationExternalReconcile
 			}
@@ -152,11 +154,21 @@ func confirmationExternalErrorClass(
 			return confirmationExternalRetry
 
 		case extcheckoutpayment.FailureClassPermanentInvalidInput,
-			extcheckoutpayment.FailureClassUnknown:
+			extcheckoutpayment.FailureClassPermanentFailedPrecondition,
+			extcheckoutpayment.FailureClassPermanentAuth:
+			// Non-retryable per FC contract. Do not auto-retry; operators may
+			// later prove absence of financial effect and safe-terminate.
 			return confirmationExternalManualReview
 
 		case extcheckoutpayment.FailureClassPermanentConflict:
 			return confirmationExternalReconcile
+
+		case extcheckoutpayment.FailureClassNotFound:
+			// NotFound after a write is not proof of absence.
+			return confirmationExternalReconcile
+
+		case extcheckoutpayment.FailureClassUnknown:
+			return confirmationExternalManualReview
 		}
 	}
 
@@ -174,6 +186,12 @@ func confirmationExternalErrorClass(
 
 		case cerr.CodeInvalidArgument, cerr.CodeValidationFailed, cerr.CodeIdempotencyConflict:
 			return confirmationExternalManualReview
+
+		case cerr.CodeUnauthorized, cerr.CodeForbidden:
+			return confirmationExternalManualReview
+
+		case cerr.CodeResourceNotFound:
+			return confirmationExternalReconcile
 
 		case cerr.CodeConflict, cerr.CodeContractAlreadyExists:
 			if appErr.MessageKey == retryableCheckoutPaymentConflictMessageKey {
@@ -196,6 +214,8 @@ func confirmationExternalErrorClass(
 			return confirmationExternalRetry
 
 		case cerr.CodeInternalError:
+			// Prefer ClassifiedFailure Ambiguous when present (handled above).
+			// Bare internal errors without FC classification stay in review.
 			return confirmationExternalManualReview
 		}
 	}

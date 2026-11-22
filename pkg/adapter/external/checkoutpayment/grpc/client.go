@@ -453,6 +453,8 @@ func mapFinancialCoreDependencyError(logger log.Logger, op string, err error) er
 		)
 
 	case codes.ResourceExhausted:
+		// No dedicated FC retry contract. Keep conservative transient handling
+		// without treating the code as proof of financial failure or success.
 		return cerr.ServiceUnavailable(extcheckoutpayment.NewFailure(
 			extcheckoutpayment.FailureClassTransient,
 			fmt.Errorf("%s", financialCoreMappedMessage(op, "financial core resource exhausted", code, diag)),
@@ -465,7 +467,13 @@ func mapFinancialCoreDependencyError(logger log.Logger, op string, err error) er
 		)
 
 	case codes.Canceled:
-		return fmt.Errorf("%s: %w", financialCoreMappedMessage(op, "financial core call canceled", code, diag), context.Canceled)
+		// gRPC Canceled is not payment status CANCELLED and is not proof the
+		// RPC never executed. Keep it ambiguous so callers look up / replay
+		// with the same identity. Distinct from local context.Canceled above.
+		return extcheckoutpayment.NewFailure(
+			extcheckoutpayment.FailureClassAmbiguous,
+			fmt.Errorf("%s", financialCoreMappedMessage(op, "financial core call canceled", code, diag)),
+		)
 
 	case codes.Aborted:
 		return cerr.Conflict(extcheckoutpayment.NewFailure(
@@ -473,10 +481,28 @@ func mapFinancialCoreDependencyError(logger log.Logger, op string, err error) er
 			fmt.Errorf("%s", financialCoreMappedMessage(op, "financial core concurrency conflict", code, diag)),
 		))
 
-	case codes.InvalidArgument, codes.FailedPrecondition, codes.OutOfRange:
+	case codes.InvalidArgument, codes.OutOfRange:
 		return cerr.InvalidArgument(extcheckoutpayment.NewFailure(
 			extcheckoutpayment.FailureClassPermanentInvalidInput,
 			fmt.Errorf("%s", financialCoreMappedMessage(op, "financial core rejected immutable input", code, diag)),
+		))
+
+	case codes.FailedPrecondition:
+		return cerr.Conflict(extcheckoutpayment.NewFailure(
+			extcheckoutpayment.FailureClassPermanentFailedPrecondition,
+			fmt.Errorf("%s", financialCoreMappedMessage(op, "financial core precondition failed", code, diag)),
+		))
+
+	case codes.Unauthenticated:
+		return cerr.Unauthorized(extcheckoutpayment.NewFailure(
+			extcheckoutpayment.FailureClassPermanentAuth,
+			fmt.Errorf("%s", financialCoreMappedMessage(op, "financial core authentication failed", code, diag)),
+		))
+
+	case codes.PermissionDenied:
+		return cerr.Forbidden(extcheckoutpayment.NewFailure(
+			extcheckoutpayment.FailureClassPermanentAuth,
+			fmt.Errorf("%s", financialCoreMappedMessage(op, "financial core authorization failed", code, diag)),
 		))
 
 	case codes.AlreadyExists:
@@ -485,10 +511,15 @@ func mapFinancialCoreDependencyError(logger log.Logger, op string, err error) er
 			fmt.Errorf("%s", financialCoreMappedMessage(op, "financial core reported a conflicting identity", code, diag)),
 		))
 
-	case codes.OK:
-		return err
+	case codes.NotFound:
+		// Absence at lookup time after a write timeout does not prove the
+		// prior operation never committed.
+		return cerr.ResourceNotFound(extcheckoutpayment.NewFailure(
+			extcheckoutpayment.FailureClassNotFound,
+			fmt.Errorf("%s", financialCoreMappedMessage(op, "financial core resource not found", code, diag)),
+		))
 
-	default:
+	case codes.Internal, codes.Unknown:
 		if code == codes.Unknown {
 			if _, ok := status.FromError(err); !ok {
 				return externalFinancialCoreUnavailable(
@@ -502,6 +533,17 @@ func mapFinancialCoreDependencyError(logger log.Logger, op string, err error) er
 			}
 		}
 
+		// FC contract: Unknown/Internal require status lookup / limited replay,
+		// not blind success or blind compensation.
+		return cerr.InternalError(extcheckoutpayment.NewFailure(
+			extcheckoutpayment.FailureClassAmbiguous,
+			fmt.Errorf("%s", financialCoreMappedMessage(op, "financial core call failed with ambiguous outcome", code, diag)),
+		))
+
+	case codes.OK:
+		return err
+
+	default:
 		return cerr.InternalError(extcheckoutpayment.NewFailure(
 			extcheckoutpayment.FailureClassUnknown,
 			fmt.Errorf("%s", financialCoreMappedMessage(op, "financial core call failed", code, diag)),

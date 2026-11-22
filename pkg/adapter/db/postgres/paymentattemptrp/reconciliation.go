@@ -23,16 +23,17 @@ func IncrementFinancialSessionCreateAttemptCount[Q postgres.Queryer](
 ) (model.PaymentAttempt, error) {
 	const op = "paymentattemptrp.IncrementFinancialSessionCreateAttemptCount"
 
+	leaseUntil := updatedAt.UTC().Add(model.FinancialSessionCreateLeaseDuration)
+
 	const query = `
 UPDATE payment_attempts
 SET
 	financial_session_create_attempt_count = financial_session_create_attempt_count + 1,
-	-- Lease duration matches model.FinancialSessionCreateLeaseDuration (30s):
-	-- longer than the 5s Financial Core gRPC deadline, shorter than the local
-	-- expiration safety window. Expiry is not financial failure.
+	-- Lease until is computed in Go from
+	-- model.FinancialSessionCreateLeaseDuration so SQL has no magic interval.
 	-- The token is the reservation owner. A later verified FC session may
 	-- still be stored after this lease expires.
-	financial_session_create_lease_until = $2 + interval '30 seconds',
+	financial_session_create_lease_until = $7,
 	financial_session_create_lease_token = gen_random_uuid(),
 	updated_at = $2
 WHERE id = $1
@@ -72,6 +73,7 @@ RETURNING` + paymentAttemptColumns
 		maxAttempts,
 		model.InstallmentRepaymentFinancialCorePaymentPurpose,
 		model.ReconciliationRequiredPaymentAttemptState,
+		leaseUntil,
 	)
 	if err != nil {
 		if cerr.IsCode(err, cerr.CodeResourceNotFound) {

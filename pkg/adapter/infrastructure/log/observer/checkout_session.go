@@ -247,6 +247,34 @@ func (o *CheckoutSession) SessionExpired(ctx context.Context, sessionID model.Ch
 	o.logger.WithContext(ctx).Info(event.CheckoutSessionExpired, field.SessionID(sessionID))
 }
 
+// CheckoutTerminatedSafely implements the corresponding Observer checkpoint.
+func (o *CheckoutSession) CheckoutTerminatedSafely(
+	ctx context.Context,
+	sessionID model.CheckoutSessionID,
+	terminalStatus string,
+	reason string,
+) {
+	o.logger.WithContext(ctx).Info(
+		event.CheckoutTerminatedSafely,
+		field.SessionID(sessionID),
+		field.Status(terminalStatus),
+		field.ReasonCode(reason),
+	)
+}
+
+// CheckoutSafeTerminationRejected implements the corresponding Observer checkpoint.
+func (o *CheckoutSession) CheckoutSafeTerminationRejected(
+	ctx context.Context,
+	sessionID model.CheckoutSessionID,
+	blockReason string,
+) {
+	o.logger.WithContext(ctx).Warn(
+		event.CheckoutSafeTerminationRejected,
+		field.SessionID(sessionID),
+		field.ReasonCode(blockReason),
+	)
+}
+
 // HostedHandoffPrepared implements the corresponding Observer checkpoint.
 func (o *CheckoutSession) HostedHandoffPrepared(
 	ctx context.Context,

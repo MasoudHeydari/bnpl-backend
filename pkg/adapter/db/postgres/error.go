@@ -91,19 +91,36 @@ func mapPgError(err *pgconn.PgError) error {
 		pgerrcode.NumericValueOutOfRange:
 		return cerr.InvalidArgument(err)
 
-	// Connection-level issues (DB down, network issues, timeout, etc.).
+	// Connection-level / capacity issues. These are transient infrastructure
+	// failures: Saga/retry layers may retry a whole unit of work. Do not map
+	// them to internal error (which would push checkout into manual review).
 
-	case pgerrcode.ConnectionException:
+	case pgerrcode.ConnectionException,
+		pgerrcode.ConnectionDoesNotExist,
+		pgerrcode.ConnectionFailure,
+		pgerrcode.SQLClientUnableToEstablishSQLConnection,
+		pgerrcode.SQLServerRejectedEstablishmentOfSQLConnection,
+		pgerrcode.TransactionResolutionUnknown,
+		pgerrcode.ProtocolViolation,
+		pgerrcode.TooManyConnections,
+		pgerrcode.CannotConnectNow,
+		pgerrcode.AdminShutdown,
+		pgerrcode.CrashShutdown:
 		return cerr.ServiceUnavailable(err)
 
-	// Deadlock and serialization failures are, by definition, the database
-	// aborting one side of a concurrent conflict so the other can proceed.
-	// They are never a sign of invalid data or an internal bug, so they map to
-	// the same client-facing conflict semantics as a unique violation rather
-	// than leaking as an internal error.
+	// Deadlock and serialization failures abort one side of a concurrent
+	// conflict. Retry must re-run the whole transaction; continuing the failed
+	// transaction is never correct. Map to Conflict so callers treat them as
+	// retryable concurrency, not internal bugs.
 
 	case pgerrcode.DeadlockDetected, pgerrcode.SerializationFailure:
 		return cerr.Conflict(err)
+
+	case pgerrcode.QueryCanceled,
+		pgerrcode.IdleSessionTimeout,
+		pgerrcode.IdleInTransactionSessionTimeout,
+		pgerrcode.LockNotAvailable:
+		return cerr.ServiceUnavailable(err)
 
 	default:
 		// Any unknown PostgreSQL error is treated as internal to avoid leaking DB semantics.

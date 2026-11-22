@@ -166,11 +166,33 @@ type CheckoutSessionTxQueryer interface {
 
 	// MarkCanceled transitions an open checkout session to canceled, records who
 	// canceled it, and stamps canceled_at. Confirming, processing, and terminal
-	// sessions are never matched.
+	// sessions are never matched. Rows with a linked contract are never matched;
+	// use MarkCanceledSafely after financial-safety evidence is verified.
 	MarkCanceled(
 		ctx context.Context,
 		id model.CheckoutSessionID,
 		reason model.CheckoutCancellationReason,
+		updatedAt time.Time,
+	) (model.CheckoutSession, error)
+
+	// MarkCanceledSafely transitions an open, confirming, or processing checkout
+	// session to canceled after the caller has verified safe local termination
+	// evidence. It clears confirmation_attempt_id so a prior confirmation Saga
+	// cannot revive the session, and allows a linked contract_id.
+	MarkCanceledSafely(
+		ctx context.Context,
+		id model.CheckoutSessionID,
+		reason model.CheckoutCancellationReason,
+		updatedAt time.Time,
+	) (model.CheckoutSession, error)
+
+	// MarkExpiredSafely transitions an open, confirming, or processing checkout
+	// session to expired after financial-safety evidence is verified. It clears
+	// confirmation_attempt_id so a prior confirmation Saga cannot revive the
+	// session.
+	MarkExpiredSafely(
+		ctx context.Context,
+		id model.CheckoutSessionID,
 		updatedAt time.Time,
 	) (model.CheckoutSession, error)
 

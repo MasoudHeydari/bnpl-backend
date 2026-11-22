@@ -55,13 +55,12 @@ func (c *Config) Validate() error {
 		return err
 	}
 
-	// Contract cancellation uses durable Saga retries and compensation in every
-	// environment. Running the application without the Saga job would make a
-	// committed cancellation unable to recover from timeout or process failure.
-	// FIXME
-	//if !c.Infrastructure.Task.Scheduled.SagaExecutor.Enabled {
-	//	return fmt.Errorf("%s: infrastructure.task.scheduled.saga_executor.enabled must be true while contract cancellation Saga is enabled", op)
-	//}
+	// Contract cancellation and checkout confirmation use durable Saga retries.
+	// Running without the Saga executor leaves committed work unable to recover
+	// from timeout or process failure.
+	if !c.Infrastructure.Task.Scheduled.SagaExecutor.Enabled {
+		return fmt.Errorf("%s: infrastructure.task.scheduled.saga_executor.enabled must be true while durable Sagas are enabled", op)
+	}
 
 	if c.Infrastructure.Task.Provider == taskadapter.NoopProvider {
 		return fmt.Errorf("%s: infrastructure.task.provider must not be noop while contract cancellation Saga is enabled", op)
@@ -74,6 +73,19 @@ func (c *Config) Validate() error {
 
 	if isProductionMode(env) && (!c.Infrastructure.Task.Scheduled.CollectionsAssessment.Enabled || !c.Infrastructure.Task.Scheduled.RepaymentReminderDispatch.Enabled) {
 		return fmt.Errorf("%s: production requires Collections assessment and reminder dispatch safety nets", op)
+	}
+
+	// Production checkout recovery safety nets: without these workers a crashed
+	// Confirm / payment attempt can leave payment_pending gates stuck forever.
+	if isProductionMode(env) {
+		scheduled := c.Infrastructure.Task.Scheduled
+		if !scheduled.PaymentAttemptReconciliation.Enabled {
+			return fmt.Errorf("%s: production requires payment_attempt_reconciliation worker for checkout/payment recovery", op)
+		}
+
+		if !scheduled.ContractPaymentPendingExpiry.Enabled {
+			return fmt.Errorf("%s: production requires contract_payment_pending_expiry worker", op)
+		}
 	}
 
 	// Issuance deliveries hold temporary API-key ciphertext. Production must

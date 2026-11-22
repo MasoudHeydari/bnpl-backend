@@ -90,6 +90,14 @@ var (
 		"checkout.session.expired",
 		"checkout session expired",
 	)
+	CheckoutTerminatedSafely = define(
+		"checkout.session.terminated_safely",
+		"checkout session terminated after verified absence of financial effect",
+	)
+	CheckoutSafeTerminationRejected = define(
+		"checkout.session.safe_termination_rejected",
+		"checkout safe termination rejected due to unresolved financial effect",
+	)
 	CheckoutHostedHandoffPrepared = define(
 		"checkout.hosted.handoff_prepared",
 		"hosted checkout handoff prepared",

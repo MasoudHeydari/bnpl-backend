@@ -302,6 +302,8 @@ func newConfirmSagaHarness(t *testing.T, opts confirmSagaHarnessOptions) *confir
 	)
 	require.NoError(t, err)
 
+	contractUC.SetHostedCheckoutSync(checkoutUC)
+
 	paymentResultObserver, err := observer.NewFinancialCorePaymentResult(infra.Logger)
 	require.NoError(t, err)
 

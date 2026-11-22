@@ -166,17 +166,31 @@ func (uc *UseCase) cancel(
 
 						return nil
 
-					case model.ConfirmingCheckoutSessionStatus, model.ProcessingCheckoutSessionStatus:
-						return checkoutPaymentInProgressError(
-							fmt.Errorf("%s: checkout session status is %q", op, locked.Status),
-						)
+					case model.ConfirmingCheckoutSessionStatus,
+						model.ProcessingCheckoutSessionStatus,
+						model.OpenCheckoutSessionStatus:
+						// Sessions with a Contract (or in-flight confirmation)
+						// may cancel only when safe-termination evidence holds.
+						if locked.ContractID != nil ||
+							locked.Status == model.ConfirmingCheckoutSessionStatus ||
+							locked.Status == model.ProcessingCheckoutSessionStatus {
+							result, termErr := uc.terminateCheckoutSafelyTx(
+								ctx,
+								tx,
+								TerminateCheckoutSafelyInput{
+									SessionID:      locked.ID,
+									Reason:         reason,
+									TerminalStatus: model.CanceledCheckoutSessionStatus,
+								},
+								now,
+							)
+							if termErr != nil {
+								return termErr
+							}
 
-					case model.OpenCheckoutSessionStatus:
-						// A retryable payment failure may return to OPEN, but the
-						// accepted Contract and possible late FC outcome are still
-						// authoritative. Cancellation must not terminate that flow.
-						if locked.ContractID != nil {
-							return checkoutPaymentInProgressError(fmt.Errorf("%s: contract already accepted", op))
+							session = result.Session
+
+							return nil
 						}
 
 						if locked.IsExpiredAt(now) {
@@ -350,7 +364,11 @@ func (uc *UseCase) cancelPaymentPendingContract(
 }
 
 // checkoutPaymentSafeToCancel reports whether the checkout payment provably
-// has an authoritative terminal financial outcome without success, or no attempt exists.
+// has an authoritative terminal financial outcome without success.
+//
+// Absence of a PaymentAttempt alone does not prove merchant entitlement or
+// collection obligation were never recorded; callers that need that proof must
+// use evaluateSafeTerminationEvidence. This helper only inspects the attempt.
 //
 // Created, submitted, reconciliation-required, manual-review, and succeeded attempts have
 // an externally observable outcome. Canceling the checkout around them could
@@ -368,7 +386,9 @@ func checkoutPaymentSafeToCancel(
 	)
 	if err != nil {
 		if cerr.IsCode(err, cerr.CodeResourceNotFound) {
-			return true, nil
+			// No attempt is not proof of financial safety for merchant-funding
+			// contracts. Conservative: refuse until the full evidence path runs.
+			return false, nil
 		}
 
 		return false, err

@@ -217,12 +217,19 @@ const (
 
 	// MerchantCanceledCheckoutReason indicates the owning merchant canceled the checkout.
 	MerchantCanceledCheckoutReason CheckoutCancellationReason = "merchant_canceled"
+
+	// TechnicalFailureCheckoutReason indicates BNPL terminated the checkout after
+	// verifying there is no successful or unknown financial effect. It must not
+	// be used as a stand-in for customer or merchant abandonment.
+	TechnicalFailureCheckoutReason CheckoutCancellationReason = "technical_failure"
 )
 
 // IsValid reports whether the cancellation reason is a known canonical value.
 func (r CheckoutCancellationReason) IsValid() bool {
 	switch r {
-	case CustomerCanceledCheckoutReason, MerchantCanceledCheckoutReason:
+	case CustomerCanceledCheckoutReason,
+		MerchantCanceledCheckoutReason,
+		TechnicalFailureCheckoutReason:
 		return true
 
 	default:
@@ -246,22 +253,28 @@ var checkoutSessionStatusTransitions = newStatusTransitionTable(
 			UnavailableCheckoutSessionStatus,
 		},
 		// confirming owns the session through contract/payment initialization.
-		// Cancel and expiry refuse it. Merchant-funding may jump to completed;
+		// Safe local termination may cancel it only after financial-safety
+		// evidence is verified. Merchant-funding may jump to completed;
 		// initial-payment advances to processing; a failed init before FC may
 		// return to open so the customer can retry Confirm.
 		ConfirmingCheckoutSessionStatus: {
 			ProcessingCheckoutSessionStatus,
 			CompletedCheckoutSessionStatus,
 			OpenCheckoutSessionStatus,
+			CanceledCheckoutSessionStatus,
+			ExpiredCheckoutSessionStatus,
 		},
-		// processing may only leave on an authoritative payment outcome. The
-		// cancel/expire APIs refuse to act on it because the outcome is ambiguous.
+		// processing normally leaves on an authoritative payment outcome.
+		// Safe local termination may cancel or expire it only after verified
+		// absence of successful/unknown financial effect.
 		ProcessingCheckoutSessionStatus: {
 			CompletedCheckoutSessionStatus,
 			// Retryable payment failure returns the session to open so the
 			// customer may confirm again against the same Contract. Completed
 			// never regresses.
 			OpenCheckoutSessionStatus,
+			CanceledCheckoutSessionStatus,
+			ExpiredCheckoutSessionStatus,
 		},
 	},
 	[]CheckoutSessionStatus{

@@ -439,6 +439,10 @@ func (a *App) NewUseCases() (UseCases, error) {
 		return UseCases{}, fmt.Errorf("%s: initialize checkout session use case: %w", op, err)
 	}
 
+	// Wire after both use cases exist to avoid an import cycle while keeping
+	// payment_pending expiry and hosted checkout session state aligned.
+	contractUseCase.SetHostedCheckoutSync(checkoutSessionUseCase)
+
 	paymentResultObserver, err := observer.NewFinancialCorePaymentResult(a.Infrastructure.Logger)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize financial core payment result observer: %w", op, err)

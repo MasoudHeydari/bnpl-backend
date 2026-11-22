@@ -24,6 +24,13 @@ type checkoutSessionPaymentHook interface {
 		contractID model.ContractID,
 		now time.Time,
 	) error
+
+	ApplyPaymentPendingContractCanceled(
+		ctx context.Context,
+		tx repo.Tx,
+		contractID model.ContractID,
+		now time.Time,
+	) error
 }
 
 // noopCheckoutSessionPaymentHook ignores session transitions. Unit tests that
@@ -40,6 +47,15 @@ func (noopCheckoutSessionPaymentHook) ApplyPaymentSucceeded(
 }
 
 func (noopCheckoutSessionPaymentHook) ApplyPaymentRetryableFailure(
+	context.Context,
+	repo.Tx,
+	model.ContractID,
+	time.Time,
+) error {
+	return nil
+}
+
+func (noopCheckoutSessionPaymentHook) ApplyPaymentPendingContractCanceled(
 	context.Context,
 	repo.Tx,
 	model.ContractID,

@@ -38,6 +38,116 @@ func (_m *CheckoutSessionObserver) EXPECT() *CheckoutSessionObserver_Expecter {
 	return &CheckoutSessionObserver_Expecter{mock: &_m.Mock}
 }
 
+// CheckoutSafeTerminationRejected provides a mock function for the type CheckoutSessionObserver
+func (_mock *CheckoutSessionObserver) CheckoutSafeTerminationRejected(ctx context.Context, sessionID model.CheckoutSessionID, blockReason string) {
+	_mock.Called(ctx, sessionID, blockReason)
+	return
+}
+
+// CheckoutSessionObserver_CheckoutSafeTerminationRejected_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CheckoutSafeTerminationRejected'
+type CheckoutSessionObserver_CheckoutSafeTerminationRejected_Call struct {
+	*mock.Call
+}
+
+// CheckoutSafeTerminationRejected is a helper method to define mock.On call
+//   - ctx context.Context
+//   - sessionID model.CheckoutSessionID
+//   - blockReason string
+func (_e *CheckoutSessionObserver_Expecter) CheckoutSafeTerminationRejected(ctx any, sessionID any, blockReason any) *CheckoutSessionObserver_CheckoutSafeTerminationRejected_Call {
+	return &CheckoutSessionObserver_CheckoutSafeTerminationRejected_Call{Call: _e.mock.On("CheckoutSafeTerminationRejected", ctx, sessionID, blockReason)}
+}
+
+func (_c *CheckoutSessionObserver_CheckoutSafeTerminationRejected_Call) Run(run func(ctx context.Context, sessionID model.CheckoutSessionID, blockReason string)) *CheckoutSessionObserver_CheckoutSafeTerminationRejected_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.CheckoutSessionID
+		if args[1] != nil {
+			arg1 = args[1].(model.CheckoutSessionID)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *CheckoutSessionObserver_CheckoutSafeTerminationRejected_Call) Return() *CheckoutSessionObserver_CheckoutSafeTerminationRejected_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *CheckoutSessionObserver_CheckoutSafeTerminationRejected_Call) RunAndReturn(run func(ctx context.Context, sessionID model.CheckoutSessionID, blockReason string)) *CheckoutSessionObserver_CheckoutSafeTerminationRejected_Call {
+	_c.Run(run)
+	return _c
+}
+
+// CheckoutTerminatedSafely provides a mock function for the type CheckoutSessionObserver
+func (_mock *CheckoutSessionObserver) CheckoutTerminatedSafely(ctx context.Context, sessionID model.CheckoutSessionID, terminalStatus string, reason string) {
+	_mock.Called(ctx, sessionID, terminalStatus, reason)
+	return
+}
+
+// CheckoutSessionObserver_CheckoutTerminatedSafely_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CheckoutTerminatedSafely'
+type CheckoutSessionObserver_CheckoutTerminatedSafely_Call struct {
+	*mock.Call
+}
+
+// CheckoutTerminatedSafely is a helper method to define mock.On call
+//   - ctx context.Context
+//   - sessionID model.CheckoutSessionID
+//   - terminalStatus string
+//   - reason string
+func (_e *CheckoutSessionObserver_Expecter) CheckoutTerminatedSafely(ctx any, sessionID any, terminalStatus any, reason any) *CheckoutSessionObserver_CheckoutTerminatedSafely_Call {
+	return &CheckoutSessionObserver_CheckoutTerminatedSafely_Call{Call: _e.mock.On("CheckoutTerminatedSafely", ctx, sessionID, terminalStatus, reason)}
+}
+
+func (_c *CheckoutSessionObserver_CheckoutTerminatedSafely_Call) Run(run func(ctx context.Context, sessionID model.CheckoutSessionID, terminalStatus string, reason string)) *CheckoutSessionObserver_CheckoutTerminatedSafely_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.CheckoutSessionID
+		if args[1] != nil {
+			arg1 = args[1].(model.CheckoutSessionID)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		var arg3 string
+		if args[3] != nil {
+			arg3 = args[3].(string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *CheckoutSessionObserver_CheckoutTerminatedSafely_Call) Return() *CheckoutSessionObserver_CheckoutTerminatedSafely_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *CheckoutSessionObserver_CheckoutTerminatedSafely_Call) RunAndReturn(run func(ctx context.Context, sessionID model.CheckoutSessionID, terminalStatus string, reason string)) *CheckoutSessionObserver_CheckoutTerminatedSafely_Call {
+	_c.Run(run)
+	return _c
+}
+
 // ConfirmRequested provides a mock function for the type CheckoutSessionObserver
 func (_mock *CheckoutSessionObserver) ConfirmRequested(ctx context.Context, sessionID model.CheckoutSessionID) {
 	_mock.Called(ctx, sessionID)

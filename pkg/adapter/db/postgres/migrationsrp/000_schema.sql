@@ -1186,7 +1186,7 @@ CREATE TABLE IF NOT EXISTS checkout_sessions (
     CONSTRAINT chk_checkout_sessions_requested_amount_minor CHECK (requested_amount_minor > 0),
     CONSTRAINT chk_checkout_sessions_text_lengths CHECK (char_length(idempotency_key) BETWEEN 1 AND 256 AND char_length(merchant_order_id) BETWEEN 1 AND 256 AND char_length(customer_reference) <= 256 AND char_length(return_destination) BETWEEN 1 AND 64 AND char_length(return_url) BETWEEN 1 AND 2048 AND char_length(merchant_state) <= 256),
     CONSTRAINT chk_checkout_sessions_return_destination_format CHECK (return_destination ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
-    CONSTRAINT chk_checkout_sessions_cancellation_reason CHECK (cancellation_reason IS NULL OR cancellation_reason IN ('customer_canceled', 'merchant_canceled')),
+    CONSTRAINT chk_checkout_sessions_cancellation_reason CHECK (cancellation_reason IS NULL OR cancellation_reason IN ('customer_canceled', 'merchant_canceled', 'technical_failure')),
     CONSTRAINT chk_checkout_sessions_credit_kind CHECK (credit_kind IS NULL OR credit_kind IN ('pay_in_installments', 'pay_next_month')),
     CONSTRAINT chk_checkout_sessions_evaluation_generation CHECK (evaluation_generation >= 1),
     CONSTRAINT chk_checkout_sessions_contract_link CHECK ((status NOT IN ('processing', 'completed') OR contract_id IS NOT NULL) AND (status <> 'unavailable' OR contract_id IS NULL)),

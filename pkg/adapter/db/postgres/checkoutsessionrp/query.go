@@ -864,7 +864,9 @@ RETURNING` + checkoutSessionColumns
 //
 // Confirming and processing sessions are deliberately not matched: Confirm or
 // Financial Core owns their outcome and canceling them could race a successful
-// payment. Unavailable sessions are already terminal.
+// payment. Rows with a linked contract are also refused here; callers that have
+// verified financial safety must use MarkCanceledSafely. Unavailable sessions
+// are already terminal.
 func MarkCanceled[Q postgres.Queryer](
 	ctx context.Context,
 	q Q,
@@ -907,6 +909,111 @@ RETURNING` + checkoutSessionColumns
 	if err != nil && cerr.IsCode(err, cerr.CodeResourceNotFound) {
 		return model.CheckoutSession{}, cerr.Conflict(
 			fmt.Errorf("%s: checkout session is not in a cancelable state", op),
+		)
+	}
+
+	return row, err
+}
+
+// MarkExpiredSafely expires an open/confirming/processing checkout after the
+// application layer has verified absence of successful or unknown financial
+// effect. confirmation_attempt_id is cleared so a prior Saga cannot revive the
+// session.
+func MarkExpiredSafely[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	id model.CheckoutSessionID,
+	updatedAt time.Time,
+) (model.CheckoutSession, error) {
+	const op = "checkoutsessionrp.MarkExpiredSafely"
+
+	if err := postgres.RequiredTime("updated_at", updatedAt); err != nil {
+		return model.CheckoutSession{}, err
+	}
+
+	const query = `
+UPDATE checkout_sessions
+SET status = $2,
+	updated_at = $3,
+	confirmation_attempt_id = NULL
+WHERE id = $1
+  AND status IN ($4, $5, $6)
+  AND canceled_at IS NULL
+  AND cancellation_reason IS NULL
+RETURNING` + checkoutSessionColumns
+
+	row, err := postgres.QueryOne[model.CheckoutSession](
+		ctx,
+		q,
+		"mark checkout session expired safely",
+		query,
+		id,
+		model.ExpiredCheckoutSessionStatus,
+		updatedAt,
+		model.OpenCheckoutSessionStatus,
+		model.ConfirmingCheckoutSessionStatus,
+		model.ProcessingCheckoutSessionStatus,
+	)
+	if err != nil && cerr.IsCode(err, cerr.CodeResourceNotFound) {
+		return model.CheckoutSession{}, cerr.Conflict(
+			fmt.Errorf("%s: checkout session is not in a safely expirable state", op),
+		)
+	}
+
+	return row, err
+}
+
+// MarkCanceledSafely cancels an open/confirming/processing checkout after the
+// application layer has verified absence of successful or unknown financial
+// effect. confirmation_attempt_id is cleared so a prior Saga cannot revive the
+// session to processing/confirming.
+func MarkCanceledSafely[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	id model.CheckoutSessionID,
+	reason model.CheckoutCancellationReason,
+	updatedAt time.Time,
+) (model.CheckoutSession, error) {
+	const op = "checkoutsessionrp.MarkCanceledSafely"
+
+	if err := postgres.RequiredTime("updated_at", updatedAt); err != nil {
+		return model.CheckoutSession{}, err
+	}
+
+	if !reason.IsValid() {
+		return model.CheckoutSession{}, cerr.InvalidArgument(
+			fmt.Errorf("%s: unsupported cancellation reason %q", op, reason),
+			map[string]any{"reason": reason},
+		)
+	}
+
+	const query = `
+UPDATE checkout_sessions
+SET status = $2,
+	cancellation_reason = $3,
+	updated_at = $4,
+	canceled_at = $4,
+	confirmation_attempt_id = NULL
+WHERE id = $1
+  AND status IN ($5, $6, $7)
+RETURNING` + checkoutSessionColumns
+
+	row, err := postgres.QueryOne[model.CheckoutSession](
+		ctx,
+		q,
+		"mark checkout session canceled safely",
+		query,
+		id,
+		model.CanceledCheckoutSessionStatus,
+		reason,
+		updatedAt,
+		model.OpenCheckoutSessionStatus,
+		model.ConfirmingCheckoutSessionStatus,
+		model.ProcessingCheckoutSessionStatus,
+	)
+	if err != nil && cerr.IsCode(err, cerr.CodeResourceNotFound) {
+		return model.CheckoutSession{}, cerr.Conflict(
+			fmt.Errorf("%s: checkout session is not in a safely cancelable state", op),
 		)
 	}
 

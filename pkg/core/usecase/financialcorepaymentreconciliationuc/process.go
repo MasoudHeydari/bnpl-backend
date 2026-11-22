@@ -290,6 +290,7 @@ func (uc *UseCase) Process(ctx context.Context, input ProcessInput) (ProcessOutp
 			case installmentpaymentreconciliation.CanceledResultStatus:
 				return uc.handleCanceled(
 					ctx,
+					tx,
 					inboxQ,
 					outboxQ,
 					paymentAttemptQ,
@@ -1095,6 +1096,7 @@ func (uc *UseCase) handleFailed(
 
 func (uc *UseCase) handleCanceled(
 	ctx context.Context,
+	tx repo.Tx,
 	inboxQ repo.InboxTxQueryer,
 	outboxQ repo.OutboxTxQueryer,
 	paymentAttemptQ repo.PaymentAttemptTxQueryer,
@@ -1171,8 +1173,9 @@ func (uc *UseCase) handleCanceled(
 		return err
 	}
 
-	if err := finalizeCanceledCheckoutContract(
+	if err := uc.finalizeCanceledCheckoutContract(
 		ctx,
+		tx,
 		contractQ,
 		installmentQ,
 		installmentChargeQ,
@@ -1215,10 +1218,12 @@ func (uc *UseCase) handleCanceled(
 }
 
 // finalizeCanceledCheckoutContract closes a payment_pending checkout only after
-// Financial Core has authoritatively resolved the payment as canceled/not-found.
+// Financial Core has authoritatively resolved the payment as canceled.
 // Installment-repayment cancellations do not change the contract lifecycle.
-func finalizeCanceledCheckoutContract(
+// The linked CheckoutSession is aligned so it cannot remain stuck in processing.
+func (uc *UseCase) finalizeCanceledCheckoutContract(
 	ctx context.Context,
+	tx repo.Tx,
 	contractQ repo.ContractTxQueryer,
 	installmentQ repo.InstallmentTxQueryer,
 	installmentChargeQ repo.InstallmentChargeTxQueryer,
@@ -1250,7 +1255,7 @@ func finalizeCanceledCheckoutContract(
 		return err
 	}
 
-	return nil
+	return uc.paymentResult.SyncCheckoutAfterPaymentPendingCanceled(ctx, tx, attempt.ContractID, now)
 }
 
 func (uc *UseCase) handleNotFound(

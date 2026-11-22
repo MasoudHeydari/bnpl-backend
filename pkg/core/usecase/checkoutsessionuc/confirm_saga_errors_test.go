@@ -260,6 +260,51 @@ func TestClassifyConfirmationExternalError(t *testing.T) {
 			want:         saga.StepOutcomeManualReview,
 		},
 		{
+			name: "permission denied is non-retryable manual review",
+			err: cerr.Forbidden(extcheckoutpayment.NewFailure(
+				extcheckoutpayment.FailureClassPermanentAuth,
+				errors.New("acl"),
+			)),
+			attemptCount: 1,
+			want:         saga.StepOutcomeManualReview,
+		},
+		{
+			name: "unauthenticated is non-retryable manual review",
+			err: cerr.Unauthorized(extcheckoutpayment.NewFailure(
+				extcheckoutpayment.FailureClassPermanentAuth,
+				errors.New("token"),
+			)),
+			attemptCount: 1,
+			want:         saga.StepOutcomeManualReview,
+		},
+		{
+			name: "failed precondition is distinct non-retryable manual review",
+			err: cerr.Conflict(extcheckoutpayment.NewFailure(
+				extcheckoutpayment.FailureClassPermanentFailedPrecondition,
+				errors.New("scope missing"),
+			)),
+			attemptCount: 1,
+			want:         saga.StepOutcomeManualReview,
+		},
+		{
+			name: "not found reconciles without inventing absence",
+			err: cerr.ResourceNotFound(extcheckoutpayment.NewFailure(
+				extcheckoutpayment.FailureClassNotFound,
+				errors.New("missing"),
+			)),
+			attemptCount: 1,
+			want:         saga.StepOutcomeReconcile,
+		},
+		{
+			name: "ambiguous internal reconciles after budget",
+			err: cerr.InternalError(extcheckoutpayment.NewFailure(
+				extcheckoutpayment.FailureClassAmbiguous,
+				errors.New("fc internal"),
+			)),
+			attemptCount: 9,
+			want:         saga.StepOutcomeReconcile,
+		},
+		{
 			name:         "idempotency payload conflict is manual review",
 			err:          cerr.IdempotencyConflict(errors.New("same key different body")),
 			attemptCount: 1,

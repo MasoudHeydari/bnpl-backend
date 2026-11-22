@@ -36,6 +36,8 @@ func newAllowAllCheckoutObserver(t *testing.T) *mock.CheckoutSessionObserver {
 	observer.EXPECT().ConfirmSagaCompensating(testifymock.Anything, testifymock.Anything, testifymock.Anything).Maybe()
 	observer.EXPECT().SessionCanceled(testifymock.Anything, testifymock.Anything).Maybe()
 	observer.EXPECT().SessionExpired(testifymock.Anything, testifymock.Anything).Maybe()
+	observer.EXPECT().CheckoutTerminatedSafely(testifymock.Anything, testifymock.Anything, testifymock.Anything, testifymock.Anything).Maybe()
+	observer.EXPECT().CheckoutSafeTerminationRejected(testifymock.Anything, testifymock.Anything, testifymock.Anything).Maybe()
 	observer.EXPECT().HostedHandoffPrepared(testifymock.Anything, testifymock.Anything).Maybe()
 	observer.EXPECT().ExpirySweepCompleted(testifymock.Anything, testifymock.Anything).Maybe()
 	observer.EXPECT().ConfirmingRecoveryCompleted(testifymock.Anything, testifymock.Anything).Maybe()

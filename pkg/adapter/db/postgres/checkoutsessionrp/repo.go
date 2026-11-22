@@ -339,6 +339,29 @@ func (q txQueryer) MarkCanceled(
 	)
 }
 
+func (q txQueryer) MarkCanceledSafely(
+	ctx context.Context,
+	id model.CheckoutSessionID,
+	reason model.CheckoutCancellationReason,
+	updatedAt time.Time,
+) (model.CheckoutSession, error) {
+	return MarkCanceledSafely(
+		ctx,
+		q.Tx,
+		id,
+		reason,
+		updatedAt,
+	)
+}
+
+func (q txQueryer) MarkExpiredSafely(
+	ctx context.Context,
+	id model.CheckoutSessionID,
+	updatedAt time.Time,
+) (model.CheckoutSession, error) {
+	return MarkExpiredSafely(ctx, q.Tx, id, updatedAt)
+}
+
 func (q txQueryer) ExpireOpenDue(
 	ctx context.Context,
 	now time.Time,

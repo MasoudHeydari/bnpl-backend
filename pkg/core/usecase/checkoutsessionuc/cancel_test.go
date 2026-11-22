@@ -11,54 +11,64 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 )
 
-func TestCancelByToken_RefusesSessionOwnedByConfirmOrPayment(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		status model.CheckoutSessionStatus
-	}{
-		{name: "confirming claim blocks cancel", status: model.ConfirmingCheckoutSessionStatus},
-		{name: "processing payment blocks cancel", status: model.ProcessingCheckoutSessionStatus},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			h := newHarness(t)
-			h.expectPool(1, 1)
-
-			session := h.session(withStatus(tt.status))
-			h.sessionCQ.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(session, nil).Once()
-			h.sessionTx.EXPECT().
-				LockByID(h.ctx, h.sessionID).
-				Return(session, nil).Once()
-
-			_, err := h.uc.CancelByToken(h.ctx, CancelByTokenInput{Token: h.publicToken})
-			requireCerr(
-				t,
-				err,
-				cerr.CodeConflict,
-				"error.checkout_payment_is_in_progress_and_must_be_resolved_first",
-			)
-		})
-	}
-}
-
-func TestCancelByToken_RefusesConfirmingSessionEvenAfterTTL(t *testing.T) {
+func TestCancelByToken_ProcessingWithUnresolvedPaymentBlocks(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
 	h.expectPool(1, 1)
 
-	confirming := h.session(
-		withStatus(model.ConfirmingCheckoutSessionStatus),
-		withExpiresAt(h.now.Add(-time.Minute)),
+	session := h.session(
+		withStatus(model.ProcessingCheckoutSessionStatus),
+		withContract(h.contractID),
 	)
 
-	h.sessionCQ.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(confirming, nil).Once()
-	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(confirming, nil).Once()
+	h.sessionCQ.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(session, nil).Once()
+	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(session, nil).Once()
+	// terminateCheckoutSafelyTx locks again inside the same transaction.
+	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(session, nil).Once()
+	h.contractTx.EXPECT().LockByID(h.ctx, h.contractID).Return(model.Contract{
+		ID:     h.contractID,
+		Status: model.PaymentPendingContractStatus,
+	}, nil).Once()
+
+	attempt := model.PaymentAttempt{
+		ID:    h.attemptID,
+		State: model.SubmittedPaymentAttemptState,
+	}
+	h.attemptTx.EXPECT().
+		GetByContractIDAndPurposeWithItems(
+			h.ctx,
+			h.contractID,
+			model.CheckoutFirstInstallmentFinancialCorePaymentPurpose,
+		).
+		Return(attempt, nil).Once()
+	h.attemptTx.EXPECT().
+		LockByIDWithItems(h.ctx, h.attemptID).
+		Return(attempt, nil).Once()
+
+	_, err := h.uc.CancelByToken(h.ctx, CancelByTokenInput{Token: h.publicToken})
+	requireCerr(
+		t,
+		err,
+		cerr.CodeConflict,
+		"error.checkout_payment_is_in_progress_and_must_be_resolved_first",
+	)
+}
+
+func TestCancelByToken_ConfirmingWithPreparedContractBlocks(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.expectPool(1, 1)
+
+	session := h.confirmingSession()
+	h.sessionCQ.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(session, nil).Once()
+	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(session, nil).Once()
+	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(session, nil).Once()
+	h.contractTx.EXPECT().
+		GetByDecisionID(h.ctx, h.decisionID).
+		Return(model.Contract{ID: h.contractID, Status: model.PaymentPendingContractStatus}, nil).
+		Once()
 
 	_, err := h.uc.CancelByToken(h.ctx, CancelByTokenInput{Token: h.publicToken})
 	requireCerr(
@@ -114,4 +124,71 @@ func TestCancelByToken_OpenSessionIsCanceledWithCanceledEvent(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, model.CanceledCheckoutSessionStatus, output.Session.Status)
 	require.Contains(t, output.ReturnURL, "checkout_session_id="+h.publicToken.String())
+}
+
+func TestCancelByToken_OpenWithSafeContractTerminates(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.expectPool(1, 1)
+
+	session := h.session(withContract(h.contractID))
+	canceled := h.session(
+		withContract(h.contractID),
+		withStatus(model.CanceledCheckoutSessionStatus),
+	)
+
+	h.sessionCQ.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(session, nil).Once()
+	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(session, nil).Once()
+	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(session, nil).Once()
+
+	contractRow := model.Contract{
+		ID:         h.contractID,
+		Status:     model.PaymentPendingContractStatus,
+		DecisionID: h.decisionID,
+	}
+	h.contractTx.EXPECT().LockByID(h.ctx, h.contractID).Return(contractRow, nil).Once()
+	h.attemptTx.EXPECT().
+		GetByContractIDAndPurposeWithItems(
+			h.ctx,
+			h.contractID,
+			model.CheckoutFirstInstallmentFinancialCorePaymentPurpose,
+		).
+		Return(model.PaymentAttempt{}, cerr.ResourceNotFound(nil)).Once()
+
+	// Initial-payment activation mode → orphan contract without attempt is safe.
+	h.decisionTx.EXPECT().
+		GetByID(h.ctx, h.decisionID).
+		Return(model.Decision{
+			ID:            h.decisionID,
+			PolicyID:      "checkout_contract_approval",
+			PolicyVersion: "v1",
+		}, nil).Once()
+
+	h.contractTx.EXPECT().LockByID(h.ctx, h.contractID).Return(contractRow, nil).Once()
+	h.contractTx.EXPECT().
+		MarkCanceledFromPaymentPending(h.ctx, h.contractID, h.now, h.now).
+		Return(contractRow, nil).Once()
+	h.attemptTx.EXPECT().
+		GetByContractIDAndPurposeWithItems(
+			h.ctx,
+			h.contractID,
+			model.CheckoutFirstInstallmentFinancialCorePaymentPurpose,
+		).
+		Return(model.PaymentAttempt{}, cerr.ResourceNotFound(nil)).Once()
+	h.installTx.EXPECT().
+		ExpireOfferedByContractID(h.ctx, h.contractID, h.now).
+		Return(int64(0), nil).Once()
+	h.chargeTx.EXPECT().
+		CancelOfferedByContractID(h.ctx, h.contractID, h.now).
+		Return(int64(0), nil).Once()
+
+	h.sessionTx.EXPECT().
+		MarkCanceledSafely(h.ctx, h.sessionID, model.CustomerCanceledCheckoutReason, h.now).
+		Return(canceled, nil).Once()
+	h.expectLifecycleEvent(canceled, checkoutlifecycle.EventTypeCanceled)
+
+	output, err := h.uc.CancelByToken(h.ctx, CancelByTokenInput{Token: h.publicToken})
+	require.NoError(t, err)
+	require.Equal(t, model.CanceledCheckoutSessionStatus, output.Session.Status)
 }

@@ -27,12 +27,15 @@ const MaxFinancialSessionCreateAttempts = 3
 const SessionCreationRetryExhaustedFailureCode = "session_creation_retry_exhausted"
 
 // FinancialSessionCreateLeaseDuration is how long one reservation owns the
-// right to start CreateCheckoutPayment. The Financial Core gRPC deadline
-// defaults to 5s (EXTERNAL_FINANCIAL_CORE_GRPC_TIMEOUT) and the local expiration safety window
-// is 5m, so 30s covers the RPC plus a crashed caller without blocking
-// investigation for the whole created window. Lease expiry is not payment
-// failure and does not discard a later verified Financial Core response.
-const FinancialSessionCreateLeaseDuration = 30 * time.Second
+// right to start CreateCheckoutPayment.
+//
+// Write RPCs (CreateCheckoutPayment, RecordMerchantEntitlement,
+// PrepareCollectionObligation) use a 100s call deadline in the Financial Core
+// gRPC adapter. The lease must outlive that deadline so a late response cannot
+// be claimed by a second worker while the first call is still in flight.
+// Lease expiry is not payment failure and does not discard a later verified
+// Financial Core response.
+const FinancialSessionCreateLeaseDuration = 120 * time.Second
 
 // FinancialSessionCreateExpirationSafetyInterval is added after
 // FinancialSessionCreateLeaseUntil before local session-creation expiration

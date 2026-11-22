@@ -36,6 +36,17 @@ type Observer interface {
 	ConfirmSagaCompensating(ctx context.Context, sessionID model.CheckoutSessionID, step string)
 	SessionCanceled(ctx context.Context, sessionID model.CheckoutSessionID)
 	SessionExpired(ctx context.Context, sessionID model.CheckoutSessionID)
+	CheckoutTerminatedSafely(
+		ctx context.Context,
+		sessionID model.CheckoutSessionID,
+		terminalStatus string,
+		reason string,
+	)
+	CheckoutSafeTerminationRejected(
+		ctx context.Context,
+		sessionID model.CheckoutSessionID,
+		blockReason string,
+	)
 	HostedHandoffPrepared(ctx context.Context, sessionID model.CheckoutSessionID)
 	ExpirySweepCompleted(ctx context.Context, expiredCount int)
 	ConfirmingRecoveryCompleted(ctx context.Context, recoveredCount int)

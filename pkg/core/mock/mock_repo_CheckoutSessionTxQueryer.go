@@ -1667,6 +1667,84 @@ func (_c *CheckoutSessionTxQueryer_MarkCanceled_Call) RunAndReturn(run func(ctx 
 	return _c
 }
 
+// MarkCanceledSafely provides a mock function for the type CheckoutSessionTxQueryer
+func (_mock *CheckoutSessionTxQueryer) MarkCanceledSafely(ctx context.Context, id model.CheckoutSessionID, reason model.CheckoutCancellationReason, updatedAt time.Time) (model.CheckoutSession, error) {
+	ret := _mock.Called(ctx, id, reason, updatedAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MarkCanceledSafely")
+	}
+
+	var r0 model.CheckoutSession
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CheckoutSessionID, model.CheckoutCancellationReason, time.Time) (model.CheckoutSession, error)); ok {
+		return returnFunc(ctx, id, reason, updatedAt)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CheckoutSessionID, model.CheckoutCancellationReason, time.Time) model.CheckoutSession); ok {
+		r0 = returnFunc(ctx, id, reason, updatedAt)
+	} else {
+		r0 = ret.Get(0).(model.CheckoutSession)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.CheckoutSessionID, model.CheckoutCancellationReason, time.Time) error); ok {
+		r1 = returnFunc(ctx, id, reason, updatedAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// CheckoutSessionTxQueryer_MarkCanceledSafely_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MarkCanceledSafely'
+type CheckoutSessionTxQueryer_MarkCanceledSafely_Call struct {
+	*mock.Call
+}
+
+// MarkCanceledSafely is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id model.CheckoutSessionID
+//   - reason model.CheckoutCancellationReason
+//   - updatedAt time.Time
+func (_e *CheckoutSessionTxQueryer_Expecter) MarkCanceledSafely(ctx any, id any, reason any, updatedAt any) *CheckoutSessionTxQueryer_MarkCanceledSafely_Call {
+	return &CheckoutSessionTxQueryer_MarkCanceledSafely_Call{Call: _e.mock.On("MarkCanceledSafely", ctx, id, reason, updatedAt)}
+}
+
+func (_c *CheckoutSessionTxQueryer_MarkCanceledSafely_Call) Run(run func(ctx context.Context, id model.CheckoutSessionID, reason model.CheckoutCancellationReason, updatedAt time.Time)) *CheckoutSessionTxQueryer_MarkCanceledSafely_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.CheckoutSessionID
+		if args[1] != nil {
+			arg1 = args[1].(model.CheckoutSessionID)
+		}
+		var arg2 model.CheckoutCancellationReason
+		if args[2] != nil {
+			arg2 = args[2].(model.CheckoutCancellationReason)
+		}
+		var arg3 time.Time
+		if args[3] != nil {
+			arg3 = args[3].(time.Time)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *CheckoutSessionTxQueryer_MarkCanceledSafely_Call) Return(checkoutSession model.CheckoutSession, err error) *CheckoutSessionTxQueryer_MarkCanceledSafely_Call {
+	_c.Call.Return(checkoutSession, err)
+	return _c
+}
+
+func (_c *CheckoutSessionTxQueryer_MarkCanceledSafely_Call) RunAndReturn(run func(ctx context.Context, id model.CheckoutSessionID, reason model.CheckoutCancellationReason, updatedAt time.Time) (model.CheckoutSession, error)) *CheckoutSessionTxQueryer_MarkCanceledSafely_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // MarkConfirming provides a mock function for the type CheckoutSessionTxQueryer
 func (_mock *CheckoutSessionTxQueryer) MarkConfirming(ctx context.Context, id model.CheckoutSessionID, attemptID model.ConfirmationAttemptID, updatedAt time.Time) (model.CheckoutSession, error) {
 	ret := _mock.Called(ctx, id, attemptID, updatedAt)
@@ -1741,6 +1819,78 @@ func (_c *CheckoutSessionTxQueryer_MarkConfirming_Call) Return(checkoutSession m
 }
 
 func (_c *CheckoutSessionTxQueryer_MarkConfirming_Call) RunAndReturn(run func(ctx context.Context, id model.CheckoutSessionID, attemptID model.ConfirmationAttemptID, updatedAt time.Time) (model.CheckoutSession, error)) *CheckoutSessionTxQueryer_MarkConfirming_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// MarkExpiredSafely provides a mock function for the type CheckoutSessionTxQueryer
+func (_mock *CheckoutSessionTxQueryer) MarkExpiredSafely(ctx context.Context, id model.CheckoutSessionID, updatedAt time.Time) (model.CheckoutSession, error) {
+	ret := _mock.Called(ctx, id, updatedAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MarkExpiredSafely")
+	}
+
+	var r0 model.CheckoutSession
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CheckoutSessionID, time.Time) (model.CheckoutSession, error)); ok {
+		return returnFunc(ctx, id, updatedAt)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CheckoutSessionID, time.Time) model.CheckoutSession); ok {
+		r0 = returnFunc(ctx, id, updatedAt)
+	} else {
+		r0 = ret.Get(0).(model.CheckoutSession)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.CheckoutSessionID, time.Time) error); ok {
+		r1 = returnFunc(ctx, id, updatedAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// CheckoutSessionTxQueryer_MarkExpiredSafely_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MarkExpiredSafely'
+type CheckoutSessionTxQueryer_MarkExpiredSafely_Call struct {
+	*mock.Call
+}
+
+// MarkExpiredSafely is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id model.CheckoutSessionID
+//   - updatedAt time.Time
+func (_e *CheckoutSessionTxQueryer_Expecter) MarkExpiredSafely(ctx any, id any, updatedAt any) *CheckoutSessionTxQueryer_MarkExpiredSafely_Call {
+	return &CheckoutSessionTxQueryer_MarkExpiredSafely_Call{Call: _e.mock.On("MarkExpiredSafely", ctx, id, updatedAt)}
+}
+
+func (_c *CheckoutSessionTxQueryer_MarkExpiredSafely_Call) Run(run func(ctx context.Context, id model.CheckoutSessionID, updatedAt time.Time)) *CheckoutSessionTxQueryer_MarkExpiredSafely_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.CheckoutSessionID
+		if args[1] != nil {
+			arg1 = args[1].(model.CheckoutSessionID)
+		}
+		var arg2 time.Time
+		if args[2] != nil {
+			arg2 = args[2].(time.Time)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *CheckoutSessionTxQueryer_MarkExpiredSafely_Call) Return(checkoutSession model.CheckoutSession, err error) *CheckoutSessionTxQueryer_MarkExpiredSafely_Call {
+	_c.Call.Return(checkoutSession, err)
+	return _c
+}
+
+func (_c *CheckoutSessionTxQueryer_MarkExpiredSafely_Call) RunAndReturn(run func(ctx context.Context, id model.CheckoutSessionID, updatedAt time.Time) (model.CheckoutSession, error)) *CheckoutSessionTxQueryer_MarkExpiredSafely_Call {
 	_c.Call.Return(run)
 	return _c
 }

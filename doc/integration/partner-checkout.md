@@ -369,7 +369,7 @@ X-API-Key: ...
 }
 ~~~
 
-`completed_at` تنها روی رویداد تکمیل، `reason` در لغو (مثل `customer_canceled` / `merchant_canceled`) و `merchant_state` تنها در صورت وجود معنی‌دارند. هیچ شناسهٔ Financial Core، PSP، PaymentAttempt یا جزئیات اعتبار مشتری در Event نیست.
+`completed_at` تنها روی رویداد تکمیل، `reason` در لغو (مثل `customer_canceled` / `merchant_canceled` / `technical_failure`) و `merchant_state` تنها در صورت وجود معنی‌دارند. هیچ شناسهٔ Financial Core، PSP، PaymentAttempt یا جزئیات اعتبار مشتری در Event نیست.
 
 `event_id` از توکن عمومی + نوع Event + Status ساخته می‌شود و در Retry همان رویداد ثابت می‌ماند:
 

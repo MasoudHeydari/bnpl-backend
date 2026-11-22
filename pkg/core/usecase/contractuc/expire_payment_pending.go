@@ -139,6 +139,7 @@ func (uc *UseCase) expirePaymentPendingContractByID(
 					var expireErr error
 					counts, expired, expireErr = uc.expirePaymentPendingContract(
 						ctx,
+						tx,
 						contractQ,
 						installmentQ,
 						installmentChargeQ,
@@ -163,6 +164,7 @@ func (uc *UseCase) expirePaymentPendingContractByID(
 
 func (uc *UseCase) expirePaymentPendingContract(
 	ctx context.Context,
+	tx repo.Tx,
 	contractQ repo.ContractTxQueryer,
 	installmentQ repo.InstallmentTxQueryer,
 	installmentChargeQ repo.InstallmentChargeTxQueryer,
@@ -250,6 +252,17 @@ func (uc *UseCase) expirePaymentPendingContract(
 		ctx,
 		auditOutboxQ,
 		facts,
+		now,
+	); err != nil {
+		return expirePaymentPendingCounts{}, false, err
+	}
+
+	// Align the hosted CheckoutSession in the same transaction so a safely
+	// expired payment_pending contract cannot leave checkout stuck in processing.
+	if err := uc.hostedCheckoutSync.ApplyPaymentPendingContractExpired(
+		ctx,
+		tx,
+		contractRow.ID,
 		now,
 	); err != nil {
 		return expirePaymentPendingCounts{}, false, err

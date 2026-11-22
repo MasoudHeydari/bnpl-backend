@@ -64,6 +64,22 @@ func enabledSagaExecutorTask(provider taskadapter.Provider) Task {
 					Interval: "10s",
 				},
 			},
+			PaymentAttemptReconciliation: TaskDefinition{
+				Enabled: true,
+				Handler: "payment_attempt_reconciliation",
+				Trigger: TaskTrigger{
+					Type:     "interval",
+					Interval: "30s",
+				},
+			},
+			ContractPaymentPendingExpiry: TaskDefinition{
+				Enabled: true,
+				Handler: "contract_payment_pending_expiry",
+				Trigger: TaskTrigger{
+					Type:     "interval",
+					Interval: "1m",
+				},
+			},
 			MerchantTerminalIssuanceScrub: TaskDefinition{
 				Enabled: true,
 				Handler: "merchant_terminal_issuance_scrub",
@@ -826,6 +842,8 @@ func TestTaskValidate_CompositeRequiresExecutionForEnabledTasks(t *testing.T) {
 	require.Contains(t, err.Error(), "value is required when provider=composite")
 
 	taskCfg.Scheduled.SagaExecutor.Execution = coretask.ExecutionModeTemporal
+	taskCfg.Scheduled.PaymentAttemptReconciliation.Execution = coretask.ExecutionModeTemporal
+	taskCfg.Scheduled.ContractPaymentPendingExpiry.Execution = coretask.ExecutionModeTemporal
 	taskCfg.Scheduled.MerchantTerminalIssuanceScrub.Execution = coretask.ExecutionModeTemporal
 	taskCfg.Scheduled.CollectionsAssessment.Execution = coretask.ExecutionModeTemporal
 	taskCfg.Scheduled.RepaymentReminderDispatch.Execution = coretask.ExecutionModeTemporal
