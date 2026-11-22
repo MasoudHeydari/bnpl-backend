@@ -182,6 +182,7 @@ static_resources:
                             - exact: https://dev.dlend.ir
                             - exact: https://api.dev.dlend.ir
                             - exact: https://dlend.darkube.ir
+                            - exact: https://dlend.ir
                             - exact: http://localhost:5173
                             - exact: http://127.0.0.1:5173
                             - exact: http://localhost:3000

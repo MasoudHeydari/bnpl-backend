@@ -1,22 +1,15 @@
-# dpay Loki — config + entrypoint baked in (Hamravesh rejects host bind mounts).
-#
-#   docker build -t registry.hamdocker.ir/parstis-technology/dpay-loki:v0.1.0 \
-#     -f deploy/infrastructure/loki/Dockerfile deploy/infrastructure/loki
+# Loki — config + entrypoint baked in (Hamravesh rejects host bind mounts).
+# Compatible with Hamravesh Darkoob.
+
 FROM docker.arvancloud.ir/grafana/loki:3.6.8
 
-USER root
+COPY --chown=loki:loki config.yaml /etc/loki/config.yaml
 
-COPY config.yaml /etc/loki/config.yaml
-COPY --chmod=755 entrypoint.sh /entrypoint.sh
+USER loki
 
-RUN mkdir -p \
-		/loki/chunks \
-		/loki/rules \
-		/loki/compactor \
-		/loki/tsdb-index \
-		/loki/tsdb-cache \
-	&& chown -R 10001:10001 /loki /etc/loki /entrypoint.sh
+EXPOSE 3100
 
-USER 10001
+ENTRYPOINT ["/usr/bin/loki"]
 
-ENTRYPOINT ["/entrypoint.sh"]
+CMD ["-config.file=/etc/loki/config.yaml", "-config.expand-env=true"]
+

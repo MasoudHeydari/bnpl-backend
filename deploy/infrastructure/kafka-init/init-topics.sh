@@ -90,3 +90,11 @@ for topic in "${topics[@]}"; do
 done
 
 echo 'Local Kafka topic initialization completed.'
+
+financial.provider.commands.v1
+document.owner.lifecycle.v1
+financial.core.payment.application.results.v1
+financial.core.installment.payment.requests.v1
+bnpl.installment.payment.reconciliation.requests.v1
+financial.core.installment.payment.reconciliation.results.v1
+bnpl.installment.payment.reconciliation.acknowledgements.v1
