@@ -425,9 +425,11 @@ Content-Type: application/json
 
 `confirmation_status` ممکن است یکی از این‌ها باشد:
 
-`not_started`، `processing`، `payment_action_required`، `payment_processing`، `reconfirm_required`، `retry_available`، `completed`، `needs_attention`، `canceled`، `expired`، `unavailable`.
+`not_started`، `processing`، `payment_action_required`، `payment_processing`، `reconfirm_required`، `retry_available`، `awaiting_merchant_verification`، `cancellation_pending`، `completed`، `needs_attention`، `canceled`، `expired`، `unavailable`.
 
 Poll هیچ Saga، PaymentAttempt، Session پرداخت یا URL جدیدی ایجاد نمی‌کند. برای اقدام بعدی از `next_action` و `retry_after_seconds` استفاده کنید و در صورت لزوم به START/OTP/CONFIRM برگردید.
+
+وقتی `confirmation_status=awaiting_merchant_verification` و `next_action=complete_hosted_return` است، پرداخت در BNPL قطعی شده ولی پذیرش Merchant هنوز نشده. پیام کوتاه «پرداخت انجام شد» نشان دهید و سپس `GET .../return` را برای Navigation به سایت Merchant صدا بزنید. URL Merchant را از این پاسخ نسازید و خرید را نهایی اعلام نکنید.
 
 ### مرحلهٔ ششم: RETURN
 

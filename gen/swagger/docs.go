@@ -7632,6 +7632,8 @@ const docTemplate = `{
                         "payment_processing",
                         "reconfirm_required",
                         "retry_available",
+                        "awaiting_merchant_verification",
+                        "cancellation_pending",
                         "completed",
                         "needs_attention",
                         "canceled",
@@ -7642,6 +7644,22 @@ const docTemplate = `{
                 },
                 "next_action": {
                     "type": "string",
+                    "enum": [
+                        "none",
+                        "wait",
+                        "resume_payment",
+                        "wait_payment_result",
+                        "retry_payment",
+                        "reconfirm",
+                        "show_success",
+                        "complete_hosted_return",
+                        "show_cancellation_pending",
+                        "show_pending_review",
+                        "show_canceled",
+                        "show_expired",
+                        "show_unavailable",
+                        "start_confirm"
+                    ],
                     "example": "wait"
                 },
                 "otp_availability": {

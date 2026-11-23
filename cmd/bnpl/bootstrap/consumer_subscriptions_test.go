@@ -12,19 +12,82 @@ import (
 func TestValidateConsumerSubscriptions(t *testing.T) {
 	t.Parallel()
 
-	const paymentResults = "financial-core.payment-results"
-	const reconciliationResults = "financial_core.installment_payment_reconciliation_results"
+	const paymentResults = "financial.core.payment.results.v1"
+	const reconciliationResults = "financial.core.installment.payment.reconciliation.results.v1"
 
 	tests := []struct {
-		name   string
-		topics []string
-		valid  bool
+		name                  string
+		paymentResults        string
+		reconciliationResults string
+		topics                []string
+		wantErr               string
 	}{
-		{name: "exact handlers", topics: []string{paymentResults, reconciliationResults}, valid: true},
-		{name: "extra obsolete topic", topics: []string{paymentResults, "financial_core.installment_payment_sessions", reconciliationResults}},
-		{name: "missing reconciliation", topics: []string{paymentResults}},
-		{name: "duplicate topic", topics: []string{paymentResults, paymentResults, reconciliationResults}},
-		{name: "no topics"},
+		{
+			name:                  "exact handlers",
+			paymentResults:        paymentResults,
+			reconciliationResults: reconciliationResults,
+			topics:                []string{paymentResults, reconciliationResults},
+		},
+		{
+			name:                  "empty handler topic",
+			paymentResults:        paymentResults,
+			reconciliationResults: "",
+			topics:                []string{paymentResults, reconciliationResults},
+			wantErr:               `handler topic for installment_payment_reconciliation_results is empty (KAFKA_TOPIC_INSTALLMENT_PAYMENT_RECONCILIATION_RESULTS must be set)`,
+		},
+		{
+			name:                  "empty consumer topic entry",
+			paymentResults:        paymentResults,
+			reconciliationResults: reconciliationResults,
+			topics:                []string{paymentResults, ""},
+			wantErr:               `kafka.consumer.topics contains an empty entry`,
+		},
+		{
+			name:                  "empty consumer topics list",
+			paymentResults:        paymentResults,
+			reconciliationResults: reconciliationResults,
+			topics:                nil,
+			wantErr:               `kafka.consumer.topics is empty`,
+		},
+		{
+			name:                  "handler consumer mismatch typo",
+			paymentResults:        paymentResults,
+			reconciliationResults: "inancial.core.installment.payment.reconciliation.results.v1",
+			topics:                []string{paymentResults, reconciliationResults},
+			wantErr:               `subscribed topic "financial.core.installment.payment.reconciliation.results.v1" has no matching handler topic`,
+		},
+		{
+			name:                  "missing subscribed handler topic",
+			paymentResults:        paymentResults,
+			reconciliationResults: reconciliationResults,
+			topics:                []string{paymentResults},
+			wantErr:               `handler topic for installment_payment_reconciliation_results is "financial.core.installment.payment.reconciliation.results.v1" (KAFKA_TOPIC_INSTALLMENT_PAYMENT_RECONCILIATION_RESULTS) but it is not subscribed`,
+		},
+		{
+			name:                  "extra obsolete topic",
+			paymentResults:        paymentResults,
+			reconciliationResults: reconciliationResults,
+			topics: []string{
+				paymentResults,
+				"financial_core.installment_payment_sessions",
+				reconciliationResults,
+			},
+			wantErr: `subscribed topic "financial_core.installment_payment_sessions" has no matching handler topic`,
+		},
+		{
+			name:                  "duplicate topic",
+			paymentResults:        paymentResults,
+			reconciliationResults: reconciliationResults,
+			topics:                []string{paymentResults, paymentResults, reconciliationResults},
+			wantErr:               `duplicate subscribed topic "financial.core.payment.results.v1"`,
+		},
+		{
+			name:                  "identical handler topics",
+			paymentResults:        paymentResults,
+			reconciliationResults: paymentResults,
+			topics:                []string{paymentResults, reconciliationResults},
+			wantErr:               `handler topics must be distinct`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -37,8 +100,8 @@ func TestValidateConsumerSubscriptions(t *testing.T) {
 						Provider: adaptermessaging.KafkaProvider,
 						Kafka: config.Kafka{
 							Topics: config.Topics{
-								PaymentResults:                          paymentResults,
-								InstallmentPaymentReconciliationResults: reconciliationResults,
+								PaymentResults:                          tt.paymentResults,
+								InstallmentPaymentReconciliationResults: tt.reconciliationResults,
 							},
 							Consumer: config.Consumer{Topics: tt.topics},
 						},
@@ -47,11 +110,13 @@ func TestValidateConsumerSubscriptions(t *testing.T) {
 			}
 
 			err := validateConsumerSubscriptions(cfg)
-			if tt.valid {
+			if tt.wantErr == "" {
 				require.NoError(t, err)
-			} else {
-				require.Error(t, err)
+				return
 			}
+
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tt.wantErr)
 		})
 	}
 }

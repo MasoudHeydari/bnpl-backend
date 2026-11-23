@@ -125,6 +125,7 @@ func (uc *UseCase) GetExternal(ctx context.Context, input GetExternalInput) (Get
 
 	// Hosted External never exposes account-level available credit.
 	offer.AvailableCreditMinor = 0
+	offer.ExposeAvailableCredit = false
 	output.Offer = &offer
 
 	return output, nil

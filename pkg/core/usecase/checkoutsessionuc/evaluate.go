@@ -362,16 +362,22 @@ func (uc *UseCase) recordEvaluation(
 
 // offerFromDecision projects merchant-safe offer economics from a Decision.
 //
-// Reason codes are dropped deliberately. A denied checkout reports only that
-// financing is unavailable — no credit balances or installment schedule.
+// Reason codes are never returned to Partner/Hosted clients. A denied checkout
+// normally reports only that financing is unavailable. Capacity shortfalls
+// (NO_AVAILABLE_CREDIT) additionally keep AvailableCreditMinor so Partner
+// on_create SelectCreditKind can show the customer why financing was refused.
 func offerFromDecision(output decisionuc.CreateOutput, terms checkout.Terms) (Offer, error) {
 	const op = "checkoutsessionuc.offerFromDecision"
 
 	outcome := offerOutcome(output.Decision.Outcome)
 	if outcome == DeniedOfferOutcome {
-		return Offer{
-			Outcome: DeniedOfferOutcome,
-		}, nil
+		offer := Offer{Outcome: DeniedOfferOutcome}
+		if shouldExposeAvailableCreditOnDenial(output.Decision.ReasonCodes) {
+			offer.AvailableCreditMinor = output.AvailableCreditMinor
+			offer.ExposeAvailableCredit = true
+		}
+
+		return offer, nil
 	}
 
 	offer := Offer{
@@ -438,4 +444,19 @@ func offerOutcome(outcome model.DecisionOutcome) OfferOutcome {
 	default:
 		return DeniedOfferOutcome
 	}
+}
+
+// shouldExposeAvailableCreditOnDenial reports whether a denied Decision may
+// surface evaluation-time available credit to Partner clients.
+//
+// Only capacity shortfalls qualify. Policy/eligibility denials stay opaque even
+// when the customer still has a positive balance.
+func shouldExposeAvailableCreditOnDenial(reasonCodes []string) bool {
+	for _, code := range reasonCodes {
+		if code == model.NoAvailableCreditDecisionReason {
+			return true
+		}
+	}
+
+	return false
 }

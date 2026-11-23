@@ -238,7 +238,20 @@ func (uc *UseCase) loadPreparedExternalOffer(
 			)
 		}
 
-		return session, Offer{Outcome: DeniedOfferOutcome, OfferExpiresAt: decision.ExpiresAt}, nil
+		offer := Offer{Outcome: DeniedOfferOutcome, OfferExpiresAt: decision.ExpiresAt}
+		if shouldExposeAvailableCreditOnDenial(decision.ReasonCodes) {
+			available, creditErr := uc.loadDecisionAvailableCreditMinor(ctx, decision.ID)
+			if creditErr != nil {
+				return model.CheckoutSession{}, Offer{}, fmt.Errorf(
+					"%s: load available credit for denied decision: %w", op, creditErr,
+				)
+			}
+
+			offer.AvailableCreditMinor = available
+			offer.ExposeAvailableCredit = true
+		}
+
+		return session, offer, nil
 	}
 
 	if decision.ExpiresAt != nil && !decision.ExpiresAt.After(now) {
@@ -287,6 +300,15 @@ func (uc *UseCase) projectPersistedOffer(
 		outcome := offerOutcome(decision.Outcome)
 		if outcome == DeniedOfferOutcome {
 			offer = Offer{Outcome: DeniedOfferOutcome}
+			if shouldExposeAvailableCreditOnDenial(decision.ReasonCodes) {
+				allocation, allocationErr := allocationQ.GetByDecisionID(ctx, *session.DecisionID)
+				if allocationErr != nil {
+					return allocationErr
+				}
+
+				offer.AvailableCreditMinor = allocation.AvailableCreditMinor
+				offer.ExposeAvailableCredit = true
+			}
 
 			return nil
 		}
@@ -344,6 +366,34 @@ func installmentIDsOf(installments []model.Installment) []model.InstallmentID {
 	}
 
 	return ids
+}
+
+// loadDecisionAvailableCreditMinor reads the evaluation-time credit snapshot
+// persisted on the Decision's checkout allocation.
+func (uc *UseCase) loadDecisionAvailableCreditMinor(
+	ctx context.Context,
+	decisionID model.DecisionID,
+) (uint64, error) {
+	const op = "checkoutsessionuc.UseCase.loadDecisionAvailableCreditMinor"
+
+	var available uint64
+
+	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
+		allocationQ := uc.checkoutDecisionAllocation.Conn(conn)
+		allocation, getErr := allocationQ.GetByDecisionID(ctx, decisionID)
+		if getErr != nil {
+			return getErr
+		}
+
+		available = allocation.AvailableCreditMinor
+
+		return nil
+	})
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", op, err)
+	}
+
+	return available, nil
 }
 
 // clampExternalSessionToOffer shortens the open checkout lifetime to the offer

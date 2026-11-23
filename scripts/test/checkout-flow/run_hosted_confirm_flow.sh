@@ -6,8 +6,9 @@ cd "$ROOT"
 
 # Fill these before running.
 export BNPL_API_BASE="${BNPL_API_BASE:-http://127.0.0.1:7080/}"
-export BNPL_TERMINAL_ID="${BNPL_TERMINAL_ID:-9000450873514021522}"
-export BNPL_API_KEY="${BNPL_API_KEY:-bnpl_juHzyari2zqll-UIcX7yImFjsQhMLHPGwhB-6g13icI}"
+# Damz partner terminal from pkg/adapter/db/postgres/migrationsrp/000_dev.sql
+export BNPL_TERMINAL_ID="${BNPL_TERMINAL_ID:-1000000001}"
+export BNPL_API_KEY="${BNPL_API_KEY:-bnpl_ZGV2LWRhbXotcGFydG5lci1hcGkta2V5LXYxISEhISE}"
 export BNPL_EXTERNAL_ONLINE_STORE_ID="${BNPL_EXTERNAL_ONLINE_STORE_ID:-${BNPL_ONLINE_STORE_ID:-8e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c}}"
 export BNPL_CUSTOMER_PHONE="${BNPL_CUSTOMER_PHONE:-+989127434738}"
 

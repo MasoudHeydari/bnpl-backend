@@ -36,12 +36,80 @@ VALUES
     ('454dd0ce-93f1-4fbd-88c5-8c817630ad33', '99ad39be-deb9-47fb-a105-dc1e1a99f302', '9e1a2b3c-4d5e-4f6a-8b7c-9d0e1f2a3b4c', TRUE, '2026-07-04 12:35:28.031501+00', '2026-07-04 12:35:28.031501+00');
 
 -- ============================================================
--- 5. merchant_return_destinations (1 record)
+-- 5. merchant_return_destinations (2 records)
 -- ============================================================
--- Pre-registered return URL for Demo Merchant partner checkout handoff.
+-- Pre-registered return URL for partner checkout handoff.
 -- external_merchant_id must reference merchant_profiles.external_merchant_id (not profiles.id).
 INSERT INTO bnpl.merchant_return_destinations (id, external_merchant_id, destination_name, return_url, enabled, created_at, updated_at)
-    VALUES ('554dd0ce-93f1-4fbd-88c5-8c817630ad32', '1e7c3dd4-0e8b-4ec1-aede-2a119f3ffecc', 'default', 'http://localhost:3000/bnpl/return', TRUE, '2026-07-04 12:35:28.031501+00', '2026-07-04 12:35:28.031501+00');
+VALUES
+    ('554dd0ce-93f1-4fbd-88c5-8c817630ad32', '1e7c3dd4-0e8b-4ec1-aede-2a119f3ffecc', 'default', 'http://localhost:3000/bnpl/return', TRUE, '2026-07-04 12:35:28.031501+00', '2026-07-04 12:35:28.031501+00'),
+    ('654dd0ce-93f1-4fbd-88c5-8c817630ad32', '27afba8d-9fa8-400d-853a-fdf35619ad3a', 'default', 'http://localhost:3000/bnpl/return', TRUE, '2026-07-04 12:35:28.031501+00', '2026-07-04 12:35:28.031501+00');
+
+-- ============================================================
+-- 6. merchant_credit_kind_eligibilities
+-- ============================================================
+-- Credit kinds are fail-closed until explicitly enabled. Damz can sell
+-- pay_in_installments in local/dev without a panel round-trip.
+INSERT INTO bnpl.merchant_credit_kind_eligibilities (merchant_profile_id, credit_kind, enabled, updated_at)
+VALUES
+    ('dc520782-b4a1-4c3e-840a-8ce04f7bfacb', 'pay_in_installments', TRUE, '2026-07-04 16:00:28.973+00');
+
+-- ============================================================
+-- 7. merchant_terminals + credentials + permissions (Damz, DMart)
+-- ============================================================
+-- Deterministic partner terminals for local/dev so engineers do not need to
+-- call Provision each time. Plaintext API keys are documented here ONLY because
+-- credentials store an irreversible peppered HMAC and are never returned again.
+--
+-- Pepper must match MERCHANT_TERMINAL_API_KEY_PEPPER_KEYS active key "v1":
+--   v1:dev-only-merchant-terminal-api-key-pepper-32b
+-- Hash form: hmac-sha256:v1:<hex>. Credentials stay active until rotated
+-- (no automatic TTL in schema; suitable for long-lived local/dev use).
+--
+-- Damz:
+--   X-Terminal-Id: 1000000001
+--   X-API-Key:     bnpl_ZGV2LWRhbXotcGFydG5lci1hcGkta2V5LXYxISEhISE
+-- DMart:
+--   X-Terminal-Id: 1000000002
+--   X-API-Key:     bnpl_ZGV2LWRtYXJ0LXBhcnRuZXItYXBpLWtleS12MSEhISE
+INSERT INTO bnpl.merchant_terminals (id, external_merchant_id, terminal_id, status, created_at, updated_at)
+VALUES
+    ('a1111111-1111-4111-8111-111111111101', '1e7c3dd4-0e8b-4ec1-aede-2a119f3ffecc', 1000000001, 'active', '2026-07-04 16:00:28.973+00', '2026-07-04 16:00:28.973+00'),
+    ('a1111111-1111-4111-8111-111111111201', '27afba8d-9fa8-400d-853a-fdf35619ad3a', 1000000002, 'active', '2026-07-04 16:00:28.973+00', '2026-07-04 16:00:28.973+00');
+
+INSERT INTO bnpl.merchant_terminal_credentials (
+    id, merchant_terminal_id, version, api_key_hash, status, created_at, activated_at, updated_at
+)
+VALUES
+    (
+        'a1111111-1111-4111-8111-111111111102',
+        'a1111111-1111-4111-8111-111111111101',
+        1,
+        'hmac-sha256:v1:f6db9ec0968be31254a5a8352895374681c4879ad9dbd919336527459ad51df1',
+        'active',
+        '2026-07-04 16:00:28.973+00',
+        '2026-07-04 16:00:28.973+00',
+        '2026-07-04 16:00:28.973+00'
+    ),
+    (
+        'a1111111-1111-4111-8111-111111111202',
+        'a1111111-1111-4111-8111-111111111201',
+        1,
+        'hmac-sha256:v1:4c18fe1877e370514f1fc273d14cf283c6197dd9df2115f8402db5e17435e493',
+        'active',
+        '2026-07-04 16:00:28.973+00',
+        '2026-07-04 16:00:28.973+00',
+        '2026-07-04 16:00:28.973+00'
+    );
+
+INSERT INTO bnpl.merchant_terminal_permissions (id, merchant_terminal_id, permission, created_at, revoked_at)
+VALUES
+    ('a1111111-1111-4111-8111-111111111111', 'a1111111-1111-4111-8111-111111111101', 'bnpl:checkout-sessions:create:merchant', '2026-07-04 16:00:28.973+00', NULL),
+    ('a1111111-1111-4111-8111-111111111112', 'a1111111-1111-4111-8111-111111111101', 'bnpl:checkout-sessions:read:merchant', '2026-07-04 16:00:28.973+00', NULL),
+    ('a1111111-1111-4111-8111-111111111113', 'a1111111-1111-4111-8111-111111111101', 'bnpl:checkout-return-destinations:manage:merchant', '2026-07-04 16:00:28.973+00', NULL),
+    ('a1111111-1111-4111-8111-111111111211', 'a1111111-1111-4111-8111-111111111201', 'bnpl:checkout-sessions:create:merchant', '2026-07-04 16:00:28.973+00', NULL),
+    ('a1111111-1111-4111-8111-111111111212', 'a1111111-1111-4111-8111-111111111201', 'bnpl:checkout-sessions:read:merchant', '2026-07-04 16:00:28.973+00', NULL),
+    ('a1111111-1111-4111-8111-111111111213', 'a1111111-1111-4111-8111-111111111201', 'bnpl:checkout-return-destinations:manage:merchant', '2026-07-04 16:00:28.973+00', NULL);
 
 -- -- ============================================================
 -- -- 6. policy_assignment_imports (1 record)

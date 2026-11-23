@@ -35,7 +35,7 @@ func TestNewCreditDebitedCommand_MatchesNotificationContract(t *testing.T) {
 	require.NoError(t, json.Unmarshal(raw, &decoded))
 	require.EqualValues(t, 1, decoded["schema_version"])
 	require.Equal(t, "bnpl-backend", decoded["source_service"])
-	require.Equal(t, "bnpl.credit.monthly.debited.v1", decoded["notification_type"])
+	require.Equal(t, "bnpl.credit.pay_next_month.debited.v1", decoded["notification_type"])
 	require.Equal(t, "transactional", decoded["category"])
 	require.EqualValues(t, 5, decoded["priority"])
 	require.NotContains(t, decoded, "x-notification-caller")
@@ -53,7 +53,7 @@ func TestNewCreditDebitedCommand_MatchesNotificationContract(t *testing.T) {
 	require.Equal(t, "sms", delivery["delivery_method"])
 	require.Equal(t, "sms", delivery["channel"])
 	require.Equal(t, "upstream_selected", delivery["selection_source"])
-	require.Equal(t, "bnpl.credit.monthly.debited.v1", delivery["template_code"])
+	require.Equal(t, "bnpl.credit.pay_next_month.debited.v1", delivery["template_code"])
 
 	vars := delivery["variables"].(map[string]any)
 	require.Equal(t, "500000", vars["debited_amount"])

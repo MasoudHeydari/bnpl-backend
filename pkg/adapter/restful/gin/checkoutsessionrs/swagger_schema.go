@@ -52,7 +52,9 @@ type OfferInstallmentSchema struct {
 
 // OfferSchema is the swagger-stable financing offer projection.
 //
-// A denied offer carries only outcome; every financing field is omitted.
+// A denied offer normally carries only outcome. When denial is a capacity
+// shortfall (insufficient available credit), available_credit_minor may also be
+// present so Partner on_create SelectCreditKind can explain the refusal.
 type OfferSchema struct {
 	Outcome                        checkoutsessionuc.OfferOutcome `json:"outcome" enums:"approved,denied"`
 	CreditKind                     model.CreditKind               `json:"credit_kind,omitempty" enums:"pay_in_installments,pay_next_month"`

@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/parstis/bnpl-backend/pkg/adapter/config"
@@ -59,11 +60,25 @@ func (a *App) RegisterConsumers() (*consumers.Registry, error) {
 	return registry, nil
 }
 
-// validateConsumerSubscriptions makes unhandled Kafka topics a startup error
-// rather than silently consuming and quarantining payment messages.
+// consumerTopicBinding pairs a handler registration topic (KAFKA_TOPIC_*) with
+// the matching Kafka consumer subscription env (KAFKA_CONSUMER_TOPIC_*).
+type consumerTopicBinding struct {
+	name         string
+	handlerEnv   string
+	consumerEnv  string
+	handlerTopic string
+}
+
+// validateConsumerSubscriptions makes unhandled or misconfigured Kafka topics a
+// startup error rather than silently consuming and quarantining payment messages.
+//
+// Empty values and handler/consumer mismatches are reported separately so ops can
+// tell a missing env from a typo between KAFKA_TOPIC_* and KAFKA_CONSUMER_TOPIC_*.
 func validateConsumerSubscriptions(cfg *config.Config) error {
+	const op = "consumer subscription validation"
+
 	if cfg == nil {
-		return fmt.Errorf("consumer subscription validation: config is required")
+		return fmt.Errorf("%s: config is required", op)
 	}
 
 	m := cfg.Infrastructure.Messaging
@@ -71,34 +86,129 @@ func validateConsumerSubscriptions(cfg *config.Config) error {
 		return nil
 	}
 
-	expected := map[string]bool{
-		strings.TrimSpace(cfg.PaymentResultsTopic()):                          false,
-		strings.TrimSpace(cfg.InstallmentPaymentReconciliationResultsTopic()): false,
+	bindings := []consumerTopicBinding{
+		{
+			name:         "payment_results",
+			handlerEnv:   "KAFKA_TOPIC_PAYMENT_RESULTS",
+			consumerEnv:  "KAFKA_CONSUMER_TOPIC_PAYMENT_RESULTS",
+			handlerTopic: strings.TrimSpace(cfg.PaymentResultsTopic()),
+		},
+		{
+			name:         "installment_payment_reconciliation_results",
+			handlerEnv:   "KAFKA_TOPIC_INSTALLMENT_PAYMENT_RECONCILIATION_RESULTS",
+			consumerEnv:  "KAFKA_CONSUMER_TOPIC_INSTALLMENT_PAYMENT_RECONCILIATION_RESULTS",
+			handlerTopic: strings.TrimSpace(cfg.InstallmentPaymentReconciliationResultsTopic()),
+		},
 	}
-	if len(expected) != 2 {
-		return fmt.Errorf("consumer subscription validation: payment result topics must be distinct")
-	}
-	for topic := range expected {
-		if topic == "" {
-			return fmt.Errorf("consumer subscription validation: registered topic must be nonempty")
+
+	for _, b := range bindings {
+		if b.handlerTopic == "" {
+			return fmt.Errorf(
+				"%s: handler topic for %s is empty (%s must be set)",
+				op,
+				b.name,
+				b.handlerEnv,
+			)
 		}
 	}
 
+	if bindings[0].handlerTopic == bindings[1].handlerTopic {
+		return fmt.Errorf(
+			"%s: handler topics must be distinct: %s and %s both resolve to %q",
+			op,
+			bindings[0].handlerEnv,
+			bindings[1].handlerEnv,
+			bindings[0].handlerTopic,
+		)
+	}
+
+	subscribed := make([]string, 0, len(m.Kafka.Consumer.Topics))
+	seenSubscribed := make(map[string]struct{}, len(m.Kafka.Consumer.Topics))
+
 	for _, raw := range m.Kafka.Consumer.Topics {
 		topic := strings.TrimSpace(raw)
-		seen, registered := expected[topic]
-		if !registered {
-			return fmt.Errorf("consumer subscription validation: topic %q has no registered handler", topic)
+		if topic == "" {
+			return fmt.Errorf(
+				"%s: kafka.consumer.topics contains an empty entry (check %s and %s)",
+				op,
+				bindings[0].consumerEnv,
+				bindings[1].consumerEnv,
+			)
 		}
-		if seen {
-			return fmt.Errorf("consumer subscription validation: duplicate consumer topic %q", topic)
+
+		if _, dup := seenSubscribed[topic]; dup {
+			return fmt.Errorf("%s: duplicate subscribed topic %q", op, topic)
 		}
-		expected[topic] = true
+
+		seenSubscribed[topic] = struct{}{}
+		subscribed = append(subscribed, topic)
 	}
-	for topic, seen := range expected {
-		if !seen {
-			return fmt.Errorf("consumer subscription validation: missing subscribed topic %q", topic)
-		}
+
+	if len(subscribed) == 0 {
+		return fmt.Errorf(
+			"%s: kafka.consumer.topics is empty (set %s and %s)",
+			op,
+			bindings[0].consumerEnv,
+			bindings[1].consumerEnv,
+		)
 	}
+
+	handlerByTopic := make(map[string]consumerTopicBinding, len(bindings))
+	for _, b := range bindings {
+		handlerByTopic[b.handlerTopic] = b
+	}
+
+	for _, topic := range subscribed {
+		if _, ok := handlerByTopic[topic]; ok {
+			continue
+		}
+
+		return fmt.Errorf(
+			"%s: subscribed topic %q has no matching handler topic "+
+				"(configured handlers: %s=%q from %s, %s=%q from %s; "+
+				"each %s must equal its matching %s — this is usually a typo or env mismatch)",
+			op,
+			topic,
+			bindings[0].name,
+			bindings[0].handlerTopic,
+			bindings[0].handlerEnv,
+			bindings[1].name,
+			bindings[1].handlerTopic,
+			bindings[1].handlerEnv,
+			"KAFKA_CONSUMER_TOPIC_*",
+			"KAFKA_TOPIC_*",
+		)
+	}
+
+	for _, b := range bindings {
+		if _, ok := seenSubscribed[b.handlerTopic]; ok {
+			continue
+		}
+
+		return fmt.Errorf(
+			"%s: handler topic for %s is %q (%s) but it is not subscribed in kafka.consumer.topics "+
+				"(set %s to the same value; currently subscribed: %s)",
+			op,
+			b.name,
+			b.handlerTopic,
+			b.handlerEnv,
+			b.consumerEnv,
+			formatTopicList(subscribed),
+		)
+	}
+
 	return nil
+}
+
+func formatTopicList(topics []string) string {
+	if len(topics) == 0 {
+		return "(none)"
+	}
+
+	quoted := make([]string, 0, len(topics))
+	for _, topic := range topics {
+		quoted = append(quoted, strconv.Quote(topic))
+	}
+
+	return strings.Join(quoted, ", ")
 }

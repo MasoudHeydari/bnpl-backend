@@ -27,6 +27,7 @@ message ResolveCustomerByMobileRequest {
 message ResolveCustomerByMobileResponse {
   string customer_id = 1;
   CustomerStatus status = 2;
+  string national_code = 3;
 }
 
 message GetCustomerRequest {

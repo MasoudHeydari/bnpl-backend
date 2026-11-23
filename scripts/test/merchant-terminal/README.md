@@ -34,6 +34,15 @@ Panel routes trust gateway `x-auth-*` headers that Envoy normally injects from J
 | --- | --- |
 | `BNPL_API_BASE` | `http://127.0.0.1:7080` |
 | `BNPL_EXTERNAL_MERCHANT_ID` | Damz seed `1e7c3dd4-0e8b-4ec1-aede-2a119f3ffecc` |
+
+Dev seed (`000_dev.sql`) already provisions Damz/DMart partner terminals so most flows do not need Provision:
+
+| Merchant | `X-Terminal-Id` | `X-API-Key` |
+| --- | --- | --- |
+| Damz | `1000000001` | `bnpl_ZGV2LWRhbXotcGFydG5lci1hcGkta2V5LXYxISEhISE` |
+| DMart | `1000000002` | `bnpl_ZGV2LWRtYXJ0LXBhcnRuZXItYXBpLWtleS12MSEhISE` |
+
+Hashes use pepper `v1:dev-only-merchant-terminal-api-key-pepper-32b`. Damz also has `pay_in_installments` enabled in seed.
 | `BNPL_MERCHANT_TERMINAL_PERM` | `bnpl:merchant-terminals:manage:merchant` |
 | `BNPL_ROTATE_GRACE_SECONDS` | `3600` |
 | `BNPL_CA_CERT` / `BNPL_SSL_INSECURE` | same TLS helpers as checkout-flow |

@@ -38,14 +38,17 @@ const (
 	ConfirmationNextActionWaitPaymentResult = "wait_payment_result"
 	ConfirmationNextActionRetryPayment      = "retry_payment"
 	ConfirmationNextActionReconfirm         = "reconfirm"
-	ConfirmationNextActionShowSuccess                 = "show_success"
-	ConfirmationNextActionShowAwaitingMerchant        = "show_awaiting_merchant_verification"
-	ConfirmationNextActionShowCancellationPending     = "show_cancellation_pending"
-	ConfirmationNextActionShowPendingReview           = "show_pending_review"
-	ConfirmationNextActionShowCanceled                = "show_canceled"
-	ConfirmationNextActionShowExpired                 = "show_expired"
-	ConfirmationNextActionShowUnavailable             = "show_unavailable"
-	ConfirmationNextActionStartConfirm                = "start_confirm"
+	ConfirmationNextActionShowSuccess       = "show_success"
+	// ConfirmationNextActionCompleteHostedReturn tells Hosted UI that durable
+	// FC success is recorded and the customer should finish via GET .../return
+	// (not invent a merchant URL from this poll response).
+	ConfirmationNextActionCompleteHostedReturn    = "complete_hosted_return"
+	ConfirmationNextActionShowCancellationPending = "show_cancellation_pending"
+	ConfirmationNextActionShowPendingReview       = "show_pending_review"
+	ConfirmationNextActionShowCanceled            = "show_canceled"
+	ConfirmationNextActionShowExpired             = "show_expired"
+	ConfirmationNextActionShowUnavailable         = "show_unavailable"
+	ConfirmationNextActionStartConfirm            = "start_confirm"
 )
 
 const defaultConfirmationStatusPollSeconds = 3
@@ -201,7 +204,7 @@ func (uc *UseCase) projectConfirmationStatus(
 	case model.VerifyPendingCheckoutSessionStatus:
 		return confirmationStatusProjection{
 			confirmationStatus: ConfirmationStatusAwaitingMerchant,
-			nextAction:         ConfirmationNextActionShowAwaitingMerchant,
+			nextAction:         ConfirmationNextActionCompleteHostedReturn,
 		}, nil
 
 	case model.CancellationPendingCheckoutSessionStatus:

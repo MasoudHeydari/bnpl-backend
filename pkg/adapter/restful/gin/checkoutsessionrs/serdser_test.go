@@ -18,10 +18,29 @@ func TestToOfferResponse_DeniedOmitsFinancingFields(t *testing.T) {
 	t.Parallel()
 
 	raw, err := json.Marshal(toOfferResponse(checkoutsessionuc.Offer{
-		Outcome: checkoutsessionuc.DeniedOfferOutcome,
+		Outcome:              checkoutsessionuc.DeniedOfferOutcome,
+		AvailableCreditMinor: 250_000,
 	}))
 	require.NoError(t, err)
 	require.JSONEq(t, `{"outcome":"denied"}`, string(raw))
+}
+
+func TestToOfferResponse_DeniedCapacityShortfallExposesAvailableCredit(t *testing.T) {
+	t.Parallel()
+
+	raw, err := json.Marshal(toOfferResponse(checkoutsessionuc.Offer{
+		Outcome:               checkoutsessionuc.DeniedOfferOutcome,
+		AvailableCreditMinor:  75_000,
+		ExposeAvailableCredit: true,
+	}))
+	require.NoError(t, err)
+
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(raw, &decoded))
+	require.Equal(t, "denied", decoded["outcome"])
+	require.EqualValues(t, 75_000, decoded["available_credit_minor"])
+	require.NotContains(t, decoded, "requested_amount_minor")
+	require.NotContains(t, decoded, "installments")
 }
 
 func TestToOfferResponse_ApprovedKeepsZeroDownPayment(t *testing.T) {

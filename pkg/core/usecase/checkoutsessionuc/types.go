@@ -330,6 +330,12 @@ type Offer struct {
 	// AvailableCreditMinor is the evaluation-time available credit in minor units.
 	AvailableCreditMinor uint64
 
+	// ExposeAvailableCredit controls whether Partner responses may include
+	// AvailableCreditMinor for a denied offer. Approved offers always expose it.
+	// Denied offers expose it only for capacity shortfalls (insufficient
+	// available credit), never for policy/eligibility rejections.
+	ExposeAvailableCredit bool
+
 	// RequestedAmountMinor is the merchant-requested amount in minor units.
 	RequestedAmountMinor uint64
 

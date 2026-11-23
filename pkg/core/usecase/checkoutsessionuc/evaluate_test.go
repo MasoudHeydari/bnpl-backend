@@ -12,7 +12,9 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/event/checkoutlifecycle"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
+	"github.com/parstis/bnpl-backend/pkg/core/policy/checkout"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/decisionuc"
 )
 
 func TestBumpEvaluationGenerationCAS(t *testing.T) {
@@ -338,4 +340,51 @@ func TestPrepareEvaluationGeneration_AcceptedContractNeverBumps(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, accepted, out)
 	// No repository calls are expected on this path.
+}
+
+func TestShouldExposeAvailableCreditOnDenial(t *testing.T) {
+	t.Parallel()
+
+	require.True(t, shouldExposeAvailableCreditOnDenial([]string{
+		model.NoAvailableCreditDecisionReason,
+	}))
+	require.False(t, shouldExposeAvailableCreditOnDenial([]string{
+		model.CollectionsDefaultBlocksNewCreditDecisionReason,
+	}))
+	require.False(t, shouldExposeAvailableCreditOnDenial([]string{
+		model.RequestedAmountExceedsMerchantLimitDecisionReason,
+	}))
+	require.False(t, shouldExposeAvailableCreditOnDenial(nil))
+}
+
+func TestOfferFromDecision_DeniedCapacityShortfallExposesAvailableCredit(t *testing.T) {
+	t.Parallel()
+
+	offer, err := offerFromDecision(decisionuc.CreateOutput{
+		Decision: model.Decision{
+			Outcome:     model.DeniedDecisionOutcome,
+			ReasonCodes: []string{model.NoAvailableCreditDecisionReason},
+		},
+		AvailableCreditMinor: 42_000,
+	}, checkout.Terms{})
+	require.NoError(t, err)
+	require.Equal(t, DeniedOfferOutcome, offer.Outcome)
+	require.True(t, offer.ExposeAvailableCredit)
+	require.Equal(t, uint64(42_000), offer.AvailableCreditMinor)
+}
+
+func TestOfferFromDecision_DeniedPolicyOmitsAvailableCredit(t *testing.T) {
+	t.Parallel()
+
+	offer, err := offerFromDecision(decisionuc.CreateOutput{
+		Decision: model.Decision{
+			Outcome:     model.DeniedDecisionOutcome,
+			ReasonCodes: []string{model.CollectionsDefaultBlocksNewCreditDecisionReason},
+		},
+		AvailableCreditMinor: 900_000,
+	}, checkout.Terms{})
+	require.NoError(t, err)
+	require.Equal(t, DeniedOfferOutcome, offer.Outcome)
+	require.False(t, offer.ExposeAvailableCredit)
+	require.Zero(t, offer.AvailableCreditMinor)
 }

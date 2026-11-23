@@ -348,10 +348,17 @@ func toSelectCreditKindResponse(output checkoutsessionuc.SelectCreditKindOutput)
 }
 
 func toOfferResponse(offer checkoutsessionuc.Offer) OfferSchema {
-	// A denied offer exposes only the outcome. Financing fields stay absent so a
-	// zero never reads as "financed nothing, owes nothing".
+	// A denied offer normally exposes only the outcome. Capacity shortfalls may
+	// additionally include available_credit_minor so Partner UIs can explain
+	// insufficient credit without leaking policy-denial balances.
 	if offer.Outcome != checkoutsessionuc.ApprovedOfferOutcome {
-		return OfferSchema{Outcome: offer.Outcome}
+		resp := OfferSchema{Outcome: offer.Outcome}
+		if offer.ExposeAvailableCredit {
+			credit := offer.AvailableCreditMinor
+			resp.AvailableCreditMinor = &credit
+		}
+
+		return resp
 	}
 
 	installments := make([]OfferInstallmentSchema, 0, len(offer.Installments))

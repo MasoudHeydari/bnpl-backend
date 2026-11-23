@@ -42,6 +42,23 @@ func TestGetExternalConfirmationStatus_Completed(t *testing.T) {
 	require.Equal(t, ConfirmationNextActionShowSuccess, got.NextAction)
 }
 
+func TestGetExternalConfirmationStatus_VerifyPendingCompletesHostedReturn(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.expectPool(1, 0)
+
+	session := h.verifyPendingSession(withContract(h.contractID))
+	h.sessionCQ.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(session, nil).Once()
+
+	got, err := h.uc.GetExternalConfirmationStatus(h.ctx, GetExternalConfirmationStatusInput{Token: h.publicToken})
+	require.NoError(t, err)
+	require.Equal(t, model.VerifyPendingCheckoutSessionStatus, got.Status)
+	require.Equal(t, ConfirmationStatusAwaitingMerchant, got.ConfirmationStatus)
+	require.Equal(t, ConfirmationNextActionCompleteHostedReturn, got.NextAction)
+	require.NotEqual(t, ConfirmationNextActionShowSuccess, got.NextAction)
+}
+
 func TestGetExternalConfirmationStatus_ConfirmingIsProcessing(t *testing.T) {
 	t.Parallel()
 

@@ -14,8 +14,8 @@ import (
 type hostedConfirmationStatusResponse struct {
 	CheckoutSessionID  string     `json:"checkout_session_id" example:"cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"`
 	Status             string     `json:"status" example:"processing"`
-	ConfirmationStatus string     `json:"confirmation_status" example:"processing" enums:"not_started,processing,payment_action_required,payment_processing,reconfirm_required,retry_available,completed,needs_attention,canceled,expired,unavailable"`
-	NextAction         string     `json:"next_action" example:"wait"`
+	ConfirmationStatus string     `json:"confirmation_status" example:"processing" enums:"not_started,processing,payment_action_required,payment_processing,reconfirm_required,retry_available,awaiting_merchant_verification,cancellation_pending,completed,needs_attention,canceled,expired,unavailable"`
+	NextAction         string     `json:"next_action" example:"wait" enums:"none,wait,resume_payment,wait_payment_result,retry_payment,reconfirm,show_success,complete_hosted_return,show_cancellation_pending,show_pending_review,show_canceled,show_expired,show_unavailable,start_confirm"`
 	RetryAfterSeconds  *int       `json:"retry_after_seconds,omitempty" example:"3"`
 	OTPNextIssueAt     *time.Time `json:"otp_next_issue_at,omitempty" example:"2026-10-18T12:02:00Z"`
 	OTPAvailability    string     `json:"otp_availability,omitempty" example:"consumed_wait" enums:"awaiting_entry,consumed_wait,locked,request_available,issuance_blocked,not_applicable"`

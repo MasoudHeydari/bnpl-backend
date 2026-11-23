@@ -118,6 +118,7 @@ type ResolveCustomerByMobileResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	CustomerId    string                 `protobuf:"bytes,1,opt,name=customer_id,json=customerId,proto3" json:"customer_id,omitempty"`
 	Status        CustomerStatus         `protobuf:"varint,2,opt,name=status,proto3,enum=parstis.customer.reference.v1.CustomerStatus" json:"status,omitempty"`
+	NationalCode  string                 `protobuf:"bytes,3,opt,name=national_code,json=nationalCode,proto3" json:"national_code,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -164,6 +165,13 @@ func (x *ResolveCustomerByMobileResponse) GetStatus() CustomerStatus {
 		return x.Status
 	}
 	return CustomerStatus_CUSTOMER_STATUS_UNSPECIFIED
+}
+
+func (x *ResolveCustomerByMobileResponse) GetNationalCode() string {
+	if x != nil {
+		return x.NationalCode
+	}
+	return ""
 }
 
 type GetCustomerRequest struct {
@@ -268,11 +276,12 @@ const file_customer_reference_v1_customer_proto_rawDesc = "" +
 	"\n" +
 	"$customer/reference/v1/customer.proto\x12\x1dparstis.customer.reference.v1\"E\n" +
 	"\x1eResolveCustomerByMobileRequest\x12#\n" +
-	"\rmobile_number\x18\x01 \x01(\tR\fmobileNumber\"\x89\x01\n" +
+	"\rmobile_number\x18\x01 \x01(\tR\fmobileNumber\"\xae\x01\n" +
 	"\x1fResolveCustomerByMobileResponse\x12\x1f\n" +
 	"\vcustomer_id\x18\x01 \x01(\tR\n" +
 	"customerId\x12E\n" +
-	"\x06status\x18\x02 \x01(\x0e2-.parstis.customer.reference.v1.CustomerStatusR\x06status\"5\n" +
+	"\x06status\x18\x02 \x01(\x0e2-.parstis.customer.reference.v1.CustomerStatusR\x06status\x12#\n" +
+	"\rnational_code\x18\x03 \x01(\tR\fnationalCode\"5\n" +
 	"\x12GetCustomerRequest\x12\x1f\n" +
 	"\vcustomer_id\x18\x01 \x01(\tR\n" +
 	"customerId\"}\n" +

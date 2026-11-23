@@ -10,13 +10,14 @@ import (
 )
 
 const (
-	// NotificationTypeCreditMonthlyDebited is the monthly credit debit SMS
-	// notification_type and template_code.
-	NotificationTypeCreditMonthlyDebited = "bnpl.credit.monthly.debited.v1"
+	// NotificationTypeCreditMonthlyDebited is the pay-next-month credit debit
+	// SMS notification_type and template_code (must match Notification catalog).
+	NotificationTypeCreditMonthlyDebited = "bnpl.credit.pay_next_month.debited.v1"
 
-	// NotificationTypeCreditInstallmentDebited is the installment credit debit
-	// SMS notification_type and template_code.
-	NotificationTypeCreditInstallmentDebited = "bnpl.credit.installment.debited.v1"
+	// NotificationTypeCreditInstallmentDebited is the pay-in-installments credit
+	// debit SMS notification_type and template_code (must match Notification
+	// catalog). Legacy bnpl.credit.installment.debited.v1 is no longer registered.
+	NotificationTypeCreditInstallmentDebited = "bnpl.credit.pay_in_installments.debited.v1"
 
 	// BusinessReferenceTypeBNPLPurchase is Notification's purchase reference kind.
 	BusinessReferenceTypeBNPLPurchase = "BNPL_PURCHASE"

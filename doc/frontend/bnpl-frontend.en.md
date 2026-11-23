@@ -647,9 +647,11 @@ This verifies a six-digit OTP and runs durable purchase confirmation. Response `
 
 `GET /api/v1/checkout-sessions/{token}/confirmation-status` returns `status`, `confirmation_status`, `next_action`, optional `retry_after_seconds`, `otp_next_issue_at` and `otp_availability`. Possible `confirmation_status` values:
 
-`not_started`, `processing`, `payment_action_required`, `payment_processing`, `reconfirm_required`, `retry_available`, `completed`, `needs_attention`, `canceled`, `expired`, `unavailable`.
+`not_started`, `processing`, `payment_action_required`, `payment_processing`, `reconfirm_required`, `retry_available`, `awaiting_merchant_verification`, `cancellation_pending`, `completed`, `needs_attention`, `canceled`, `expired`, `unavailable`.
 
 This endpoint **never** returns a payment URL, starts a Saga or creates financial operations. Use server `next_action` and `retry_after_seconds` as UX hints, then re-enter the permitted START/OTP/CONFIRM workflow as needed.
+
+When `confirmation_status=awaiting_merchant_verification` and `next_action=complete_hosted_return`, durable FC payment success is recorded but merchant acceptance is still pending. Show a short “payment completed” message, then call `GET .../return` to navigate to the merchant site. Do not invent the merchant URL from this poll, and do not declare the purchase fulfilled.
 
 ### Step F: browser return
 

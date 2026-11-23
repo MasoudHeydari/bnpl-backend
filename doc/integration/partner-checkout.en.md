@@ -265,7 +265,11 @@ Success `200`:
 }
 ~~~
 
-`offer` is present only when the branch `offer_preparation_mode` is `on_create` **and** preparation succeeds after selection. Under `on_start`, offer remains deferred until Hosted START.
+`offer` is present only when the branch `offer_preparation_mode` is `on_create` **and** preparation runs after selection. Under `on_start`, offer remains deferred until Hosted START.
+
+When `offer.outcome=denied` because of a capacity shortfall, `offer.available_credit_minor` is also returned so the merchant UI can explain insufficient credit. Policy/eligibility denials intentionally omit that field even if the customer still has a positive balance.
+
+When `offer.outcome=denied` because of a capacity shortfall, Partner may also receive `offer.available_credit_minor` so the merchant UI can explain insufficient credit. Policy/eligibility denials intentionally omit that balance even when the customer still has available credit.
 
 ### Selection behavior
 

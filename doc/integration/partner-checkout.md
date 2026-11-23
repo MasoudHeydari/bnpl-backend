@@ -235,6 +235,8 @@ X-API-Key: ...
 
 پس از موفقیت، مرورگر را به همان `checkout_url` ببرید. Hosted محصول را دوباره انتخاب نمی‌کند. `offer` فقط وقتی mode شعبه `on_create` باشد ممکن است برگردد.
 
+اگر `offer.outcome=denied` به‌خاطر کمبود ظرفیت اعتبار باشد، فیلد `offer.available_credit_minor` هم برمی‌گردد تا UI Merchant بتواند کمبود اعتبار را توضیح دهد. برای رد شدن به‌خاطر سیاست (مثلاً collections یا محدودیت Merchant) این فیلد عمداً غایب است حتی اگر موجودی اعتبار مثبت باشد.
+
 ## ۶. حالت‌های آماده‌سازی Offer بعد از dual-credit: `on_create` / `on_start`
 
 | رفتار | `on_create` | `on_start` |
