@@ -50,7 +50,7 @@ var privileges = []TablePrivilegePolicy{
 	{Schema: "bnpl", Table: "merchant_pos_terminals", Migration: PrivilegeMigration, Description: "Minimal UPDATE(id) compatibility exception for existing SELECT FOR UPDATE; no repository key mutation.", Operations: []Operation{SelectOperation}, UpdateColumns: []string{"id"}},
 	{Schema: "bnpl", Table: "merchant_online_stores", Migration: PrivilegeMigration, Description: "Minimal UPDATE(id) compatibility exception for existing SELECT FOR UPDATE; no repository key mutation.", Operations: []Operation{SelectOperation}, UpdateColumns: []string{"id"}},
 	{Schema: "bnpl", Table: "customer_credit_enrollments", Migration: PrivilegeMigration, Description: "Immutable customer permission to use shared legal-person credit.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{}},
-	{Schema: "bnpl", Table: "credit_owner_checkout_claims", Migration: PrivilegeMigration, Description: "One active merchant checkout per legal person, managed by trusted SQL triggers.", Operations: []Operation{SelectOperation}, UpdateColumns: []string{}},
+	{Schema: "bnpl", Table: "credit_owner_checkout_claims", Migration: PrivilegeMigration, Description: "Append-only person Checkout claim history; SQL triggers validate terminal release.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"released_at"}},
 	{Schema: "bnpl", Table: "credit_accounts", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"effective_from", "expires_at", "exposure_amount_minor", "last_limit_decision_id", "limit_amount_minor", "revoked_at", "status", "updated_at", "version"}},
 	{Schema: "bnpl", Table: "credit_transactions", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{}},
 	{Schema: "bnpl", Table: "contracts", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"activated_at", "canceled_at", "cancellation_context_id", "cancellation_financial_core_accepted_at", "cancellation_financial_core_idempotency_key", "cancellation_idempotency_key", "cancellation_reason", "cancellation_request_fingerprint", "cancellation_requested_at", "cancellation_tenant_id", "completed_at", "financial_invoice_id", "financial_merchant_entitlement_id", "financial_payment_attempt_id", "financial_payment_expires_at", "financial_payment_intent_id", "financial_payment_link", "financial_payment_reused_idempotent_result", "financial_payment_session_id", "financial_receivable_id", "payment_id", "payment_reference", "remaining_principal_amount_minor", "status", "successful_financial_payment_attempt_id", "updated_at"}},
@@ -111,7 +111,7 @@ var privileges = []TablePrivilegePolicy{
 }
 
 // PrivilegeMigrationSHA256 fingerprints the reviewed baseline privilege grants.
-const PrivilegeMigrationSHA256 = "sha256:e990257e1b9cdb6365fe8f8d1885b9d54a5f5abebc7369945ae00febe1989b93"
+const PrivilegeMigrationSHA256 = "sha256:c71d21fe43247817e5c0ad7184184da60661f04022432fed1d248ad7e47d41ce"
 
 const PermissionHistoryMigration = "000_schema.sql"
-const PermissionHistoryMigrationSHA256 = "sha256:e990257e1b9cdb6365fe8f8d1885b9d54a5f5abebc7369945ae00febe1989b93"
+const PermissionHistoryMigrationSHA256 = "sha256:c71d21fe43247817e5c0ad7184184da60661f04022432fed1d248ad7e47d41ce"

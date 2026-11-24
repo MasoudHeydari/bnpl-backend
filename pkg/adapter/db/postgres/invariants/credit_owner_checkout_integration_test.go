@@ -68,6 +68,13 @@ INSERT INTO checkout_sessions (
 	}
 
 	require.NoError(t, newCheckout(f.customer, "a"))
+
+	// Even the schema owner must not be able to release a live claim by an
+	// UPDATE that bypasses the hosted Checkout state transition.
+	_, err = f.pool.Pool.Exec(ctx, `UPDATE credit_owner_checkout_claims
+SET released_at = now() WHERE credit_owner_id = $1 AND released_at IS NULL`, ownerID)
+	assertViolation(t, err, "23514")
+
 	err = newCheckout(secondCustomerID, "b")
 	require.Error(t, err)
 	var pgError *pgconn.PgError
@@ -79,5 +86,11 @@ INSERT INTO checkout_sessions (
 	// claim is released. A different account may then proceed independently.
 	f.exec(t, `UPDATE checkout_sessions SET status='expired'
 WHERE public_token=$1`, "cs_"+strings.Repeat("a", 64))
+
+	var releasedCount int
+	err = f.pool.Pool.QueryRow(ctx, `SELECT count(*) FROM credit_owner_checkout_claims
+WHERE credit_owner_id=$1 AND released_at IS NOT NULL`, ownerID).Scan(&releasedCount)
+	require.NoError(t, err)
+	require.Equal(t, 1, releasedCount, "terminal claim history must be retained")
 	require.NoError(t, newCheckout(secondCustomerID, "b"))
 }

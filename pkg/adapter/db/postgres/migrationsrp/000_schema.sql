@@ -739,7 +739,7 @@ CREATE INDEX IF NOT EXISTS idx_customer_credit_enrollments_account ON customer_c
 
 -- The origin account receives enrollment atomically with first credit grant.
 CREATE OR REPLACE FUNCTION bnpl.enroll_origin_credit_account () RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = bnpl, pg_temp AS $enroll_origin$
+LANGUAGE plpgsql SET search_path = bnpl, pg_temp AS $enroll_origin$
 BEGIN
     INSERT INTO customer_credit_enrollments (customer_id, credit_account_id, credit_owner_id, enrolled_at)
     VALUES (NEW.customer_id, NEW.id, NEW.credit_owner_id, NEW.created_at);
@@ -1459,17 +1459,57 @@ WHERE
 -- -----------------------------------------------------------------------------
 -- One in-flight checkout per legal person across all accounts / credit kinds.
 -- -----------------------------------------------------------------------------
+-- A claim is append-only audit evidence. Releasing a Checkout records when
+-- the exclusive lease ended; it never deletes the original owner/Session link.
 CREATE TABLE IF NOT EXISTS credit_owner_checkout_claims (
-    credit_owner_id uuid PRIMARY KEY REFERENCES credit_owners (id),
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    credit_owner_id uuid NOT NULL REFERENCES credit_owners (id),
     checkout_session_id uuid NOT NULL UNIQUE REFERENCES checkout_sessions (id),
-    acquired_at timestamptz NOT NULL DEFAULT now()
+    acquired_at timestamptz NOT NULL DEFAULT now(),
+    released_at timestamptz NULL,
+    CONSTRAINT chk_checkout_claim_release_chronology CHECK (released_at IS NULL OR released_at >= acquired_at)
 );
 
--- Applied as part of the same INSERT/UPDATE that binds an authenticated CRS
--- account to a session. The unique PK serializes two customer profiles sharing
--- one credit owner without a long-lived transaction or Redis lease.
+-- Partial uniqueness preserves historical claims while preventing a second
+-- concurrent Checkout from any account of the legal person. Each Session has
+-- exactly one claim for its entire lifetime (the table UNIQUE enforces this).
+CREATE UNIQUE INDEX uq_checkout_claim_active_owner
+ON credit_owner_checkout_claims (credit_owner_id) WHERE released_at IS NULL;
+
+-- Runtime is permitted to update ONLY released_at. This additional trigger
+-- makes an early/manual release impossible even with that SQL permission.
+CREATE OR REPLACE FUNCTION bnpl.guard_checkout_claim_history () RETURNS trigger
+LANGUAGE plpgsql SET search_path = bnpl, pg_temp AS $guard_checkout_claim$
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION USING ERRCODE = '23514', CONSTRAINT = 'checkout_claim_history_immutable', MESSAGE = 'Checkout claim evidence cannot be deleted';
+    END IF;
+    IF OLD.id IS DISTINCT FROM NEW.id
+       OR OLD.credit_owner_id IS DISTINCT FROM NEW.credit_owner_id
+       OR OLD.checkout_session_id IS DISTINCT FROM NEW.checkout_session_id
+       OR OLD.acquired_at IS DISTINCT FROM NEW.acquired_at
+       OR OLD.released_at IS NOT NULL
+       OR NEW.released_at IS NULL
+       OR NOT EXISTS (
+           SELECT 1 FROM checkout_sessions cs
+           WHERE cs.id = NEW.checkout_session_id
+             AND cs.status IN ('verified_by_merchant', 'canceled', 'expired', 'unavailable')
+       ) THEN
+        RAISE EXCEPTION USING ERRCODE = '23514', CONSTRAINT = 'checkout_claim_release_before_terminal', MESSAGE = 'Checkout claim can be released only after terminal Session status';
+    END IF;
+    RETURN NEW;
+END
+$guard_checkout_claim$;
+
+CREATE TRIGGER credit_owner_checkout_claims_immutable
+BEFORE UPDATE OR DELETE ON credit_owner_checkout_claims FOR EACH ROW
+EXECUTE FUNCTION bnpl.guard_checkout_claim_history ();
+
+-- Applied in the same INSERT/UPDATE that binds an authenticated CRS account
+-- to the Session. All SQL is executed with the normal Runtime privileges;
+-- no SECURITY DEFINER bypasses the strict BNPL function-security registry.
 CREATE OR REPLACE FUNCTION bnpl.maintain_credit_owner_checkout_claim () RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = bnpl, pg_temp AS $checkout_claim$
+LANGUAGE plpgsql SET search_path = bnpl, pg_temp AS $checkout_claim$
 DECLARE owner_id uuid;
 DECLARE holder_id uuid;
 BEGIN
@@ -1480,15 +1520,16 @@ BEGIN
         RETURN NEW;
     END IF;
 
-    -- Sessions still owned by payment reconciliation keep their claim even
-    -- past expires_at; only an authoritative terminal transition frees it.
+    -- Only a terminal Session may release an active claim. A stale local
+    -- expires_at is insufficient while financial reconciliation is pending.
     IF NEW.status IN ('verified_by_merchant', 'canceled', 'expired', 'unavailable') THEN
-        DELETE FROM credit_owner_checkout_claims WHERE checkout_session_id = NEW.id;
+        UPDATE credit_owner_checkout_claims
+        SET released_at = greatest(clock_timestamp(), acquired_at)
+        WHERE checkout_session_id = NEW.id AND released_at IS NULL;
         RETURN NEW;
     END IF;
-    -- A person having credit does not yet authorize an unenrolled account to
-    -- start a purchase. Sessions created before that account requested credit
-    -- must not occupy the person's checkout slot.
+
+    -- Having credit does not yet authorize an unenrolled account to purchase.
     IF NOT EXISTS (
         SELECT 1
           FROM customer_credit_enrollments e
@@ -1499,12 +1540,15 @@ BEGIN
     ) THEN
         RETURN NEW;
     END IF;
+
     SELECT credit_owner_id INTO STRICT owner_id FROM customer_profiles WHERE id = NEW.customer_id;
     INSERT INTO credit_owner_checkout_claims (credit_owner_id, checkout_session_id, acquired_at)
     VALUES (owner_id, NEW.id, NEW.created_at)
-    ON CONFLICT (credit_owner_id) DO NOTHING;
+    ON CONFLICT DO NOTHING;
+
     SELECT checkout_session_id INTO holder_id
-    FROM credit_owner_checkout_claims WHERE credit_owner_id = owner_id;
+    FROM credit_owner_checkout_claims
+    WHERE credit_owner_id = owner_id AND released_at IS NULL;
     IF holder_id IS DISTINCT FROM NEW.id THEN
         RAISE EXCEPTION USING ERRCODE = '23505', CONSTRAINT = 'credit_owner_checkout_in_progress', MESSAGE = 'A credit purchase is already in progress for this person';
     END IF;
@@ -2882,7 +2926,10 @@ GRANT SELECT, INSERT ON bnpl.credit_accounts TO bnpl;
 
 GRANT SELECT, INSERT ON bnpl.customer_credit_enrollments TO bnpl;
 
-GRANT SELECT ON bnpl.credit_owner_checkout_claims TO bnpl;
+GRANT SELECT, INSERT ON bnpl.credit_owner_checkout_claims TO bnpl;
+
+-- Runtime may release terminal claims, but cannot delete or alter ownership.
+GRANT UPDATE (released_at) ON bnpl.credit_owner_checkout_claims TO bnpl;
 
 GRANT UPDATE (effective_from, expires_at, exposure_amount_minor, last_limit_decision_id, limit_amount_minor, revoked_at, status, updated_at, version) ON bnpl.credit_accounts TO bnpl;
 
