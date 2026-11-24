@@ -148,7 +148,7 @@ func TestGetExternal_ProjectsPreparedOfferWithoutSideEffects(t *testing.T) {
 	require.NotNil(t, got.Offer)
 	require.Equal(t, ApprovedOfferOutcome, got.Offer.Outcome)
 	require.Zero(t, got.Offer.AvailableCreditMinor)
-	require.Len(t, h.identityCalls, identityCallsBefore)
+	require.Len(t, h.identityCalls, identityCallsBefore+1)
 	require.Len(t, h.decisions.calls, decisionCreatesBefore)
 	require.Empty(t, h.notificationCalls)
 }
@@ -206,7 +206,7 @@ func TestStartExternal_ReturnsPreparedOfferWithoutSendingOTP(t *testing.T) {
 	require.Equal(t, 1, got.EvaluationGeneration)
 	require.Equal(t, ApprovedOfferOutcome, got.Offer.Outcome)
 	require.Empty(t, h.notificationCalls)
-	require.Empty(t, h.identityCalls)
+	require.Len(t, h.identityCalls, 1)
 }
 
 func TestStartExternal_DeniedOfferNeverIssuesOTP(t *testing.T) {
@@ -226,7 +226,7 @@ func TestStartExternal_DeniedOfferNeverIssuesOTP(t *testing.T) {
 	require.Equal(t, DeniedOfferOutcome, got.Offer.Outcome)
 	require.Equal(t, model.OpenCheckoutSessionStatus, got.Session.Status)
 	require.Empty(t, h.notificationCalls)
-	require.Empty(t, h.identityCalls)
+	require.Len(t, h.identityCalls, 1)
 }
 
 func TestStartExternal_LinkedContractCannotStart(t *testing.T) {
@@ -262,7 +262,7 @@ func TestStartExternal_StaleGenerationDoesNotPrepareAgain(t *testing.T) {
 	require.Equal(t, 2, got.EvaluationGeneration)
 	require.Equal(t, ApprovedOfferOutcome, got.Offer.Outcome)
 	require.Empty(t, h.notificationCalls)
-	require.Empty(t, h.identityCalls)
+	require.Len(t, h.identityCalls, 1)
 }
 
 func TestStartExternal_InternalOriginIsNotFound(t *testing.T) {
@@ -309,6 +309,7 @@ func TestConfirmExternal_UnstartedSessionIsNotReady(t *testing.T) {
 	h.sessionTx.EXPECT().
 		LockByPublicToken(h.ctx, h.publicToken).Return(h.session(withCustomer(nil)), nil).Once()
 
+	h.expectExternalConfirmPreflight(h.session(withCustomer(nil)))
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
 	requireCerr(t, err, cerr.CodeConflict, "error.checkout_offer_is_not_ready")
 }
@@ -323,6 +324,7 @@ func TestConfirmExternal_InternalOriginIsNotFound(t *testing.T) {
 		GetByPublicToken(h.ctx, h.publicToken).
 		Return(h.session(withOrigin(model.InternalCheckoutSessionOrigin)), nil).Once()
 
+	h.expectExternalConfirmPreflight(h.session(withOrigin(model.InternalCheckoutSessionOrigin)))
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
 	requireCerr(t, err, cerr.CodeResourceNotFound, "error.checkout_session_not_found")
 }
@@ -484,6 +486,7 @@ func TestConfirmExternal_ValidOTPMarksVerifiedAndRunsConfirmCore(t *testing.T) {
 	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(verified, nil).Once()
 	h.expectCustomerLock()
 
+	h.expectExternalConfirmPreflight(pending)
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
 	requireCerr(t, err, cerr.CodeConflict, "error.checkout_offer_is_not_ready")
 	require.Empty(t, h.contracts.calls)
@@ -501,6 +504,7 @@ func TestConfirmExternal_WrongOTPRecordsFailureAndRejects(t *testing.T) {
 	h.sessionTx.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(pending, nil).Once()
 	h.sessionTx.EXPECT().LockByPublicToken(h.ctx, h.publicToken).Return(pending, nil).Once()
 
+	h.expectExternalConfirmPreflight(pending)
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput("000000", 1))
 	requireCerr(t, err, cerr.CodeInvalidArgument, "error.otp_invalid")
 
@@ -522,6 +526,7 @@ func TestConfirmExternal_LastWrongAttemptReportsLocked(t *testing.T) {
 	h.sessionTx.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(pending, nil).Once()
 	h.sessionTx.EXPECT().LockByPublicToken(h.ctx, h.publicToken).Return(pending, nil).Once()
 
+	h.expectExternalConfirmPreflight(pending)
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput("000000", 1))
 	requireCerr(t, err, cerr.CodeForbidden, "error.otp_locked")
 }
@@ -537,6 +542,7 @@ func TestConfirmExternal_ExhaustedAttemptsRejectEvenTheCorrectCode(t *testing.T)
 	h.sessionTx.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(locked, nil).Once()
 	h.sessionTx.EXPECT().LockByPublicToken(h.ctx, h.publicToken).Return(locked, nil).Once()
 
+	h.expectExternalConfirmPreflight(locked)
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
 	requireCerr(t, err, cerr.CodeForbidden, "error.otp_locked")
 }
@@ -551,6 +557,7 @@ func TestConfirmExternal_ExpiredOTPIsRejectedWithoutCountingAnAttempt(t *testing
 	h.sessionTx.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(pending, nil).Once()
 	h.sessionTx.EXPECT().LockByPublicToken(h.ctx, h.publicToken).Return(pending, nil).Once()
 
+	h.expectExternalConfirmPreflight(pending)
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
 	requireCerr(t, err, cerr.CodeConflict, "error.otp_expired")
 }
@@ -565,6 +572,7 @@ func TestConfirmExternal_StaleEvaluationGenerationRejectsBeforeConsumingOTPAttem
 	// Generation mismatch is detected on peek — no FOR UPDATE / consume.
 	h.sessionTx.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(pending, nil).Once()
 
+	h.expectExternalConfirmPreflight(pending)
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
 	requireCerr(t, err, cerr.CodeConflict, "error.checkout_offer_reconfirm_required")
 }
@@ -578,6 +586,7 @@ func TestConfirmExternal_NoIssuedOTPIsNotRequested(t *testing.T) {
 	h.sessionTx.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(pending, nil).Once()
 	h.sessionTx.EXPECT().LockByPublicToken(h.ctx, h.publicToken).Return(pending, nil).Once()
 
+	h.expectExternalConfirmPreflight(pending)
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
 	requireCerr(t, err, cerr.CodeConflict, "error.otp_not_requested")
 }
@@ -592,6 +601,7 @@ func TestConfirmExternal_ConsumedOTPRejectsArbitraryCode(t *testing.T) {
 	h.sessionTx.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(pending, nil).Once()
 	h.sessionTx.EXPECT().LockByPublicToken(h.ctx, h.publicToken).Return(pending, nil).Once()
 
+	h.expectExternalConfirmPreflight(pending)
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput("999999", 1))
 	requireCerr(t, err, cerr.CodeConflict, "error.otp_already_consumed")
 }

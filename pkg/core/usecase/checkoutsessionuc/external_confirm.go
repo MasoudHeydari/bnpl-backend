@@ -56,6 +56,20 @@ func (uc *UseCase) ConfirmExternal(
 		return ConfirmOutput{}, err
 	}
 
+	// Invalid or terminal sessions never require a Customer Reference lookup.
+	// Preserve the original public error and avoid leaking identity details.
+	if !allowsExternalConfirmWithOTP(session.Status) {
+		return ConfirmOutput{}, checkoutSessionNotContinuableError(
+			fmt.Errorf("checkoutsessionuc.UseCase.ConfirmExternal: session status %q does not allow OTP confirmation", session.Status),
+		)
+	}
+
+	if session.CustomerID == nil || session.CustomerID.IsZero() {
+		return ConfirmOutput{}, checkoutOfferNotReadyError(
+			fmt.Errorf("checkoutsessionuc.UseCase.ConfirmExternal: checkout was not started"),
+		)
+	}
+
 	ownership, err := uc.revalidateBoundExternalMobileOwnership(ctx, session)
 	if err != nil {
 		return ConfirmOutput{}, err

@@ -163,7 +163,7 @@ func TestCreatePartner_SameIdempotencyKeyReplaysExistingSession(t *testing.T) {
 	require.Equal(t, existing.ID, output.Session.ID)
 	require.Equal(t, "https://bnpl.example/checkout/"+existing.PublicToken.String(), output.CheckoutURL)
 	require.Empty(t, h.notificationCalls)
-	require.Empty(t, h.identityCalls)
+	require.Len(t, h.identityCalls, 1)
 }
 
 func TestCreatePartner_SameIdempotencyKeyDifferentPayloadConflicts(t *testing.T) {

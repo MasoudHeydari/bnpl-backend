@@ -558,6 +558,30 @@ func (h *harness) installDefaultCoreCollaborators() {
 		Maybe()
 }
 
+// expectExternalConfirmPreflight expects the read-only session and CRS owner
+// checks that precede the OTP consume transaction. Tests for terminal, stale,
+// or unbound sessions deliberately do not expect an identity lookup.
+func (h *harness) expectExternalConfirmPreflight(session model.CheckoutSession) {
+	h.t.Helper()
+
+	h.sessionCQ.EXPECT().
+		GetByPublicToken(h.ctx, h.publicToken).
+		Return(session, nil).
+		Once()
+
+	if session.EvaluationGeneration != 1 ||
+		session.Origin != model.ExternalPartnerCheckoutSessionOrigin ||
+		!allowsExternalConfirmWithOTP(session.Status) ||
+		session.CustomerID == nil || session.CustomerID.IsZero() {
+		return
+	}
+
+	h.customerCQ.EXPECT().
+		GetByID(h.ctx, *session.CustomerID).
+		Return(h.customerProfile(), nil).
+		Once()
+}
+
 // expectPool registers connCalls Pool.Conn invocations that never open a
 // transaction plus txCalls Pool.Conn invocations that immediately open one.
 
