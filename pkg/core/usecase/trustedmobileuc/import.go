@@ -112,7 +112,7 @@ func (uc *UseCase) Import(ctx context.Context, input ImportInput) (ImportOutput,
 	}
 
 	out := ImportOutput{Import: batch}
-	seen := make(map[string]struct{}, len(input.Customers))
+	seen := make(map[string]string, len(input.Customers))
 	for _, row := range input.Customers {
 		mobile, err := uc.phones.Canonicalize(model.IRJurisdiction, strings.TrimSpace(row.MobileE164))
 		var code string
@@ -124,11 +124,17 @@ func (uc *UseCase) Import(ctx context.Context, input ImportInput) (ImportOutput,
 			out.InvalidNationalID++
 			code = outcomeInvalidNationalID
 		default:
-			if _, exists := seen[mobile]; exists {
-				out.Duplicates++
-				code = outcomeDuplicate
+			nationalID := strings.TrimSpace(row.NationalID)
+			if prior, exists := seen[mobile]; exists {
+				if prior == nationalID {
+					out.Duplicates++
+					code = outcomeDuplicate
+				} else {
+					out.Conflicts++
+					code = outcomeConflict
+				}
 			} else {
-				seen[mobile] = struct{}{}
+				seen[mobile] = nationalID
 				var added bool
 				added, err = uc.insertRow(ctx, batch.ID, row.RowNumber, mobile, strings.TrimSpace(row.NationalID), strings.TrimSpace(input.CreatedBy))
 				switch {
