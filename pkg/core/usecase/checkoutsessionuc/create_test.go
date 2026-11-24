@@ -166,6 +166,33 @@ func TestCreatePartner_SameIdempotencyKeyReplaysExistingSession(t *testing.T) {
 	require.Len(t, h.identityCalls, 1)
 }
 
+// Idempotent merchant checkout replay cannot return an existing account's
+// credit eligibility when the phone currently belongs to another CRS account.
+func TestCreatePartner_ReassignedMobileRejectsBoundReplay(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.expectPool(2, 1)
+	h.expectActiveMerchant()
+
+	existing := h.session(func(s *model.CheckoutSession) {
+		s.IdempotencyKey = testAttemptKey
+	})
+	h.sessionTx.EXPECT().
+		LockByMerchantIdempotencyKey(h.ctx, h.merchantPID, testAttemptKey).
+		Return(existing, nil).
+		Once()
+	h.identityOutput = extcustomer.ResolveByMobileOutput{
+		ExternalCustomerID: model.ExternalCustomerID(uuid.New()),
+		Status:             extcustomer.ActiveStatus,
+	}
+
+	_, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
+	requireCerr(t, err, cerr.CodeForbidden, "error.checkout_credit_purchase_unavailable_for_phone")
+	require.Len(t, h.identityCalls, 1)
+	require.Empty(t, h.notificationCalls)
+}
+
 func TestCreatePartner_SameIdempotencyKeyDifferentPayloadConflicts(t *testing.T) {
 	t.Parallel()
 

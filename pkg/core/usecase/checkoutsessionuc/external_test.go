@@ -153,6 +153,33 @@ func TestGetExternal_ProjectsPreparedOfferWithoutSideEffects(t *testing.T) {
 	require.Empty(t, h.notificationCalls)
 }
 
+// A public checkout token must not expose a prepared Offer if the merchant
+// phone was reassigned in CRS after the original Decision was persisted.
+func TestGetExternal_ReassignedMobileDoesNotProjectOffer(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.expectPool(2, 0)
+	session := h.session()
+	h.sessionCQ.EXPECT().
+		GetByPublicToken(h.ctx, h.publicToken).
+		Return(session, nil).
+		Once()
+	h.merchantCQ.EXPECT().
+		GetByID(h.ctx, h.merchantPID).
+		Return(model.MerchantProfile{ID: h.merchantPID, DisplayName: "Shop"}, nil).
+		Once()
+	h.identityOutput = extcustomer.ResolveByMobileOutput{
+		ExternalCustomerID: model.ExternalCustomerID(uuid.New()),
+		Status:             extcustomer.ActiveStatus,
+	}
+
+	_, err := h.uc.GetExternal(h.ctx, GetExternalInput{Token: h.publicToken})
+	requireCerr(t, err, cerr.CodeConflict, "error.checkout_otp_issuance_not_allowed")
+	require.Empty(t, h.decisions.calls)
+	require.Empty(t, h.notificationCalls)
+}
+
 func TestGetExternal_ProjectsElapsedOpenSessionAsExpired(t *testing.T) {
 	t.Parallel()
 
@@ -207,6 +234,25 @@ func TestStartExternal_ReturnsPreparedOfferWithoutSendingOTP(t *testing.T) {
 	require.Equal(t, ApprovedOfferOutcome, got.Offer.Outcome)
 	require.Empty(t, h.notificationCalls)
 	require.Len(t, h.identityCalls, 1)
+}
+
+// START cannot replay a previously prepared Offer after CRS changes the
+// ownership of the merchant-supplied mobile number.
+func TestStartExternal_ReassignedMobileBlocksPreparedOffer(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.expectPool(2, 0)
+	h.expectStartExternalPrepareLoad()
+	h.identityOutput = extcustomer.ResolveByMobileOutput{
+		ExternalCustomerID: model.ExternalCustomerID(uuid.New()),
+		Status:             extcustomer.ActiveStatus,
+	}
+
+	_, err := h.uc.StartExternal(h.ctx, h.startExternalInput(1))
+	requireCerr(t, err, cerr.CodeConflict, "error.checkout_otp_issuance_not_allowed")
+	require.Empty(t, h.contracts.calls)
+	require.Empty(t, h.notificationCalls)
 }
 
 func TestStartExternal_DeniedOfferNeverIssuesOTP(t *testing.T) {
