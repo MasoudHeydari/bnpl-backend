@@ -10,6 +10,7 @@ import (
 	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"
 	"github.com/parstis/bnpl-backend/pkg/core/fingerprint"
 	"github.com/parstis/bnpl-backend/pkg/core/identifier"
+	"github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/policy"
 	"github.com/parstis/bnpl-backend/pkg/core/policy/initialcreditlimit"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
@@ -39,6 +40,7 @@ type UseCase struct {
 	auditDestination       string
 	idGenerator            identifier.Generator
 	observer               Observer
+	logger                 log.Logger
 }
 
 // New constructs a customer credit use case.
@@ -64,6 +66,7 @@ func New(
 	observer Observer,
 	trustedMobile repo.TrustedMobile,
 	sharedCredit repo.SharedCredit,
+	logger log.Logger,
 ) (*UseCase, error) {
 	const op = "customercredituc.New"
 
@@ -151,6 +154,10 @@ func New(
 		return nil, fmt.Errorf("%s: shared credit repository is required", op)
 	}
 
+	if logger == nil {
+		return nil, fmt.Errorf("%s: logger is required", op)
+	}
+
 	return &UseCase{
 		pool:                   pool,
 		collectionsPolicy:      collectionsPolicy,
@@ -168,6 +175,7 @@ func New(
 		policyAssignment:       policyAssignment,
 		trustedMobile:          trustedMobile,
 		sharedCredit:           sharedCredit,
+		logger:                 logger,
 		initialLimitPolicies:   initialLimitPolicies,
 		defaultInitialLimitRef: defaultInitialLimitRef,
 		auditDestination:       auditDestination,

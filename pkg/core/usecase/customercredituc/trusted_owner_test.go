@@ -7,9 +7,10 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	testifyMock "github.com/stretchr/testify/mock"
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
-	"github.com/parstis/bnpl-backend/pkg/core/mock"
+ 	"github.com/parstis/bnpl-backend/pkg/core/mock"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
@@ -53,7 +54,7 @@ func (trustedMobileStub) InsertIfAbsent(
 func TestTrustedMobileNationalIDMatchesAuthoritativeCRS(t *testing.T) {
 	t.Parallel()
 
-	uc := &UseCase{trustedMobile: trustedMobileStub{
+	uc := &UseCase{logger: mock.NewLogger(t), trustedMobile: trustedMobileStub{
 		mobile:     "+989121234567",
 		nationalID: "0012345678",
 	}}
@@ -61,6 +62,7 @@ func TestTrustedMobileNationalIDMatchesAuthoritativeCRS(t *testing.T) {
 	eligible, err := uc.eligibleTrustedOwner(
 		context.Background(),
 		mock.NewTx(t),
+		model.CustomerProfile{},
 		"+989121234567",
 		"0012345678",
 	)
@@ -71,14 +73,19 @@ func TestTrustedMobileNationalIDMatchesAuthoritativeCRS(t *testing.T) {
 func TestTrustedMobileNationalIDConflictDoesNotFallBackToOrdinaryCredit(t *testing.T) {
 	t.Parallel()
 
-	uc := &UseCase{trustedMobile: trustedMobileStub{
+	logger := mock.NewLogger(t)
+	uc := &UseCase{logger: logger, trustedMobile: trustedMobileStub{
 		mobile:     "+989121234567",
 		nationalID: "0012345678",
 	}}
 
+	logger.EXPECT().WithContext(context.Background()).Return(logger).Once()
+	logger.EXPECT().Error(testifyMock.Anything, testifyMock.Anything, testifyMock.Anything, testifyMock.Anything).Once()
+
 	eligible, err := uc.eligibleTrustedOwner(
 		context.Background(),
 		mock.NewTx(t),
+		model.CustomerProfile{},
 		"+989121234567",
 		"9876543210",
 	)
@@ -90,7 +97,7 @@ func TestTrustedMobileNationalIDConflictDoesNotFallBackToOrdinaryCredit(t *testi
 func TestNormalMobileIsNotTrusted(t *testing.T) {
 	t.Parallel()
 
-	uc := &UseCase{trustedMobile: trustedMobileStub{
+	uc := &UseCase{logger: mock.NewLogger(t), trustedMobile: trustedMobileStub{
 		mobile:     "+989121234567",
 		nationalID: "0012345678",
 	}}
@@ -98,6 +105,7 @@ func TestNormalMobileIsNotTrusted(t *testing.T) {
 	eligible, err := uc.eligibleTrustedOwner(
 		context.Background(),
 		mock.NewTx(t),
+		model.CustomerProfile{},
 		"+989351234567",
 		"1234567891",
 	)

@@ -201,7 +201,7 @@ func (uc *UseCase) prepareInitialLimitAssignment(
 			// A Trusted phone paired with a different CRS national code is a
 			// conflict even if another account already owns person credit.
 			// Existing grants are NOT silently upgraded using this membership.
-			trusted, trustErr := uc.eligibleTrustedOwner(ctx, tx, mobileE164, nationalCode)
+			trusted, trustErr := uc.eligibleTrustedOwner(ctx, tx, profile, mobileE164, nationalCode)
 			if trustErr != nil {
 				return trustErr
 			}

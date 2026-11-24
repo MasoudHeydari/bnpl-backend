@@ -254,6 +254,7 @@ func TestCustomerCredit_newUseCase(t *testing.T) {
 		newTestCustomerCreditObserver(t),
 		trustedmobilerp.New(),
 		creditaccountrp.NewSharedCredit(),
+		mock.NewLogger(t),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, uc)

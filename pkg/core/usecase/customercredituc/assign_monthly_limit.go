@@ -53,7 +53,7 @@ func (uc *UseCase) assignMonthlyCreditLimit(
 
 			// Imported trusted numbers have immutable national IDs. A CRS
 			// mismatch must never fall back to ordinary monthly credit.
-			_, err := uc.eligibleTrustedOwner(ctx, tx, strings.TrimSpace(input.MobileE164), identity.NationalCode)
+			_, err := uc.eligibleTrustedOwner(ctx, tx, profile, strings.TrimSpace(input.MobileE164), identity.NationalCode)
 			if err != nil {
 				return fmt.Errorf("%s: verify trusted phone identity: %w", op, err)
 			}

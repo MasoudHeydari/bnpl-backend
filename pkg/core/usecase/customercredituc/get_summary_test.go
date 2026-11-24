@@ -86,6 +86,7 @@ func newSummaryUseCase(
 		newTestObserver(t),
 		absentTrustedMobile{},
 		noExistingSharedCredit{},
+		mock.NewLogger(t),
 	)
 	require.NoError(t, err)
 

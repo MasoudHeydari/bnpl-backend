@@ -66,6 +66,7 @@ func newAssessUseCase(
 		newTestObserver(t),
 		absentTrustedMobile{},
 		noExistingSharedCredit{},
+		mock.NewLogger(t),
 	)
 	require.NoError(t, err)
 

@@ -775,6 +775,7 @@ func (c *Config) NewCustomerCreditUseCase(
 	observer customercredituc.Observer,
 	trustedMobile repo.TrustedMobile,
 	sharedCredit repo.SharedCredit,
+	logger log.Logger,
 ) (*customercredituc.UseCase, error) {
 	return c.Usecases.CustomerCredit.newUseCase(
 		pool,
@@ -798,6 +799,7 @@ func (c *Config) NewCustomerCreditUseCase(
 		observer,
 		trustedMobile,
 		sharedCredit,
+		logger,
 	)
 }
 
