@@ -380,15 +380,17 @@ func (uc *UseCase) prepareMerchantFunding(
 					return reloadErr
 				}
 
-				if finder, ok := contractQ.(repo.PendingPersonContractQueryer); ok && !profile.CreditOwnerID.IsZero() {
-					pending, pendingErr := finder.GetPaymentPendingByCreditOwnerID(ctx, profile.CreditOwnerID)
+				if !profile.CreditOwnerID.IsZero() {
+					pending, pendingErr := contractQ.GetPaymentPendingByCreditOwnerID(ctx, profile.CreditOwnerID)
 					if pendingErr == nil {
 						return personCreditPurchaseInProgressError(pending.ID)
 					}
+
 					if !cerr.IsCode(pendingErr, cerr.CodeResourceNotFound) {
 						return pendingErr
 					}
 				}
+
 				return cerr.Conflict(fmt.Errorf("%s: another pre-activation contract already occupies the credit account", op))
 			}
 

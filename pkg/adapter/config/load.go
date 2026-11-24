@@ -774,7 +774,7 @@ func (c *Config) NewCustomerCreditUseCase(
 	collectionsPolicy collections.Policy,
 	observer customercredituc.Observer,
 	trustedMobile repo.TrustedMobile,
-	sharedCredit repo.SharedCreditCoordinator,
+	sharedCredit repo.SharedCredit,
 ) (*customercredituc.UseCase, error) {
 	return c.Usecases.CustomerCredit.newUseCase(
 		pool,

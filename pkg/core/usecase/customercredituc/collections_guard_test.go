@@ -30,11 +30,15 @@ func TestNewCreditUsageBlocked_DueBeforeDefault(t *testing.T) {
 
 	restrictionQ := mock.NewCustomerRestrictionQueryer(t)
 	restrictionQ.EXPECT().
-		ListActiveByCustomerID(testifymock.Anything, customerID).
+		ListActiveForCreditOwner(testifymock.Anything, customerID).
 		Return(nil, nil).
 		Once()
 
 	episodeQ := mock.NewDefaultEpisodeQueryer(t)
+	episodeQ.EXPECT().
+		HasActiveForCreditOwner(testifymock.Anything, customerID).
+		Return(false, nil).
+		Once()
 	episodeQ.EXPECT().
 		GetActiveByCustomerID(testifymock.Anything, customerID).
 		Return(model.DefaultEpisode{}, cerr.ResourceNotFound(errors.New("none"))).
@@ -42,7 +46,7 @@ func TestNewCreditUsageBlocked_DueBeforeDefault(t *testing.T) {
 
 	installmentQ := mock.NewInstallmentQueryer(t)
 	installmentQ.EXPECT().
-		ListCollectionsObligationsByCustomerID(testifymock.Anything, customerID).
+		ListCollectionsObligationsForCreditOwner(testifymock.Anything, customerID).
 		Return([]repo.CollectionsObligation{{
 			Installment: model.Installment{
 				ID:              installmentID,

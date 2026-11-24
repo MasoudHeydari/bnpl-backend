@@ -134,7 +134,8 @@ func (uc *UseCase) assignMonthlyCreditLimit(
 
 			// Always lock the credit owner before the customer profile.
 			// This matches the initial assignment's ordering across accounts.
-			lockedOwnerID, err := uc.sharedCredit.LockOwnerByCustomer(ctx, tx, profile.ID)
+			sharedCreditQ := uc.sharedCredit.Tx(tx)
+			lockedOwnerID, err := sharedCreditQ.LockOwnerByCustomer(ctx, profile.ID)
 			if err != nil {
 				return fmt.Errorf("%s: lock legal person: %w", op, err)
 			}

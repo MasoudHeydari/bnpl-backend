@@ -13,10 +13,12 @@ import (
 )
 
 // eligibleTrustedOwner validates an offline-imported mobile and national ID
-// against authoritative CRS data resolved before the transaction. This is
-// called only when the legal person has no existing credit for the product.
-// Returning false means normal policy; a mismatched existing phone is a hard
-// conflict, never a fallback to normal credit.
+// against authoritative CRS data resolved before the transaction.
+//
+// Callers invoke this before enroll-or-grant so a Trusted phone paired with the
+// wrong CRS national code is a hard Conflict even when another account already
+// holds person credit. Returning false means the mobile is not trusted and
+// ordinary policy applies; mismatch never falls back to ordinary credit.
 func (uc *UseCase) eligibleTrustedOwner(ctx context.Context, tx repo.Tx, mobile, nationalCode string) (bool, error) {
 	trustedMobileQ := uc.trustedMobile.Tx(tx)
 	membership, err := trustedMobileQ.GetByMobile(ctx, mobile)

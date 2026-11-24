@@ -205,10 +205,7 @@ func (uc *UseCase) AssertNewCreditAllowed(
 	now = now.UTC()
 
 	restrictionQ := uc.customerRestriction.Tx(tx)
-	activeRestrictions, err := restrictionQ.ListActiveByCustomerID(ctx, customerID)
-	if ownerQ, ok := restrictionQ.(repo.PersonCreditRestrictionReader); ok {
-		activeRestrictions, err = ownerQ.ListActiveForCreditOwner(ctx, customerID)
-	}
+	activeRestrictions, err := restrictionQ.ListActiveForCreditOwner(ctx, customerID)
 	if err != nil {
 		return fmt.Errorf("%s: list active restrictions: %w", op, err)
 	}
@@ -220,15 +217,15 @@ func (uc *UseCase) AssertNewCreditAllowed(
 	}
 
 	episodeQ := uc.defaultEpisode.Tx(tx)
-	if ownerQ, ok := episodeQ.(repo.PersonCreditEpisodeReader); ok {
-		anyDefault, err := ownerQ.HasActiveForCreditOwner(ctx, customerID)
-		if err != nil {
-			return fmt.Errorf("%s: check legal person defaults: %w", op, err)
-		}
-		if anyDefault {
-			return newCreditUsageRestrictedError()
-		}
+	anyDefault, err := episodeQ.HasActiveForCreditOwner(ctx, customerID)
+	if err != nil {
+		return fmt.Errorf("%s: check legal person defaults: %w", op, err)
 	}
+
+	if anyDefault {
+		return newCreditUsageRestrictedError()
+	}
+
 	_, episodeErr := episodeQ.GetActiveByCustomerID(ctx, customerID)
 	if episodeErr == nil {
 		return newCreditUsageRestrictedError()
@@ -252,26 +249,28 @@ func (uc *UseCase) AssertNewCreditAllowed(
 		return cerr.Conflict(fmt.Errorf("%s: unresolved contract cancellation blocks new credit", op))
 	}
 
-	if ownerQ, ok := installmentQ.(repo.PersonCreditObligationReader); ok {
-		obligations, err := ownerQ.ListCollectionsObligationsForCreditOwner(ctx, customerID)
-		if err != nil {
-			return fmt.Errorf("%s: check legal person obligations: %w", op, err)
-		}
-		facts := make([]collections.ObligationFact, 0, len(obligations))
-		for _, obligation := range obligations {
-			fact := collections.FactFromUnpaidInstallment(obligation.Installment, obligation.HasUnresolvedPayment)
-			fact.HasUnresolvedAdjustment = obligation.HasUnresolvedAdjustment
-			fact.HasUnresolvedCancellation = obligation.HasUnresolvedCancellation
-			facts = append(facts, fact)
-		}
-		personEvaluation := uc.policies.Current.Evaluate(facts, now, false)
-		if personEvaluation.BlocksNewCredit || personEvaluation.IsDefaultEligible {
-			return newCreditUsageRestrictedError()
-		}
-		if personEvaluation.HasUnresolvedCancellation || personEvaluation.HasUnresolvedAdjustment {
-			return cerr.Conflict(fmt.Errorf("%s: unresolved legal person obligation", op))
-		}
+	obligations, err := installmentQ.ListCollectionsObligationsForCreditOwner(ctx, customerID)
+	if err != nil {
+		return fmt.Errorf("%s: check legal person obligations: %w", op, err)
 	}
+
+	facts := make([]collections.ObligationFact, 0, len(obligations))
+	for _, obligation := range obligations {
+		fact := collections.FactFromUnpaidInstallment(obligation.Installment, obligation.HasUnresolvedPayment)
+		fact.HasUnresolvedAdjustment = obligation.HasUnresolvedAdjustment
+		fact.HasUnresolvedCancellation = obligation.HasUnresolvedCancellation
+		facts = append(facts, fact)
+	}
+
+	personEvaluation := uc.policies.Current.Evaluate(facts, now, false)
+	if personEvaluation.BlocksNewCredit || personEvaluation.IsDefaultEligible {
+		return newCreditUsageRestrictedError()
+	}
+
+	if personEvaluation.HasUnresolvedCancellation || personEvaluation.HasUnresolvedAdjustment {
+		return cerr.Conflict(fmt.Errorf("%s: unresolved legal person obligation", op))
+	}
+
 	return nil
 }
 

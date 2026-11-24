@@ -321,7 +321,8 @@ func (uc *UseCase) persistInitialLimitAssignment(
 			// Keep the lock order identical to prepare: legal person first,
 			// customer profile second. The opposite order can deadlock a
 			// concurrent assignment from a second phone account.
-			lockedOwnerID, err := uc.sharedCredit.LockOwnerByCustomer(ctx, tx, customerID)
+			sharedCreditQ := uc.sharedCredit.Tx(tx)
+			lockedOwnerID, err := sharedCreditQ.LockOwnerByCustomer(ctx, customerID)
 			if err != nil {
 				return fmt.Errorf("%s: lock legal person: %w", op, err)
 			}

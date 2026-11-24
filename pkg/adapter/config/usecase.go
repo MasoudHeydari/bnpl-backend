@@ -695,7 +695,7 @@ func (CustomerCredit) newUseCase(
 	collectionsPolicy collections.Policy,
 	observer customercredituc.Observer,
 	trustedMobile repo.TrustedMobile,
-	sharedCredit repo.SharedCreditCoordinator,
+	sharedCredit repo.SharedCredit,
 ) (*customercredituc.UseCase, error) {
 	return customercredituc.New(
 		pool,

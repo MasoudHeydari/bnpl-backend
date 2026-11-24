@@ -95,6 +95,22 @@ type InstallmentQueryer interface {
 		customerID model.CustomerID,
 	) ([]CollectionsObligation, error)
 
+	// ListCollectionsObligationsForCreditOwner loads unpaid obligations across
+	// every account of the requesting customer's legal person. Eligibility
+	// guard only — never expose through customer installment history APIs.
+	ListCollectionsObligationsForCreditOwner(
+		ctx context.Context,
+		requestingCustomer model.CustomerID,
+	) ([]CollectionsObligation, error)
+
+	// HasDueUnpaidForCreditOwner reports whether any account of the legal
+	// person has a due/overdue unpaid installment as of asOf.
+	HasDueUnpaidForCreditOwner(
+		ctx context.Context,
+		requestingCustomer model.CustomerID,
+		asOf time.Time,
+	) (bool, error)
+
 	// ListCollectionsAssessmentCustomerPage returns the next customerLimit
 	// distinct customer IDs that need collections assessment after
 	// afterCustomerID (exclusive keyset). Candidates include customers with

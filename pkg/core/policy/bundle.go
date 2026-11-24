@@ -9,7 +9,9 @@ type Target struct {
 }
 
 // TrustedCustomerBundle returns the policy assignments applied atomically when
-// a subject is admitted to the trusted cohort (for example via CSV import).
+// a legal person first receives trusted credit after offline registry membership
+// is verified against CRS. CSV import only writes the registry; it does not
+// create these assignments.
 //
 // Refs are the trusted versions owned by each policy family's catalog
 // (checkout/v2 and initial-credit-limit/v2). They are written here as literals

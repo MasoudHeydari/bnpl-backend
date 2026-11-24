@@ -45,10 +45,9 @@ func TestCreatePartner_TrustedAssignment_SurfacesPayIn3Preview(t *testing.T) {
 	h.policyAssignmentCQ.ExpectedCalls = nil
 	h.policyAssignmentCQ.Calls = nil
 	h.policyAssignmentCQ.EXPECT().
-		GetActive(
+		GetActiveForCustomerOrOwner(
 			testifymock.Anything,
-			model.CustomerPolicySubjectType,
-			h.profileID.String(),
+			testifymock.Anything,
 			model.CheckoutPolicyFamily,
 			testifymock.Anything,
 		).

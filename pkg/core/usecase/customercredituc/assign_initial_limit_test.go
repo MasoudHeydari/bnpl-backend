@@ -143,9 +143,8 @@ func (d assignInitialLimitDeps) newUseCase() *customercredituc.UseCase {
 
 func (d assignInitialLimitDeps) expectPolicyAssignmentDefault(ctx context.Context) {
 	d.policyAssignment.EXPECT().Tx(d.tx).Return(d.policyAssignmentTx).Once()
-	d.policyAssignmentTx.EXPECT().GetActive(
+	d.policyAssignmentTx.EXPECT().GetActiveForCustomerOrOwner(
 		ctx,
-		model.CustomerPolicySubjectType,
 		testifymock.Anything,
 		model.InitialCreditLimitPolicyFamily,
 		testifymock.Anything,

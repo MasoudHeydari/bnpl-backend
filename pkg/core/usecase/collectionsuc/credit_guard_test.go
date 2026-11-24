@@ -80,35 +80,40 @@ func TestAssertNewCreditAllowed_LiveDefaultDoesNotMutateCollections(t *testing.T
 	restrictionTx := mock.NewCustomerRestrictionTxQueryer(t)
 	customerRestriction.EXPECT().Tx(tx).Return(restrictionTx).Once()
 	restrictionTx.EXPECT().
-		ListActiveByCustomerID(testifymock.Anything, customerID).
+		ListActiveForCreditOwner(testifymock.Anything, customerID).
 		Return(nil, nil).
 		Once()
 
 	episodeTx := mock.NewDefaultEpisodeTxQueryer(t)
 	defaultEpisode.EXPECT().Tx(tx).Return(episodeTx).Once()
 	episodeTx.EXPECT().
+		HasActiveForCreditOwner(testifymock.Anything, customerID).
+		Return(false, nil).
+		Once()
+	episodeTx.EXPECT().
 		GetActiveByCustomerID(testifymock.Anything, customerID).
 		Return(model.DefaultEpisode{}, cerr.ResourceNotFound(errors.New("none"))).
 		Once()
 
+	obligation := repo.CollectionsObligation{
+		Installment: model.Installment{
+			ID:                          installmentID,
+			ContractID:                  &contractID,
+			CustomerID:                  customerID,
+			DueAt:                       now.Add(-72 * time.Hour),
+			GracePeriodDays:             1,
+			CollectionsPolicyID:         "collections_default",
+			CollectionsPolicyVersion:    "v1",
+			CollectionsDefaultAfterDays: 0,
+			Status:                      model.OverdueInstallmentStatus,
+		},
+		HasUnresolvedPayment: false,
+	}
 	installmentTx := mock.NewInstallmentTxQueryer(t)
 	installment.EXPECT().Tx(tx).Return(installmentTx).Once()
 	installmentTx.EXPECT().
 		ListCollectionsObligationsByCustomerID(testifymock.Anything, customerID).
-		Return([]repo.CollectionsObligation{{
-			Installment: model.Installment{
-				ID:                          installmentID,
-				ContractID:                  &contractID,
-				CustomerID:                  customerID,
-				DueAt:                       now.Add(-72 * time.Hour),
-				GracePeriodDays:             1,
-				CollectionsPolicyID:         "collections_default",
-				CollectionsPolicyVersion:    "v1",
-				CollectionsDefaultAfterDays: 0,
-				Status:                      model.OverdueInstallmentStatus,
-			},
-			HasUnresolvedPayment: false,
-		}}, nil).
+		Return([]repo.CollectionsObligation{obligation}, nil).
 		Once()
 
 	// Decision / episode / restriction create paths must not be touched.
@@ -158,12 +163,16 @@ func TestAssertNewCreditAllowed_DueBlocksWithoutDefault(t *testing.T) {
 	restrictionTx := mock.NewCustomerRestrictionTxQueryer(t)
 	customerRestriction.EXPECT().Tx(tx).Return(restrictionTx).Once()
 	restrictionTx.EXPECT().
-		ListActiveByCustomerID(testifymock.Anything, customerID).
+		ListActiveForCreditOwner(testifymock.Anything, customerID).
 		Return(nil, nil).
 		Once()
 
 	episodeTx := mock.NewDefaultEpisodeTxQueryer(t)
 	defaultEpisode.EXPECT().Tx(tx).Return(episodeTx).Once()
+	episodeTx.EXPECT().
+		HasActiveForCreditOwner(testifymock.Anything, customerID).
+		Return(false, nil).
+		Once()
 	episodeTx.EXPECT().
 		GetActiveByCustomerID(testifymock.Anything, customerID).
 		Return(model.DefaultEpisode{}, cerr.ResourceNotFound(errors.New("none"))).

@@ -83,6 +83,11 @@ type ContractTxQueryer interface {
 	// ContractQueryer provides shared contract query operations.
 	ContractQueryer
 
+	// GetPaymentPendingByCreditOwnerID returns one payment_pending contract for
+	// the legal person. Diagnostic only after uniqueness conflicts; it does not
+	// authorize cross-account access to the returned contract.
+	GetPaymentPendingByCreditOwnerID(ctx context.Context, ownerID model.CreditOwnerID) (model.Contract, error)
+
 	// LockByID returns and locks a contract row for update.
 	LockByID(ctx context.Context, id model.ContractID) (model.Contract, error)
 

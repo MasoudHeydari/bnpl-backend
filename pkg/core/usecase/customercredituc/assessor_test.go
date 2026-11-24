@@ -89,9 +89,8 @@ func expectAssessDefaultPolicyAssignment(
 		},
 	).Times(times)
 	policyAssignment.EXPECT().Conn(conn).Return(cq).Times(times)
-	cq.EXPECT().GetActive(
+	cq.EXPECT().GetActiveForCustomerOrOwner(
 		testifymock.Anything,
-		model.CustomerPolicySubjectType,
 		testifymock.Anything,
 		model.InitialCreditLimitPolicyFamily,
 		testifymock.Anything,

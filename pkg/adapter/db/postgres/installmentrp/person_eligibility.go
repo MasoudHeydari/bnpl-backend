@@ -9,23 +9,22 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
-var _ repo.PersonCreditObligationReader = connQueryer{}
-var _ repo.PersonCreditObligationReader = txQueryer{}
-var _ repo.PersonCreditDueReader = connQueryer{}
-var _ repo.PersonCreditDueReader = txQueryer{}
-
 func (q connQueryer) ListCollectionsObligationsForCreditOwner(ctx context.Context, customer model.CustomerID) ([]repo.CollectionsObligation, error) {
 	return ListCollectionsObligationsForCreditOwner(ctx, q.Conn, customer)
 }
+
 func (q txQueryer) ListCollectionsObligationsForCreditOwner(ctx context.Context, customer model.CustomerID) ([]repo.CollectionsObligation, error) {
 	return ListCollectionsObligationsForCreditOwner(ctx, q.Tx, customer)
 }
+
 func (q connQueryer) HasDueUnpaidForCreditOwner(ctx context.Context, customer model.CustomerID, asOf time.Time) (bool, error) {
 	return hasDueUnpaidForCreditOwner(ctx, q.Conn, customer, asOf)
 }
+
 func (q txQueryer) HasDueUnpaidForCreditOwner(ctx context.Context, customer model.CustomerID, asOf time.Time) (bool, error) {
 	return hasDueUnpaidForCreditOwner(ctx, q.Tx, customer, asOf)
 }
+
 func hasDueUnpaidForCreditOwner[Q postgres.Queryer](ctx context.Context, q Q, customer model.CustomerID, asOf time.Time) (bool, error) {
 	const query = `SELECT EXISTS (
         SELECT 1 FROM installments i JOIN contracts c ON c.id=i.contract_id

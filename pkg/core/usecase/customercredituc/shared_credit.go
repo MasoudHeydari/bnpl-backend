@@ -23,7 +23,8 @@ func (uc *UseCase) lockCreditOwnerForAssignment(
 		return cerr.InternalError(fmt.Errorf("%s: legal-person identity is missing", op))
 	}
 
-	ownerID, err := uc.sharedCredit.LockOwnerByCustomer(ctx, tx, profile.ID)
+	sharedCreditQ := uc.sharedCredit.Tx(tx)
+	ownerID, err := sharedCreditQ.LockOwnerByCustomer(ctx, profile.ID)
 	if err != nil {
 		return fmt.Errorf("%s: lock owner: %w", op, err)
 	}
@@ -51,9 +52,9 @@ func (uc *UseCase) enrollExistingSharedCredit(
 		return nil, cerr.InternalError(fmt.Errorf("%s: legal-person identity is missing", op))
 	}
 
-	account, err := uc.sharedCredit.LockByOwnerAndKind(
+	sharedCreditQ := uc.sharedCredit.Tx(tx)
+	account, err := sharedCreditQ.LockByOwnerAndKind(
 		ctx,
-		tx,
 		profile.CreditOwnerID,
 		currency,
 		kind,
@@ -75,9 +76,8 @@ func (uc *UseCase) enrollExistingSharedCredit(
 		return nil, nil
 	}
 
-	_, err = uc.sharedCredit.EnrollCustomer(
+	_, err = sharedCreditQ.EnrollCustomer(
 		ctx,
-		tx,
 		profile.ID,
 		account.ID,
 		profile.CreditOwnerID,

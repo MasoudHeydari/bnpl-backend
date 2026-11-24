@@ -560,7 +560,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		collectionsPolicies.Current,
 		customerCreditObserver,
 		a.Repos.TrustedMobile,
-		creditaccountrp.NewSharedCoordinator(),
+		creditaccountrp.NewSharedCredit(),
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize customer credit use case: %w", op, err)

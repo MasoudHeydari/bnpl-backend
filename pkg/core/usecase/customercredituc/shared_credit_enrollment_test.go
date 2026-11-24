@@ -15,24 +15,24 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
-type enrollmentCoordinator struct {
+type enrollmentSharedCredit struct {
 	account    model.CreditAccount
 	accountErr error
 	enrolled   int
 	customerID model.CustomerID
 }
 
-func (c *enrollmentCoordinator) LockOwnerByCustomer(
+func (c *enrollmentSharedCredit) Tx(repo.Tx) repo.SharedCreditTxQueryer { return c }
+
+func (c *enrollmentSharedCredit) LockOwnerByCustomer(
 	context.Context,
-	repo.Tx,
 	model.CustomerID,
 ) (model.CreditOwnerID, error) {
 	return c.account.CreditOwnerID, nil
 }
 
-func (c *enrollmentCoordinator) LockByOwnerAndKind(
+func (c *enrollmentSharedCredit) LockByOwnerAndKind(
 	_ context.Context,
-	_ repo.Tx,
 	ownerID model.CreditOwnerID,
 	currency model.Currency,
 	kind model.CreditKind,
@@ -44,9 +44,8 @@ func (c *enrollmentCoordinator) LockByOwnerAndKind(
 	return c.account, c.accountErr
 }
 
-func (c *enrollmentCoordinator) EnrollCustomer(
+func (c *enrollmentSharedCredit) EnrollCustomer(
 	_ context.Context,
-	_ repo.Tx,
 	customerID model.CustomerID,
 	_ model.CreditAccountID,
 	_ model.CreditOwnerID,
@@ -73,7 +72,6 @@ func TestSharedCreditEnrollmentReturnsExistingGrantForOtherAccount(t *testing.T)
 	originID := model.CustomerID(uuid.New())
 	otherID := model.CustomerID(uuid.New())
 	decisionID := model.DecisionID(uuid.New())
-
 	account := model.CreditAccount{
 		ID:                  model.CreditAccountID(uuid.New()),
 		CustomerID:          originID,
@@ -81,11 +79,11 @@ func TestSharedCreditEnrollmentReturnsExistingGrantForOtherAccount(t *testing.T)
 		Currency:            model.IRRCurrency,
 		CreditKind:          model.PayInInstallmentsCreditKind,
 		Status:              model.ActiveCreditAccountStatus,
-		EffectiveFrom:       now.Add(-time.Hour),
+		LimitAmountMinor:    100,
 		LastLimitDecisionID: &decisionID,
-		LimitAmountMinor:    100000000,
+		EffectiveFrom:       now.Add(-time.Hour),
 	}
-	coordinator := &enrollmentCoordinator{account: account}
+	coordinator := &enrollmentSharedCredit{account: account}
 	tx := mock.NewTx(t)
 	decisionRepo := mock.NewDecision(t)
 	decisionQ := mock.NewDecisionTxQueryer(t)
@@ -130,7 +128,7 @@ func TestOtherAccountCannotRenewExpiredSharedCredit(t *testing.T) {
 	ownerID := model.CreditOwnerID(uuid.New())
 	originID := model.CustomerID(uuid.New())
 	otherID := model.CustomerID(uuid.New())
-	coordinator := &enrollmentCoordinator{account: model.CreditAccount{
+	coordinator := &enrollmentSharedCredit{account: model.CreditAccount{
 		ID:            model.CreditAccountID(uuid.New()),
 		CustomerID:    originID,
 		CreditOwnerID: ownerID,

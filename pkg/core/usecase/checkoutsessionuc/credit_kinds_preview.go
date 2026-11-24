@@ -89,14 +89,13 @@ func (uc *UseCase) buildCreditKindsPreview(
 			if dueErr != nil {
 				return fmt.Errorf("%s: list due unpaid installments: %w", op, dueErr)
 			}
-			blocked := len(dueUnpaid) > 0
-			if ownerQ, ok := installmentQ.(repo.PersonCreditDueReader); ok {
-				personBlocked, err := ownerQ.HasDueUnpaidForCreditOwner(ctx, *session.CustomerID, now)
-				if err != nil {
-					return fmt.Errorf("%s: check due installments for legal person: %w", op, err)
-				}
-				blocked = blocked || personBlocked
+
+			personBlocked, err := installmentQ.HasDueUnpaidForCreditOwner(ctx, *session.CustomerID, now)
+			if err != nil {
+				return fmt.Errorf("%s: check due installments for legal person: %w", op, err)
 			}
+
+			blocked := len(dueUnpaid) > 0 || personBlocked
 			if blocked {
 				customerBlocked = &CreditKindPreviewReason{
 					Code:       "NEW_CREDIT_USAGE_RESTRICTED",
@@ -298,8 +297,11 @@ func (uc *UseCase) resolvePreviewCheckoutPolicy(
 	}
 
 	ref := checkoutcatalog.DefaultRef()
-	assignment, err := repo.GetActiveCustomerOrOwnerPolicy(
-		ctx, assignmentQ, externalCustomerID, model.CheckoutPolicyFamily, now,
+	assignment, err := assignmentQ.GetActiveForCustomerOrOwner(
+		ctx,
+		externalCustomerID,
+		model.CheckoutPolicyFamily,
+		now,
 	)
 	if err == nil {
 		ref = policy.Ref{ID: assignment.PolicyID, Version: assignment.PolicyVersion}

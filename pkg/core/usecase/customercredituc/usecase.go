@@ -32,7 +32,7 @@ type UseCase struct {
 	customerResolver       extcustomer.Resolver
 	policyAssignment       repo.PolicyAssignment
 	trustedMobile          repo.TrustedMobile
-	sharedCredit           repo.SharedCreditCoordinator
+	sharedCredit           repo.SharedCredit
 	initialLimitPolicies   *initialcreditlimit.Registry
 	defaultInitialLimitRef policy.Ref
 	monthlyLimitRef        policy.Ref
@@ -63,7 +63,7 @@ func New(
 	collectionsPolicy collections.Policy,
 	observer Observer,
 	trustedMobile repo.TrustedMobile,
-	sharedCredit repo.SharedCreditCoordinator,
+	sharedCredit repo.SharedCredit,
 ) (*UseCase, error) {
 	const op = "customercredituc.New"
 
@@ -148,7 +148,7 @@ func New(
 	}
 
 	if sharedCredit == nil {
-		return nil, fmt.Errorf("%s: shared credit coordinator is required", op)
+		return nil, fmt.Errorf("%s: shared credit repository is required", op)
 	}
 
 	return &UseCase{

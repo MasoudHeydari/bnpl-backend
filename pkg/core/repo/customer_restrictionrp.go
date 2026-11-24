@@ -32,6 +32,14 @@ type CustomerRestrictionQueryer interface {
 		ctx context.Context,
 		customerID model.CustomerID,
 	) ([]model.CustomerRestriction, error)
+
+	// ListActiveForCreditOwner returns active restrictions for every account
+	// that shares the requesting customer's legal person. Use only for
+	// person-level new-credit eligibility, never for account history APIs.
+	ListActiveForCreditOwner(
+		ctx context.Context,
+		requestingCustomer model.CustomerID,
+	) ([]model.CustomerRestriction, error)
 }
 
 // CustomerRestrictionConnQueryer exposes restriction operations on a connection.

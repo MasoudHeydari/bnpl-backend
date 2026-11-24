@@ -140,9 +140,8 @@ func (d createDeps) newUseCase(t *testing.T) *decisionuc.UseCase {
 }
 
 func (d createDeps) expectDefaultCheckoutPolicyAssignment(ctx context.Context) {
-	d.policyAssignmentTx.EXPECT().GetActive(
+	d.policyAssignmentTx.EXPECT().GetActiveForCustomerOrOwner(
 		ctx,
-		model.CustomerPolicySubjectType,
 		testifymock.Anything,
 		model.CheckoutPolicyFamily,
 		testifymock.Anything,

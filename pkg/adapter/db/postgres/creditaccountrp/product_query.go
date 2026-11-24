@@ -79,7 +79,7 @@ RETURNING` + creditAccountColumns
 	row, err := postgres.QueryOne[model.CreditAccount](ctx, q, "create product credit account", query,
 		customerID, currency, kind, limitAmountMinor, decisionID, effectiveFrom, expiresAt, createdAt, updatedAt)
 	if err != nil && postgres.IsUniqueViolation(err, "uq_credit_accounts_owner_currency_kind") {
-		return model.CreditAccount{}, cerr.Conflict(fmt.Errorf("credit account already exists for customer, currency and kind"),
+		return model.CreditAccount{}, cerr.Conflict(fmt.Errorf("credit account already exists for credit owner, currency, and kind"),
 			map[string]any{"customer_id": customerID, "currency": currency, "credit_kind": kind})
 	}
 

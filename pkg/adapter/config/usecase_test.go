@@ -253,7 +253,7 @@ func TestCustomerCredit_newUseCase(t *testing.T) {
 		collectionsv2.New(time.UTC),
 		newTestCustomerCreditObserver(t),
 		trustedmobilerp.New(),
-		creditaccountrp.NewSharedCoordinator(),
+		creditaccountrp.NewSharedCredit(),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, uc)

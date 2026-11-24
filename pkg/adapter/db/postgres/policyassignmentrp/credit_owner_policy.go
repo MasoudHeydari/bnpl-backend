@@ -5,31 +5,54 @@ import (
 	"time"
 
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
+	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
-	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
-var _ repo.CreditOwnerPolicyAssignmentQueryer = connQueryer{}
-var _ repo.CreditOwnerPolicyAssignmentQueryer = txQueryer{}
+func (q connQueryer) GetActiveForCustomerOrOwner(
+	ctx context.Context,
+	customer model.ExternalCustomerID,
+	family model.PolicyFamily,
+	now time.Time,
+) (model.PolicyAssignment, error) {
+	return getActiveForCustomerOrOwner(ctx, q.Conn, customer, family, now)
+}
 
-func (q connQueryer) GetActiveForCreditOwner(ctx context.Context, customer model.ExternalCustomerID, family model.PolicyFamily, now time.Time) (model.PolicyAssignment, error) {
-	return getActiveForOwner(
+func (q txQueryer) GetActiveForCustomerOrOwner(
+	ctx context.Context,
+	customer model.ExternalCustomerID,
+	family model.PolicyFamily,
+	now time.Time,
+) (model.PolicyAssignment, error) {
+	return getActiveForCustomerOrOwner(ctx, q.Tx, customer, family, now)
+}
+
+func getActiveForCustomerOrOwner[Q postgres.Queryer](
+	ctx context.Context,
+	q Q,
+	customer model.ExternalCustomerID,
+	family model.PolicyFamily,
+	now time.Time,
+) (model.PolicyAssignment, error) {
+	row, err := getActiveForOwner(ctx, q, customer, family, now)
+	if err == nil {
+		return row, nil
+	}
+
+	if !cerr.IsCode(err, cerr.CodeResourceNotFound) {
+		return model.PolicyAssignment{}, err
+	}
+
+	return GetActive(
 		ctx,
-		q.Conn,
-		customer,
+		q,
+		model.CustomerPolicySubjectType,
+		customer.String(),
 		family,
 		now,
 	)
 }
-func (q txQueryer) GetActiveForCreditOwner(ctx context.Context, customer model.ExternalCustomerID, family model.PolicyFamily, now time.Time) (model.PolicyAssignment, error) {
-	return getActiveForOwner(
-		ctx,
-		q.Tx,
-		customer,
-		family,
-		now,
-	)
-}
+
 func getActiveForOwner[Q postgres.Queryer](
 	ctx context.Context,
 	q Q,

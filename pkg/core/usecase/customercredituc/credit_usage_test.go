@@ -23,7 +23,7 @@ func TestPublicCreditUsageDoesNotExposeIndependentReasons(t *testing.T) {
 			if other {
 				rows = append(rows, model.CustomerRestriction{RestrictionType: model.NewCreditUsageCustomerRestrictionType, Reason: "sensitive_internal_reason"})
 			}
-			q.EXPECT().ListActiveByCustomerID(ctx, customer).Return(rows, nil)
+			q.EXPECT().ListActiveForCreditOwner(ctx, customer).Return(rows, nil)
 			blocked, reason, e := newCreditUsageBlocked(ctx, q, mock.NewInstallmentQueryer(t), mock.NewDefaultEpisodeQueryer(t), customer, time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC), collectionsv2.New(time.UTC))
 			require.NoError(t, e)
 			require.True(t, blocked)

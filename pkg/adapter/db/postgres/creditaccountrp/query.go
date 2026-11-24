@@ -191,7 +191,7 @@ RETURNING` + creditAccountColumns
 	if err != nil {
 		if postgres.IsUniqueViolation(err, "uq_credit_accounts_owner_currency_kind") {
 			return model.CreditAccount{}, cerr.Conflict(
-				fmt.Errorf("credit account already exists for customer and currency"),
+				fmt.Errorf("credit account already exists for credit owner, currency, and kind"),
 				map[string]any{"customer_id": customerID, "currency": currency},
 			)
 		}

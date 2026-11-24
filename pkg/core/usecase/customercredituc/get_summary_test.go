@@ -118,9 +118,8 @@ func expectSummaryPolicyAssignmentDefault(
 
 	txQ := mock.NewPolicyAssignmentTxQueryer(t)
 	policyAssignment.EXPECT().Tx(tx).Return(txQ).Once()
-	txQ.EXPECT().GetActive(
+	txQ.EXPECT().GetActiveForCustomerOrOwner(
 		testifymock.Anything,
-		model.CustomerPolicySubjectType,
 		testifymock.Anything,
 		model.InitialCreditLimitPolicyFamily,
 		testifymock.Anything,
@@ -221,13 +220,17 @@ func TestGetSummary_ExpiredLimit_ReturnsExpiredNotZeroAssigned(t *testing.T) {
 	customerRestrictionTx := mock.NewCustomerRestrictionTxQueryer(t)
 	customerRestriction.EXPECT().Tx(tx).Return(customerRestrictionTx).Once()
 	customerRestrictionTx.EXPECT().
-		ListActiveByCustomerID(testifymock.Anything, profileID).
+		ListActiveForCreditOwner(testifymock.Anything, profileID).
 		Return(nil, nil).
 		Once()
 
 	defaultEpisode := mock.NewDefaultEpisode(t)
 	defaultEpisodeTx := mock.NewDefaultEpisodeTxQueryer(t)
 	defaultEpisode.EXPECT().Tx(tx).Return(defaultEpisodeTx).Once()
+	defaultEpisodeTx.EXPECT().
+		HasActiveForCreditOwner(testifymock.Anything, profileID).
+		Return(false, nil).
+		Once()
 	defaultEpisodeTx.EXPECT().
 		GetActiveByCustomerID(testifymock.Anything, profileID).
 		Return(model.DefaultEpisode{}, cerr.ResourceNotFound(errors.New("none"))).
@@ -237,7 +240,7 @@ func TestGetSummary_ExpiredLimit_ReturnsExpiredNotZeroAssigned(t *testing.T) {
 	installmentTx := mock.NewInstallmentTxQueryer(t)
 	installment.EXPECT().Tx(tx).Return(installmentTx).Once()
 	installmentTx.EXPECT().
-		ListCollectionsObligationsByCustomerID(testifymock.Anything, profileID).
+		ListCollectionsObligationsForCreditOwner(testifymock.Anything, profileID).
 		Return(nil, nil).
 		Once()
 
@@ -349,13 +352,17 @@ func TestGetSummary_ActiveLimit_UsesInternalCustomerIDNotExternal(t *testing.T) 
 	customerRestrictionTx := mock.NewCustomerRestrictionTxQueryer(t)
 	customerRestriction.EXPECT().Tx(tx).Return(customerRestrictionTx).Once()
 	customerRestrictionTx.EXPECT().
-		ListActiveByCustomerID(testifymock.Anything, profileID).
+		ListActiveForCreditOwner(testifymock.Anything, profileID).
 		Return(nil, nil).
 		Once()
 
 	defaultEpisode := mock.NewDefaultEpisode(t)
 	defaultEpisodeTx := mock.NewDefaultEpisodeTxQueryer(t)
 	defaultEpisode.EXPECT().Tx(tx).Return(defaultEpisodeTx).Once()
+	defaultEpisodeTx.EXPECT().
+		HasActiveForCreditOwner(testifymock.Anything, profileID).
+		Return(false, nil).
+		Once()
 	defaultEpisodeTx.EXPECT().
 		GetActiveByCustomerID(testifymock.Anything, profileID).
 		Return(model.DefaultEpisode{}, cerr.ResourceNotFound(errors.New("none"))).
@@ -365,7 +372,7 @@ func TestGetSummary_ActiveLimit_UsesInternalCustomerIDNotExternal(t *testing.T) 
 	installmentTx := mock.NewInstallmentTxQueryer(t)
 	installment.EXPECT().Tx(tx).Return(installmentTx).Once()
 	installmentTx.EXPECT().
-		ListCollectionsObligationsByCustomerID(testifymock.Anything, profileID).
+		ListCollectionsObligationsForCreditOwner(testifymock.Anything, profileID).
 		Return(nil, nil).
 		Once()
 

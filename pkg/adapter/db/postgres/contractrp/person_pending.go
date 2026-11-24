@@ -5,10 +5,7 @@ import (
 
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
-	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
-
-var _ repo.PendingPersonContractQueryer = txQueryer{}
 
 func (q txQueryer) GetPaymentPendingByCreditOwnerID(ctx context.Context, ownerID model.CreditOwnerID) (model.Contract, error) {
 	const query = `SELECT` + contractColumns + ` FROM contracts

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
-	"github.com/parstis/bnpl-backend/pkg/core/external/customer"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/otp"
@@ -168,33 +167,10 @@ func (uc *UseCase) loadExternalSessionForOTPRequest(
 func (uc *UseCase) preflightExternalOTPPhone(
 	ctx context.Context, session model.CheckoutSession,
 ) (model.CustomerID, string, error) {
-	const op = "checkoutsessionuc.UseCase.preflightExternalOTPPhone"
-	if session.CustomerID == nil || session.CustomerID.IsZero() {
-		return model.CustomerID{}, "", checkoutOTPIssuanceNotAllowedError(fmt.Errorf("%s: customer binding is missing", op))
-	}
-	phone, err := uc.decryptCustomerPhone(session)
+	ownership, err := uc.revalidateBoundExternalMobileOwnership(ctx, session)
 	if err != nil {
 		return model.CustomerID{}, "", err
 	}
-	resolved, err := uc.customerResolver.ResolveByMobile(ctx, customer.ResolveByMobileInput{MobileE164: phone})
-	if err != nil {
-		// Never issue an OTP when the current mobile owner cannot be verified.
-		return model.CustomerID{}, "", checkoutOTPIssuanceNotAllowedError(fmt.Errorf("%s: CRS revalidation failed: %w", op, err))
-	}
-	if resolved.Status != customer.ActiveStatus || resolved.ExternalCustomerID.IsZero() {
-		return model.CustomerID{}, "", checkoutOTPIssuanceNotAllowedError(fmt.Errorf("%s: phone is not linked to an active customer", op))
-	}
-	var profile model.CustomerProfile
-	if err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
-		customerProfileQ := uc.customerProfile.Conn(conn)
-		var getErr error
-		profile, getErr = customerProfileQ.GetByID(ctx, *session.CustomerID)
-		return getErr
-	}); err != nil {
-		return model.CustomerID{}, "", checkoutOTPIssuanceNotAllowedError(fmt.Errorf("%s: load bound customer: %w", op, err))
-	}
-	if profile.ExternalCustomerID != resolved.ExternalCustomerID {
-		return model.CustomerID{}, "", checkoutOTPIssuanceNotAllowedError(fmt.Errorf("%s: current CRS mobile owner is different from the bound customer", op))
-	}
-	return *session.CustomerID, phone, nil
+
+	return ownership.CustomerID, ownership.Phone, nil
 }
