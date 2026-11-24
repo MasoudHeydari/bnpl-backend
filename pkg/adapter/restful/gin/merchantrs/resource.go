@@ -9,7 +9,7 @@ import (
 )
 
 type resource struct {
-	merchant      *merchantuc.UseCase
+	merchant   *merchantuc.UseCase
 	creditKind *merchantuc.CreditKindUseCase
 }
 

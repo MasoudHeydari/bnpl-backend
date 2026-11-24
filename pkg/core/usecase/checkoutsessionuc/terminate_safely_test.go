@@ -3,8 +3,8 @@ package checkoutsessionuc
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	testifymock "github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/event/checkoutlifecycle"
