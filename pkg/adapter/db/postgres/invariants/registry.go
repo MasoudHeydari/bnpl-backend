@@ -5,7 +5,7 @@ package invariants
 const Migration = "000_schema.sql"
 
 // MigrationSHA256 fingerprints the reviewed baseline schema SQL.
-const MigrationSHA256 = "sha256:956f24c02b29e5384804fd076a2a6759a5576803d8558bd93d421b5ea03e1e11"
+const MigrationSHA256 = "sha256:05c55a29407c4af0068ed9ce46d36f37dceaf2ab260eac8b69783ce56864cc92"
 
 var managed = []Invariant{
 	{

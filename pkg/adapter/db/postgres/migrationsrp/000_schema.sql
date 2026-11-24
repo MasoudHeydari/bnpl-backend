@@ -1536,7 +1536,10 @@ BEGIN
          WHERE e.customer_id = NEW.customer_id
            AND e.credit_owner_id = (SELECT credit_owner_id FROM customer_profiles WHERE id = NEW.customer_id)
            AND ca.currency = NEW.currency
-           AND ca.credit_kind = NEW.credit_kind
+           -- An unselected Partner Create must acquire the person-level
+           -- slot as soon as the CRS-resolved customer is bound. Both product
+           -- accounts may qualify; selection later narrows to one kind.
+           AND (NEW.credit_kind IS NULL OR ca.credit_kind = NEW.credit_kind)
            AND ca.status = 'active'
            AND ca.effective_from <= statement_timestamp()
            AND (ca.expires_at IS NULL OR ca.expires_at > statement_timestamp())

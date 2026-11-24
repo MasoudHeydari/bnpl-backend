@@ -85,7 +85,7 @@ SELECT credit_account_id FROM customer_credit_enrollments WHERE customer_id=$1`,
 	require.NoError(t, err)
 	require.Equal(t, creditAccountID, enrolledCredit)
 
-	newCheckout := func(customerID uuid.UUID, label string, kind model.CreditKind) error {
+	newCheckout := func(customerID uuid.UUID, label string, kind any) error {
 		const op = "invariants.TestCreditOwnerCheckoutClaimIsExclusive.newCheckout"
 		publicToken := "cs_" + strings.Repeat(label, 64)
 		_, err := f.pool.Pool.Exec(
@@ -124,7 +124,9 @@ WHERE checkout_session_id = (SELECT id FROM checkout_sessions WHERE public_token
 	require.NoError(t, err)
 	require.Zero(t, monthlyClaims)
 
-	require.NoError(t, newCheckout(f.customer, "a", model.PayInInstallmentsCreditKind))
+	// The Partner checkout has not selected any product, but one owner
+	// must already hold the exclusive slot after the CRS account is bound.
+	require.NoError(t, newCheckout(f.customer, "a", nil))
 
 	// Even the schema owner must not be able to release a live claim by an
 	// UPDATE that bypasses the hosted Checkout state transition.
@@ -132,7 +134,8 @@ WHERE checkout_session_id = (SELECT id FROM checkout_sessions WHERE public_token
 SET released_at = now() WHERE credit_owner_id = $1 AND released_at IS NULL`, ownerID)
 	assertViolation(t, err, "23514")
 
-	err = newCheckout(secondCustomerID, "b", model.PayInInstallmentsCreditKind)
+	// A second unselected Create from another enrolled phone is rejected.
+	err = newCheckout(secondCustomerID, "b", nil)
 	require.Error(t, err)
 	var pgError *pgconn.PgError
 	require.ErrorAs(t, err, &pgError)
@@ -149,7 +152,7 @@ WHERE public_token=$1`, "cs_"+strings.Repeat("a", 64))
 WHERE credit_owner_id=$1 AND released_at IS NOT NULL`, ownerID).Scan(&releasedCount)
 	require.NoError(t, err)
 	require.Equal(t, 1, releasedCount, "terminal claim history must be retained")
-	require.NoError(t, newCheckout(secondCustomerID, "b", model.PayInInstallmentsCreditKind))
+	require.NoError(t, newCheckout(secondCustomerID, "b", nil))
 }
 
 // TestTrustedMobileNationalIDCannotChange ensures that neither the original
