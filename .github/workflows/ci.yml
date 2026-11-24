@@ -282,9 +282,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build image for scan
+      - name: Build production runtime image for scan
         run: |
+          # Scan the deployed production artifact, not the default
+          # development image which requires private mTLS key files.
           docker build \
+            --target runtime \
+            --build-arg BUILD_ENV=production \
             --tag bnpl-backend:${{ github.sha }} \
             .
 

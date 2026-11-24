@@ -449,6 +449,9 @@ FROM installments WHERE id=$1`, installmentA1).Scan(&decisionID, &contractID, &m
 func rewriteReminderFixtureSchemaSQL(sql, schema string) string {
 	out := strings.ReplaceAll(sql, "SET search_path TO bnpl;", "SET search_path TO "+schema+";")
 	out = strings.ReplaceAll(out, "bnpl.", schema+".")
+	// Preserve the fixture-specific search_path of functions created inside a
+	// temporary schema; production functions remain pinned to bnpl.
+	out = strings.ReplaceAll(out, "SET search_path = bnpl, pg_temp", "SET search_path = "+schema+", pg_temp")
 	out = strings.ReplaceAll(out, "pg_catalog, bnpl", "pg_catalog, "+schema)
 	return out
 }
