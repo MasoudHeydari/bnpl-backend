@@ -153,6 +153,51 @@ No external Customer Service provider or mobile hash pepper is required for
 the import command itself; both are needed only where already required by
 credit assignment and other production flows.
 
+### Investigating long-lived credit-owner checkout claims
+
+A checkout claim blocks **all enrolled CRS accounts sharing one legal person**
+while a credit purchase is still in progress. It is durable across BNPL process
+restarts. An elapsed Session TTL alone never means it is safe to unlock a
+financially unresolved claim.
+
+The following **read-only** query shows current claims grouped by checkout
+state; use it for an operational dashboard or periodic review:
+
+```sql
+SELECT
+    s.status AS checkout_status,
+    count(*) AS active_claims,
+    max(now() - c.acquired_at) AS oldest_claim_age
+FROM bnpl.credit_owner_checkout_claims AS c
+JOIN bnpl.checkout_sessions AS s ON s.id = c.checkout_session_id
+WHERE c.released_at IS NULL
+GROUP BY s.status
+ORDER BY oldest_claim_age DESC;
+```
+
+To examine the oldest cases without exposing national codes or phone numbers:
+
+```sql
+SELECT
+    c.credit_owner_id,
+    c.checkout_session_id,
+    s.status,
+    c.acquired_at,
+    now() - c.acquired_at AS claim_age
+FROM bnpl.credit_owner_checkout_claims AS c
+JOIN bnpl.checkout_sessions AS s ON s.id = c.checkout_session_id
+WHERE c.released_at IS NULL
+ORDER BY c.acquired_at ASC
+LIMIT 50;
+```
+
+Operator action: correlate the Checkout Session with its Confirmation Saga,
+Contract, PaymentAttempt and Financial Core reconciliation records. Recover
+using the existing idempotent Saga/reconciliation/terminal commands only.
+**Never DELETE/UPDATE a claim, force a terminal status, or create an
+age-based release task** without verified authoritative payment/cancellation
+truth. Alert thresholds are operational settings, not business expiry rules.
+
 The default HTTP server handles `SIGINT` and `SIGTERM` with graceful shutdown (see below).
 
 ## Graceful Shutdown

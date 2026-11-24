@@ -81,13 +81,13 @@ func (uc *UseCase) ensureOfferPreparedForStartSession(
 		return model.CheckoutSession{}, checkoutSessionExpiredError()
 	}
 
-	// The no-op START path must enforce the same current mobile ownership
-	// as first-time Offer preparation. Do not trust a stale bound session.
-	if err := uc.ensureBoundSessionMobileOwnership(ctx, session); err != nil {
-		return model.CheckoutSession{}, err
-	}
-
 	if session.CustomerID != nil && session.DecisionID != nil && !session.DecisionID.IsZero() {
+		// Replayed START must revalidate the old phone before disclosing
+		// an already-prepared Offer. New preparation does the same once.
+		if err := uc.ensureBoundSessionMobileOwnership(ctx, session); err != nil {
+			return model.CheckoutSession{}, err
+		}
+
 		return session, nil
 	}
 

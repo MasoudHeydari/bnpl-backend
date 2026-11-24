@@ -121,7 +121,24 @@ func newCollectionsFixture(t *testing.T, locations ...*time.Location) *collectio
 
 	now := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
 	clk := adapterclock.NewFixed(now, location)
-	uc, err := New(pool, customerprofilerp.New(), installmentrp.New(), decisionrp.New(), defaultepisoderp.New(), customerrestrictionrp.New(), collectionscaserp.New(), outboxrp.New(), clk, uuidgen.New(), sha256fingerprint.New(), metricsnoop.New(), "bnpl.audit.events.v1", 10, currentTestPolicies(location), creditaccountrp.NewSharedCredit())
+	uc, err := New(
+		pool,
+		customerprofilerp.New(),
+		installmentrp.New(),
+		decisionrp.New(),
+		defaultepisoderp.New(),
+		customerrestrictionrp.New(),
+		collectionscaserp.New(),
+		outboxrp.New(),
+		clk,
+		uuidgen.New(),
+		sha256fingerprint.New(),
+		metricsnoop.New(),
+		"bnpl.audit.events.v1",
+		10,
+		currentTestPolicies(location),
+		creditaccountrp.NewSharedCredit(),
+	)
 	require.NoError(t, err)
 	exec := func(t *testing.T, sql string, args ...any) {
 		t.Helper()
@@ -1347,4 +1364,91 @@ func rewriteFixtureSchemaSQL(sql, schema string) string {
 	out = strings.ReplaceAll(out, "SET search_path = bnpl, pg_temp", "SET search_path = "+schema+", pg_temp")
 	out = strings.ReplaceAll(out, "pg_catalog, bnpl", "pg_catalog, "+schema)
 	return out
+}
+
+
+// TestCollectionsSharesPersonLockWithOtherAccounts proves that a default
+// assessment for account A cannot commit while account B is creating a
+// contract under their shared legal-person credit-owner lock.
+func TestCollectionsSharesPersonLockWithOtherAccounts(t *testing.T) {
+	f := newCollectionsFixture(t)
+	customerA, _ := f.seed(t)
+
+	var ownerID uuid.UUID
+	err := f.pool.Pool.QueryRow(
+		f.ctx,
+		"SELECT credit_owner_id FROM customer_profiles WHERE id=$1",
+		customerA,
+	).Scan(&ownerID)
+	require.NoError(t, err)
+
+	customerB := uuid.New()
+	externalSubjectB := uuid.New()
+	f.exec(
+		t,
+		`INSERT INTO customer_profiles (
+			id, external_subject_id, external_customer_id,
+			credit_owner_id, jurisdiction, status
+		) VALUES ($1,$2,$3,$4,'IR','active')`,
+		customerB,
+		externalSubjectB,
+		uuid.New(),
+		ownerID,
+	)
+
+	held := make(chan struct{})
+	release := make(chan struct{})
+	done := make(chan error, 1)
+	defer func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	}()
+
+	go func() {
+		done <- f.pool.Conn(f.ctx, func(ctx context.Context, conn repo.Conn) error {
+			return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
+				err := f.uc.LockCreditOwnerForCheckout(
+					ctx,
+					tx,
+					model.ExternalSubjectID(externalSubjectB),
+				)
+				if err != nil {
+					return err
+				}
+
+				close(held)
+				select {
+				case <-release:
+					return nil
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			})
+		})
+	}()
+
+	select {
+	case <-held:
+	case err := <-done:
+		t.Fatalf("acquire B credit-owner lock: %v", err)
+	case <-f.ctx.Done():
+		t.Fatal("timed out acquiring B credit-owner lock")
+	}
+
+	// The collection transaction must block before reading/writing default
+	// state, even though account A and B have DIFFERENT customer profile IDs.
+	blockedCtx, cancel := context.WithTimeout(f.ctx, 200*time.Millisecond)
+	_, err = f.uc.AssessCustomer(blockedCtx, customerA)
+	cancel()
+	require.Error(t, err, "collections assessment must wait for the same legal-person lock")
+
+	close(release)
+	require.NoError(t, <-done)
+
+	// Once B's contract-side transaction ends, normal assessment recovers.
+	_, err = f.uc.AssessCustomer(f.ctx, customerA)
+	require.NoError(t, err)
 }
