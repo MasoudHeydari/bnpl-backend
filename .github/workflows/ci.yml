@@ -91,11 +91,12 @@ jobs:
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
 
+      # Use the same source build tags as Unit and Integration tests.
       # Non-blocking for now — gives time to triage existing findings
       # before this gates merges.
       - name: Run govulncheck
         continue-on-error: true
-        run: govulncheck ./...
+        run: govulncheck -tags=go_json,nomsgpack,development ./...
 
   # ── 3. UNIT TESTS ────────────────────────────────────────────────────────
   unit-test:
@@ -225,6 +226,7 @@ jobs:
           cache: true
 
       # Pin to an exact release. Latest: https://github.com/securego/gosec/releases
+      # Match the build tags used in project tests and binary builds.
       # -exclude-dir=gen     skips auto-generated protobuf code.
       # -exclude-dir=pkg/core/mock skips mockery-generated mocks.
       # Add a .gosec.yaml to accept specific known findings as acceptable risks.
@@ -237,6 +239,7 @@ jobs:
         continue-on-error: true
         with:
           args: >-
+            -tags=go_json,nomsgpack,development
             -exclude-dir=gen
             -exclude-dir=pkg/core/mock
             -fmt=sarif
