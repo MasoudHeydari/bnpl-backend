@@ -8,7 +8,6 @@ import (
 
 	corephonenumber "github.com/parstis/bnpl-backend/pkg/core/canonicalizer/phonenumber"
 	"github.com/parstis/bnpl-backend/pkg/core/clock"
-	"github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/domaincapability"
 	extcheckoutpayment "github.com/parstis/bnpl-backend/pkg/core/external/checkoutpayment"
 	extcontractcancellation "github.com/parstis/bnpl-backend/pkg/core/external/contractcancellation"

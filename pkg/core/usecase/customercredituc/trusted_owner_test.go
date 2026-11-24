@@ -10,7 +10,7 @@ import (
 	testifyMock "github.com/stretchr/testify/mock"
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
- 	"github.com/parstis/bnpl-backend/pkg/core/mock"
+	"github.com/parstis/bnpl-backend/pkg/core/mock"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
