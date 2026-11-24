@@ -101,6 +101,17 @@ func (uc *UseCase) ensureExternalCustomerBoundForPreview(
 	}
 
 	if session.CustomerID != nil && !session.CustomerID.IsZero() {
+		// Partner Create can replay a bound Checkout after the merchant's
+		// phone is reassigned. Do not return a person-specific eligibility
+		// preview without verifying the current CRS binding.
+		if err := uc.ensureBoundSessionMobileOwnership(ctx, session); err != nil {
+			if isOpaqueMobileOwnershipFailure(err) {
+				return model.CheckoutSession{}, checkoutCreditPurchaseUnavailableForPhoneError(err)
+			}
+
+			return model.CheckoutSession{}, err
+		}
+
 		return session, nil
 	}
 

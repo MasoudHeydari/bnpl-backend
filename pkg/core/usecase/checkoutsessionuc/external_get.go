@@ -14,8 +14,9 @@ import (
 // prepared offer (when linked), and the masked phone the verification code goes
 // to.
 //
-// It is strictly read-only. It never calls the Customer Reference Service,
-// creates a Decision, binds a customer, increments evaluation_generation, sends
+// It is strictly read-only. For a bound session with prepared financing it
+// revalidates the current CRS mobile owner before projecting the Offer;
+// it never creates a Decision, binds a customer, increments evaluation_generation, sends
 // OTP, creates a Contract, creates a PaymentAttempt, or calls Financial Core.
 // Open sessions past expires_at are projected as expired without writing state.
 //
@@ -116,6 +117,12 @@ func (uc *UseCase) GetExternal(ctx context.Context, input GetExternalInput) (Get
 
 	if session.DecisionID == nil || session.DecisionID.IsZero() {
 		return output, nil
+	}
+
+	// A public token is not evidence that the merchant's old mobile still
+	// belongs to the customer. A failed CRS check exposes no Offer economics.
+	if err := uc.ensureBoundSessionMobileOwnership(ctx, session); err != nil {
+		return GetExternalOutput{}, err
 	}
 
 	offer, projectErr := uc.projectPersistedOffer(ctx, session)

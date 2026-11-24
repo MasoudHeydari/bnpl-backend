@@ -66,7 +66,14 @@ func (uc *UseCase) prepareExternalOffer(
 		return expired, Offer{}, checkoutSessionExpiredError()
 	}
 
-	// Already prepared: replay without Customer Reference / Decision recreation.
+	// The persisted binding is not proof that the merchant phone still
+	// belongs to this customer. CRS revalidation is a read outside the TX;
+	// retries may reuse Decisions only after this boundary succeeds.
+	if err := uc.ensureBoundSessionMobileOwnership(ctx, session); err != nil {
+		return model.CheckoutSession{}, Offer{}, err
+	}
+
+	// Already prepared: replay without recreating the Decision/Offer.
 	if session.CustomerID != nil && session.DecisionID != nil && !session.DecisionID.IsZero() {
 		prepared, offer, err := uc.loadPreparedExternalOffer(ctx, session, now)
 		if err != nil {

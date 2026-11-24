@@ -46,7 +46,22 @@ func (uc *UseCase) ConfirmExternal(
 		return ConfirmOutput{}, err
 	}
 
-	verified, err := uc.verifyExternalOTP(ctx, input)
+	// OTP possession does not establish current CRS ownership. Resolve again
+	// outside the database transaction, even if this is an idempotent retry.
+	session, err := uc.loadExternalSessionForOTPRequest(ctx, RequestExternalOTPInput{
+		Token:                input.Token,
+		EvaluationGeneration: input.EvaluationGeneration,
+	})
+	if err != nil {
+		return ConfirmOutput{}, err
+	}
+
+	ownership, err := uc.revalidateBoundExternalMobileOwnership(ctx, session)
+	if err != nil {
+		return ConfirmOutput{}, err
+	}
+
+	verified, err := uc.verifyExternalOTP(ctx, input, ownership)
 	if err != nil {
 		return ConfirmOutput{}, err
 	}
@@ -67,6 +82,7 @@ func (uc *UseCase) ConfirmExternal(
 func (uc *UseCase) verifyExternalOTP(
 	ctx context.Context,
 	input ConfirmExternalInput,
+	expected boundExternalMobileOwnership,
 ) (verifiedExternalCheckout, error) {
 	const op = "checkoutsessionuc.UseCase.verifyExternalOTP"
 
@@ -214,6 +230,25 @@ func (uc *UseCase) verifyExternalOTP(
 						)
 					}
 
+					// The locked customer/phone must still match the preflight. CRS
+					// itself cannot be locked by this PostgreSQL transaction.
+					if locked.CustomerID == nil || *locked.CustomerID != expected.CustomerID {
+						return checkoutOTPIssuanceNotAllowedError(
+							fmt.Errorf("%s: bound customer changed after CRS preflight", op),
+						)
+					}
+
+					phone, phoneErr := uc.decryptCustomerPhone(locked)
+					if phoneErr != nil {
+						return phoneErr
+					}
+
+					if phone != expected.Phone {
+						return checkoutOTPIssuanceNotAllowedError(
+							fmt.Errorf("%s: checkout phone changed after CRS preflight", op),
+						)
+					}
+
 					rejection, err = uc.consumeOTP(ctx, tx, locked, input, consumeAuthorizer)
 					if err != nil {
 						return err
@@ -225,6 +260,17 @@ func (uc *UseCase) verifyExternalOTP(
 
 					profile, err := customerProfileQ.LockByID(ctx, *locked.CustomerID)
 					if err != nil {
+						return err
+					}
+
+					// An identity mismatch rolls back any OTP consumption in
+					// this transaction; no stale customer can reach Confirm.
+					if err := assertLockedBindingMatchesOwnership(
+						op,
+						profile.ID,
+						profile.ExternalCustomerID,
+						expected,
+					); err != nil {
 						return err
 					}
 
