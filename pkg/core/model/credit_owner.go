@@ -12,6 +12,7 @@ import (
 // Multiple CustomerProfiles may share this identity; no merchant may supply it.
 type CreditOwnerID uuid.UUID
 
+// ParseCreditOwnerID parses the stable internal credit-owner UUID.
 func ParseCreditOwnerID(raw string) (CreditOwnerID, error) {
 	parsed, err := uuid.Parse(raw)
 	if err != nil {
@@ -19,10 +20,20 @@ func ParseCreditOwnerID(raw string) (CreditOwnerID, error) {
 	}
 	return CreditOwnerID(parsed), nil
 }
-func (id CreditOwnerID) UUID() uuid.UUID              { return uuid.UUID(id) }
-func (id CreditOwnerID) String() string               { return uuid.UUID(id).String() }
-func (id CreditOwnerID) IsZero() bool                 { return uuid.UUID(id) == uuid.Nil }
+
+// UUID exposes the underlying UUID for persistence boundaries.
+func (id CreditOwnerID) UUID() uuid.UUID { return uuid.UUID(id) }
+
+// String returns the canonical credit owner identifier.
+func (id CreditOwnerID) String() string { return uuid.UUID(id).String() }
+
+// IsZero reports whether this credit owner identifier is unset.
+func (id CreditOwnerID) IsZero() bool { return uuid.UUID(id) == uuid.Nil }
+
+// MarshalText encodes the credit owner UUID as canonical text.
 func (id CreditOwnerID) MarshalText() ([]byte, error) { return uuid.UUID(id).MarshalText() }
+
+// UnmarshalText decodes a canonical UUID into this identifier.
 func (id *CreditOwnerID) UnmarshalText(raw []byte) error {
 	var v uuid.UUID
 	if err := v.UnmarshalText(raw); err != nil {
@@ -31,6 +42,8 @@ func (id *CreditOwnerID) UnmarshalText(raw []byte) error {
 	*id = CreditOwnerID(v)
 	return nil
 }
+
+// Scan reads this identifier from a database value.
 func (id *CreditOwnerID) Scan(src any) error {
 	var v uuid.UUID
 	if err := v.Scan(src); err != nil {
@@ -39,6 +52,8 @@ func (id *CreditOwnerID) Scan(src any) error {
 	*id = CreditOwnerID(v)
 	return nil
 }
+
+// Value provides a database driver representation of this identifier.
 func (id CreditOwnerID) Value() (driver.Value, error) { return uuid.UUID(id).Value() }
 
 // CreditOwner represents an Iranian legal person and is never the identity

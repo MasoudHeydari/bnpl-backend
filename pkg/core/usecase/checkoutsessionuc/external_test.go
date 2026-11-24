@@ -70,10 +70,6 @@ func withOTPAttempts(count int) func(*model.OTPChallenge) {
 	return func(c *model.OTPChallenge) { c.AttemptCount = count }
 }
 
-func withOTPNotificationAcceptedAt(at time.Time) func(*model.OTPChallenge) {
-	return func(c *model.OTPChallenge) { c.NotificationAcceptedAt = &at }
-}
-
 func withOTPVerifiedAt(at time.Time) func(*model.OTPChallenge) {
 	return func(c *model.OTPChallenge) {
 		c.VerifiedAt = &at
@@ -85,10 +81,6 @@ func withOTPVerifiedAt(at time.Time) func(*model.OTPChallenge) {
 
 func withOrigin(origin model.CheckoutSessionOrigin) func(*model.CheckoutSession) {
 	return func(s *model.CheckoutSession) { s.Origin = origin }
-}
-
-func (h *harness) approvedDecision() {
-	h.setApprovedDecisionCreateOutput()
 }
 
 // expectExternalBind expects the lookup-only bind transaction for an unbound session.

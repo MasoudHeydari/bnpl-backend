@@ -94,6 +94,12 @@ func (uc *UseCase) enrollExistingSharedCredit(
 	}
 
 	output.Result = AssignInitialLimitResultAlreadyAssigned
+	// Another account may reuse person-level capacity, not the originating
+	// account's credit assessment explanations or private decision reasons.
+	if account.CustomerID != profile.ID {
+		output.Decision.ReasonCodes = nil
+	}
+
 	if output.CreditLimit != nil {
 		output.CreditLimit.CustomerID = profile.ID
 	}

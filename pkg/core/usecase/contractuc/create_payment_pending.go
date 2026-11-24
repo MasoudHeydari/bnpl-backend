@@ -471,11 +471,3 @@ func (uc *UseCase) ensureCheckoutPaymentAttemptForFirstInstallment(
 		now,
 	)
 }
-
-func isPlausibleContractCreateConflict(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	return cerr.IsCode(err, cerr.CodeValidationFailed) || cerr.IsCode(err, cerr.CodeConflict)
-}

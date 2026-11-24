@@ -81,7 +81,10 @@ func TestSharedCreditEnrollmentReturnsExistingGrantForOtherAccount(t *testing.T)
 	decisionRepo := mock.NewDecision(t)
 	decisionQ := mock.NewDecisionTxQueryer(t)
 	decisionRepo.EXPECT().Tx(tx).Return(decisionQ).Once()
-	decisionQ.EXPECT().GetByID(ctx, decisionID).Return(model.Decision{ID: decisionID}, nil).Once()
+	decisionQ.EXPECT().GetByID(ctx, decisionID).Return(model.Decision{
+		ID:          decisionID,
+		ReasonCodes: []string{"originating_account_private_reason"},
+	}, nil).Once()
 	uc := &UseCase{sharedCredit: coordinator, decision: decisionRepo}
 
 	output, err := uc.enrollExistingSharedCredit(
@@ -95,6 +98,7 @@ func TestSharedCreditEnrollmentReturnsExistingGrantForOtherAccount(t *testing.T)
 	require.NoError(t, err)
 	require.NotNil(t, output)
 	require.Equal(t, AssignInitialLimitResultAlreadyAssigned, output.Result)
+	require.Empty(t, output.Decision.ReasonCodes, "account B must not receive account A assessment reasons")
 	require.NotNil(t, output.CreditLimit)
 	require.Equal(t, otherID, output.CreditLimit.CustomerID)
 	require.Equal(t, originID, coordinator.account.CustomerID, "original grant must not change owner account")

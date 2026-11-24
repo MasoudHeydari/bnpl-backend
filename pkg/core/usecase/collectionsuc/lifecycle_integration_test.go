@@ -245,7 +245,7 @@ func TestPostgreSQLCollections_TransactionRollback(t *testing.T) {
 
 func TestPostgreSQLCollections_RecoveryRollbackAndRestrictionIdentity(t *testing.T) {
 	f := newCollectionsFixture(t)
-	ctx, uc, now, exec, scalar, seed := f.ctx, f.uc, f.now, f.exec, f.scalar, f.seed
+	ctx, uc, now, scalar, seed := f.ctx, f.uc, f.now, f.scalar, f.seed
 
 	customer, installment := seed(t)
 	opened, e := uc.AssessCustomer(ctx, customer)
