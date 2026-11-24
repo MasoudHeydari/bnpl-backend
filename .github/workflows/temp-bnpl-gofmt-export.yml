@@ -1,0 +1,34 @@
+name: Temporary BNPL GoFmt Audit
+
+on:
+  pull_request:
+    branches: [feat/dual-credit-collection-v2-20261117]
+    paths:
+      - .github/workflows/temp-bnpl-gofmt-export.yml
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    if: github.head_ref == 'feat/person-shared-credit-v1-20261124'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Export gofmt canonical files
+        run: |
+          files=(
+            pkg/core/usecase/checkoutsessionuc/external_confirm_replay_test.go
+            pkg/core/usecase/checkoutsessionuc/external_test.go
+            pkg/core/usecase/collectionsuc/lifecycle_integration_test.go
+          )
+          gofmt -w "${files[@]}"
+          for file in "${files[@]}"; do
+            echo "BNPL_FMT_START:${file}"
+            base64 -w120 "$file"
+            echo "BNPL_FMT_END:${file}"
+          done
