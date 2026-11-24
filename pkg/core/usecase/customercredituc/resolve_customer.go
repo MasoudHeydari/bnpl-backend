@@ -15,8 +15,9 @@ import (
 // through Customer Reference Service outside any DB transaction, and returns
 // the CRS customer_id only when status is ACTIVE.
 //
-// That CRS id is persisted as customer_profiles.external_customer_id and is the
-// subject key for initial-credit policy assignments (including trusted v2).
+// That stable CRS id is persisted as customer_profiles.external_customer_id.
+// The legal-person national code determines the CreditOwner policy scope;
+// trusted membership is checked against the authenticated mobile and CRS.
 type resolvedCustomerIdentity struct {
 	ExternalCustomerID model.ExternalCustomerID
 	NationalCode       string

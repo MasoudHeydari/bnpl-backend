@@ -109,7 +109,7 @@ or issue policy assignments.
 
 Shortcut: `make policy-assignment-import-trusted` (defaults:
 `POLICY_ASSIGNMENT_FILE=assets/csv/trusted-customers/trusted-customers.csv`,
-`POLICY_ASSIGNMENT_ACTOR=ops@example`).
+`POLICY_ASSIGNMENT_ACTOR` is set by the operator (defaults are in `Makefile`).
 
 The CSV contains **exactly two required columns**, in this order. Leading
 zeros in `national_id` must be retained; process this as text, not a number.

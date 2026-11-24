@@ -1,0 +1,28 @@
+name: Temporary BNPL make test-all verification
+
+on:
+  pull_request:
+    branches: [feat/dual-credit-collection-v2-20261117]
+    paths:
+      - .github/workflows/temp-test-all.yml
+
+permissions:
+  contents: read
+
+jobs:
+  full-test:
+    if: github.head_ref == 'feat/person-shared-credit-v1-20261124'
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install pinned gotestsum
+        run: go install gotest.tools/gotestsum@v1.13.0
+      - name: Run required make test-all (unit and isolated PostgreSQL integration)
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: "true"
+        run: make test-all GOTESTSUM="$(go env GOPATH)/bin/gotestsum"
