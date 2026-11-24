@@ -18,7 +18,13 @@ type CreditOwnerPolicyAssignmentQueryer interface {
 // GetActiveCustomerOrOwnerPolicy preserves legacy explicit customer assignments
 // when the legal person has no governing assignment. Once a person is admitted
 // to the trusted cohort, their policy is shared across every enrolled account.
-func GetActiveCustomerOrOwnerPolicy(ctx context.Context, q PolicyAssignmentQueryer, customer model.ExternalCustomerID, family model.PolicyFamily, now time.Time) (model.PolicyAssignment, error) {
+func GetActiveCustomerOrOwnerPolicy(
+	ctx context.Context,
+	q PolicyAssignmentQueryer,
+	customer model.ExternalCustomerID,
+	family model.PolicyFamily,
+	now time.Time,
+) (model.PolicyAssignment, error) {
 	if ownerQ, ok := q.(CreditOwnerPolicyAssignmentQueryer); ok {
 		row, err := ownerQ.GetActiveForCreditOwner(ctx, customer, family, now)
 		if err == nil {
@@ -30,5 +36,11 @@ func GetActiveCustomerOrOwnerPolicy(ctx context.Context, q PolicyAssignmentQuery
 		}
 	}
 
-	return q.GetActive(ctx, model.CustomerPolicySubjectType, customer.String(), family, now)
+	return q.GetActive(
+		ctx,
+		model.CustomerPolicySubjectType,
+		customer.String(),
+		family,
+		now,
+	)
 }

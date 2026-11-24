@@ -22,10 +22,23 @@ func (noExistingSharedCredit) LockOwnerByCustomer(context.Context, repo.Tx, mode
 	return fixtureCreditOwnerID, nil
 }
 
-func (noExistingSharedCredit) LockByOwnerAndKind(context.Context, repo.Tx, model.CreditOwnerID, model.Currency, model.CreditKind) (model.CreditAccount, error) {
+func (noExistingSharedCredit) LockByOwnerAndKind(
+	context.Context,
+	repo.Tx,
+	model.CreditOwnerID,
+	model.Currency,
+	model.CreditKind,
+) (model.CreditAccount, error) {
 	return model.CreditAccount{}, cerr.ResourceNotFound(errors.New("no existing shared credit"))
 }
 
-func (noExistingSharedCredit) EnrollCustomer(context.Context, repo.Tx, model.CustomerID, model.CreditAccountID, model.CreditOwnerID, time.Time) (bool, error) {
+func (noExistingSharedCredit) EnrollCustomer(
+	context.Context,
+	repo.Tx,
+	model.CustomerID,
+	model.CreditAccountID,
+	model.CreditOwnerID,
+	time.Time,
+) (bool, error) {
 	return false, errors.New("unexpected enrollment: grant is not found")
 }

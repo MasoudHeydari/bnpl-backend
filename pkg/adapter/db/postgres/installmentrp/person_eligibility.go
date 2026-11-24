@@ -36,6 +36,13 @@ func hasDueUnpaidForCreditOwner[Q postgres.Queryer](ctx context.Context, q Q, cu
     ) AS due`
 	result, err := postgres.QueryOne[struct {
 		Due bool `db:"due"`
-	}](ctx, q, "person has due unpaid installments", query, customer, asOf)
+	}](
+		ctx,
+		q,
+		"person has due unpaid installments",
+		query,
+		customer,
+		asOf,
+	)
 	return result.Due, err
 }

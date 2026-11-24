@@ -40,7 +40,13 @@ func (s trustedMobileStub) GetByMobile(_ context.Context, mobile string) (model.
 	}, nil
 }
 
-func (trustedMobileStub) InsertIfAbsent(context.Context, string, string, string, time.Time) (bool, error) {
+func (trustedMobileStub) InsertIfAbsent(
+	context.Context,
+	string,
+	string,
+	string,
+	time.Time,
+) (bool, error) {
 	return false, errors.New("unexpected trusted CSV write during credit assignment")
 }
 

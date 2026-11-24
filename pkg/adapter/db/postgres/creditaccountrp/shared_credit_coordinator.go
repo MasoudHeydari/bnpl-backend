@@ -32,7 +32,13 @@ func (*SharedCoordinator) LockOwnerByCustomer(
 	const query = `SELECT co.id FROM credit_owners co
         JOIN customer_profiles cp ON cp.credit_owner_id = co.id
         WHERE cp.id=$1 FOR UPDATE OF co`
-	row, err := postgres.QueryOne[result](ctx, postgres.MustTx(tx), "lock credit owner", query, customerID)
+	row, err := postgres.QueryOne[result](
+		ctx,
+		postgres.MustTx(tx),
+		"lock credit owner",
+		query,
+		customerID,
+	)
 	if err != nil {
 		return model.CreditOwnerID{}, fmt.Errorf("%s: lock legal person: %w", op, err)
 	}
@@ -62,5 +68,11 @@ func (*SharedCoordinator) EnrollCustomer(
 	at time.Time,
 ) (bool, error) {
 	q := txQueryer{Tx: postgres.MustTx(tx)}
-	return q.EnrollCustomer(ctx, customerID, accountID, ownerID, at)
+	return q.EnrollCustomer(
+		ctx,
+		customerID,
+		accountID,
+		ownerID,
+		at,
+	)
 }

@@ -1,0 +1,38 @@
+name: Temporary BNPL Mockery Generation Audit
+
+on:
+  pull_request:
+    branches: [feat/dual-credit-collection-v2-20261117]
+    paths:
+      - .github/workflows/mockery-regenerate.yml
+      - pkg/core/repo/customer_profilerp.go
+
+permissions:
+  contents: read
+
+jobs:
+  regenerate:
+    if: github.head_ref == 'feat/person-shared-credit-v1-20261124'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install project's pinned mockery generator
+        run: go install github.com/vektra/mockery/v3@v3.7.1
+
+      - name: Regenerate mocks from the repository configuration
+        run: "$(go env GOPATH)/bin/mockery"
+
+      - name: Capture generated CustomerProfile mock for review
+        run: |
+          echo 'BNPL_MOCKERY_BEGIN'
+          base64 -w120 pkg/core/mock/mock_repo_CustomerProfileTxQueryer.go
+          echo
+          echo 'BNPL_MOCKERY_END'
+          git diff --stat -- pkg/core/mock

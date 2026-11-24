@@ -59,7 +59,16 @@ func (c *enrollmentCoordinator) EnrollCustomer(
 
 func TestSharedCreditEnrollmentReturnsExistingGrantForOtherAccount(t *testing.T) {
 	ctx := context.Background()
-	now := time.Date(2026, 11, 24, 9, 0, 0, 0, time.UTC)
+	now := time.Date(
+		2026,
+		11,
+		24,
+		9,
+		0,
+		0,
+		0,
+		time.UTC,
+	)
 	ownerID := model.CreditOwnerID(uuid.New())
 	originID := model.CustomerID(uuid.New())
 	otherID := model.CustomerID(uuid.New())
@@ -108,7 +117,16 @@ func TestSharedCreditEnrollmentReturnsExistingGrantForOtherAccount(t *testing.T)
 
 func TestOtherAccountCannotRenewExpiredSharedCredit(t *testing.T) {
 	ctx := context.Background()
-	now := time.Date(2026, 11, 24, 9, 0, 0, 0, time.UTC)
+	now := time.Date(
+		2026,
+		11,
+		24,
+		9,
+		0,
+		0,
+		0,
+		time.UTC,
+	)
 	ownerID := model.CreditOwnerID(uuid.New())
 	originID := model.CustomerID(uuid.New())
 	otherID := model.CustomerID(uuid.New())

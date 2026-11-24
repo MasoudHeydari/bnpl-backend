@@ -22,12 +22,26 @@ func (q txQueryer) LockByCreditOwnerAndKind(ctx context.Context, owner model.Cre
 FROM credit_accounts
 WHERE credit_owner_id = $1 AND currency = $2 AND credit_kind = $3
 FOR UPDATE`
-	return postgres.QueryOne[model.CreditAccount](ctx, q.Tx, "lock shared credit account", query, owner, currency, kind)
+	return postgres.QueryOne[model.CreditAccount](
+		ctx,
+		q.Tx,
+		"lock shared credit account",
+		query,
+		owner,
+		currency,
+		kind,
+	)
 }
 
 // EnrollCustomer only creates permission to use existing capacity. PostgreSQL
 // composite FKs ensure that this customer and credit account have one owner.
-func (q txQueryer) EnrollCustomer(ctx context.Context, customerID model.CustomerID, accountID model.CreditAccountID, ownerID model.CreditOwnerID, now time.Time) (bool, error) {
+func (q txQueryer) EnrollCustomer(
+	ctx context.Context,
+	customerID model.CustomerID,
+	accountID model.CreditAccountID,
+	ownerID model.CreditOwnerID,
+	now time.Time,
+) (bool, error) {
 	if customerID.IsZero() || accountID.IsZero() || ownerID.IsZero() {
 		return false, cerr.InvalidArgument(fmt.Errorf("credit enrollment requires customer, account and owner"))
 	}
@@ -39,7 +53,14 @@ func (q txQueryer) EnrollCustomer(ctx context.Context, customerID model.Customer
 	const query = `INSERT INTO customer_credit_enrollments (customer_id, credit_account_id, credit_owner_id, enrolled_at)
 VALUES ($1,$2,$3,$4)
 ON CONFLICT (customer_id,credit_account_id) DO NOTHING`
-	n, err := q.Exec(ctx, query, customerID, accountID, ownerID, now)
+	n, err := q.Exec(
+		ctx,
+		query,
+		customerID,
+		accountID,
+		ownerID,
+		now,
+	)
 	if err != nil {
 		return false, fmt.Errorf("enroll customer credit: %w", postgres.MapError(err))
 	}
@@ -55,7 +76,15 @@ ON CONFLICT (customer_id,credit_account_id) DO NOTHING`
 			Matches bool `db:"matches"`
 		}
 
-		row, err := postgres.QueryOne[result](ctx, q.Tx, "check existing enrollment", ownerLookup, customerID, accountID, ownerID)
+		row, err := postgres.QueryOne[result](
+			ctx,
+			q.Tx,
+			"check existing enrollment",
+			ownerLookup,
+			customerID,
+			accountID,
+			ownerID,
+		)
 		if err != nil {
 			return false, err
 		}

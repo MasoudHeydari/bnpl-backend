@@ -51,7 +51,13 @@ func grantTrustedOwnerPolicies(ctx context.Context, q repo.PolicyAssignmentTxQue
 	for _, target := range policy.TrustedCustomerBundle() {
 		// The owner row is already locked in all initial assignments.
 		// No process may reassign someone else's owner policy implicitly.
-		existing, err := q.GetActive(ctx, model.CreditOwnerPolicySubjectType, owner.String(), target.Family, now)
+		existing, err := q.GetActive(
+			ctx,
+			model.CreditOwnerPolicySubjectType,
+			owner.String(),
+			target.Family,
+			now,
+		)
 		if err == nil {
 			if existing.PolicyID != target.Ref.ID || existing.PolicyVersion != target.Ref.Version {
 				return cerr.Conflict(fmt.Errorf("existing legal-person policy cannot be overwritten by trusted enrollment"))
@@ -64,9 +70,20 @@ func grantTrustedOwnerPolicies(ctx context.Context, q repo.PolicyAssignmentTxQue
 			return err
 		}
 
-		_, err = q.Create(ctx, model.CreditOwnerPolicySubjectType, owner.String(), target.Family,
-			target.Ref.ID, target.Ref.Version, "trusted_mobile_national_id_verified", "trusted_mobile_import", now,
-			"bnpl", now, now)
+		_, err = q.Create(
+			ctx,
+			model.CreditOwnerPolicySubjectType,
+			owner.String(),
+			target.Family,
+			target.Ref.ID,
+			target.Ref.Version,
+			"trusted_mobile_national_id_verified",
+			"trusted_mobile_import",
+			now,
+			"bnpl",
+			now,
+			now,
+		)
 		if err != nil {
 			return err
 		}

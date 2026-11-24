@@ -26,6 +26,12 @@ func (absentTrustedMobile) GetByMobile(context.Context, string) (model.TrustedMo
 	return model.TrustedMobileNumber{}, cerr.ResourceNotFound(errors.New("trusted mobile not imported"))
 }
 
-func (absentTrustedMobile) InsertIfAbsent(context.Context, string, string, string, time.Time) (bool, error) {
+func (absentTrustedMobile) InsertIfAbsent(
+	context.Context,
+	string,
+	string,
+	string,
+	time.Time,
+) (bool, error) {
 	return false, errors.New("test-only trusted registry is read only")
 }

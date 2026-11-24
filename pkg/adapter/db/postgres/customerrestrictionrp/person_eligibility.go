@@ -21,5 +21,12 @@ func listActiveForCreditOwner[Q postgres.Queryer](ctx context.Context, q Q, cust
 	const query = `SELECT ` + restrictionColumns + ` FROM customer_restrictions
     WHERE credit_owner_id=(SELECT credit_owner_id FROM customer_profiles WHERE id=$1)
       AND status=$2 ORDER BY applied_at,id`
-	return postgres.QueryAll[model.CustomerRestriction](ctx, q, "list legal person credit restrictions", query, customer, model.ActiveCustomerRestrictionStatus)
+	return postgres.QueryAll[model.CustomerRestriction](
+		ctx,
+		q,
+		"list legal person credit restrictions",
+		query,
+		customer,
+		model.ActiveCustomerRestrictionStatus,
+	)
 }

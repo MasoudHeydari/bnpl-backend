@@ -731,7 +731,6 @@ CREATE TABLE IF NOT EXISTS customer_credit_enrollments (
     credit_owner_id uuid NOT NULL,
     enrolled_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (customer_id, credit_account_id),
-    CONSTRAINT uq_customer_credit_enrollments_customer_kind UNIQUE (customer_id, credit_account_id),
     CONSTRAINT fk_enrollments_customer_owner FOREIGN KEY (customer_id, credit_owner_id) REFERENCES customer_profiles (id, credit_owner_id),
     CONSTRAINT fk_enrollments_credit_owner FOREIGN KEY (credit_account_id, credit_owner_id) REFERENCES credit_accounts (id, credit_owner_id)
 );
@@ -1536,7 +1535,11 @@ BEGIN
           JOIN credit_accounts ca ON ca.id = e.credit_account_id
          WHERE e.customer_id = NEW.customer_id
            AND e.credit_owner_id = (SELECT credit_owner_id FROM customer_profiles WHERE id = NEW.customer_id)
+           AND ca.currency = NEW.currency
+           AND ca.credit_kind = NEW.credit_kind
            AND ca.status = 'active'
+           AND ca.effective_from <= statement_timestamp()
+           AND (ca.expires_at IS NULL OR ca.expires_at > statement_timestamp())
     ) THEN
         RETURN NEW;
     END IF;

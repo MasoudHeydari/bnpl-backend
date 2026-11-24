@@ -23,6 +23,12 @@ func hasActiveForOwner[Q postgres.Queryer](ctx context.Context, q Q, customer mo
         AND status='active') AS active`
 	result, err := postgres.QueryOne[struct {
 		Active bool `db:"active"`
-	}](ctx, q, "legal person has active default", sql, customer)
+	}](
+		ctx,
+		q,
+		"legal person has active default",
+		sql,
+		customer,
+	)
 	return result.Active, err
 }

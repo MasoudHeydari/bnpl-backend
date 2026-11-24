@@ -11,6 +11,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/require"
+
+	"github.com/parstis/bnpl-backend/pkg/core/model"
 )
 
 // TestCreditOwnerCheckoutClaimIsExclusive proves that two phone accounts for
@@ -28,14 +30,27 @@ WHERE cp.id=$1 LIMIT 1`, f.customer).Scan(&ownerID, &externalMerchantID, &mercha
 	require.NoError(t, err)
 
 	branchID := uuid.New()
-	f.exec(t, `INSERT INTO merchant_branch_profiles
+	f.exec(
+		t,
+		`INSERT INTO merchant_branch_profiles
 (id,external_merchant_id,external_branch_id,branch_type,status,jurisdiction)
-VALUES($1,$2,$3,'online','active','IR')`, branchID, externalMerchantID, uuid.New())
+VALUES($1,$2,$3,'online','active','IR')`,
+		branchID,
+		externalMerchantID,
+		uuid.New(),
+	)
 
 	secondCustomerID := uuid.New()
-	f.exec(t, `INSERT INTO customer_profiles
+	f.exec(
+		t,
+		`INSERT INTO customer_profiles
 (id,external_subject_id,external_customer_id,credit_owner_id,jurisdiction,status)
-VALUES($1,$2,$3,$4,'IR','active')`, secondCustomerID, uuid.New(), uuid.New(), ownerID)
+VALUES($1,$2,$3,$4,'IR','active')`,
+		secondCustomerID,
+		uuid.New(),
+		uuid.New(),
+		ownerID,
+	)
 	var creditAccountID uuid.UUID
 	err = f.pool.Pool.QueryRow(ctx, `
 SELECT id FROM credit_accounts WHERE customer_id=$1`, f.customer).Scan(&creditAccountID)
@@ -57,23 +72,31 @@ VALUES ($1, 'IRR', 'pay_in_installments', 'active', now())`, secondCustomerID)
 	require.Equal(t, "uq_credit_accounts_owner_currency_kind", duplicateCredit.ConstraintName)
 
 	// B explicitly requests access to the existing person credit.
-	f.exec(t, `INSERT INTO customer_credit_enrollments
-(customer_id,credit_account_id,credit_owner_id) VALUES($1,$2,$3)`, secondCustomerID, creditAccountID, ownerID)
+	f.exec(
+		t,
+		`INSERT INTO customer_credit_enrollments
+(customer_id,credit_account_id,credit_owner_id) VALUES($1,$2,$3)`,
+		secondCustomerID,
+		creditAccountID,
+		ownerID,
+	)
 	err = f.pool.Pool.QueryRow(ctx, `
 SELECT credit_account_id FROM customer_credit_enrollments WHERE customer_id=$1`, secondCustomerID).Scan(&enrolledCredit)
 	require.NoError(t, err)
 	require.Equal(t, creditAccountID, enrolledCredit)
 
-	newCheckout := func(customerID uuid.UUID, label string) error {
+	newCheckout := func(customerID uuid.UUID, label string, kind model.CreditKind) error {
 		const op = "invariants.TestCreditOwnerCheckoutClaimIsExclusive.newCheckout"
 		publicToken := "cs_" + strings.Repeat(label, 64)
-		_, err := f.pool.Pool.Exec(ctx, `
+		_, err := f.pool.Pool.Exec(
+			ctx,
+			`
 INSERT INTO checkout_sessions (
  public_token,origin,merchant_profile_id,merchant_branch_profile_id,
  external_online_store_id,idempotency_key,merchant_order_id,customer_id,
  return_destination,return_url,requested_amount_minor,currency,status,expires_at,credit_kind
 ) VALUES($1,'external_partner',$2,$3,$4,$5,$6,$7,'merchant','https://example.test/return',
- 1000000,'IRR','open',now()+interval '30 minutes','pay_in_installments')`,
+ 1000000,'IRR','open',now()+interval '30 minutes',$8)`,
 			publicToken,
 			merchantID,
 			branchID,
@@ -81,6 +104,7 @@ INSERT INTO checkout_sessions (
 			fmt.Sprintf("checkout-%s", label),
 			fmt.Sprintf("order-%s", label),
 			customerID,
+			kind,
 		)
 		if err != nil {
 			return fmt.Errorf("%s: insert checkout session: %w", op, err)
@@ -89,7 +113,18 @@ INSERT INTO checkout_sessions (
 		return nil
 	}
 
-	require.NoError(t, newCheckout(f.customer, "a"))
+	// A Checkout that asks for an unenrolled credit kind must not reserve the
+	// entire legal person's purchase slot.
+	require.NoError(t, newCheckout(secondCustomerID, "c", model.PayNextMonthCreditKind))
+	var monthlyClaims int
+	err = f.pool.Pool.QueryRow(ctx, `SELECT count(*) FROM credit_owner_checkout_claims
+WHERE checkout_session_id = (SELECT id FROM checkout_sessions WHERE public_token=$1)`,
+		"cs_"+strings.Repeat("c", 64),
+	).Scan(&monthlyClaims)
+	require.NoError(t, err)
+	require.Zero(t, monthlyClaims)
+
+	require.NoError(t, newCheckout(f.customer, "a", model.PayInInstallmentsCreditKind))
 
 	// Even the schema owner must not be able to release a live claim by an
 	// UPDATE that bypasses the hosted Checkout state transition.
@@ -97,7 +132,7 @@ INSERT INTO checkout_sessions (
 SET released_at = now() WHERE credit_owner_id = $1 AND released_at IS NULL`, ownerID)
 	assertViolation(t, err, "23514")
 
-	err = newCheckout(secondCustomerID, "b")
+	err = newCheckout(secondCustomerID, "b", model.PayInInstallmentsCreditKind)
 	require.Error(t, err)
 	var pgError *pgconn.PgError
 	require.ErrorAs(t, err, &pgError)
@@ -114,7 +149,7 @@ WHERE public_token=$1`, "cs_"+strings.Repeat("a", 64))
 WHERE credit_owner_id=$1 AND released_at IS NOT NULL`, ownerID).Scan(&releasedCount)
 	require.NoError(t, err)
 	require.Equal(t, 1, releasedCount, "terminal claim history must be retained")
-	require.NoError(t, newCheckout(secondCustomerID, "b"))
+	require.NoError(t, newCheckout(secondCustomerID, "b", model.PayInInstallmentsCreditKind))
 }
 
 // TestTrustedMobileNationalIDCannotChange ensures that neither the original
