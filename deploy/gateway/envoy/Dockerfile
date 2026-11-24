@@ -1,4 +1,4 @@
-FROM envoyproxy/envoy:v1.40.2
+FROM docker.arvancloud.ir/envoyproxy/envoy:v1.40.2
 USER root
 COPY envoy.yaml /etc/envoy/envoy.template.yaml
 COPY entrypoint.sh /usr/local/bin/dpay-envoy-entrypoint.sh

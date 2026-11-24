@@ -115,8 +115,6 @@ static_resources:
                           # Response
                           response_code: "%RESPONSE_CODE%"
                           response_status_text: "%DYNAMIC_METADATA(envoy.filters.http.lua:response_status_text)%"
-                          response_body_capture_state: "%DYNAMIC_METADATA(envoy.filters.http.lua:response_body_capture_state)%"
-                          response_body_truncated: "%DYNAMIC_METADATA(envoy.filters.http.lua:response_body_truncated)%"
                           response_code_details: "%RESPONSE_CODE_DETAILS%"
                           response_flags: "%RESPONSE_FLAGS%"
 
@@ -687,6 +685,27 @@ static_resources:
                               regex: ^/api/v[0-9]+/merchant-guest(/.*)?$
                           requires:
                             allow_missing_or_failed: {}
+                        # Public Identity ceremonies: exact v1 paths and POST only.
+                        - match:
+                            safe_regex:
+                              regex: '^/api/v1/auth/passkeys/login/(options|verify)$'
+                            headers:
+                              - name: ":method"
+                                string_match:
+                                  exact: POST
+                        - match:
+                            path: /api/v1/auth/phone-recoveries
+                            headers:
+                              - name: ":method"
+                                string_match:
+                                  exact: POST
+                        - match:
+                            safe_regex:
+                              regex: '^/api/v1/auth/phone-recoveries/[^/]+/(verify-email|start-new-phone|verify-new-phone)$'
+                            headers:
+                              - name: ":method"
+                                string_match:
+                                  exact: POST
                         - match:
                             prefix: /api/
                           requires:
@@ -797,17 +816,6 @@ static_resources:
                             )
                           end
 
-                          local function signup_or_guest_path(path)
-                            local bare = string.match(path or "", "^[^?]*")
-                            if bare == nil then
-                              return false
-                            end
-                            return string.match(bare, "^/api/v%d+/merchant%-signup$") ~= nil
-                              or string.match(bare, "^/api/v%d+/merchant%-signup/") ~= nil
-                              or string.match(bare, "^/api/v%d+/merchant%-guest$") ~= nil
-                              or string.match(bare, "^/api/v%d+/merchant%-guest/") ~= nil
-                          end
-
                           -- Customer credit APIs resolve the BNPL customer through
                           -- Customer Reference Service using the authenticated mobile.
                           -- Header name stays in the x-auth-* family (gateway-injected
@@ -824,16 +832,6 @@ static_resources:
                             -- Request bodies are not read or logged: they carry passwords, OTP codes
                             -- and identity numbers, and buffering them breaks document uploads.
                             local headers = request_handle:headers()
-
-                            -- Signup and guest JSON responses can carry an applicant credential,
-                            -- a TOTP secret, or recovery codes. Do not copy those bodies into the log.
-                            if signup_or_guest_path(headers:get(":path")) then
-                              request_handle:streamInfo():dynamicMetadata():set(
-                                "envoy.filters.http.lua",
-                                "response_body_capture_state",
-                                "skipped_signup_guest"
-                              )
-                            end
 
                             -- Caller-supplied trusted headers are never forwarded.
                             remove_trusted_headers(headers)
@@ -1088,43 +1086,6 @@ static_resources:
                             local headers = response_handle:headers()
                             local status = headers:get(":status")
                             metadata:set(namespace, "response_status_text", http_status_text[status] or "Unknown")
-                            local prior = metadata:get(namespace)
-                            if prior ~= nil and prior["response_body_capture_state"] == "skipped_signup_guest" then
-                              return
-                            end
-                            -- Development-only: raw response previews can include personal data/tokens.
-                            -- Do not enable response-body logging in a production gateway.
-                            local content_type = string.lower(headers:get("content-type") or "")
-                            local content_encoding = string.lower(headers:get("content-encoding") or "")
-                            local is_json = string.find(content_type, "application/json", 1, true)
-                              or string.find(content_type, "+json", 1, true)
-                            if not is_json then
-                              metadata:set(namespace, "response_body_capture_state", "skipped_non_json")
-                              return
-                            end
-                            -- Compressed response bytes are not readable JSON at this Lua filter.
-                            if content_encoding ~= "" and content_encoding ~= "identity" then
-                              metadata:set(namespace, "response_body_capture_state", "skipped_compressed")
-                              return
-                            end
-                            -- Stream without buffering the whole response; retain at most 4096 bytes.
-                            local max_bytes = 4096
-                            local captured_bytes = 0
-                            local total_bytes = 0
-                            local pieces = {}
-                            for chunk in response_handle:bodyChunks() do
-                              local length = chunk:length()
-                              total_bytes = total_bytes + length
-                              local available = max_bytes - captured_bytes
-                              local take = math.min(length, available)
-                              if take > 0 then
-                                pieces[#pieces + 1] = chunk:getBytes(0, take)
-                                captured_bytes = captured_bytes + take
-                              end
-                            end
-                            metadata:set(namespace, "response_body", table.concat(pieces))
-                            metadata:set(namespace, "response_body_truncated", total_bytes > max_bytes)
-                            metadata:set(namespace, "response_body_capture_state", "captured")
                           end
 
                   - name: envoy.filters.http.router
