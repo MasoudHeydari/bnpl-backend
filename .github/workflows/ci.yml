@@ -78,7 +78,8 @@ jobs:
     name: Go vulnerability check
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: lint
+    # Vulnerability discovery must not be skipped because lint has existing debt.
+    # Both checks continue to report independently; lint remains a failing gate.
     steps:
       - uses: actions/checkout@v4
 
@@ -210,7 +211,7 @@ jobs:
     name: Security scan (gosec)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: lint
+    # Report security findings even when the independent lint job is red.
     permissions:
       contents: read
       security-events: write

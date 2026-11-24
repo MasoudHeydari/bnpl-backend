@@ -268,29 +268,29 @@ func (uc *UseCase) verifyExternalOTP(
 						return err
 					}
 
-					if rejection != nil {
-						return nil
-					}
+					// A rejected code must commit its attempt counter. Do not
+					// treat the semantic rejection as a transaction error.
+					if rejection == nil {
+						profile, err := customerProfileQ.LockByID(ctx, *locked.CustomerID)
+						if err != nil {
+							return err
+						}
 
-					profile, err := customerProfileQ.LockByID(ctx, *locked.CustomerID)
-					if err != nil {
-						return err
-					}
+						// An identity mismatch rolls back any OTP consumption in
+						// this transaction; no stale customer can reach Confirm.
+						if err := assertLockedBindingMatchesOwnership(
+							op,
+							profile.ID,
+							profile.ExternalCustomerID,
+							expected,
+						); err != nil {
+							return err
+						}
 
-					// An identity mismatch rolls back any OTP consumption in
-					// this transaction; no stale customer can reach Confirm.
-					if err := assertLockedBindingMatchesOwnership(
-						op,
-						profile.ID,
-						profile.ExternalCustomerID,
-						expected,
-					); err != nil {
-						return err
-					}
-
-					verified = verifiedExternalCheckout{
-						sessionID:          locked.ID,
-						externalCustomerID: profile.ExternalCustomerID,
+						verified = verifiedExternalCheckout{
+							sessionID:          locked.ID,
+							externalCustomerID: profile.ExternalCustomerID,
+						}
 					}
 
 					return nil
