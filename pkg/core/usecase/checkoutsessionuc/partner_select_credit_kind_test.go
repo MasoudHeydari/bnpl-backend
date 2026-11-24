@@ -12,6 +12,13 @@ import (
 func TestSelectCreditKind_FirstSelectionDoesNotBumpGeneration(t *testing.T) {
 	h := newHarness(t)
 	h.expectPool(0, 1)
+	h.merchantCQ.EXPECT().
+		GetByID(h.ctx, h.merchantPID).
+		Return(model.MerchantProfile{
+			ID:                 h.merchantPID,
+			ExternalMerchantID: h.merchantID,
+			Status:             model.ActiveMerchantStatus,
+		}, nil).Once()
 
 	open := h.session(func(s *model.CheckoutSession) {
 		s.CreditKind = ""
@@ -21,6 +28,9 @@ func TestSelectCreditKind_FirstSelectionDoesNotBumpGeneration(t *testing.T) {
 	selected := open
 	selected.CreditKind = model.PayInInstallmentsCreditKind
 
+	h.sessionCQ.EXPECT().
+		GetByPublicToken(h.ctx, h.publicToken).
+		Return(open, nil).Once()
 	h.sessionTx.EXPECT().
 		LockByPublicToken(h.ctx, h.publicToken).
 		Return(open, nil).Once()
@@ -57,12 +67,22 @@ func TestSelectCreditKind_FirstSelectionDoesNotBumpGeneration(t *testing.T) {
 func TestSelectCreditKind_SameKindIsIdempotent(t *testing.T) {
 	h := newHarness(t)
 	h.expectPool(0, 1)
+	h.merchantCQ.EXPECT().
+		GetByID(h.ctx, h.merchantPID).
+		Return(model.MerchantProfile{
+			ID:                 h.merchantPID,
+			ExternalMerchantID: h.merchantID,
+			Status:             model.ActiveMerchantStatus,
+		}, nil).Once()
 
 	open := h.session(func(s *model.CheckoutSession) {
 		s.CreditKind = model.PayInInstallmentsCreditKind
 		s.OfferPreparationMode = model.OfferPreparationOnStart
 	})
 
+	h.sessionCQ.EXPECT().
+		GetByPublicToken(h.ctx, h.publicToken).
+		Return(open, nil).Once()
 	h.sessionTx.EXPECT().
 		LockByPublicToken(h.ctx, h.publicToken).
 		Return(open, nil).Once()
@@ -89,6 +109,13 @@ func TestSelectCreditKind_SameKindIsIdempotent(t *testing.T) {
 func TestSelectCreditKind_ReplaceApprovedDecisionBumpsOnce(t *testing.T) {
 	h := newHarness(t)
 	h.expectPool(0, 1)
+	h.merchantCQ.EXPECT().
+		GetByID(h.ctx, h.merchantPID).
+		Return(model.MerchantProfile{
+			ID:                 h.merchantPID,
+			ExternalMerchantID: h.merchantID,
+			Status:             model.ActiveMerchantStatus,
+		}, nil).Once()
 
 	decisionID := h.decisionID
 	open := h.session(func(s *model.CheckoutSession) {
@@ -103,6 +130,9 @@ func TestSelectCreditKind_ReplaceApprovedDecisionBumpsOnce(t *testing.T) {
 	replaced.DecisionID = nil
 	replaced.EvaluationGeneration = 2
 
+	h.sessionCQ.EXPECT().
+		GetByPublicToken(h.ctx, h.publicToken).
+		Return(open, nil).Once()
 	h.sessionTx.EXPECT().
 		LockByPublicToken(h.ctx, h.publicToken).
 		Return(open, nil).Once()
@@ -139,6 +169,13 @@ func TestSelectCreditKind_ReplaceApprovedDecisionBumpsOnce(t *testing.T) {
 func TestSelectCreditKind_StaleExpectedGenerationConflicts(t *testing.T) {
 	h := newHarness(t)
 	h.expectPool(0, 1)
+	h.merchantCQ.EXPECT().
+		GetByID(h.ctx, h.merchantPID).
+		Return(model.MerchantProfile{
+			ID:                 h.merchantPID,
+			ExternalMerchantID: h.merchantID,
+			Status:             model.ActiveMerchantStatus,
+		}, nil).Once()
 
 	open := h.session(func(s *model.CheckoutSession) {
 		s.CreditKind = model.PayNextMonthCreditKind
@@ -146,6 +183,9 @@ func TestSelectCreditKind_StaleExpectedGenerationConflicts(t *testing.T) {
 		s.OfferPreparationMode = model.OfferPreparationOnStart
 	})
 
+	h.sessionCQ.EXPECT().
+		GetByPublicToken(h.ctx, h.publicToken).
+		Return(open, nil).Once()
 	h.sessionTx.EXPECT().
 		LockByPublicToken(h.ctx, h.publicToken).
 		Return(open, nil).Once()
@@ -169,9 +209,19 @@ func TestSelectCreditKind_StaleExpectedGenerationConflicts(t *testing.T) {
 func TestSelectCreditKind_RejectsConfirmingSession(t *testing.T) {
 	h := newHarness(t)
 	h.expectPool(0, 1)
+	h.merchantCQ.EXPECT().
+		GetByID(h.ctx, h.merchantPID).
+		Return(model.MerchantProfile{
+			ID:                 h.merchantPID,
+			ExternalMerchantID: h.merchantID,
+			Status:             model.ActiveMerchantStatus,
+		}, nil).Once()
 
 	confirming := h.confirmingSession()
 
+	h.sessionCQ.EXPECT().
+		GetByPublicToken(h.ctx, h.publicToken).
+		Return(confirming, nil).Once()
 	h.sessionTx.EXPECT().
 		LockByPublicToken(h.ctx, h.publicToken).
 		Return(confirming, nil).Once()
@@ -195,9 +245,19 @@ func TestSelectCreditKind_RejectsConfirmingSession(t *testing.T) {
 func TestSelectCreditKind_RejectsActiveConfirmationOwnership(t *testing.T) {
 	h := newHarness(t)
 	h.expectPool(0, 1)
+	h.merchantCQ.EXPECT().
+		GetByID(h.ctx, h.merchantPID).
+		Return(model.MerchantProfile{
+			ID:                 h.merchantPID,
+			ExternalMerchantID: h.merchantID,
+			Status:             model.ActiveMerchantStatus,
+		}, nil).Once()
 
 	owned := h.session(withConfirmationAttempt(h.confirmationAttemptID))
 
+	h.sessionCQ.EXPECT().
+		GetByPublicToken(h.ctx, h.publicToken).
+		Return(owned, nil).Once()
 	h.sessionTx.EXPECT().
 		LockByPublicToken(h.ctx, h.publicToken).
 		Return(owned, nil).Once()
@@ -221,6 +281,13 @@ func TestSelectCreditKind_RejectsActiveConfirmationOwnership(t *testing.T) {
 func TestSelectCreditKind_RejectsForeignMerchant(t *testing.T) {
 	h := newHarness(t)
 	h.expectPool(0, 1)
+	h.merchantCQ.EXPECT().
+		GetByID(h.ctx, h.merchantPID).
+		Return(model.MerchantProfile{
+			ID:                 h.merchantPID,
+			ExternalMerchantID: h.merchantID,
+			Status:             model.ActiveMerchantStatus,
+		}, nil).Once()
 
 	open := h.session(func(s *model.CheckoutSession) {
 		s.CreditKind = ""
@@ -230,16 +297,9 @@ func TestSelectCreditKind_RejectsForeignMerchant(t *testing.T) {
 	foreignMerchant := model.ExternalMerchantID(h.sessionID.UUID())
 	require.NotEqual(t, h.merchantID, foreignMerchant)
 
-	h.sessionTx.EXPECT().
-		LockByPublicToken(h.ctx, h.publicToken).
+	h.sessionCQ.EXPECT().
+		GetByPublicToken(h.ctx, h.publicToken).
 		Return(open, nil).Once()
-	h.merchantTx.EXPECT().
-		GetByID(h.ctx, h.merchantPID).
-		Return(model.MerchantProfile{
-			ID:                 h.merchantPID,
-			ExternalMerchantID: h.merchantID,
-			Status:             model.ActiveMerchantStatus,
-		}, nil).Once()
 
 	_, err := h.uc.SelectCreditKind(h.ctx, SelectCreditKindInput{
 		Token:                        h.publicToken,
@@ -253,6 +313,13 @@ func TestSelectCreditKind_RejectsForeignMerchant(t *testing.T) {
 func TestSelectCreditKind_RejectsDisabledKind(t *testing.T) {
 	h := newHarness(t)
 	h.expectPool(0, 1)
+	h.merchantCQ.EXPECT().
+		GetByID(h.ctx, h.merchantPID).
+		Return(model.MerchantProfile{
+			ID:                 h.merchantPID,
+			ExternalMerchantID: h.merchantID,
+			Status:             model.ActiveMerchantStatus,
+		}, nil).Once()
 
 	open := h.session(func(s *model.CheckoutSession) {
 		s.CreditKind = ""
@@ -260,6 +327,9 @@ func TestSelectCreditKind_RejectsDisabledKind(t *testing.T) {
 		s.OfferPreparationMode = model.OfferPreparationOnStart
 	})
 
+	h.sessionCQ.EXPECT().
+		GetByPublicToken(h.ctx, h.publicToken).
+		Return(open, nil).Once()
 	h.sessionTx.EXPECT().
 		LockByPublicToken(h.ctx, h.publicToken).
 		Return(open, nil).Once()
