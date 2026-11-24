@@ -42,6 +42,7 @@ var privileges = []TablePrivilegePolicy{
 	{Schema: "bnpl", Table: "customer_profiles", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"external_subject_id", "external_customer_id", "jurisdiction", "status", "updated_at"}},
 	{Schema: "bnpl", Table: "policy_assignments", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"updated_at", "valid_until"}},
 	{Schema: "bnpl", Table: "policy_assignment_imports", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"completed_at", "failure_count", "status", "success_count"}},
+	{Schema: "bnpl", Table: "trusted_mobile_numbers", Migration: PrivilegeMigration, Description: "Immutable raw trusted mobile and national ID registry; runtime can only select and insert.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{}},
 	{Schema: "bnpl", Table: "policy_assignment_import_items", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"error_code", "error_message", "status", "updated_at"}},
 	{Schema: "bnpl", Table: "merchant_profiles", Migration: PrivilegeMigration, Description: "Minimal UPDATE(id) compatibility exception for existing SELECT FOR UPDATE; no repository key mutation.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"id"}},
 	{Schema: "bnpl", Table: "merchant_branch_profiles", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"offer_preparation_mode", "updated_at"}},
@@ -107,7 +108,7 @@ var privileges = []TablePrivilegePolicy{
 }
 
 // PrivilegeMigrationSHA256 fingerprints the reviewed baseline privilege grants.
-const PrivilegeMigrationSHA256 = "sha256:be67a59c41d477d472f350bfb8510be609bb5fbbe6b94746612936476accafc3"
+const PrivilegeMigrationSHA256 = "sha256:6e8e742caf400626d28ebbd0be43ec234880c94c25155c5c426bfba18335ffe7"
 
 const PermissionHistoryMigration = "000_schema.sql"
-const PermissionHistoryMigrationSHA256 = "sha256:be67a59c41d477d472f350bfb8510be609bb5fbbe6b94746612936476accafc3"
+const PermissionHistoryMigrationSHA256 = "sha256:6e8e742caf400626d28ebbd0be43ec234880c94c25155c5c426bfba18335ffe7"
