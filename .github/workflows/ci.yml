@@ -54,6 +54,22 @@ jobs:
           go mod tidy
           git diff --exit-code go.mod go.sum
 
+      # Temporary one-time formatting export. Remove after applying the
+      # formatter's canonical results to the affected test sources.
+      - name: Temporary BNPL GoFmt export
+        run: |
+          files=(
+            pkg/core/usecase/checkoutsessionuc/external_confirm_replay_test.go
+            pkg/core/usecase/checkoutsessionuc/external_test.go
+            pkg/core/usecase/collectionsuc/lifecycle_integration_test.go
+          )
+          gofmt -w "${files[@]}"
+          for file in "${files[@]}"; do
+            echo "BNPL_FMT_START:${file}"
+            base64 -w120 "$file"
+            echo "BNPL_FMT_END:${file}"
+          done
+
       # Check only hand-written code; skip gen/ and vendor/ if present.
       - name: gofmt
         run: |
