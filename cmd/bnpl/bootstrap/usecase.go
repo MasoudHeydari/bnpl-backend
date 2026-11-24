@@ -157,6 +157,10 @@ func (a *App) NewUseCases() (UseCases, error) {
 		return UseCases{}, fmt.Errorf("%s: initialize jurisdiction capabilities: %w", op, err)
 	}
 
+	// Both use cases share one stateless Adapter implementation of the required
+	// Core legal-person locking/enrollment port.
+	sharedCreditRepo := creditaccountrp.NewSharedCredit()
+
 	collectionsBatchSize := a.Config.Usecases.Collections.BatchSize
 	if collectionsBatchSize <= 0 {
 		collectionsBatchSize = 100
@@ -188,7 +192,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Config.AuditEventsTopic(),
 		collectionsBatchSize,
 		collectionsPolicies,
-		a.Repos.SharedCredit,
+		sharedCreditRepo,
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize collections use case: %w", op, err)
@@ -561,7 +565,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		collectionsPolicies.Current,
 		customerCreditObserver,
 		a.Repos.TrustedMobile,
-		creditaccountrp.NewSharedCredit(),
+		sharedCreditRepo,
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize customer credit use case: %w", op, err)
