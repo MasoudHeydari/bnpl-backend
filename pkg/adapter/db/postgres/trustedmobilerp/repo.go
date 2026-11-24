@@ -45,7 +45,7 @@ func (q txQueryer) InsertIfAbsent(ctx context.Context, mobile, nationalID, actor
 	}
 	const query = `INSERT INTO trusted_mobile_numbers (mobile_e164, national_id, created_by, created_at)
                    VALUES ($1, $2, $3, $4) ON CONFLICT (mobile_e164) DO NOTHING`
-	rows, err := q.Tx.Exec(ctx, query, mobile, nationalID, actor, now)
+	rows, err := q.Exec(ctx, query, mobile, nationalID, actor, now)
 	if err != nil {
 		return false, fmt.Errorf("%s: insert: %w", op, err)
 	}

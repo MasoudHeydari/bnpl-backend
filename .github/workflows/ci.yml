@@ -157,7 +157,9 @@ jobs:
     name: Integration tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: [ lint, unit-test ]
+    # Integration correctness is independent of lint debt. Lint still runs
+    # and contributes its own failing status to the overall CI conclusion.
+    needs: [unit-test]
     services:
       postgres:
         image: postgres:18

@@ -81,7 +81,6 @@ func (uc *UseCase) createPaymentPending(
 						return cerr.InternalError(fmt.Errorf("%s: first installment is missing", op))
 					}
 
-					payableNow := first.TotalAmountMinor
 					remainingPrincipal := allocation.ApprovedFinancedAmountMinor - first.PrincipalAmountMinor
 
 					// Resolve an idempotent replay before offer-expiry and credit
@@ -154,7 +153,7 @@ func (uc *UseCase) createPaymentPending(
 						return cashErr
 					}
 
-					payableNow = cashAmounts[first.ID]
+					payableNow := cashAmounts[first.ID]
 
 					if err = validateInstallmentSchedule(
 						installments,

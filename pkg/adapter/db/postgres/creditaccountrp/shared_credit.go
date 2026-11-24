@@ -36,7 +36,7 @@ func (q txQueryer) EnrollCustomer(ctx context.Context, customerID model.Customer
 	const query = `INSERT INTO customer_credit_enrollments (customer_id, credit_account_id, credit_owner_id, enrolled_at)
 VALUES ($1,$2,$3,$4)
 ON CONFLICT (customer_id,credit_account_id) DO NOTHING`
-	n, err := q.Tx.Exec(ctx, query, customerID, accountID, ownerID, now)
+	n, err := q.Exec(ctx, query, customerID, accountID, ownerID, now)
 	if err != nil {
 		return false, fmt.Errorf("enroll customer credit: %w", postgres.MapError(err))
 	}
