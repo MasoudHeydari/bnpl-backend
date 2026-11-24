@@ -153,6 +153,52 @@ WHERE credit_owner_id=$1 AND released_at IS NOT NULL`, ownerID).Scan(&releasedCo
 	require.NoError(t, err)
 	require.Equal(t, 1, releasedCount, "terminal claim history must be retained")
 	require.NoError(t, newCheckout(secondCustomerID, "b", nil))
+
+	// Reproduce the actual Partner Create path: INSERT first persists an
+	// unbound checkout, then CRS resolution binds the customer with UPDATE.
+	// NULL credit_kind must not postpone person-wide checkout locking.
+	unboundToken := "cs_" + strings.Repeat("d", 64)
+	f.exec(t, `
+INSERT INTO checkout_sessions (
+ public_token,origin,merchant_profile_id,merchant_branch_profile_id,
+ external_online_store_id,idempotency_key,merchant_order_id,
+ return_destination,return_url,requested_amount_minor,currency,status,expires_at
+) VALUES($1,'external_partner',$2,$3,$4,'checkout-d','order-d',
+ 'merchant','https://example.test/return',1000000,'IRR','open',now()+interval '30 minutes')`,
+		unboundToken, merchantID, branchID, uuid.New(),
+	)
+
+	var beforeBind int
+	err = f.pool.Pool.QueryRow(ctx, `SELECT count(*) FROM credit_owner_checkout_claims
+WHERE checkout_session_id=(SELECT id FROM checkout_sessions WHERE public_token=$1)`,
+		unboundToken,
+	).Scan(&beforeBind)
+	require.NoError(t, err)
+	require.Zero(t, beforeBind, "unknown merchant phone may not claim arbitrary legal-person credit")
+
+	// B already owns the person's checkout slot, even though B has not
+	// selected a credit product. Binding A's unselected session must fail.
+	_, err = f.pool.Pool.Exec(ctx, `UPDATE checkout_sessions SET customer_id=$1 WHERE public_token=$2`,
+		f.customer, unboundToken,
+	)
+	require.ErrorAs(t, err, &pgError)
+	require.Equal(t, "credit_owner_checkout_in_progress", pgError.ConstraintName)
+
+	// The failed bind did not mutate the unbound checkout. After the safe
+	// terminal transition releases B's claim, retrying the bind succeeds.
+	f.exec(t, `UPDATE checkout_sessions SET status='expired' WHERE public_token=$1`,
+		"cs_"+strings.Repeat("b", 64),
+	)
+	f.exec(t, `UPDATE checkout_sessions SET customer_id=$1 WHERE public_token=$2`,
+		f.customer, unboundToken,
+	)
+	var afterBind int
+	err = f.pool.Pool.QueryRow(ctx, `SELECT count(*) FROM credit_owner_checkout_claims
+WHERE checkout_session_id=(SELECT id FROM checkout_sessions WHERE public_token=$1) AND released_at IS NULL`,
+		unboundToken,
+	).Scan(&afterBind)
+	require.NoError(t, err)
+	require.Equal(t, 1, afterBind, "account binding must own the exclusive slot before product selection")
 }
 
 // TestTrustedMobileNationalIDCannotChange ensures that neither the original
