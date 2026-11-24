@@ -43,6 +43,17 @@ func (uc *UseCase) createPaymentPending(
 					paymentAttemptQ := uc.paymentAttempt.Tx(tx)
 					auditOutboxQ := uc.outbox.Tx(tx)
 
+					// Canonical lock order for new commitments: legal person before
+					// CustomerProfile, Decision, Contract, or CreditAccount.
+					// Collections default/recovery uses this same first lock.
+					if err := uc.newCreditUsageGuard.LockCreditOwnerForCheckout(
+						ctx,
+						tx,
+						input.ExternalSubjectID,
+					); err != nil {
+						return fmt.Errorf("%s: lock legal person: %w", op, err)
+					}
+
 					profile, profileErr := customerProfileQ.LockByExternalSubjectID(ctx, input.ExternalSubjectID)
 					if profileErr != nil {
 						if cerr.IsCode(profileErr, cerr.CodeResourceNotFound) {

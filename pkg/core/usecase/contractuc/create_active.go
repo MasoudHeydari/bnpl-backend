@@ -189,6 +189,16 @@ func (uc *UseCase) prepareMerchantFunding(
 			creditAccountQ := uc.creditAccount.Tx(tx)
 			installmentQ := uc.installment.Tx(tx)
 
+			// Collections and new merchant-funded commitments serialize on
+			// the same legal person before locking the account profile.
+			if err := uc.newCreditUsageGuard.LockCreditOwnerForCheckout(
+				ctx,
+				tx,
+				input.ExternalSubjectID,
+			); err != nil {
+				return fmt.Errorf("%s: lock legal person: %w", op, err)
+			}
+
 			profile, err := profileQ.LockByExternalSubjectID(ctx, input.ExternalSubjectID)
 			if err != nil {
 				if cerr.IsCode(err, cerr.CodeResourceNotFound) {
