@@ -1,7 +1,13 @@
 package checkoutsessionuc
 
 import (
+	"errors"
 	"testing"
+
+	"github.com/google/uuid"
+
+	"github.com/parstis/bnpl-backend/pkg/core/event/checkoutlifecycle"
+	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"
 
 	"github.com/stretchr/testify/require"
 
@@ -360,4 +366,85 @@ func TestSelectCreditKind_RequiresExpectedGeneration(t *testing.T) {
 		CreditKind:         model.PayInInstallmentsCreditKind,
 	})
 	requireCerr(t, err, cerr.CodeInvalidArgument, "error.expected_evaluation_generation_required")
+}
+
+func TestSelectCreditKind_ReassignedMobileCancelsSafeCheckout(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.expectPool(1, 1)
+
+	open := h.session(func(s *model.CheckoutSession) {
+		s.CreditKind = ""
+		s.DecisionID = nil
+		s.OfferPreparationMode = model.OfferPreparationOnStart
+	})
+	canceled := open
+	canceled.Status = model.CanceledCheckoutSessionStatus
+
+	h.sessionCQ.EXPECT().
+		GetByPublicToken(h.ctx, h.publicToken).
+		Return(open, nil).Once()
+	h.merchantCQ.EXPECT().
+		GetByID(h.ctx, h.merchantPID).
+		Return(model.MerchantProfile{
+			ID:                 h.merchantPID,
+			ExternalMerchantID: h.merchantID,
+			Status:             model.ActiveMerchantStatus,
+		}, nil).Once()
+
+	// The old phone is now held by a DIFFERENT CRS account. The old owner
+	// must not keep an abandoned checkout claim until a session TTL passes.
+	h.identityOutput = extcustomer.ResolveByMobileOutput{
+		ExternalCustomerID: model.ExternalCustomerID(uuid.New()),
+		Status:             extcustomer.ActiveStatus,
+	}
+	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(open, nil).Once()
+	h.sessionTx.EXPECT().
+		MarkCanceledSafely(h.ctx, h.sessionID, model.TechnicalFailureCheckoutReason, h.now).
+		Return(canceled, nil).Once()
+	h.expectLifecycleEvent(canceled, checkoutlifecycle.EventTypeCanceled)
+
+	_, err := h.uc.SelectCreditKind(h.ctx, SelectCreditKindInput{
+		Token:                        h.publicToken,
+		ExternalMerchantID:           h.merchantID,
+		CreditKind:                   model.PayInInstallmentsCreditKind,
+		ExpectedEvaluationGeneration: 1,
+	})
+	requireCerr(t, err, cerr.CodeForbidden, "error.checkout_credit_purchase_unavailable_for_phone")
+}
+
+func TestSelectCreditKind_TransientCRSFailureDoesNotReleaseClaim(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.expectPool(1, 0)
+
+	open := h.session(func(s *model.CheckoutSession) {
+		s.CreditKind = ""
+		s.DecisionID = nil
+		s.OfferPreparationMode = model.OfferPreparationOnStart
+	})
+	h.sessionCQ.EXPECT().
+		GetByPublicToken(h.ctx, h.publicToken).
+		Return(open, nil).Once()
+	h.merchantCQ.EXPECT().
+		GetByID(h.ctx, h.merchantPID).
+		Return(model.MerchantProfile{
+			ID:                 h.merchantPID,
+			ExternalMerchantID: h.merchantID,
+			Status:             model.ActiveMerchantStatus,
+		}, nil).Once()
+
+	// The safety rule is intentionally asymmetric: only a definite CRS
+	// reassignment can retire a claim, not temporary dependency failures.
+	h.identityErr = cerr.ExternalServiceUnavailable(errors.New("dependency temporarily unavailable"))
+
+	_, err := h.uc.SelectCreditKind(h.ctx, SelectCreditKindInput{
+		Token:                        h.publicToken,
+		ExternalMerchantID:           h.merchantID,
+		CreditKind:                   model.PayInInstallmentsCreditKind,
+		ExpectedEvaluationGeneration: 1,
+	})
+	requireCerr(t, err, cerr.CodeForbidden, "error.checkout_credit_purchase_unavailable_for_phone")
 }
