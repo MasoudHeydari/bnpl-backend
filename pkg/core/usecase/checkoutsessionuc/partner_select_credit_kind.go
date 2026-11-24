@@ -285,8 +285,15 @@ func (uc *UseCase) preflightPartnerCreditKind(
 
 	ownership, err := uc.revalidateBoundExternalMobileOwnership(ctx, session)
 	if err != nil {
-		// A merchant must not distinguish a reassigned number, a missing local
-		// account, or a CRS failure via public checkout error details.
+		// Only a definitive mobile reassignment may close the old session.
+		// The shared safe-termination gate prevents releasing claims while
+		// financial effects or confirmation sagas remain uncertain.
+		if terminateErr := uc.terminateReassignedCheckoutIfSafe(ctx, session, err); terminateErr != nil {
+			return boundExternalMobileOwnership{}, terminateErr
+		}
+
+		// Do not disclose CRS reassignment, missing account, or dependency
+		// details to a merchant.
 		return boundExternalMobileOwnership{}, checkoutCreditPurchaseUnavailableForPhoneError(
 			fmt.Errorf("%s: CRS mobile ownership preflight failed: %w", op, err),
 		)

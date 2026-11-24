@@ -105,6 +105,10 @@ func (uc *UseCase) ensureExternalCustomerBoundForPreview(
 		// phone is reassigned. Do not return a person-specific eligibility
 		// preview without verifying the current CRS binding.
 		if err := uc.ensureBoundSessionMobileOwnership(ctx, session); err != nil {
+			if terminateErr := uc.terminateReassignedCheckoutIfSafe(ctx, session, err); terminateErr != nil {
+				return model.CheckoutSession{}, terminateErr
+			}
+
 			if isOpaqueMobileOwnershipFailure(err) {
 				return model.CheckoutSession{}, checkoutCreditPurchaseUnavailableForPhoneError(err)
 			}

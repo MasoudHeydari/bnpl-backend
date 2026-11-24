@@ -11,6 +11,11 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
+// errCheckoutMobileOwnerChanged marks a definitive CRS reassignment or phone
+// removal. Temporary CRS failures are deliberately not classified as a
+// reassignment: they must never release a purchase claim.
+var errCheckoutMobileOwnerChanged = errors.New("checkout mobile no longer belongs to bound customer")
+
 // boundExternalMobileOwnership is the CRS-authoritative owner of the
 // merchant-asserted phone for a session that already has a local CustomerID
 // binding. OTP proves possession of a still-valid challenge for that session;
@@ -51,6 +56,12 @@ func (uc *UseCase) revalidateBoundExternalMobileOwnership(
 		customer.ResolveByMobileInput{MobileE164: phone},
 	)
 	if err != nil {
+		if cerr.IsCode(err, cerr.CodeResourceNotFound) {
+			return boundExternalMobileOwnership{}, checkoutOTPIssuanceNotAllowedError(
+				fmt.Errorf("%s: CRS mobile no longer resolves: %w", op, errCheckoutMobileOwnerChanged),
+			)
+		}
+
 		return boundExternalMobileOwnership{}, checkoutOTPIssuanceNotAllowedError(
 			fmt.Errorf("%s: CRS revalidation failed: %w", op, err),
 		)
@@ -77,7 +88,7 @@ func (uc *UseCase) revalidateBoundExternalMobileOwnership(
 
 	if profile.ExternalCustomerID != resolved.ExternalCustomerID {
 		return boundExternalMobileOwnership{}, checkoutOTPIssuanceNotAllowedError(
-			fmt.Errorf("%s: current CRS mobile owner is different from the bound customer", op),
+			fmt.Errorf("%s: CRS mobile owner differs from bound account: %w", op, errCheckoutMobileOwnerChanged),
 		)
 	}
 
@@ -132,4 +143,34 @@ func isOpaqueMobileOwnershipFailure(err error) bool {
 	}
 
 	return appErr.MessageKey == "error.checkout_otp_issuance_not_allowed"
+}
+
+
+// terminateReassignedCheckoutIfSafe retires only an identity-invalidated
+// checkout whose financial effects can be PROVEN absent. Reusing the shared
+// safe-termination gate fences a possible confirmation saga/contract. A CRS
+// timeout or suspended account never reaches this operation.
+func (uc *UseCase) terminateReassignedCheckoutIfSafe(
+	ctx context.Context,
+	session model.CheckoutSession,
+	identityErr error,
+) error {
+	const op = "checkoutsessionuc.UseCase.terminateReassignedCheckoutIfSafe"
+
+	if !errors.Is(identityErr, errCheckoutMobileOwnerChanged) {
+		return nil
+	}
+
+	_, err := uc.TerminateCheckoutSafely(ctx, TerminateCheckoutSafelyInput{
+		SessionID:      session.ID,
+		Reason:         model.TechnicalFailureCheckoutReason,
+		TerminalStatus: model.CanceledCheckoutSessionStatus,
+	})
+	if err != nil {
+		// Inconclusive FC effects or a concurrent Confirm must retain the
+		// purchase claim. Never bypass the existing safe-termination checks.
+		return fmt.Errorf("%s: cannot safely close reassigned mobile checkout: %w", op, err)
+	}
+
+	return nil
 }
