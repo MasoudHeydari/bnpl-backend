@@ -10,6 +10,7 @@ import (
 	testifyMock "github.com/stretchr/testify/mock"
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
+	"github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/mock"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
@@ -80,7 +81,20 @@ func TestTrustedMobileNationalIDConflictDoesNotFallBackToOrdinaryCredit(t *testi
 	}}
 
 	logger.EXPECT().WithContext(context.Background()).Return(logger).Once()
-	logger.EXPECT().Error(testifyMock.Anything, testifyMock.Anything, testifyMock.Anything, testifyMock.Anything).Once()
+	logger.EXPECT().Error(
+		testifyMock.MatchedBy(func(event log.Event) bool {
+			return event.Code() == "credit.trusted_mobile_national_id_conflict"
+		}),
+		testifyMock.MatchedBy(func(fields []log.Field) bool {
+			if len(fields) != 3 {
+				return false
+			}
+			return fields[0].Key() == "customer_id" &&
+				fields[1].Key() == "external_customer_id" &&
+				fields[2].Key() == "reason_code" &&
+				fields[2].Value() == "TRUSTED_MOBILE_NATIONAL_ID_CONFLICT"
+		}),
+	).Once()
 
 	eligible, err := uc.eligibleTrustedOwner(
 		context.Background(),
