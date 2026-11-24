@@ -958,7 +958,11 @@ CREATE TABLE IF NOT EXISTS installments (
     ),
     CONSTRAINT chk_installments_status CHECK (status IN ('offered', 'scheduled', 'due', 'paid', 'overdue', 'canceled', 'expired')),
     CONSTRAINT chk_installments_contract_required_after_offer CHECK (status IN ('offered', 'expired', 'canceled') OR contract_id IS NOT NULL),
-    CONSTRAINT chk_installments_currency CHECK (currency IN ('IRR', 'EUR', 'USD'))
+    CONSTRAINT chk_installments_currency CHECK (currency IN ('IRR', 'EUR', 'USD')),
+    -- Composite keys must exist before default_episode_triggers reference them.
+    -- Contract-less provisional offer installments remain allowed (NULL contract_id).
+    CONSTRAINT uq_installments_id_customer UNIQUE (id, customer_id),
+    CONSTRAINT fk_installments_contract_customer FOREIGN KEY (contract_id, customer_id) REFERENCES contracts (id, customer_id)
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_installments_decision_order ON installments (decision_id, installment_order);
@@ -2756,12 +2760,6 @@ CREATE TRIGGER trg_payment_attempt_repayment_batch_claim
     FOR EACH ROW
     EXECUTE FUNCTION bnpl.reject_claimed_installment_payment_attempt ();
 
-
--- Cross-table account ownership invariants for installment and default evidence.
--- Contract-less provisional offer installments remain allowed (NULL contract_id).
-ALTER TABLE installments ADD CONSTRAINT uq_installments_id_customer UNIQUE (id, customer_id);
-ALTER TABLE installments ADD CONSTRAINT fk_installments_contract_customer
-FOREIGN KEY (contract_id, customer_id) REFERENCES contracts (id, customer_id);
 
 -- -----------------------------------------------------------------------------
 -- MANAGED DATABASE PERMISSIONS: canonical initial grants (pre-release)
