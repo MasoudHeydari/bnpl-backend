@@ -170,6 +170,7 @@ func (c *Client) ResolveByMobile(
 	return extcustomer.ResolveByMobileOutput{
 		ExternalCustomerID: externalCustomerID,
 		Status:             statusValue,
+		NationalCode:       response.GetNationalCode(),
 	}, nil
 }
 

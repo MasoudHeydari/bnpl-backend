@@ -80,8 +80,9 @@ func TestResolveByMobile_MapsActive(t *testing.T) {
 	customerID := uuid.New()
 	fake := &fakeCustomerService{
 		resolveResp: &customerv1.ResolveCustomerByMobileResponse{
-			CustomerId: customerID.String(),
-			Status:     customerv1.CustomerStatus_CUSTOMER_STATUS_ACTIVE,
+			CustomerId:   customerID.String(),
+			Status:       customerv1.CustomerStatus_CUSTOMER_STATUS_ACTIVE,
+			NationalCode: "0012345678",
 		},
 	}
 
@@ -91,6 +92,7 @@ func TestResolveByMobile_MapsActive(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, customerID, out.ExternalCustomerID.UUID())
 	require.Equal(t, extcustomer.ActiveStatus, out.Status)
+	require.Equal(t, "0012345678", out.NationalCode)
 	require.Equal(t, "+989121234567", fake.resolveReq.GetMobileNumber())
 }
 
