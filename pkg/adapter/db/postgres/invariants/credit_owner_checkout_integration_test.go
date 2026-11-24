@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/require"
 )
@@ -39,8 +40,29 @@ VALUES($1,$2,$3,$4,'IR','active')`, secondCustomerID, uuid.New(), uuid.New(), ow
 	err = f.pool.Pool.QueryRow(ctx, `
 SELECT id FROM credit_accounts WHERE customer_id=$1`, f.customer).Scan(&creditAccountID)
 	require.NoError(t, err)
+
+	// Merely creating customer B must not give it visibility of credit A.
+	var enrolledCredit uuid.UUID
+	err = f.pool.Pool.QueryRow(ctx, `
+SELECT credit_account_id FROM customer_credit_enrollments WHERE customer_id=$1`, secondCustomerID).Scan(&enrolledCredit)
+	require.ErrorIs(t, err, pgx.ErrNoRows)
+
+	// B cannot obtain a second pay-in-installments credit row for the same
+	// legal person, regardless of its distinct CRS and Identity identifiers.
+	_, err = f.pool.Pool.Exec(ctx, `
+INSERT INTO credit_accounts (customer_id, currency, credit_kind, status, effective_from)
+VALUES ($1, 'IRR', 'pay_in_installments', 'active', now())`, secondCustomerID)
+	var duplicateCredit *pgconn.PgError
+	require.ErrorAs(t, err, &duplicateCredit)
+	require.Equal(t, "uq_credit_accounts_owner_currency_kind", duplicateCredit.ConstraintName)
+
+	// B explicitly requests access to the existing person credit.
 	f.exec(t, `INSERT INTO customer_credit_enrollments
 (customer_id,credit_account_id,credit_owner_id) VALUES($1,$2,$3)`, secondCustomerID, creditAccountID, ownerID)
+	err = f.pool.Pool.QueryRow(ctx, `
+SELECT credit_account_id FROM customer_credit_enrollments WHERE customer_id=$1`, secondCustomerID).Scan(&enrolledCredit)
+	require.NoError(t, err)
+	require.Equal(t, creditAccountID, enrolledCredit)
 
 	newCheckout := func(customerID uuid.UUID, label string) error {
 		const op = "invariants.TestCreditOwnerCheckoutClaimIsExclusive.newCheckout"
@@ -93,4 +115,29 @@ WHERE credit_owner_id=$1 AND released_at IS NOT NULL`, ownerID).Scan(&releasedCo
 	require.NoError(t, err)
 	require.Equal(t, 1, releasedCount, "terminal claim history must be retained")
 	require.NoError(t, newCheckout(secondCustomerID, "b"))
+}
+
+// TestTrustedMobileNationalIDCannotChange ensures that neither the original
+// imported phone/national-ID pair nor its audit history can be rewritten.
+func TestTrustedMobileNationalIDCannotChange(t *testing.T) {
+	f := newFixture(t, true)
+	ctx := f.ctx
+	const mobile = "+989121234567"
+	const nationalID = "0012345678"
+
+	f.exec(t, `INSERT INTO trusted_mobile_numbers (mobile_e164, national_id, created_by)
+VALUES ($1, $2, 'integration-test')`, mobile, nationalID)
+
+	_, err := f.pool.Pool.Exec(ctx, `UPDATE trusted_mobile_numbers
+SET national_id=$2 WHERE mobile_e164=$1`, mobile, "9876543210")
+	assertViolation(t, err, "23514")
+
+	_, err = f.pool.Pool.Exec(ctx, `DELETE FROM trusted_mobile_numbers WHERE mobile_e164=$1`, mobile)
+	assertViolation(t, err, "23514")
+
+	var persistedNationalID string
+	err = f.pool.Pool.QueryRow(ctx, `SELECT national_id
+FROM trusted_mobile_numbers WHERE mobile_e164=$1`, mobile).Scan(&persistedNationalID)
+	require.NoError(t, err)
+	require.Equal(t, nationalID, persistedNationalID)
 }

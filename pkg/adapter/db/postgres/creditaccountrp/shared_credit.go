@@ -17,6 +17,7 @@ func (q txQueryer) LockByCreditOwnerAndKind(ctx context.Context, owner model.Cre
 	if owner.IsZero() || !currency.IsValid() || !kind.IsValid() {
 		return model.CreditAccount{}, cerr.InvalidArgument(fmt.Errorf("invalid shared credit account lookup"))
 	}
+
 	const query = `SELECT ` + creditAccountColumns + `
 FROM credit_accounts
 WHERE credit_owner_id = $1 AND currency = $2 AND credit_kind = $3
@@ -30,9 +31,11 @@ func (q txQueryer) EnrollCustomer(ctx context.Context, customerID model.Customer
 	if customerID.IsZero() || accountID.IsZero() || ownerID.IsZero() {
 		return false, cerr.InvalidArgument(fmt.Errorf("credit enrollment requires customer, account and owner"))
 	}
+
 	if err := postgres.RequiredTime("enrolled_at", now); err != nil {
 		return false, err
 	}
+
 	const query = `INSERT INTO customer_credit_enrollments (customer_id, credit_account_id, credit_owner_id, enrolled_at)
 VALUES ($1,$2,$3,$4)
 ON CONFLICT (customer_id,credit_account_id) DO NOTHING`
@@ -40,6 +43,7 @@ ON CONFLICT (customer_id,credit_account_id) DO NOTHING`
 	if err != nil {
 		return false, fmt.Errorf("enroll customer credit: %w", postgres.MapError(err))
 	}
+
 	// If already present, still ensure the owner is correct by loading the
 	// source customer, whose credit_owner_id is immutable.
 	if n == 0 {
@@ -50,13 +54,16 @@ ON CONFLICT (customer_id,credit_account_id) DO NOTHING`
 		type result struct {
 			Matches bool `db:"matches"`
 		}
+
 		row, err := postgres.QueryOne[result](ctx, q.Tx, "check existing enrollment", ownerLookup, customerID, accountID, ownerID)
 		if err != nil {
 			return false, err
 		}
+
 		if !row.Matches {
 			return false, cerr.Conflict(fmt.Errorf("existing credit enrollment owner mismatch"))
 		}
 	}
+
 	return n == 1, nil
 }

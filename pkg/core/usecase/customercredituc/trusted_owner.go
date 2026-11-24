@@ -23,14 +23,17 @@ func (uc *UseCase) eligibleTrustedOwner(ctx context.Context, tx repo.Tx, mobile,
 	if cerr.IsCode(err, cerr.CodeResourceNotFound) {
 		return false, nil
 	}
+
 	if err != nil {
 		return false, fmt.Errorf("lookup trusted mobile membership: %w", err)
 	}
+
 	if membership.NationalID != nationalCode {
 		return false, cerr.NewPublic(cerr.CodeConflict, "error.trusted_mobile_national_id_conflict",
 			fmt.Errorf("trusted mobile and authoritative CRS national code do not match"),
 			cerr.Details{Violations: []cerr.Violation{{Code: "TRUSTED_MOBILE_NATIONAL_ID_CONFLICT", MessageKey: "error.trusted_mobile_national_id_conflict"}}})
 	}
+
 	return true, nil
 }
 
@@ -44,6 +47,7 @@ func grantTrustedOwnerPolicies(ctx context.Context, q repo.PolicyAssignmentTxQue
 	if owner.IsZero() {
 		return fmt.Errorf("trusted owner identity missing")
 	}
+
 	for _, target := range policy.TrustedCustomerBundle() {
 		// The owner row is already locked in all initial assignments.
 		// No process may reassign someone else's owner policy implicitly.
@@ -52,11 +56,14 @@ func grantTrustedOwnerPolicies(ctx context.Context, q repo.PolicyAssignmentTxQue
 			if existing.PolicyID != target.Ref.ID || existing.PolicyVersion != target.Ref.Version {
 				return cerr.Conflict(fmt.Errorf("existing legal-person policy cannot be overwritten by trusted enrollment"))
 			}
+
 			continue
 		}
+
 		if !cerr.IsCode(err, cerr.CodeResourceNotFound) {
 			return err
 		}
+
 		_, err = q.Create(ctx, model.CreditOwnerPolicySubjectType, owner.String(), target.Family,
 			target.Ref.ID, target.Ref.Version, "trusted_mobile_national_id_verified", "trusted_mobile_import", now,
 			"bnpl", now, now)
@@ -64,5 +71,6 @@ func grantTrustedOwnerPolicies(ctx context.Context, q repo.PolicyAssignmentTxQue
 			return err
 		}
 	}
+
 	return nil
 }

@@ -24,9 +24,11 @@ func GetActiveCustomerOrOwnerPolicy(ctx context.Context, q PolicyAssignmentQuery
 		if err == nil {
 			return row, nil
 		}
+
 		if !cerr.IsCode(err, cerr.CodeResourceNotFound) {
 			return model.PolicyAssignment{}, err
 		}
 	}
+
 	return q.GetActive(ctx, model.CustomerPolicySubjectType, customer.String(), family, now)
 }

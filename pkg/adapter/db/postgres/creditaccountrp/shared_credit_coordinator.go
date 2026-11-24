@@ -28,6 +28,7 @@ func (*SharedCoordinator) LockOwnerByCustomer(
 	type result struct {
 		ID model.CreditOwnerID `db:"id"`
 	}
+
 	const query = `SELECT co.id FROM credit_owners co
         JOIN customer_profiles cp ON cp.credit_owner_id = co.id
         WHERE cp.id=$1 FOR UPDATE OF co`
@@ -35,6 +36,7 @@ func (*SharedCoordinator) LockOwnerByCustomer(
 	if err != nil {
 		return model.CreditOwnerID{}, fmt.Errorf("%s: lock legal person: %w", op, err)
 	}
+
 	return row.ID, nil
 }
 

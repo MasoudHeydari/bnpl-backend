@@ -9,6 +9,7 @@ import (
 
 // Person-level eligibility readers inspect all accounts belonging to a legal
 // person. Account-owned repayment and history remain separately scoped.
+
 // PersonCreditRestrictionReader loads effective restrictions for a customer's legal person.
 type PersonCreditRestrictionReader interface {
 	ListActiveForCreditOwner(ctx context.Context, requestingCustomer model.CustomerID) ([]model.CustomerRestriction, error)

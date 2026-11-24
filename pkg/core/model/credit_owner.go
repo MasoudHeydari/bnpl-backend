@@ -18,6 +18,7 @@ func ParseCreditOwnerID(raw string) (CreditOwnerID, error) {
 	if err != nil {
 		return CreditOwnerID{}, fmt.Errorf("parse credit owner id: %w", err)
 	}
+
 	return CreditOwnerID(parsed), nil
 }
 
@@ -39,6 +40,7 @@ func (id *CreditOwnerID) UnmarshalText(raw []byte) error {
 	if err := v.UnmarshalText(raw); err != nil {
 		return err
 	}
+
 	*id = CreditOwnerID(v)
 	return nil
 }
@@ -49,6 +51,7 @@ func (id *CreditOwnerID) Scan(src any) error {
 	if err := v.Scan(src); err != nil {
 		return err
 	}
+
 	*id = CreditOwnerID(v)
 	return nil
 }

@@ -8,9 +8,11 @@ func CreditBelongsToContract(account CreditAccount, contract Contract) bool {
 	if account.Currency != contract.Currency {
 		return false
 	}
+
 	if !account.CreditOwnerID.IsZero() && !contract.CreditOwnerID.IsZero() {
 		return account.CreditOwnerID == contract.CreditOwnerID
 	}
+
 	// Unpersisted legacy unit-test fixtures omit CreditOwnerID. PostgreSQL
 	// never allows this case; preserve test semantics during incremental rollout.
 	return account.CustomerID == contract.CustomerID
@@ -24,8 +26,10 @@ func CreditBelongsToCustomer(account CreditAccount, customer CustomerProfile, cu
 	if account.Currency != currency {
 		return false
 	}
+
 	if !account.CreditOwnerID.IsZero() && !customer.CreditOwnerID.IsZero() {
 		return account.CreditOwnerID == customer.CreditOwnerID
 	}
+
 	return account.CustomerID == customer.ID
 }
