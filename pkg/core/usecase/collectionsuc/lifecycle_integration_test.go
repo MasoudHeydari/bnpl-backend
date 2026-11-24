@@ -1366,7 +1366,6 @@ func rewriteFixtureSchemaSQL(sql, schema string) string {
 	return out
 }
 
-
 // TestCollectionsSharesPersonLockWithOtherAccounts proves that a default
 // assessment for account A cannot commit while account B is creating a
 // contract under their shared legal-person credit-owner lock.

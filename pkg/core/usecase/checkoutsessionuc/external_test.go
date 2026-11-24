@@ -304,7 +304,6 @@ func TestConfirmExternal_UnstartedSessionIsNotReady(t *testing.T) {
 	h := newHarness(t)
 	h.expectPool(0, 1)
 
-
 	h.expectExternalConfirmPreflight(h.session(withCustomer(nil)))
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
 	requireCerr(t, err, cerr.CodeConflict, "error.checkout_offer_is_not_ready")
@@ -315,7 +314,6 @@ func TestConfirmExternal_InternalOriginIsNotFound(t *testing.T) {
 
 	h := newHarness(t)
 	h.expectPool(0, 1)
-
 
 	h.expectExternalConfirmPreflight(h.session(withOrigin(model.InternalCheckoutSessionOrigin)))
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
@@ -591,7 +589,6 @@ func TestConfirmExternal_StaleEvaluationGenerationRejectsBeforeConsumingOTPAttem
 	pending := h.session(withGeneration(2))
 	h.seedOTPChallenge(pending, testOTPCode)
 	// The preflight read rejects stale generations before any OTP transaction.
-
 
 	h.expectExternalConfirmPreflight(pending)
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))

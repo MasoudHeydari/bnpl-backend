@@ -89,7 +89,6 @@ func TestConfirmExternal_CompletedRejectsEvenWithFreshOTP(t *testing.T) {
 
 	// Terminal statuses are rejected after peek — no FOR UPDATE.
 
-
 	h.expectExternalConfirmPreflight(pending)
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
 	requireCerr(t, err, cerr.CodeConflict, "error.checkout_session_cannot_continue_in_its_current_state")
@@ -116,8 +115,6 @@ func TestConfirmExternal_TerminalStatesAreRejected(t *testing.T) {
 
 			session := h.session(withStatus(tt.status))
 			h.seedOTPChallenge(session, testOTPCode)
-
-
 
 			h.expectExternalConfirmPreflight(session)
 			_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
