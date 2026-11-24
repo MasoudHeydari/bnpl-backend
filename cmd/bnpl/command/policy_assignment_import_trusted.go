@@ -24,7 +24,7 @@ mobile_e164,national_id
 09121234567,0012345678
 +989351234567,1234567891
 
-Mobile numbers are normalized to Iranian E.164. The canonical raw mobile and
+Mobile numbers are normalized to Iranian E.164. The raw canonical mobile and
 national ID are stored as an immutable pair. Import never calls Customer
 Reference Service, assigns credit, or changes checkout policy. At first credit
 assignment, the current mobile's national ID must be checked against CRS;
@@ -42,6 +42,7 @@ func importTrustedPolicyAssignments(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
+
 	_, err = fmt.Fprint(cmd.OutOrStdout(), output.FormatSummary())
 	return err
 }

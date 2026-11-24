@@ -42,7 +42,6 @@ type ResolveByMobileOutput struct {
 	// Status is the Customer Reference Service wire status.
 	Status Status
 
-	// NationalCode is the authoritative and immutable legal person identifier
-	// returned by CRS. Do not use this value as a customer account identifier.
+	// NationalCode identifies the immutable legal person associated with this account.
 	NationalCode string
 }

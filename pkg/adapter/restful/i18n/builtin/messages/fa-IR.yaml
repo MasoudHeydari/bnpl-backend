@@ -334,3 +334,6 @@ success.repayment_batch_retrieved: "اطلاعات پرداخت گروهی در�
 success.repayment_batch_started: "فرآیند پرداخت گروهی آغاز شد."
 validation.repayment_batch_id_invalid: "شناسه پرداخت گروهی نامعتبر است."
 success.repayment_batch_created: "درخواست پرداخت گروهی برای آماده‌سازی ثبت شد."
+
+error.credit_purchase_in_progress: "یک خرید اعتباری دیگر در جریان است. پس از پایان آن دوباره تلاش کنید."
+error.trusted_mobile_national_id_conflict: "کد ملی این شماره تلفن با اطلاعات احرازشده مطابقت ندارد."

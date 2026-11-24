@@ -1,0 +1,68 @@
+package customercredituc
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/parstis/bnpl-backend/pkg/core/cerr"
+	"github.com/parstis/bnpl-backend/pkg/core/model"
+	"github.com/parstis/bnpl-backend/pkg/core/policy"
+	"github.com/parstis/bnpl-backend/pkg/core/policy/initialcreditlimit"
+	"github.com/parstis/bnpl-backend/pkg/core/repo"
+)
+
+// eligibleTrustedOwner validates an offline-imported mobile and national ID
+// against authoritative CRS data resolved before the transaction. This is
+// called only when the legal person has no existing credit for the product.
+// Returning false means normal policy; a mismatched existing phone is a hard
+// conflict, never a fallback to normal credit.
+func (uc *UseCase) eligibleTrustedOwner(ctx context.Context, tx repo.Tx, mobile, nationalCode string) (bool, error) {
+	trustedMobileQ := uc.trustedMobile.Tx(tx)
+	membership, err := trustedMobileQ.GetByMobile(ctx, mobile)
+	if cerr.IsCode(err, cerr.CodeResourceNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("lookup trusted mobile membership: %w", err)
+	}
+	if membership.NationalID != nationalCode {
+		return false, cerr.NewPublic(cerr.CodeConflict, "error.trusted_mobile_national_id_conflict",
+			fmt.Errorf("trusted mobile and authoritative CRS national code do not match"),
+			cerr.Details{Violations: []cerr.Violation{{Code: "TRUSTED_MOBILE_NATIONAL_ID_CONFLICT", MessageKey: "error.trusted_mobile_national_id_conflict"}}})
+	}
+	return true, nil
+}
+
+// trustedInstallmentPolicy selects the agreed 200m-toman v2 limit; checkout/v2
+// is granted to the person in the SAME transaction that first creates credit.
+func (uc *UseCase) trustedInstallmentPolicy() (initialcreditlimit.Policy, error) {
+	return uc.initialLimitPolicies.Resolve(policy.Ref{ID: "customer_default_initial_limit", Version: "v2"})
+}
+
+func grantTrustedOwnerPolicies(ctx context.Context, q repo.PolicyAssignmentTxQueryer, owner model.CreditOwnerID, now time.Time) error {
+	if owner.IsZero() {
+		return fmt.Errorf("trusted owner identity missing")
+	}
+	for _, target := range policy.TrustedCustomerBundle() {
+		// The owner row is already locked in all initial assignments.
+		// No process may reassign someone else's owner policy implicitly.
+		existing, err := q.GetActive(ctx, model.CreditOwnerPolicySubjectType, owner.String(), target.Family, now)
+		if err == nil {
+			if existing.PolicyID != target.Ref.ID || existing.PolicyVersion != target.Ref.Version {
+				return cerr.Conflict(fmt.Errorf("existing legal-person policy cannot be overwritten by trusted enrollment"))
+			}
+			continue
+		}
+		if !cerr.IsCode(err, cerr.CodeResourceNotFound) {
+			return err
+		}
+		_, err = q.Create(ctx, model.CreditOwnerPolicySubjectType, owner.String(), target.Family,
+			target.Ref.ID, target.Ref.Version, "trusted_mobile_national_id_verified", "trusted_mobile_import", now,
+			"bnpl", now, now)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}

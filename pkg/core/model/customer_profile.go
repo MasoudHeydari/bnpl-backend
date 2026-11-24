@@ -254,6 +254,9 @@ type CustomerProfile struct {
 	// ExternalSubjectID.
 	ExternalCustomerID ExternalCustomerID `db:"external_customer_id" json:"external_customer_id"`
 
+	// CreditOwnerID is the immutable legal person this CRS account belongs to.
+	CreditOwnerID CreditOwnerID `db:"credit_owner_id" json:"credit_owner_id"`
+
 	// Jurisdiction identifies the regulatory jurisdiction that governs this
 	// customer's BNPL profile.
 	Jurisdiction Jurisdiction `db:"jurisdiction" json:"jurisdiction,omitempty"`

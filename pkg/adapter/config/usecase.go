@@ -694,6 +694,8 @@ func (CustomerCredit) newUseCase(
 	idGenerator identifier.Generator,
 	collectionsPolicy collections.Policy,
 	observer customercredituc.Observer,
+	trustedMobile repo.TrustedMobile,
+	sharedCredit repo.SharedCreditCoordinator,
 ) (*customercredituc.UseCase, error) {
 	return customercredituc.New(
 		pool,
@@ -715,6 +717,8 @@ func (CustomerCredit) newUseCase(
 		idGenerator,
 		collectionsPolicy,
 		observer,
+		trustedMobile,
+		sharedCredit,
 	)
 }
 

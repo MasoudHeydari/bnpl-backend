@@ -13,7 +13,7 @@ import (
 //
 //	@Summary		Assign all available customer credit products
 //	@Description	Assigns the configured initial credit limit after resolving x-auth-mobile-number through Customer Reference Service (ACTIVE only).
-//	@Description	CRS customer_id becomes customer_profiles.external_customer_id. Trusted-customer policy assignments (v2) key off that same id.
+//	@Description	CRS customer_id becomes customer_profiles.external_customer_id. The immutable national code links multiple accounts to one credit owner; each account must initiate credit to enroll. Trusted v2 policies are assigned only at the first credit grant to that owner.
 //	@Description	The customer profile is created automatically when it does not exist; the profile primary key is assigned by the database.
 //	@Description	Requires an authenticated customer subject plus gateway-injected mobile. No request body.
 //	@Description	Returns 201 when a new limit is created, and 200 for already-assigned or denied outcomes.

@@ -106,6 +106,7 @@ func (d assignInitialLimitDeps) expectResolveActive(
 	).Return(extcustomer.ResolveByMobileOutput{
 		ExternalCustomerID: externalCustomerID,
 		Status:             extcustomer.ActiveStatus,
+		NationalCode:       "0012345678",
 	}, nil).Once()
 }
 
@@ -130,6 +131,8 @@ func (d assignInitialLimitDeps) newUseCase() *customercredituc.UseCase {
 		d.idGenerator,
 		collectionsv2.New(time.UTC),
 		newTestObserver(d.t),
+		absentTrustedMobile{},
+		noExistingSharedCredit{},
 	)
 	if err != nil {
 		panic(err)
@@ -221,6 +224,7 @@ func (d assignInitialLimitDeps) expectAuditOutbox(
 func sampleActiveProfile(profileID model.CustomerID, externalCustomerID model.ExternalCustomerID, now time.Time) model.CustomerProfile {
 	return model.CustomerProfile{
 		ID:                 profileID,
+		CreditOwnerID:      fixtureCreditOwnerID,
 		ExternalCustomerID: externalCustomerID,
 		Jurisdiction:       model.IRJurisdiction,
 		Status:             model.ActiveCustomerStatus,
@@ -269,6 +273,8 @@ func TestAssignInitialLimit_MissingProfile_CreatesActiveProfileAndAssigns(t *tes
 		model.ActiveCustomerStatus,
 		now,
 		now,
+
+		"0012345678",
 	).Return(profile, true, nil).Once()
 	deps.creditAccountTx.EXPECT().ExpireDueByCustomerIDAndCurrency(
 		ctx, customerID, currency, now,
@@ -445,6 +451,8 @@ func TestAssignInitialLimit_ExistingNonActiveProfile_IsDeniedWithoutReactivation
 		model.ActiveCustomerStatus,
 		now,
 		now,
+
+		"0012345678",
 	).Return(profile, false, nil).Once()
 
 	deps.expectConnTx(ctx)
@@ -544,6 +552,8 @@ func TestAssignInitialLimit_EnsureExistsFailure_ReturnsError(t *testing.T) {
 		model.ActiveCustomerStatus,
 		now,
 		now,
+
+		"0012345678",
 	).Return(model.CustomerProfile{}, false, repoErr).Once()
 
 	deps.expectResolveActive(ctx, externalCustomerID)
@@ -591,6 +601,8 @@ func TestAssignInitialLimit_DenialPathStampsPolicyRef(t *testing.T) {
 		model.ActiveCustomerStatus,
 		now,
 		now,
+
+		"0012345678",
 	).Return(profile, false, nil).Once()
 
 	deps.expectConnTx(ctx)

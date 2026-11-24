@@ -64,6 +64,8 @@ func newAssessUseCase(
 		mock.NewIdentifierGenerator(t),
 		collectionsv2.New(time.UTC),
 		newTestObserver(t),
+		absentTrustedMobile{},
+		noExistingSharedCredit{},
 	)
 	require.NoError(t, err)
 

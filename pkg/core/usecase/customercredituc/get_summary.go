@@ -22,7 +22,8 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 		return Output{}, cerr.InvalidArgument(fmt.Errorf("unsupported credit_kind %q", input.CreditKind))
 	}
 
-	externalCustomerID, err := uc.resolveActiveExternalCustomerID(ctx, input.MobileE164)
+	identity, err := uc.resolveActiveExternalCustomerIdentity(ctx, input.MobileE164)
+	externalCustomerID := identity.ExternalCustomerID
 	if err != nil {
 		return Output{}, err
 	}
@@ -38,6 +39,7 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 				customerProfileQ,
 				input.SubjectID.AsExternalSubjectID(),
 				externalCustomerID,
+				identity.NationalCode,
 				now,
 			)
 			if err != nil {
@@ -111,6 +113,7 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 			}
 
 			output = summaryFromAccount(account, newCreditBlocked || monthlyBlocked)
+			output.CustomerID = profile.ID
 			output.CreditKind = kind
 			if newCreditBlocked {
 				output.CreditUsage.Reason = publicReason
@@ -191,6 +194,7 @@ func (uc *UseCase) ensureActiveCustomerProfile(
 	profileQ repo.CustomerProfileTxQueryer,
 	externalSubjectID model.ExternalSubjectID,
 	externalCustomerID model.ExternalCustomerID,
+	nationalCode string,
 	now time.Time,
 ) (model.CustomerProfile, error) {
 	profile, _, err := profileQ.EnsureExists(
@@ -201,6 +205,7 @@ func (uc *UseCase) ensureActiveCustomerProfile(
 		model.ActiveCustomerStatus,
 		now,
 		now,
+		nationalCode,
 	)
 	if err != nil {
 		return model.CustomerProfile{}, err

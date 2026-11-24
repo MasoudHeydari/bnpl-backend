@@ -6,10 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	testifymock "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
+	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"
 	"github.com/parstis/bnpl-backend/pkg/core/external/notification"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/otpcode"
@@ -346,6 +348,38 @@ func TestConfirmExternal_MalformedInputIsRejectedBeforeAnyRead(t *testing.T) {
 
 	_, err = h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 0))
 	requireCerr(t, err, cerr.CodeInvalidArgument, "error.evaluation_generation_required")
+}
+
+// Stale merchant phones must not receive an OTP after CRS remaps them to
+// another customer account. Even a previously bound checkout must re-resolve.
+func TestRequestExternalOTP_RejectsReassignedMerchantPhone(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.expectPool(1, 0)
+	session := h.session()
+	h.sessionCQ.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(session, nil).Once()
+	h.identityOutput = extcustomer.ResolveByMobileOutput{
+		ExternalCustomerID: model.ExternalCustomerID(uuid.New()),
+		Status:             extcustomer.ActiveStatus,
+	}
+	_, err := h.uc.RequestExternalOTP(h.ctx, RequestExternalOTPInput{Token: h.publicToken, EvaluationGeneration: 1})
+	requireCerr(t, err, cerr.CodeConflict, "error.checkout_otp_issuance_not_allowed")
+	require.Empty(t, h.notificationCalls)
+	require.Len(t, h.identityCalls, 1)
+}
+
+// A CRS failure must fail closed rather than delivering to the unverified
+// merchant-provided number.
+func TestRequestExternalOTP_CRSErrorBlocksDelivery(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.expectPool(1, 0)
+	session := h.session()
+	h.sessionCQ.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(session, nil).Once()
+	h.identityErr = cerr.ServiceUnavailable(errors.New("CRS temporarily unavailable"))
+	_, err := h.uc.RequestExternalOTP(h.ctx, RequestExternalOTPInput{Token: h.publicToken, EvaluationGeneration: 1})
+	requireCerr(t, err, cerr.CodeConflict, "error.checkout_otp_issuance_not_allowed")
+	require.Empty(t, h.notificationCalls)
 }
 
 func TestRequestExternalOTP_IssuesAndSendsOTPOutsideTransactions(t *testing.T) {

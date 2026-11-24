@@ -84,6 +84,8 @@ func newSummaryUseCase(
 		mock.NewIdentifierGenerator(t),
 		collectionsv2.New(time.UTC),
 		newTestObserver(t),
+		absentTrustedMobile{},
+		noExistingSharedCredit{},
 	)
 	require.NoError(t, err)
 
@@ -103,6 +105,7 @@ func expectSummaryResolveActive(
 	).Return(extcustomer.ResolveByMobileOutput{
 		ExternalCustomerID: externalCustomerID,
 		Status:             extcustomer.ActiveStatus,
+		NationalCode:       "0012345678",
 	}, nil).Once()
 }
 
@@ -176,6 +179,8 @@ func TestGetSummary_ExpiredLimit_ReturnsExpiredNotZeroAssigned(t *testing.T) {
 			model.ActiveCustomerStatus,
 			now,
 			now,
+
+			"0012345678",
 		).
 		Return(model.CustomerProfile{
 			ID:                 profileID,
@@ -306,6 +311,8 @@ func TestGetSummary_ActiveLimit_UsesInternalCustomerIDNotExternal(t *testing.T) 
 			model.ActiveCustomerStatus,
 			now,
 			now,
+
+			"0012345678",
 		).
 		Return(model.CustomerProfile{
 			ID:                 profileID,
@@ -439,6 +446,8 @@ func TestGetSummary_NoLimit_ReturnsNotAssigned(t *testing.T) {
 			model.ActiveCustomerStatus,
 			now,
 			now,
+
+			"0012345678",
 		).
 		Return(model.CustomerProfile{
 			ID:                 profileID,

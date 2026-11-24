@@ -21,12 +21,8 @@ func (uc *UseCase) resolveCheckoutPolicy(
 	const op = "decisionuc.UseCase.resolveCheckoutPolicy"
 
 	ref := uc.defaultCheckoutPolicyRef
-	assignment, err := assignmentQ.GetActive(
-		ctx,
-		model.CustomerPolicySubjectType,
-		externalCustomerID.String(),
-		model.CheckoutPolicyFamily,
-		now,
+	assignment, err := repo.GetActiveCustomerOrOwnerPolicy(
+		ctx, assignmentQ, externalCustomerID, model.CheckoutPolicyFamily, now,
 	)
 	if err == nil {
 		ref = policy.Ref{ID: assignment.PolicyID, Version: assignment.PolicyVersion}

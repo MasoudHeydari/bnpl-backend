@@ -15,6 +15,7 @@ import (
 const creditAccountColumns = `
 	id,
 	customer_id,
+	credit_owner_id,
 	currency,
 	credit_kind,
 	limit_amount_minor,
@@ -64,7 +65,7 @@ func GetByCustomerIDAndCurrency[Q postgres.Queryer](
 ) (model.CreditAccount, error) {
 	const query = `SELECT` + creditAccountColumns + `
 FROM credit_accounts
-WHERE customer_id = $1
+WHERE id IN (SELECT credit_account_id FROM customer_credit_enrollments WHERE customer_id = $1)
   AND currency = $2
   AND credit_kind = 'pay_in_installments'
 `
@@ -119,7 +120,7 @@ func LockByCustomerIDAndCurrency[Q postgres.Queryer](
 ) (model.CreditAccount, error) {
 	const query = `SELECT` + creditAccountColumns + `
 FROM credit_accounts
-WHERE customer_id = $1
+WHERE id IN (SELECT credit_account_id FROM customer_credit_enrollments WHERE customer_id = $1)
   AND currency = $2
   AND credit_kind = 'pay_in_installments'
 FOR UPDATE
@@ -188,7 +189,7 @@ RETURNING` + creditAccountColumns
 		updatedAt,
 	)
 	if err != nil {
-		if postgres.IsUniqueViolation(err, "uq_credit_accounts_customer_currency_kind") {
+		if postgres.IsUniqueViolation(err, "uq_credit_accounts_owner_currency_kind") {
 			return model.CreditAccount{}, cerr.Conflict(
 				fmt.Errorf("credit account already exists for customer and currency"),
 				map[string]any{"customer_id": customerID, "currency": currency},
@@ -252,7 +253,7 @@ SET
 	status = 'expired',
 	version = version + 1,
 	updated_at = $3
-WHERE customer_id = $1
+WHERE id IN (SELECT credit_account_id FROM customer_credit_enrollments WHERE customer_id=$1)
   AND currency = $2
   AND credit_kind = 'pay_in_installments'
   AND status = 'active'
@@ -350,7 +351,7 @@ func CountLimitSetTransactions[Q postgres.Queryer](
 SELECT COUNT(*) AS count
 FROM credit_transactions ct
 JOIN credit_accounts ca ON ca.id = ct.credit_account_id
-WHERE ca.customer_id = $1
+WHERE ca.id IN (SELECT credit_account_id FROM customer_credit_enrollments WHERE customer_id=$1)
   AND ca.currency = $2
   AND ca.credit_kind = 'pay_in_installments'
   AND ct.type = 'limit_set'

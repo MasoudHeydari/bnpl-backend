@@ -65,7 +65,8 @@ func AggregateCreditStatus(credits []Output) AllCreditStatus {
 // inherits exposure, policy, or availability from the other.
 func (uc *UseCase) GetAllSummaries(ctx context.Context, input Input) (AllSummariesOutput, error) {
 	const op = "customercredituc.UseCase.GetAllSummaries"
-	externalCustomerID, err := uc.resolveActiveExternalCustomerID(ctx, input.MobileE164)
+	identity, err := uc.resolveActiveExternalCustomerIdentity(ctx, input.MobileE164)
+	externalCustomerID := identity.ExternalCustomerID
 	if err != nil {
 		return AllSummariesOutput{}, err
 	}
@@ -84,7 +85,7 @@ func (uc *UseCase) GetAllSummaries(ctx context.Context, input Input) (AllSummari
 
 			profile, err := uc.ensureActiveCustomerProfile(
 				ctx, customerProfileQ, input.SubjectID.AsExternalSubjectID(),
-				externalCustomerID, now,
+				externalCustomerID, identity.NationalCode, now,
 			)
 			if err != nil {
 				return err
@@ -145,6 +146,7 @@ func (uc *UseCase) GetAllSummaries(ctx context.Context, input Input) (AllSummari
 				switch {
 				case err == nil:
 					item = summaryFromAccount(account, blocked || monthlyBlocked)
+					item.CustomerID = profile.ID
 					if blocked {
 						item.CreditUsage.Reason = reason
 					} else if monthlyBlocked {

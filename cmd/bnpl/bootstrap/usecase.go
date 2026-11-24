@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/creditaccountrp"
 	"strings"
 
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/observer"
@@ -559,6 +560,8 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Infrastructure.IdentifierGenerator,
 		collectionsPolicies.Current,
 		customerCreditObserver,
+		a.Repos.TrustedMobile,
+		creditaccountrp.NewSharedCoordinator(),
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize customer credit use case: %w", op, err)

@@ -24,7 +24,7 @@ func lockCreditAccountForPrincipalRelease(
 		return model.CreditAccount{}, err
 	}
 
-	if account.CustomerID != contractRow.CustomerID || account.Currency != contractRow.Currency {
+	if !model.CreditBelongsToContract(account, contractRow) {
 		return model.CreditAccount{}, cerr.InternalError(fmt.Errorf("%s: contract credit-account identity mismatch", op))
 	}
 

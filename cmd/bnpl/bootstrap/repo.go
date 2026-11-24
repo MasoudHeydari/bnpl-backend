@@ -26,6 +26,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/repaymentreminderrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/sagarp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/shortlinkrp"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/trustedmobilerp"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
@@ -86,6 +87,8 @@ type Repos struct {
 
 	// PolicyAssignment stores runtime subject-to-policy assignment history.
 	PolicyAssignment repo.PolicyAssignment
+	// TrustedMobile is the raw, immutable phone/national-ID membership table.
+	TrustedMobile repo.TrustedMobile
 
 	// PolicyAssignmentImport stores durable bulk-import execution evidence.
 	PolicyAssignmentImport repo.PolicyAssignmentImport
@@ -132,6 +135,7 @@ func NewRepos() Repos {
 		PaymentAttempt:             paymentattemptrp.New(),
 		RepaymentBatch:             repaymentbatchrp.New(),
 		PolicyAssignment:           policyassignmentrp.New(),
+		TrustedMobile:              trustedmobilerp.New(),
 		PolicyAssignmentImport:     policyassignmentimportrp.New(),
 		Saga:                       sagarp.New(),
 		Inbox:                      inboxrp.New(),

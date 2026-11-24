@@ -37,6 +37,8 @@ type hostedCheckoutOTPAuthorizer struct {
 	expectedGeneration int
 	merchantName       string
 	templateID         string
+	expectedCustomerID model.CustomerID
+	expectedPhone      string
 }
 
 func (a *hostedCheckoutOTPAuthorizer) AuthorizeIssuance(
@@ -110,6 +112,12 @@ func (a *hostedCheckoutOTPAuthorizer) AuthorizeIssuance(
 	phone, err := a.uc.decryptCustomerPhone(locked)
 	if err != nil {
 		return otp.AuthorizedIssuance{}, err
+	}
+
+	if locked.CustomerID == nil || *locked.CustomerID != a.expectedCustomerID || phone != a.expectedPhone {
+		return otp.AuthorizedIssuance{}, checkoutOTPIssuanceNotAllowedError(
+			fmt.Errorf("%s: checkout binding or phone changed since CRS preflight", op),
+		)
 	}
 
 	phoneFingerprint, err := a.uc.otpHasher.Hash(otpcode.PhoneRateLimitMaterial(phone))

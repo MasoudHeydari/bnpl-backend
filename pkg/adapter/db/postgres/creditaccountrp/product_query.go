@@ -29,7 +29,7 @@ func GetByCustomerIDCurrencyAndKind[Q postgres.Queryer](
 
 	const query = `SELECT` + creditAccountColumns + `
 FROM credit_accounts
-WHERE customer_id = $1 AND currency = $2 AND credit_kind = $3
+WHERE id IN (SELECT credit_account_id FROM customer_credit_enrollments WHERE customer_id=$1) AND currency = $2 AND credit_kind = $3
 `
 	return postgres.QueryOne[model.CreditAccount](ctx, q, "get credit account by product", query, customerID, currency, kind)
 }
@@ -43,7 +43,7 @@ func LockByCustomerIDCurrencyAndKind[Q postgres.Queryer](
 
 	const query = `SELECT` + creditAccountColumns + `
 FROM credit_accounts
-WHERE customer_id = $1 AND currency = $2 AND credit_kind = $3
+WHERE id IN (SELECT credit_account_id FROM customer_credit_enrollments WHERE customer_id=$1) AND currency = $2 AND credit_kind = $3
 FOR UPDATE
 `
 	return postgres.QueryOne[model.CreditAccount](ctx, q, "lock credit account by product", query, customerID, currency, kind)
@@ -53,7 +53,7 @@ FOR UPDATE
 // limit or available balances across products as if they were fungible.
 func ListByCustomerID[Q postgres.Queryer](ctx context.Context, q Q, customerID model.CustomerID) ([]model.CreditAccount, error) {
 	const query = `SELECT` + creditAccountColumns + `
-FROM credit_accounts WHERE customer_id = $1 ORDER BY currency,credit_kind
+FROM credit_accounts WHERE id IN (SELECT credit_account_id FROM customer_credit_enrollments WHERE customer_id=$1) ORDER BY currency,credit_kind
 `
 	return postgres.QueryAll[model.CreditAccount](ctx, q, "list credit accounts by customer", query, customerID)
 }
@@ -78,7 +78,7 @@ INSERT INTO credit_accounts(
 RETURNING` + creditAccountColumns
 	row, err := postgres.QueryOne[model.CreditAccount](ctx, q, "create product credit account", query,
 		customerID, currency, kind, limitAmountMinor, decisionID, effectiveFrom, expiresAt, createdAt, updatedAt)
-	if err != nil && postgres.IsUniqueViolation(err, "uq_credit_accounts_customer_currency_kind") {
+	if err != nil && postgres.IsUniqueViolation(err, "uq_credit_accounts_owner_currency_kind") {
 		return model.CreditAccount{}, cerr.Conflict(fmt.Errorf("credit account already exists for customer, currency and kind"),
 			map[string]any{"customer_id": customerID, "currency": currency, "credit_kind": kind})
 	}
@@ -95,7 +95,7 @@ func ExpireDueByCustomerIDCurrencyAndKind[Q postgres.Queryer](
 
 	const query = `
 UPDATE credit_accounts SET status='expired',version=version+1,updated_at=$4
-WHERE customer_id=$1 AND currency=$2 AND credit_kind=$3
+WHERE id IN (SELECT credit_account_id FROM customer_credit_enrollments WHERE customer_id=$1) AND currency=$2 AND credit_kind=$3
  AND status='active' AND expires_at IS NOT NULL AND expires_at <= $4
 `
 	_, err := q.Exec(ctx, query, customerID, currency, kind, now)
@@ -126,7 +126,7 @@ SELECT EXISTS(
 	FROM installments AS i
 	JOIN contracts AS c ON c.id=i.contract_id
 	JOIN credit_accounts AS ca ON ca.id=c.credit_account_id
-	WHERE ca.customer_id=$1
+	WHERE ca.credit_owner_id=(SELECT credit_owner_id FROM customer_profiles WHERE id=$1)
 	  AND ca.currency=$2
 	  AND ca.credit_kind='pay_next_month'
 	  AND c.status='active'

@@ -14,6 +14,7 @@ import (
 const episodeColumns = `
 	id,
 	customer_id,
+	credit_owner_id,
 	status,
 	opening_decision_id,
 	closing_decision_id,

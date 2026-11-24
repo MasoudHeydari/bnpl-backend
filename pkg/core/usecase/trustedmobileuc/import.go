@@ -1,5 +1,3 @@
-// Package trustedmobileuc imports raw trusted mobile/national-ID pairs.
-// Import deliberately does not call Customer Reference Service or assign credit.
 package trustedmobileuc
 
 import (
@@ -17,6 +15,10 @@ import (
 )
 
 var nationalIDPattern = regexp.MustCompile(`^[0-9]{10}$`)
+
+// ErrNationalIDConflict is returned by a trusted mobile repository when an
+// already imported mobile is paired with a different national ID.
+var ErrNationalIDConflict = repo.ErrTrustedMobileNationalIDConflict
 
 const (
 	importType               = "trusted_customers"
@@ -85,9 +87,8 @@ func New(pool repo.Pool, registry repo.TrustedMobile, imports repo.PolicyAssignm
 	return &UseCase{pool: pool, registry: registry, imports: imports, phones: phones, clock: clk, logger: logger}, nil
 }
 
-// Import records independent rows with a durable result for every CSV row.
-// Re-importing an identical pair succeeds without mutation; a different
-// national ID for an existing phone is a conflict.
+// Import performs a durable, additive, idempotent CSV import without external
+// service calls. Every row is committed independently and audited.
 func (uc *UseCase) Import(ctx context.Context, input ImportInput) (ImportOutput, error) {
 	const op = "trustedmobileuc.UseCase.Import"
 	if strings.TrimSpace(input.SourceFile) == "" || strings.TrimSpace(input.CreatedBy) == "" || len(input.Customers) == 0 {
@@ -98,13 +99,20 @@ func (uc *UseCase) Import(ctx context.Context, input ImportInput) (ImportOutput,
 			return ImportOutput{}, fmt.Errorf("%s: invalid CSV row number", op)
 		}
 	}
-
 	now := uc.clock.Now().UTC()
 	var batch model.PolicyAssignmentImport
 	if err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
 			var err error
-			batch, err = uc.imports.Tx(tx).Create(ctx, importType, input.SourceFile, len(input.Customers), strings.TrimSpace(input.CreatedBy), now)
+			importsQ := uc.imports.Tx(tx)
+			batch, err = importsQ.Create(
+				ctx,
+				importType,
+				input.SourceFile,
+				len(input.Customers),
+				strings.TrimSpace(input.CreatedBy),
+				now,
+			)
 			return err
 		})
 	}); err != nil {
@@ -125,8 +133,8 @@ func (uc *UseCase) Import(ctx context.Context, input ImportInput) (ImportOutput,
 			code = outcomeInvalidNationalID
 		default:
 			nationalID := strings.TrimSpace(row.NationalID)
-			if prior, exists := seen[mobile]; exists {
-				if prior == nationalID {
+			if previous, exists := seen[mobile]; exists {
+				if previous == nationalID {
 					out.Duplicates++
 					code = outcomeDuplicate
 				} else {
@@ -144,7 +152,7 @@ func (uc *UseCase) Import(ctx context.Context, input ImportInput) (ImportOutput,
 					} else {
 						out.AlreadyExists++
 					}
-				case errors.Is(err, repo.ErrTrustedMobileNationalIDConflict):
+				case errors.Is(err, ErrNationalIDConflict):
 					out.Conflicts++
 					code = outcomeConflict
 				default:
@@ -155,7 +163,7 @@ func (uc *UseCase) Import(ctx context.Context, input ImportInput) (ImportOutput,
 		}
 		if code != "" {
 			if err := uc.failRow(ctx, batch.ID, row.RowNumber, strings.TrimSpace(row.NationalID), code); err != nil {
-				return ImportOutput{}, fmt.Errorf("%s: audit row %d: %w", op, row.RowNumber, err)
+				return ImportOutput{}, fmt.Errorf("%s: persist row %d failure: %w", op, row.RowNumber, err)
 			}
 			uc.logger.With("row_number", row.RowNumber, "reason", code).Warn(log.Msg("trusted_mobile_import_row_failed"))
 		}
@@ -169,7 +177,15 @@ func (uc *UseCase) Import(ctx context.Context, input ImportInput) (ImportOutput,
 	if err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
 			var err error
-			batch, err = uc.imports.Tx(tx).Complete(ctx, batch.ID, status, out.SuccessCount, out.FailureCount, uc.clock.Now().UTC())
+			importsQ := uc.imports.Tx(tx)
+			batch, err = importsQ.Complete(
+				ctx,
+				batch.ID,
+				status,
+				out.SuccessCount,
+				out.FailureCount,
+				uc.clock.Now().UTC(),
+			)
 			return err
 		})
 	}); err != nil {
@@ -189,7 +205,14 @@ func (uc *UseCase) insertRow(ctx context.Context, importID model.PolicyAssignmen
 			if err != nil {
 				return err
 			}
-			added, err = uc.registry.Tx(tx).InsertIfAbsent(ctx, mobile, nationalID, actor, now)
+			registryQ := uc.registry.Tx(tx)
+			added, err = registryQ.InsertIfAbsent(
+				ctx,
+				mobile,
+				nationalID,
+				actor,
+				now,
+			)
 			if err != nil {
 				return err
 			}

@@ -299,6 +299,37 @@ WHERE
     prior_decision_id IS NOT NULL;
 
 -- -----------------------------------------------------------------------------
+-- Credit owners (one immutable Iranian national code per legal person)
+-- -----------------------------------------------------------------------------
+-- Raw national_code is intentionally stored as text. It is never a mobile
+-- number or a Customer Reference Service account identifier.
+CREATE TABLE IF NOT EXISTS credit_owners (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
+    national_code text NOT NULL UNIQUE,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT chk_credit_owners_national_code CHECK (national_code ~ '^[0-9]{10}$')
+);
+
+-- A legitimate correction is an operator-reviewed process, not an UPDATE on
+-- an existing national code or on a profile's immutable legal-person link.
+CREATE OR REPLACE FUNCTION bnpl.guard_credit_owner_identity () RETURNS trigger
+LANGUAGE plpgsql SET search_path = bnpl, pg_temp AS $guard_credit_owner$
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION USING ERRCODE = '23503', CONSTRAINT = 'credit_owner_identity_immutable', MESSAGE = 'Credit owner cannot be deleted';
+    END IF;
+    IF OLD.id IS DISTINCT FROM NEW.id OR OLD.national_code IS DISTINCT FROM NEW.national_code THEN
+        RAISE EXCEPTION USING ERRCODE = '23514', CONSTRAINT = 'credit_owner_identity_immutable', MESSAGE = 'Credit owner national code is immutable';
+    END IF;
+    RETURN NEW;
+END
+$guard_credit_owner$;
+
+CREATE TRIGGER credit_owners_identity_immutable
+BEFORE UPDATE OR DELETE ON credit_owners FOR EACH ROW
+EXECUTE FUNCTION bnpl.guard_credit_owner_identity ();
+
+-- -----------------------------------------------------------------------------
 -- Customer Profiles
 -- -----------------------------------------------------------------------------
 -- BNPL-specific customer profiles.
@@ -317,6 +348,8 @@ CREATE TABLE IF NOT EXISTS customer_profiles (
     external_subject_id uuid NOT NULL UNIQUE,
     -- Customer Reference Service customer_id this BNPL profile belongs to.
     external_customer_id uuid NOT NULL UNIQUE,
+    -- Permanent one-to-many relationship between a legal person and CRS accounts.
+    credit_owner_id uuid NOT NULL REFERENCES credit_owners (id),
     -- Regulatory jurisdiction that governs this customer's BNPL profile.
     jurisdiction text NOT NULL,
     -- Current lifecycle state of the BNPL profile.
@@ -325,8 +358,29 @@ CREATE TABLE IF NOT EXISTS customer_profiles (
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT chk_customer_profiles_status CHECK (status IN ('active', 'deactivated', 'terminated')),
-    CONSTRAINT chk_customer_profiles_jurisdiction CHECK (jurisdiction IN ('IR'))
+    CONSTRAINT chk_customer_profiles_jurisdiction CHECK (jurisdiction IN ('IR')),
+    CONSTRAINT uq_customer_profiles_id_owner UNIQUE (id, credit_owner_id),
+    CONSTRAINT uq_customer_profiles_id_external_customer UNIQUE (id, external_customer_id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_customer_profiles_credit_owner ON customer_profiles (credit_owner_id);
+
+CREATE OR REPLACE FUNCTION bnpl.guard_customer_profile_identity () RETURNS trigger
+LANGUAGE plpgsql SET search_path = bnpl, pg_temp AS $guard_customer_identity$
+BEGIN
+    IF OLD.id IS DISTINCT FROM NEW.id
+       OR OLD.external_subject_id IS DISTINCT FROM NEW.external_subject_id
+       OR OLD.external_customer_id IS DISTINCT FROM NEW.external_customer_id
+       OR OLD.credit_owner_id IS DISTINCT FROM NEW.credit_owner_id THEN
+        RAISE EXCEPTION USING ERRCODE = '23514', CONSTRAINT = 'customer_profile_identity_immutable', MESSAGE = 'Customer account identity and legal person are immutable';
+    END IF;
+    RETURN NEW;
+END
+$guard_customer_identity$;
+
+CREATE TRIGGER customer_profiles_identity_immutable
+BEFORE UPDATE ON customer_profiles FOR EACH ROW
+EXECUTE FUNCTION bnpl.guard_customer_profile_identity ();
 
 COMMENT ON COLUMN customer_profiles.external_subject_id IS 'Identity Service subject UUID from x-auth-subject-id; never NULL; distinct from Customer Reference Service customer_id (external_customer_id) and from customer_profiles.id.';
 
@@ -426,6 +480,18 @@ CREATE TABLE IF NOT EXISTS trusted_mobile_numbers (
     CONSTRAINT chk_trusted_mobile_numbers_national CHECK (national_id ~ '^[0-9]{10}$'),
     CONSTRAINT chk_trusted_mobile_numbers_created_by CHECK (char_length(created_by) BETWEEN 1 AND 256)
 );
+
+-- A correction of an imported identity pairing requires an explicit future
+-- operator workflow, never a normal UPDATE or DELETE (even by the owner role).
+CREATE OR REPLACE FUNCTION bnpl.guard_trusted_mobile_identity () RETURNS trigger
+LANGUAGE plpgsql SET search_path = bnpl, pg_temp AS $trusted_identity$
+BEGIN
+    RAISE EXCEPTION USING ERRCODE = '23514', CONSTRAINT = 'trusted_mobile_identity_immutable', MESSAGE = 'Trusted mobile/national ID pair is immutable';
+END
+$trusted_identity$;
+CREATE TRIGGER trusted_mobile_identity_immutable
+BEFORE UPDATE OR DELETE ON trusted_mobile_numbers FOR EACH ROW
+EXECUTE FUNCTION bnpl.guard_trusted_mobile_identity ();
 
 -- -----------------------------------------------------------------------------
 -- Merchant Profiles
@@ -590,14 +656,17 @@ CREATE INDEX IF NOT EXISTS idx_merchant_online_stores_branch_profile_id ON merch
 -- -----------------------------------------------------------------------------
 -- Credit Accounts
 -- -----------------------------------------------------------------------------
--- One operational BNPL credit account exists per customer/currency/credit_kind.
+-- One operational BNPL credit account exists per legal person/currency/credit_kind.
 -- Pay-in-four and pay-next-month capacity never share a row. Each stores
 -- current governed capacity plus committed outstanding principal exposure.
 -- It is not a cash balance or financial ledger; Financial Core remains the
 -- authority for payment and money-movement facts.
 CREATE TABLE IF NOT EXISTS credit_accounts (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
+    -- The immutable account that originally obtained this credit; retained for
+    -- audit and the credit-limit Decision. Other enrolled accounts share it.
     customer_id uuid NOT NULL REFERENCES customer_profiles (id),
+    credit_owner_id uuid NOT NULL REFERENCES credit_owners (id),
     currency text NOT NULL,
     -- Independently governed financing product for this capacity/exposure row.
     -- Pay-in-four and pay-next-month never share one account balance.
@@ -614,7 +683,10 @@ CREATE TABLE IF NOT EXISTS credit_accounts (
     version bigint NOT NULL DEFAULT 1,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT uq_credit_accounts_customer_currency_kind UNIQUE (customer_id, currency, credit_kind),
+    CONSTRAINT uq_credit_accounts_owner_currency_kind UNIQUE (credit_owner_id, currency, credit_kind),
+    CONSTRAINT uq_credit_accounts_id_owner UNIQUE (id, credit_owner_id),
+    CONSTRAINT uq_credit_accounts_id_owner_currency UNIQUE (id, credit_owner_id, currency),
+    CONSTRAINT fk_credit_accounts_origin_owner FOREIGN KEY (customer_id, credit_owner_id) REFERENCES customer_profiles (id, credit_owner_id),
     CONSTRAINT chk_credit_accounts_credit_kind CHECK (credit_kind IN ('pay_in_installments', 'pay_next_month')),
     CONSTRAINT chk_credit_accounts_status CHECK (status IN ('active', 'expired', 'revoked')),
     CONSTRAINT chk_credit_accounts_amounts CHECK (limit_amount_minor >= 0 AND exposure_amount_minor >= 0),
@@ -625,6 +697,77 @@ CREATE TABLE IF NOT EXISTS credit_accounts (
 CREATE INDEX IF NOT EXISTS idx_credit_accounts_last_limit_decision_id ON credit_accounts (last_limit_decision_id)
 WHERE
     last_limit_decision_id IS NOT NULL;
+
+-- Credit account creator cannot spoof a different legal-person owner.
+CREATE OR REPLACE FUNCTION bnpl.set_credit_account_owner () RETURNS trigger
+LANGUAGE plpgsql SET search_path = bnpl, pg_temp AS $set_owner$
+DECLARE actual_owner uuid;
+BEGIN
+    IF TG_OP = 'UPDATE' THEN
+        IF OLD.credit_owner_id IS DISTINCT FROM NEW.credit_owner_id OR OLD.customer_id IS DISTINCT FROM NEW.customer_id THEN
+            RAISE EXCEPTION USING ERRCODE = '23514', CONSTRAINT = 'credit_account_owner_immutable', MESSAGE = 'Credit account owner and origin are immutable';
+        END IF;
+        RETURN NEW;
+    END IF;
+    SELECT credit_owner_id INTO STRICT actual_owner FROM customer_profiles WHERE id = NEW.customer_id;
+    IF NEW.credit_owner_id IS NOT NULL AND NEW.credit_owner_id <> actual_owner THEN
+        RAISE EXCEPTION USING ERRCODE = '23514', CONSTRAINT = 'credit_account_owner_mismatch', MESSAGE = 'Credit account origin has another legal-person owner';
+    END IF;
+    NEW.credit_owner_id := actual_owner;
+    RETURN NEW;
+END
+$set_owner$;
+
+CREATE TRIGGER credit_accounts_enforce_owner
+BEFORE INSERT OR UPDATE ON credit_accounts FOR EACH ROW
+EXECUTE FUNCTION bnpl.set_credit_account_owner ();
+
+-- -----------------------------------------------------------------------------
+-- Customer-credit enrollments (per-account permission to use person capacity)
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS customer_credit_enrollments (
+    customer_id uuid NOT NULL,
+    credit_account_id uuid NOT NULL,
+    credit_owner_id uuid NOT NULL,
+    enrolled_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (customer_id, credit_account_id),
+    CONSTRAINT uq_customer_credit_enrollments_customer_kind UNIQUE (customer_id, credit_account_id),
+    CONSTRAINT fk_enrollments_customer_owner FOREIGN KEY (customer_id, credit_owner_id) REFERENCES customer_profiles (id, credit_owner_id),
+    CONSTRAINT fk_enrollments_credit_owner FOREIGN KEY (credit_account_id, credit_owner_id) REFERENCES credit_accounts (id, credit_owner_id)
+);
+CREATE INDEX IF NOT EXISTS idx_customer_credit_enrollments_account ON customer_credit_enrollments (credit_account_id);
+
+-- The origin account receives enrollment atomically with first credit grant.
+CREATE OR REPLACE FUNCTION bnpl.enroll_origin_credit_account () RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = bnpl, pg_temp AS $enroll_origin$
+BEGIN
+    INSERT INTO customer_credit_enrollments (customer_id, credit_account_id, credit_owner_id, enrolled_at)
+    VALUES (NEW.customer_id, NEW.id, NEW.credit_owner_id, NEW.created_at);
+    RETURN NEW;
+END
+$enroll_origin$;
+CREATE TRIGGER credit_accounts_enroll_origin
+AFTER INSERT ON credit_accounts FOR EACH ROW
+EXECUTE FUNCTION bnpl.enroll_origin_credit_account ();
+
+-- Enrollment identity is immutable, even for the database owner.
+CREATE OR REPLACE FUNCTION bnpl.guard_credit_enrollment () RETURNS trigger
+LANGUAGE plpgsql SET search_path = bnpl, pg_temp AS $guard_enrollment$
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION USING ERRCODE = '23514', CONSTRAINT = 'credit_enrollment_immutable', MESSAGE = 'Credit enrollment cannot be deleted';
+    END IF;
+    IF OLD.customer_id IS DISTINCT FROM NEW.customer_id
+       OR OLD.credit_account_id IS DISTINCT FROM NEW.credit_account_id
+       OR OLD.credit_owner_id IS DISTINCT FROM NEW.credit_owner_id THEN
+        RAISE EXCEPTION USING ERRCODE = '23514', CONSTRAINT = 'credit_enrollment_immutable', MESSAGE = 'Credit enrollment owner cannot be changed';
+    END IF;
+    RETURN NEW;
+END
+$guard_enrollment$;
+CREATE TRIGGER customer_credit_enrollments_immutable
+BEFORE UPDATE OR DELETE ON customer_credit_enrollments FOR EACH ROW
+EXECUTE FUNCTION bnpl.guard_credit_enrollment ();
 
 -- -----------------------------------------------------------------------------
 -- Credit Transactions
@@ -670,6 +813,7 @@ CREATE TABLE IF NOT EXISTS contracts (
     -- contract acts as the durable single-in-flight payment gate; no credit
     -- amount is reserved while it is pending.
     credit_account_id uuid NOT NULL REFERENCES credit_accounts (id),
+    credit_owner_id uuid NOT NULL REFERENCES credit_owners (id),
     merchant_profile_id uuid NOT NULL REFERENCES merchant_profiles (id),
     merchant_branch_profile_id uuid NULL REFERENCES merchant_branch_profiles (id),
     currency text NOT NULL,
@@ -718,8 +862,36 @@ CREATE TABLE IF NOT EXISTS contracts (
     CONSTRAINT chk_contracts_cancellation_metadata CHECK (status <> 'canceling' OR (cancellation_idempotency_key IS NOT NULL AND char_length(cancellation_idempotency_key) BETWEEN 1 AND 256 AND cancellation_reason IS NOT NULL AND cancellation_reason IN ('customer_requested') AND cancellation_request_fingerprint IS NOT NULL AND char_length(cancellation_request_fingerprint) BETWEEN 1 AND 128 AND cancellation_requested_at IS NOT NULL AND cancellation_financial_core_idempotency_key IS NOT NULL AND char_length(cancellation_financial_core_idempotency_key) BETWEEN 1 AND 256 AND cancellation_tenant_id IS NOT NULL AND cancellation_context_id IS NOT NULL)),
     CONSTRAINT chk_contracts_payment_session_metadata CHECK (financial_payment_link IS NULL OR (financial_invoice_id IS NOT NULL AND financial_payment_intent_id IS NOT NULL AND financial_payment_session_id IS NOT NULL AND financial_payment_expires_at IS NOT NULL)),
     CONSTRAINT chk_contracts_integration_text_lengths CHECK (char_length(checkout_key) BETWEEN 1 AND 256 AND (financial_invoice_id IS NULL OR char_length(financial_invoice_id) BETWEEN 1 AND 256) AND (financial_payment_intent_id IS NULL OR char_length(financial_payment_intent_id) BETWEEN 1 AND 256) AND (financial_payment_attempt_id IS NULL OR char_length(financial_payment_attempt_id) BETWEEN 1 AND 256) AND (successful_financial_payment_attempt_id IS NULL OR char_length(successful_financial_payment_attempt_id) BETWEEN 1 AND 256) AND (financial_payment_session_id IS NULL OR char_length(financial_payment_session_id) BETWEEN 1 AND 256) AND (financial_payment_link IS NULL OR char_length(financial_payment_link) BETWEEN 1 AND 2048)),
-    CONSTRAINT chk_contracts_currency CHECK (currency IN ('IRR', 'EUR', 'USD'))
+    CONSTRAINT chk_contracts_currency CHECK (currency IN ('IRR', 'EUR', 'USD')),
+    CONSTRAINT uq_contracts_id_customer UNIQUE (id, customer_id),
+    CONSTRAINT fk_contracts_customer_owner FOREIGN KEY (customer_id, credit_owner_id) REFERENCES customer_profiles (id, credit_owner_id),
+    CONSTRAINT fk_contracts_account_owner_currency FOREIGN KEY (credit_account_id, credit_owner_id, currency) REFERENCES credit_accounts (id, credit_owner_id, currency),
+    CONSTRAINT fk_contracts_enrollment FOREIGN KEY (customer_id, credit_account_id) REFERENCES customer_credit_enrollments (customer_id, credit_account_id)
 );
+
+CREATE OR REPLACE FUNCTION bnpl.set_contract_credit_owner () RETURNS trigger
+LANGUAGE plpgsql SET search_path = bnpl, pg_temp AS $set_contract_owner$
+DECLARE actual_owner uuid;
+BEGIN
+    IF TG_OP = 'UPDATE' THEN
+        IF OLD.customer_id IS DISTINCT FROM NEW.customer_id
+            OR OLD.credit_account_id IS DISTINCT FROM NEW.credit_account_id
+            OR OLD.credit_owner_id IS DISTINCT FROM NEW.credit_owner_id THEN
+            RAISE EXCEPTION USING ERRCODE = '23514', CONSTRAINT = 'contract_credit_owner_immutable', MESSAGE = 'Contract account ownership is immutable';
+        END IF;
+        RETURN NEW;
+    END IF;
+    SELECT credit_owner_id INTO STRICT actual_owner FROM customer_profiles WHERE id = NEW.customer_id;
+    IF NEW.credit_owner_id IS NOT NULL AND NEW.credit_owner_id <> actual_owner THEN
+        RAISE EXCEPTION USING ERRCODE = '23514', CONSTRAINT = 'contract_credit_owner_mismatch', MESSAGE = 'Contract owner does not match customer';
+    END IF;
+    NEW.credit_owner_id := actual_owner;
+    RETURN NEW;
+END
+$set_contract_owner$;
+CREATE TRIGGER contracts_enforce_credit_owner
+BEFORE INSERT OR UPDATE ON contracts FOR EACH ROW
+EXECUTE FUNCTION bnpl.set_contract_credit_owner ();
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_contracts_decision_id ON contracts (decision_id);
 
@@ -731,6 +903,9 @@ CREATE INDEX IF NOT EXISTS idx_contracts_customer_status ON contracts (customer_
 CREATE UNIQUE INDEX IF NOT EXISTS idx_contracts_one_pre_activation_per_credit_account ON contracts (credit_account_id)
 WHERE
     status = 'payment_pending';
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_contracts_one_pre_activation_per_credit_owner ON contracts (credit_owner_id)
+WHERE status = 'payment_pending';
 
 COMMENT ON COLUMN contracts.status IS 'Contract lifecycle status. payment_pending is the single pre-activation state: waiting for Financial Core initial-payment success or merchant-funding success (a PaymentAttempt exists only for the former). No credit exposure is consumed until active.';
 
@@ -1278,6 +1453,66 @@ WHERE
     contract_id IS NOT NULL;
 
 -- -----------------------------------------------------------------------------
+-- One in-flight checkout per legal person across all accounts / credit kinds.
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS credit_owner_checkout_claims (
+    credit_owner_id uuid PRIMARY KEY REFERENCES credit_owners (id),
+    checkout_session_id uuid NOT NULL UNIQUE REFERENCES checkout_sessions (id),
+    acquired_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Applied as part of the same INSERT/UPDATE that binds an authenticated CRS
+-- account to a session. The unique PK serializes two customer profiles sharing
+-- one credit owner without a long-lived transaction or Redis lease.
+CREATE OR REPLACE FUNCTION bnpl.maintain_credit_owner_checkout_claim () RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = bnpl, pg_temp AS $checkout_claim$
+DECLARE owner_id uuid;
+DECLARE holder_id uuid;
+BEGIN
+    IF TG_OP = 'UPDATE' AND OLD.customer_id IS NOT NULL AND NEW.customer_id IS DISTINCT FROM OLD.customer_id THEN
+        RAISE EXCEPTION USING ERRCODE = '23514', CONSTRAINT = 'checkout_bound_customer_immutable', MESSAGE = 'Bound checkout customer is immutable';
+    END IF;
+    IF NEW.customer_id IS NULL THEN
+        RETURN NEW;
+    END IF;
+
+    -- Sessions still owned by payment reconciliation keep their claim even
+    -- past expires_at; only an authoritative terminal transition frees it.
+    IF NEW.status IN ('verified_by_merchant', 'canceled', 'expired', 'unavailable') THEN
+        DELETE FROM credit_owner_checkout_claims WHERE checkout_session_id = NEW.id;
+        RETURN NEW;
+    END IF;
+    -- A person having credit does not yet authorize an unenrolled account to
+    -- start a purchase. Sessions created before that account requested credit
+    -- must not occupy the person's checkout slot.
+    IF NOT EXISTS (
+        SELECT 1
+          FROM customer_credit_enrollments e
+          JOIN credit_accounts ca ON ca.id = e.credit_account_id
+         WHERE e.customer_id = NEW.customer_id
+           AND e.credit_owner_id = (SELECT credit_owner_id FROM customer_profiles WHERE id = NEW.customer_id)
+           AND ca.status = 'active'
+    ) THEN
+        RETURN NEW;
+    END IF;
+    SELECT credit_owner_id INTO STRICT owner_id FROM customer_profiles WHERE id = NEW.customer_id;
+    INSERT INTO credit_owner_checkout_claims (credit_owner_id, checkout_session_id, acquired_at)
+    VALUES (owner_id, NEW.id, NEW.created_at)
+    ON CONFLICT (credit_owner_id) DO NOTHING;
+    SELECT checkout_session_id INTO holder_id
+    FROM credit_owner_checkout_claims WHERE credit_owner_id = owner_id;
+    IF holder_id IS DISTINCT FROM NEW.id THEN
+        RAISE EXCEPTION USING ERRCODE = '23505', CONSTRAINT = 'credit_owner_checkout_in_progress', MESSAGE = 'A credit purchase is already in progress for this person';
+    END IF;
+    RETURN NEW;
+END
+$checkout_claim$;
+
+CREATE TRIGGER checkout_sessions_person_claim
+AFTER INSERT OR UPDATE ON checkout_sessions FOR EACH ROW
+EXECUTE FUNCTION bnpl.maintain_credit_owner_checkout_claim ();
+
+-- -----------------------------------------------------------------------------
 -- OTP challenges
 -- -----------------------------------------------------------------------------
 -- Durable one-time-code state for reusable OTP purposes. One row per
@@ -1747,6 +1982,7 @@ CREATE INDEX IF NOT EXISTS repayment_reminders_short_link_id_idx ON repayment_re
 CREATE TABLE IF NOT EXISTS default_episodes (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
     customer_id uuid NOT NULL REFERENCES customer_profiles (id),
+    credit_owner_id uuid NOT NULL REFERENCES credit_owners (id),
     status text NOT NULL,
     opening_decision_id uuid NOT NULL REFERENCES decisions (id),
     closing_decision_id uuid REFERENCES decisions (id),
@@ -1755,8 +1991,32 @@ CREATE TABLE IF NOT EXISTS default_episodes (
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT default_episodes_status_check CHECK (status IN ('active', 'recovered')),
-    CONSTRAINT default_episodes_recovered_consistency_check CHECK ((status = 'active' AND recovered_at IS NULL AND closing_decision_id IS NULL) OR (status = 'recovered' AND recovered_at IS NOT NULL AND closing_decision_id IS NOT NULL))
+    CONSTRAINT default_episodes_recovered_consistency_check CHECK ((status = 'active' AND recovered_at IS NULL AND closing_decision_id IS NULL) OR (status = 'recovered' AND recovered_at IS NOT NULL AND closing_decision_id IS NOT NULL)),
+    CONSTRAINT uq_default_episodes_id_customer UNIQUE (id, customer_id),
+    CONSTRAINT fk_default_episode_customer_owner FOREIGN KEY (customer_id, credit_owner_id) REFERENCES customer_profiles (id, credit_owner_id)
 );
+
+CREATE OR REPLACE FUNCTION bnpl.set_default_episode_owner () RETURNS trigger
+LANGUAGE plpgsql SET search_path = bnpl, pg_temp AS $default_owner$
+DECLARE owner_id uuid;
+BEGIN
+    IF TG_OP = 'UPDATE' THEN
+        IF OLD.customer_id IS DISTINCT FROM NEW.customer_id OR OLD.credit_owner_id IS DISTINCT FROM NEW.credit_owner_id THEN
+            RAISE EXCEPTION USING ERRCODE = '23514', CONSTRAINT = 'default_episode_owner_immutable', MESSAGE = 'Default episode account and national-code owner are immutable';
+        END IF;
+        RETURN NEW;
+    END IF;
+    SELECT credit_owner_id INTO STRICT owner_id FROM customer_profiles WHERE id = NEW.customer_id;
+    IF NEW.credit_owner_id IS NOT NULL AND NEW.credit_owner_id <> owner_id THEN
+        RAISE EXCEPTION USING ERRCODE = '23514', CONSTRAINT = 'default_episode_owner_mismatch', MESSAGE = 'Default episode customer does not own legal person';
+    END IF;
+    NEW.credit_owner_id := owner_id;
+    RETURN NEW;
+END
+$default_owner$;
+CREATE TRIGGER default_episodes_owner
+BEFORE INSERT OR UPDATE ON default_episodes FOR EACH ROW
+EXECUTE FUNCTION bnpl.set_default_episode_owner ();
 
 COMMENT ON TABLE default_episodes IS 'One continuous customer default period; recovered episodes are retained forever.';
 
@@ -1769,6 +2029,7 @@ CREATE INDEX IF NOT EXISTS default_episodes_customer_started_idx ON default_epis
 CREATE TABLE IF NOT EXISTS default_episode_triggers (
     episode_id uuid NOT NULL REFERENCES default_episodes (id) ON DELETE RESTRICT,
     installment_id uuid NOT NULL REFERENCES installments (id) ON DELETE RESTRICT,
+    customer_id uuid NOT NULL,
     due_at timestamptz NOT NULL,
     grace_period_days integer NOT NULL,
     overdue_eligible_at timestamptz NOT NULL,
@@ -1780,11 +2041,24 @@ CREATE TABLE IF NOT EXISTS default_episode_triggers (
     PRIMARY KEY (episode_id, installment_id),
     CONSTRAINT default_episode_triggers_grace_nonnegative CHECK (grace_period_days >= 0),
     CONSTRAINT default_episode_triggers_default_after_nonnegative CHECK (default_after_days >= 0),
+    CONSTRAINT fk_default_trigger_episode_customer FOREIGN KEY (episode_id, customer_id) REFERENCES default_episodes (id, customer_id),
+    CONSTRAINT fk_default_trigger_installment_customer FOREIGN KEY (installment_id, customer_id) REFERENCES installments (id, customer_id),
     CONSTRAINT default_episode_triggers_collections_policy CHECK (
         char_length(collections_policy_id) BETWEEN 1 AND 128
         AND char_length(collections_policy_version) BETWEEN 1 AND 64
     )
 );
+
+CREATE OR REPLACE FUNCTION bnpl.set_default_trigger_customer () RETURNS trigger
+LANGUAGE plpgsql SET search_path = bnpl, pg_temp AS $default_trigger_customer$
+BEGIN
+    SELECT customer_id INTO STRICT NEW.customer_id FROM default_episodes WHERE id = NEW.episode_id;
+    RETURN NEW;
+END
+$default_trigger_customer$;
+CREATE TRIGGER default_episode_triggers_owner
+BEFORE INSERT ON default_episode_triggers FOR EACH ROW
+EXECUTE FUNCTION bnpl.set_default_trigger_customer ();
 
 -- Each installment records default-entry evidence at most once across episodes.
 CREATE UNIQUE INDEX IF NOT EXISTS uq_default_episode_triggers_installment
@@ -1795,6 +2069,7 @@ COMMENT ON TABLE default_episode_triggers IS 'Immutable per-installment default 
 CREATE TABLE IF NOT EXISTS customer_restrictions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
     customer_id uuid NOT NULL REFERENCES customer_profiles (id),
+    credit_owner_id uuid NOT NULL REFERENCES credit_owners (id),
     restriction_type text NOT NULL,
     reason text NOT NULL,
     status text NOT NULL,
@@ -1808,8 +2083,36 @@ CREATE TABLE IF NOT EXISTS customer_restrictions (
     CONSTRAINT customer_restrictions_type_check CHECK (restriction_type IN ('new_credit_usage')),
     CONSTRAINT customer_restrictions_reason_check CHECK (reason ~ '^[a-z][a-z0-9_]{0,63}$'),
     CONSTRAINT customer_restrictions_status_check CHECK (status IN ('active', 'released')),
-    CONSTRAINT customer_restrictions_released_consistency_check CHECK ((status = 'active' AND released_at IS NULL AND releasing_decision_id IS NULL) OR (status = 'released' AND released_at IS NOT NULL AND releasing_decision_id IS NOT NULL))
+    CONSTRAINT customer_restrictions_released_consistency_check CHECK ((status = 'active' AND released_at IS NULL AND releasing_decision_id IS NULL) OR (status = 'released' AND released_at IS NOT NULL AND releasing_decision_id IS NOT NULL)),
+    CONSTRAINT fk_restriction_customer_owner FOREIGN KEY (customer_id, credit_owner_id) REFERENCES customer_profiles (id, credit_owner_id),
+    CONSTRAINT fk_restriction_episode_customer FOREIGN KEY (default_episode_id, customer_id) REFERENCES default_episodes (id, customer_id)
 );
+
+CREATE OR REPLACE FUNCTION bnpl.set_customer_restriction_owner () RETURNS trigger
+LANGUAGE plpgsql SET search_path = bnpl, pg_temp AS $restriction_owner$
+DECLARE owner_id uuid;
+BEGIN
+    IF TG_OP = 'UPDATE' THEN
+        IF OLD.customer_id IS DISTINCT FROM NEW.customer_id OR OLD.credit_owner_id IS DISTINCT FROM NEW.credit_owner_id
+           OR OLD.default_episode_id IS DISTINCT FROM NEW.default_episode_id THEN
+            RAISE EXCEPTION USING ERRCODE = '23514', CONSTRAINT = 'restriction_provenance_immutable', MESSAGE = 'Restriction origin and legal owner are immutable';
+        END IF;
+        RETURN NEW;
+    END IF;
+    SELECT credit_owner_id INTO STRICT owner_id FROM customer_profiles WHERE id = NEW.customer_id;
+    IF NEW.credit_owner_id IS NOT NULL AND NEW.credit_owner_id <> owner_id THEN
+        RAISE EXCEPTION USING ERRCODE = '23514', CONSTRAINT = 'restriction_owner_mismatch', MESSAGE = 'Restriction legal owner mismatch';
+    END IF;
+    NEW.credit_owner_id := owner_id;
+    RETURN NEW;
+END
+$restriction_owner$;
+CREATE TRIGGER customer_restrictions_owner
+BEFORE INSERT OR UPDATE ON customer_restrictions FOR EACH ROW
+EXECUTE FUNCTION bnpl.set_customer_restriction_owner ();
+
+CREATE INDEX IF NOT EXISTS idx_customer_restrictions_owner_active ON customer_restrictions (credit_owner_id, applied_at)
+WHERE status = 'active';
 
 COMMENT ON TABLE customer_restrictions IS 'Durable customer capability restrictions; released rows are never deleted.';
 
@@ -1831,7 +2134,8 @@ CREATE TABLE IF NOT EXISTS collections_cases (
     updated_at timestamptz NOT NULL DEFAULT now(),
     resolved_at timestamptz,
     CONSTRAINT collections_cases_status_check CHECK (status IN ('pending_human_review', 'under_legal_review', 'legal_action_started', 'resolved')),
-    CONSTRAINT collections_cases_episode_unique UNIQUE (default_episode_id)
+    CONSTRAINT collections_cases_episode_unique UNIQUE (default_episode_id),
+    CONSTRAINT fk_collections_case_episode_customer FOREIGN KEY (default_episode_id, customer_id) REFERENCES default_episodes (id, customer_id)
 );
 
 COMMENT ON TABLE collections_cases IS 'Human/legal collections workflow for one default episode; independent of credit restriction recovery.';
@@ -2453,6 +2757,12 @@ CREATE TRIGGER trg_payment_attempt_repayment_batch_claim
     EXECUTE FUNCTION bnpl.reject_claimed_installment_payment_attempt ();
 
 
+-- Cross-table account ownership invariants for installment and default evidence.
+-- Contract-less provisional offer installments remain allowed (NULL contract_id).
+ALTER TABLE installments ADD CONSTRAINT uq_installments_id_customer UNIQUE (id, customer_id);
+ALTER TABLE installments ADD CONSTRAINT fk_installments_contract_customer
+FOREIGN KEY (contract_id, customer_id) REFERENCES contracts (id, customer_id);
+
 -- -----------------------------------------------------------------------------
 -- MANAGED DATABASE PERMISSIONS: canonical initial grants (pre-release)
 -- -----------------------------------------------------------------------------
@@ -2529,9 +2839,16 @@ GRANT UPDATE (compensation_resolved_at, compensation_state) ON bnpl.saga_forward
 
 GRANT SELECT, INSERT, UPDATE ON bnpl.decisions TO bnpl;
 
+GRANT SELECT, INSERT ON bnpl.credit_owners TO bnpl;
+
+-- Row locks require an UPDATE privilege in PostgreSQL. The identity trigger
+-- rejects actual changes to id or national_code; only the key-preserving
+-- privilege needed by SELECT FOR UPDATE is granted to the Runtime role.
+GRANT UPDATE (id) ON bnpl.credit_owners TO bnpl;
+
 GRANT SELECT, INSERT ON bnpl.customer_profiles TO bnpl;
 
-GRANT UPDATE (external_subject_id, external_customer_id, jurisdiction, status, updated_at) ON bnpl.customer_profiles TO bnpl;
+GRANT UPDATE (status, updated_at) ON bnpl.customer_profiles TO bnpl;
 
 GRANT SELECT, INSERT ON bnpl.policy_assignments TO bnpl;
 
@@ -2564,6 +2881,10 @@ GRANT SELECT ON bnpl.merchant_online_stores TO bnpl;
 GRANT UPDATE (id) ON bnpl.merchant_online_stores TO bnpl;
 
 GRANT SELECT, INSERT ON bnpl.credit_accounts TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.customer_credit_enrollments TO bnpl;
+
+GRANT SELECT ON bnpl.credit_owner_checkout_claims TO bnpl;
 
 GRANT UPDATE (effective_from, expires_at, exposure_amount_minor, last_limit_decision_id, limit_amount_minor, revoked_at, status, updated_at, version) ON bnpl.credit_accounts TO bnpl;
 

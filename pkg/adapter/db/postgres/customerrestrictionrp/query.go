@@ -14,6 +14,7 @@ import (
 const restrictionColumns = `
 	id,
 	customer_id,
+	credit_owner_id,
 	restriction_type,
 	reason,
 	status,

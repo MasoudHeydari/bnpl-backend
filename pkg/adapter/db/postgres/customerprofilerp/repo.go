@@ -74,6 +74,7 @@ func (q txQueryer) Create(
 	status model.CustomerStatus,
 	createdAt time.Time,
 	updatedAt time.Time,
+	nationalCode string,
 ) (model.CustomerProfile, error) {
 	return Create(
 		ctx,
@@ -84,6 +85,7 @@ func (q txQueryer) Create(
 		status,
 		createdAt,
 		updatedAt,
+		nationalCode,
 	)
 }
 
@@ -96,6 +98,7 @@ func (q txQueryer) EnsureExists(
 	status model.CustomerStatus,
 	createdAt time.Time,
 	updatedAt time.Time,
+	nationalCode string,
 ) (model.CustomerProfile, bool, error) {
 	return EnsureExists(
 		ctx,
@@ -106,6 +109,7 @@ func (q txQueryer) EnsureExists(
 		status,
 		createdAt,
 		updatedAt,
+		nationalCode,
 	)
 }
 

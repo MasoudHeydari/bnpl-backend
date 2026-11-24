@@ -174,7 +174,7 @@ func (a *DefaultPostedApplier) ApplyPosted(
 			return err
 		}
 
-		if account.CustomerID != plan.CustomerID || account.Currency != plan.Currency {
+		if !model.CreditBelongsToCustomer(account, profile, plan.Currency) {
 			return cerr.Conflict(fmt.Errorf("%s: credit account does not belong to customer", op))
 		}
 

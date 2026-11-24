@@ -62,6 +62,7 @@ type CustomerProfileTxQueryer interface {
 		status model.CustomerStatus,
 		createdAt time.Time,
 		updatedAt time.Time,
+		nationalCode string,
 	) (model.CustomerProfile, error)
 
 	// EnsureExists inserts a customer profile when missing for the Customer
@@ -79,6 +80,7 @@ type CustomerProfileTxQueryer interface {
 		status model.CustomerStatus,
 		createdAt time.Time,
 		updatedAt time.Time,
+		nationalCode string,
 	) (model.CustomerProfile, bool, error)
 
 	// LockByID returns the customer profile and locks it for state changes

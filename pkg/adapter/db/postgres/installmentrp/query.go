@@ -428,17 +428,27 @@ type collectionsObligationRow struct {
 // ListCollectionsObligationsByCustomerID returns economically outstanding debt,
 // including unresolved cancellations; inconsistent paid rows belong to the integrity audit.
 func ListCollectionsObligationsByCustomerID[Q postgres.Queryer](
-	ctx context.Context,
-	q Q,
-	customerID model.CustomerID,
+	ctx context.Context, q Q, customerID model.CustomerID,
 ) ([]repo.CollectionsObligation, error) {
-	const op = "installmentrp.ListCollectionsObligationsByCustomerID"
+	return listCollectionsObligations(ctx, q, customerID, false)
+}
+
+// ListCollectionsObligationsForCreditOwner is ONLY an eligibility guard: it
+// must never be exposed through customer installment history APIs.
+func ListCollectionsObligationsForCreditOwner[Q postgres.Queryer](
+	ctx context.Context, q Q, customerID model.CustomerID,
+) ([]repo.CollectionsObligation, error) {
+	return listCollectionsObligations(ctx, q, customerID, true)
+}
+
+func listCollectionsObligations[Q postgres.Queryer](ctx context.Context, q Q, customerID model.CustomerID, forOwner bool) ([]repo.CollectionsObligation, error) {
+	const op = "installmentrp.listCollectionsObligations"
 
 	if customerID.IsZero() {
 		return nil, cerr.InternalError(fmt.Errorf("%s: customer id is required", op))
 	}
 
-	const query = `
+	query := `
 SELECT
 	EXISTS(SELECT 1 FROM contracts pending_cancel WHERE pending_cancel.id=i.contract_id AND pending_cancel.status='canceling') AS has_unresolved_cancellation,
 	i.id,
@@ -485,6 +495,13 @@ WHERE i.customer_id = $1
   )
 ORDER BY i.due_at ASC, i.id ASC
 `
+	if forOwner {
+		// Both alternatives are fixed SQL fragments, not request input.
+		// Only this dedicated eligibility port can read other accounts' debt.
+		query = strings.Replace(query, "i.customer_id = $1", `i.customer_id IN (
+            SELECT id FROM customer_profiles WHERE credit_owner_id=(
+                SELECT credit_owner_id FROM customer_profiles WHERE id=$1))`, 1)
+	}
 
 	rows, err := postgres.QueryAll[collectionsObligationRow](
 		ctx,

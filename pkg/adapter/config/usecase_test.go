@@ -1,6 +1,8 @@
 package config
 
 import (
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/creditaccountrp"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/trustedmobilerp"
 	"testing"
 	"time"
 
@@ -252,6 +254,8 @@ func TestCustomerCredit_newUseCase(t *testing.T) {
 		mock.NewIdentifierGenerator(t),
 		collectionsv2.New(time.UTC),
 		newTestCustomerCreditObserver(t),
+		trustedmobilerp.New(),
+		creditaccountrp.NewSharedCoordinator(),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, uc)

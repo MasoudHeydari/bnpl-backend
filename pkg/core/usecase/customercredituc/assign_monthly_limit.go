@@ -3,6 +3,7 @@ package customercredituc
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
@@ -18,7 +19,8 @@ func (uc *UseCase) assignMonthlyCreditLimit(
 ) (AssignInitialLimitOutput, error) {
 	const op = "customercredituc.UseCase.assignMonthlyCreditLimit"
 
-	externalCustomerID, err := uc.resolveActiveExternalCustomerID(ctx, input.MobileE164)
+	identity, err := uc.resolveActiveExternalCustomerIdentity(ctx, input.MobileE164)
+	externalCustomerID := identity.ExternalCustomerID
 	if err != nil {
 		return AssignInitialLimitOutput{}, err
 	}
@@ -36,14 +38,24 @@ func (uc *UseCase) assignMonthlyCreditLimit(
 
 			var getErr error
 			profile, getErr = uc.ensureCustomerProfileForInitialCredit(
-				ctx, customerProfileQ, externalSubjectID, externalCustomerID, now,
+				ctx, customerProfileQ, externalSubjectID, externalCustomerID, identity.NationalCode, now,
 			)
 			if getErr != nil {
 				return getErr
 			}
 
+			if err := uc.lockCreditOwnerForAssignment(ctx, tx, profile); err != nil {
+				return err
+			}
 			if !profile.IsActive() {
 				return cerr.Conflict(fmt.Errorf("%s: customer profile is not active", op))
+			}
+
+			// Imported trusted numbers have immutable national IDs. A CRS
+			// mismatch must never fall back to ordinary monthly credit.
+			_, err := uc.eligibleTrustedOwner(ctx, tx, strings.TrimSpace(input.MobileE164), identity.NationalCode)
+			if err != nil {
+				return fmt.Errorf("%s: verify trusted phone identity: %w", op, err)
 			}
 
 			q, ok := creditAccountQ.(repo.CreditAccountProductTxQueryer)
@@ -52,6 +64,12 @@ func (uc *UseCase) assignMonthlyCreditLimit(
 			}
 
 			currency := model.IRRCurrency
+			if shared, err := uc.enrollExistingSharedCredit(ctx, tx, decisionQ, profile, currency, model.PayNextMonthCreditKind, now); err != nil {
+				return err
+			} else if shared != nil {
+				prior = shared
+				return nil
+			}
 			if err := q.ExpireDueByCustomerIDCurrencyAndKind(ctx, profile.ID, currency, model.PayNextMonthCreditKind, now); err != nil {
 				return err
 			}
@@ -114,9 +132,20 @@ func (uc *UseCase) assignMonthlyCreditLimit(
 			decisionQ := uc.decision.Tx(tx)
 			outboxQ := uc.outbox.Tx(tx)
 
+			// Always lock the credit owner before the customer profile.
+			// This matches the initial assignment's ordering across accounts.
+			lockedOwnerID, err := uc.sharedCredit.LockOwnerByCustomer(ctx, tx, profile.ID)
+			if err != nil {
+				return fmt.Errorf("%s: lock legal person: %w", op, err)
+			}
+
 			currentProfile, err := customerProfileQ.LockByID(ctx, profile.ID)
 			if err != nil {
 				return err
+			}
+
+			if currentProfile.CreditOwnerID.IsZero() || currentProfile.CreditOwnerID != lockedOwnerID {
+				return cerr.Conflict(fmt.Errorf("%s: credit owner changed during assessment", op))
 			}
 
 			if !currentProfile.IsActive() || currentProfile.ExternalCustomerID != externalCustomerID {
@@ -128,6 +157,12 @@ func (uc *UseCase) assignMonthlyCreditLimit(
 				return cerr.InternalError(fmt.Errorf("%s: product credit repository unavailable", op))
 			}
 
+			if shared, err := uc.enrollExistingSharedCredit(ctx, tx, decisionQ, currentProfile, assessed.Currency, model.PayNextMonthCreditKind, now); err != nil {
+				return err
+			} else if shared != nil {
+				output = *shared
+				return nil
+			}
 			if err := q.ExpireDueByCustomerIDCurrencyAndKind(ctx, profile.ID, assessed.Currency, model.PayNextMonthCreditKind, now); err != nil {
 				return err
 			}

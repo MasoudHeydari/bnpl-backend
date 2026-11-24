@@ -245,6 +245,17 @@ func (uc *UseCase) createPaymentPending(
 							return pendingErr
 						}
 
+						// Two different products have distinct CreditAccounts but must
+						// still obey one pending Contract per legal person.
+						if finder, ok := contractQ.(repo.PendingPersonContractQueryer); ok && !profile.CreditOwnerID.IsZero() {
+							pending, pendingErr := finder.GetPaymentPendingByCreditOwnerID(ctx, profile.CreditOwnerID)
+							if pendingErr == nil {
+								return personCreditPurchaseInProgressError(pending.ID)
+							}
+							if !cerr.IsCode(pendingErr, cerr.CodeResourceNotFound) {
+								return pendingErr
+							}
+						}
 						return cerr.Conflict(fmt.Errorf("%s: contract create conflict could not be resolved", op))
 					}
 

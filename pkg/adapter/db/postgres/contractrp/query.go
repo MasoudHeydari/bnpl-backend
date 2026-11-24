@@ -18,6 +18,7 @@ const contractColumns = `
 	checkout_key,
 	customer_id,
 	credit_account_id,
+	credit_owner_id,
 	merchant_profile_id,
 	merchant_branch_profile_id,
 	currency,

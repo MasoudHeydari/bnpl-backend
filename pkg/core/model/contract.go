@@ -193,6 +193,9 @@ type Contract struct {
 	// CustomerID is the internal customer profile primary key for this contract.
 	CustomerID CustomerID `db:"customer_id" json:"customer_id"`
 
+	// CreditOwnerID identifies the immutable legal person behind this account.
+	CreditOwnerID CreditOwnerID `db:"credit_owner_id" json:"credit_owner_id"`
+
 	// CreditAccountID identifies the credit-capacity account whose exposure this contract consumes.
 	CreditAccountID CreditAccountID `db:"credit_account_id" json:"credit_account_id"`
 

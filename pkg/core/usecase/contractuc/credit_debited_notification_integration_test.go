@@ -68,8 +68,11 @@ func TestCreditDebitedNotification_OutboxAtomicWithExposure(t *testing.T) {
 	}
 
 	mustExec(
-		`INSERT INTO customer_profiles(id,external_subject_id,external_customer_id,jurisdiction,status)
-VALUES($1,$2,$3,'IR','active')`,
+		`WITH created_credit_owner AS (
+  INSERT INTO credit_owners(national_code) VALUES (lpad((floor(random()*10000000000)::bigint)::text,10,'0'))
+  RETURNING id
+) INSERT INTO customer_profiles(id,external_subject_id,external_customer_id,credit_owner_id,jurisdiction,status)
+SELECT $1,$2,$3,id,'IR','active' FROM created_credit_owner`,
 		customerID, uuid.New(), externalCustomerID,
 	)
 	mustExec(

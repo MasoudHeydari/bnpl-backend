@@ -3,6 +3,7 @@ package customercredituc
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
@@ -17,6 +18,7 @@ type assignmentPrepareState struct {
 	earlyOutput       *AssignInitialLimitOutput
 	blockedReasonCode string
 	selectedPolicy    initialcreditlimit.Policy
+	trusted           bool
 }
 
 // AssignInitialLimit assigns the default initial credit limit for an eligible customer profile.
@@ -40,7 +42,8 @@ func (uc *UseCase) AssignInitialLimit(ctx context.Context, input AssignInitialLi
 		return AssignInitialLimitOutput{}, cerr.InvalidArgument(fmt.Errorf("%s: invalid credit_kind %q", op, input.CreditKind))
 	}
 
-	externalCustomerID, err := uc.resolveActiveExternalCustomerID(ctx, input.MobileE164)
+	identity, err := uc.resolveActiveExternalCustomerIdentity(ctx, input.MobileE164)
+	externalCustomerID := identity.ExternalCustomerID
 	if err != nil {
 		return AssignInitialLimitOutput{}, err
 	}
@@ -53,6 +56,8 @@ func (uc *UseCase) AssignInitialLimit(ctx context.Context, input AssignInitialLi
 		ctx,
 		externalSubjectID,
 		externalCustomerID,
+		identity.NationalCode,
+		strings.TrimSpace(input.MobileE164),
 		now,
 	)
 	if err != nil {
@@ -105,6 +110,7 @@ func (uc *UseCase) AssignInitialLimit(ctx context.Context, input AssignInitialLi
 		prepare.profile.ID,
 		prepare.assessmentInput,
 		assessment,
+		prepare.trusted,
 		now,
 	)
 	if err != nil {
@@ -143,6 +149,8 @@ func (uc *UseCase) prepareInitialLimitAssignment(
 	ctx context.Context,
 	externalSubjectID model.ExternalSubjectID,
 	externalCustomerID model.ExternalCustomerID,
+	nationalCode string,
+	mobileE164 string,
 	now time.Time,
 ) (assignmentPrepareState, error) {
 	var state assignmentPrepareState
@@ -158,6 +166,7 @@ func (uc *UseCase) prepareInitialLimitAssignment(
 				profileQ,
 				externalSubjectID,
 				externalCustomerID,
+				nationalCode,
 				now,
 			)
 			if err != nil {
@@ -165,6 +174,11 @@ func (uc *UseCase) prepareInitialLimitAssignment(
 			}
 
 			state.profile = profile
+
+			// The same owner row serializes assignment across all CRS accounts.
+			if err := uc.lockCreditOwnerForAssignment(ctx, tx, profile); err != nil {
+				return err
+			}
 
 			policyAssignmentQ := uc.policyAssignment.Tx(tx)
 			selectedPolicy, err := uc.resolveInitialLimitPolicy(ctx, policyAssignmentQ, externalCustomerID, now)
@@ -184,13 +198,47 @@ func (uc *UseCase) prepareInitialLimitAssignment(
 				return cerr.InternalError(fmt.Errorf("%s: initial limit assessor currency is invalid", op))
 			}
 
+			// A Trusted phone paired with a different CRS national code is a
+			// conflict even if another account already owns person credit.
+			// Existing grants are NOT silently upgraded using this membership.
+			trusted, trustErr := uc.eligibleTrustedOwner(ctx, tx, mobileE164, nationalCode)
+			if trustErr != nil {
+				return trustErr
+			}
+
+			decisionQ := uc.decision.Tx(tx)
+			if existing, err := uc.enrollExistingSharedCredit(
+				ctx,
+				tx,
+				decisionQ,
+				profile,
+				currency,
+				model.PayInInstallmentsCreditKind,
+				now,
+			); err != nil {
+				return err
+			} else if existing != nil {
+				state.earlyOutput = existing
+				return nil
+			}
+
+			// A new person grant is the only point where an already verified
+			// Trusted membership may select the special limit and checkout bundle.
+			state.trusted = trusted
+			if trusted {
+				state.selectedPolicy, err = uc.trustedInstallmentPolicy()
+				if err != nil {
+					return err
+				}
+				currency = state.selectedPolicy.Terms().Currency
+			}
+
 			if err = accountQ.ExpireDueByCustomerIDAndCurrency(ctx, profile.ID, currency, now); err != nil {
 				return err
 			}
 
 			account, err := accountQ.LockByCustomerIDAndCurrency(ctx, profile.ID, currency)
 			if err == nil && account.IsUsableAt(now) {
-				decisionQ := uc.decision.Tx(tx)
 				output, loadErr := uc.outputFromExistingCreditAccount(ctx, decisionQ, account)
 				if loadErr != nil {
 					return loadErr
@@ -258,6 +306,7 @@ func (uc *UseCase) persistInitialLimitAssignment(
 	customerID model.CustomerID,
 	expectedAssessmentInput InitialLimitAssessmentInput,
 	assessment InitialLimitAssessmentResult,
+	trusted bool,
 	now time.Time,
 ) (AssignInitialLimitOutput, error) {
 	var output AssignInitialLimitOutput
@@ -270,9 +319,21 @@ func (uc *UseCase) persistInitialLimitAssignment(
 			decisionQ := uc.decision.Tx(tx)
 			outboxQ := uc.outbox.Tx(tx)
 
+			// Keep the lock order identical to prepare: legal person first,
+			// customer profile second. The opposite order can deadlock a
+			// concurrent assignment from a second phone account.
+			lockedOwnerID, err := uc.sharedCredit.LockOwnerByCustomer(ctx, tx, customerID)
+			if err != nil {
+				return fmt.Errorf("%s: lock legal person: %w", op, err)
+			}
+
 			profile, err := profileQ.LockByID(ctx, customerID)
 			if err != nil {
 				return err
+			}
+
+			if profile.CreditOwnerID.IsZero() || lockedOwnerID != profile.CreditOwnerID {
+				return cerr.Conflict(fmt.Errorf("%s: locked legal person does not own customer profile", op))
 			}
 
 			if reasonCode, blocked := blockedCustomerProfileStatus(profile); blocked {
@@ -307,6 +368,13 @@ func (uc *UseCase) persistInitialLimitAssignment(
 
 			if current := buildInitialLimitAssessmentInput(profile, now); !sameAssessmentInput(current, expectedAssessmentInput) {
 				return customerProfileChangedConflictError(fmt.Errorf("%s: customer profile changed during initial limit assignment", op))
+			}
+
+			if existing, err := uc.enrollExistingSharedCredit(ctx, tx, decisionQ, profile, assessment.Currency, model.PayInInstallmentsCreditKind, now); err != nil {
+				return err
+			} else if existing != nil {
+				output = *existing
+				return nil
 			}
 
 			if err = accountQ.ExpireDueByCustomerIDAndCurrency(ctx, profile.ID, assessment.Currency, now); err != nil {
@@ -382,6 +450,12 @@ func (uc *UseCase) persistInitialLimitAssignment(
 				return nil
 			}
 
+			if trusted {
+				if err := grantTrustedOwnerPolicies(ctx, uc.policyAssignment.Tx(tx), profile.CreditOwnerID, now); err != nil {
+					return err
+				}
+			}
+
 			persisted, err := uc.persistApprovedAssignmentInTx(
 				ctx,
 				decisionQ,
@@ -445,6 +519,7 @@ func (uc *UseCase) ensureCustomerProfileForInitialCredit(
 	profileQ repo.CustomerProfileTxQueryer,
 	externalSubjectID model.ExternalSubjectID,
 	externalCustomerID model.ExternalCustomerID,
+	nationalCode string,
 	now time.Time,
 ) (model.CustomerProfile, error) {
 	profile, _, err := profileQ.EnsureExists(
@@ -455,6 +530,7 @@ func (uc *UseCase) ensureCustomerProfileForInitialCredit(
 		model.ActiveCustomerStatus,
 		now,
 		now,
+		nationalCode,
 	)
 	return profile, err
 }

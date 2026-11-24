@@ -1077,3 +1077,12 @@ func paymentAlreadyInProgressError(contractID model.ContractID) error {
 		},
 	)
 }
+
+// personCreditPurchaseInProgressError is a public 409 when another customer
+// profile of the same national code is running a Checkout. The contract id is
+// private operational context only; account B must never receive A's contract.
+func personCreditPurchaseInProgressError(contractID model.ContractID) error {
+	return cerr.NewPublic(cerr.CodeConflict, "error.credit_purchase_in_progress",
+		fmt.Errorf("legal-person credit purchase is still running: contract=%s", contractID),
+		cerr.Details{Violations: []cerr.Violation{{Code: "CREDIT_PURCHASE_IN_PROGRESS", MessageKey: "error.credit_purchase_in_progress"}}})
+}

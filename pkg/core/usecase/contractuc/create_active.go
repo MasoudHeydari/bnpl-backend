@@ -380,6 +380,15 @@ func (uc *UseCase) prepareMerchantFunding(
 					return reloadErr
 				}
 
+				if finder, ok := contractQ.(repo.PendingPersonContractQueryer); ok && !profile.CreditOwnerID.IsZero() {
+					pending, pendingErr := finder.GetPaymentPendingByCreditOwnerID(ctx, profile.CreditOwnerID)
+					if pendingErr == nil {
+						return personCreditPurchaseInProgressError(pending.ID)
+					}
+					if !cerr.IsCode(pendingErr, cerr.CodeResourceNotFound) {
+						return pendingErr
+					}
+				}
 				return cerr.Conflict(fmt.Errorf("%s: another pre-activation contract already occupies the credit account", op))
 			}
 
@@ -520,7 +529,7 @@ func (uc *UseCase) finalizeMerchantFundingActivation(
 				return err
 			}
 
-			if account.CustomerID != contractRow.CustomerID || account.Currency != contractRow.Currency {
+			if !model.CreditBelongsToContract(account, contractRow) {
 				return cerr.InternalError(fmt.Errorf("%s: contract credit account ownership changed before activation", op))
 			}
 

@@ -9,23 +9,32 @@ import (
 
 func TestReadTrustedCustomersCSV(t *testing.T) {
 	t.Parallel()
+
 	file := filepath.Join(t.TempDir(), "trusted-customers.csv")
 	const body = "mobile_e164,national_id\n+989121234567,0012345678\n09191234567,1234567891\n"
 	if err := os.WriteFile(file, []byte(body), 0600); err != nil {
 		t.Fatal(err)
 	}
+
 	rows, err := readTrustedCustomersCSV(file)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if len(rows) != 2 {
 		t.Fatalf("rows=%d; want 2", len(rows))
 	}
+
 	if rows[0].RowNumber != 2 || rows[1].RowNumber != 3 {
 		t.Fatalf("incorrect CSV row numbers: %+v", rows)
 	}
-	if rows[0].MobileE164 != "+989121234567" || rows[1].MobileE164 != "09191234567" {
-		t.Fatalf("unexpected mobiles: %+v", rows)
+
+	if rows[0].MobileE164 != "+989121234567" {
+		t.Fatalf("mobile=%q; want +989121234567", rows[0].MobileE164)
+	}
+
+	if rows[1].MobileE164 != "09191234567" {
+		t.Fatalf("mobile=%q; want 09191234567", rows[1].MobileE164)
 	}
 	if rows[0].NationalID != "0012345678" || rows[1].NationalID != "1234567891" {
 		t.Fatalf("unexpected national IDs: %+v", rows)
@@ -34,6 +43,7 @@ func TestReadTrustedCustomersCSV(t *testing.T) {
 
 func TestReadTrustedCustomersCSVRejectsInvalidHeader(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name    string
 		content string
@@ -51,6 +61,7 @@ func TestReadTrustedCustomersCSVRejectsInvalidHeader(t *testing.T) {
 			if err := os.WriteFile(path, []byte(tt.content), 0600); err != nil {
 				t.Fatal(err)
 			}
+
 			_, err := readTrustedCustomersCSV(path)
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 				t.Fatalf("error=%v; expected substring %q", err, tt.wantErr)
@@ -59,30 +70,22 @@ func TestReadTrustedCustomersCSVRejectsInvalidHeader(t *testing.T) {
 	}
 }
 
-func TestReadTrustedCustomersCSVKeepsInvalidValues(t *testing.T) {
+func TestReadTrustedCustomersCSVKeepsMalformedRows(t *testing.T) {
 	t.Parallel()
+
 	file := filepath.Join(t.TempDir(), "trusted-customers.csv")
+	// encoding/csv ignores blank lines; keep an explicit empty field instead.
 	const body = "mobile_e164,national_id\nnot-a-phone,0012345678\n\"\",0012345678\n+989121234567,1234567891\n"
 	if err := os.WriteFile(file, []byte(body), 0600); err != nil {
 		t.Fatal(err)
 	}
+
 	rows, err := readTrustedCustomersCSV(file)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rows) != 3 {
-		t.Fatalf("rows=%d; want 3", len(rows))
-	}
-}
 
-func TestReadTrustedCustomersCSVRejectsWrongColumnCount(t *testing.T) {
-	t.Parallel()
-	file := filepath.Join(t.TempDir(), "trusted-customers.csv")
-	if err := os.WriteFile(file, []byte("mobile_e164,national_id\n09121234567\n"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	_, err := readTrustedCustomersCSV(file)
-	if err == nil || !strings.Contains(err.Error(), "exactly 2 columns") {
-		t.Fatalf("expected column count error, got %v", err)
+	if len(rows) != 3 {
+		t.Fatalf("rows=%d; want 3 (malformed rows kept for row-level handling)", len(rows))
 	}
 }

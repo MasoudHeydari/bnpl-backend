@@ -88,6 +88,9 @@ type DefaultEpisode struct {
 	// CustomerID is the BNPL-local customer_profiles.id.
 	CustomerID CustomerID `db:"customer_id" json:"customer_id"`
 
+	// CreditOwnerID identifies the immutable legal person behind this account.
+	CreditOwnerID CreditOwnerID `db:"credit_owner_id" json:"credit_owner_id"`
+
 	// Status is the current episode lifecycle status.
 	Status DefaultEpisodeStatus `db:"status" json:"status"`
 

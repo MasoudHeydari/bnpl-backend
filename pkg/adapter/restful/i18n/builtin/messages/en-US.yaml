@@ -343,3 +343,6 @@ success.repayment_batch_started: "Repayment payment session started."
 validation.repayment_batch_id_invalid: "repayment batch id is invalid"
 
 success.repayment_batch_created: "Repayment batch accepted for preparation."
+
+error.credit_purchase_in_progress: "Another credit purchase is in progress. Please complete it before starting another."
+error.trusted_mobile_national_id_conflict: "This trusted mobile number does not match the verified national ID."
