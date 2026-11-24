@@ -17,6 +17,8 @@ import (
 // journal explains how that state changed; it is not recomputed as a financial
 // ledger.
 func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) {
+	const op = "customercredituc.UseCase.GetSummary"
+
 	kind := model.EffectiveCreditKind(input.CreditKind)
 	if !kind.IsValid() {
 		return Output{}, cerr.InvalidArgument(fmt.Errorf("unsupported credit_kind %q", input.CreditKind))
