@@ -2,9 +2,10 @@ package repo
 
 import (
 	"context"
+	"time"
+
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
-	"time"
 )
 
 // CreditOwnerPolicyAssignmentQueryer resolves the immutable legal person's

@@ -3,18 +3,17 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/creditaccountrp"
 	"strings"
 
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/creditaccountrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/observer"
 	corelog "github.com/parstis/bnpl-backend/pkg/core/log"
+	"github.com/parstis/bnpl-backend/pkg/core/model"
+	checkoutcatalog "github.com/parstis/bnpl-backend/pkg/core/policy/checkout/catalog"
 	"github.com/parstis/bnpl-backend/pkg/core/policy/collections"
 	collectionsv1 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v1"
 	collectionsv2 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v2"
 	collectionsv3 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v3"
-
-	"github.com/parstis/bnpl-backend/pkg/core/model"
-	checkoutcatalog "github.com/parstis/bnpl-backend/pkg/core/policy/checkout/catalog"
 	initialcreditcatalog "github.com/parstis/bnpl-backend/pkg/core/policy/initialcreditlimit/catalog"
 	"github.com/parstis/bnpl-backend/pkg/core/policy/shortlinkdestination"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/checkoutsessionuc"

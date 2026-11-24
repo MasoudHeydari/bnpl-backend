@@ -16,12 +16,18 @@ var _ repo.TrustedMobile = (*Repo)(nil)
 // different immutable national ID. Re-import must never overwrite it.
 var ErrNationalIDConflict = repo.ErrTrustedMobileNationalIDConflict
 
+// Repo implements the immutable TrustedMobile persistence port.
 type Repo struct{}
 
+// New constructs a TrustedMobile repository without runtime configuration.
 func New() *Repo { return &Repo{} }
+
+// Conn returns a read-only registry queryer bound to the supplied connection.
 func (*Repo) Conn(conn repo.Conn) repo.TrustedMobileQueryer {
 	return connQueryer{postgres.MustConn(conn)}
 }
+
+// Tx returns the transaction-bound registry queryer used for offline import.
 func (*Repo) Tx(tx repo.Tx) repo.TrustedMobileTxQueryer { return txQueryer{postgres.MustTx(tx)} }
 
 type connQueryer struct{ *postgres.Conn }

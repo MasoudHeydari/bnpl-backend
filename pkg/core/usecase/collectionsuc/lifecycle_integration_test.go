@@ -259,14 +259,23 @@ func TestPostgreSQLCollections_RecoveryRollbackAndRestrictionIdentity(t *testing
 	require.Equal(t, 1, scalar(t, `SELECT count(*) FROM default_episodes WHERE customer_id=$1 AND closing_decision_id IS NULL`, customer))
 	require.Equal(t, 2, scalar(t, `SELECT count(*) FROM decisions WHERE target_id=$1`, customer))
 	require.Equal(t, 1, scalar(t, `SELECT count(*) FROM collections_case_events e JOIN collections_cases c ON c.id=e.case_id WHERE c.customer_id=$1`, customer))
-	// An unrelated/mismatched active restriction is not released by recovery.
-	exec(t, `UPDATE customer_restrictions SET default_episode_id=NULL WHERE customer_id=$1`, customer)
-	_, e = uc.AssessCustomer(ctx, customer)
+	// Provenance is immutable in PostgreSQL: neither application code nor an
+	// operator may detach a restriction from the default episode that caused
+	// it. The failed update does not change the pending recovery state.
+	_, e = f.pool.Pool.Exec(ctx,
+		`UPDATE customer_restrictions SET default_episode_id=NULL WHERE customer_id=$1`,
+		customer,
+	)
 	require.Error(t, e)
+	require.ErrorContains(t, e, "Restriction origin and legal owner are immutable")
 	require.Equal(t, 1, scalar(t, `SELECT count(*) FROM customer_restrictions WHERE customer_id=$1 AND status='active'`, customer))
-	exec(t, `UPDATE customer_restrictions SET default_episode_id=$2 WHERE customer_id=$1`, customer, opened.EpisodeID)
+	require.Equal(t, 1, scalar(t, `SELECT count(*) FROM customer_restrictions WHERE customer_id=$1 AND default_episode_id=$2`, customer, opened.EpisodeID))
+
+	// Once the independent event can be recorded again, recovery releases
+	// precisely that original restriction without rewriting its provenance.
 	_, e = uc.AssessCustomer(ctx, customer)
 	require.NoError(t, e)
+	require.Zero(t, scalar(t, `SELECT count(*) FROM customer_restrictions WHERE customer_id=$1 AND status='active'`, customer))
 }
 
 func TestPostgreSQLCollections_ReadSnapshot(t *testing.T) {

@@ -2,8 +2,9 @@ package repo
 
 import (
 	"context"
-	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"time"
+
+	"github.com/parstis/bnpl-backend/pkg/core/model"
 )
 
 // These person-wide read ports are strictly for new-credit eligibility.

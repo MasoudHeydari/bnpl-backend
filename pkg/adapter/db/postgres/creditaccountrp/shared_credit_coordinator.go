@@ -15,8 +15,10 @@ var _ repo.SharedCreditCoordinator = (*SharedCoordinator)(nil)
 // SharedCoordinator implements mandatory person-scoped credit locking.
 type SharedCoordinator struct{}
 
+// NewSharedCoordinator constructs a mandatory credit-owner locking collaborator.
 func NewSharedCoordinator() *SharedCoordinator { return &SharedCoordinator{} }
 
+// LockOwnerByCustomer locks the person owning an authenticated account.
 func (*SharedCoordinator) LockOwnerByCustomer(
 	ctx context.Context,
 	tx repo.Tx,
@@ -36,6 +38,7 @@ func (*SharedCoordinator) LockOwnerByCustomer(
 	return row.ID, nil
 }
 
+// LockByOwnerAndKind locks the one shared credit account of the requested type.
 func (*SharedCoordinator) LockByOwnerAndKind(
 	ctx context.Context,
 	tx repo.Tx,
@@ -47,6 +50,7 @@ func (*SharedCoordinator) LockByOwnerAndKind(
 	return q.LockByCreditOwnerAndKind(ctx, owner, currency, kind)
 }
 
+// EnrollCustomer grants an account access to a preexisting person-owned credit.
 func (*SharedCoordinator) EnrollCustomer(
 	ctx context.Context,
 	tx repo.Tx,

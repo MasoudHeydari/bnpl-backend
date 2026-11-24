@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 )
 

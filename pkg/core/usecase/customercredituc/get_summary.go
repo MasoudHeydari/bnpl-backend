@@ -103,7 +103,11 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 			// the next Jalali month, even before the due date on day 5.
 			monthlyBlocked := false
 			if kind == model.PayNextMonthCreditKind {
-				products := accountQ.(repo.CreditAccountProductTxQueryer)
+				products, ok := accountQ.(repo.CreditAccountProductTxQueryer)
+				if !ok {
+					return cerr.InternalError(fmt.Errorf("%s: credit repository missing monthly product queries", op))
+				}
+
 				monthlyBlocked, err = monthlyPreviousCycleBlocked(
 					ctx, products, profile.ID, currency, now,
 				)

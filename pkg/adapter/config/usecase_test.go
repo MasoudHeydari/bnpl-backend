@@ -1,24 +1,22 @@
 package config
 
 import (
-	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/creditaccountrp"
-	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/trustedmobilerp"
 	"testing"
 	"time"
-
-	collectionsv2 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v2"
-
-	lognoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/noop"
-	metricsnoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/metrics/noop"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/creditaccountrp"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/trustedmobilerp"
 	sha256fingerprint "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/fingerprint/sha256"
+	lognoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/noop"
+	metricsnoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/metrics/noop"
 	"github.com/parstis/bnpl-backend/pkg/core/domaincapability"
 	"github.com/parstis/bnpl-backend/pkg/core/mock"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	checkoutcatalog "github.com/parstis/bnpl-backend/pkg/core/policy/checkout/catalog"
+	collectionsv2 "github.com/parstis/bnpl-backend/pkg/core/policy/collections/v2"
 	initialcreditcatalog "github.com/parstis/bnpl-backend/pkg/core/policy/initialcreditlimit/catalog"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/contractuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/decisionuc"

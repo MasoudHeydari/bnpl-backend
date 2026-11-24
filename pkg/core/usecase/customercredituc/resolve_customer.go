@@ -74,16 +74,6 @@ func (uc *UseCase) resolveActiveExternalCustomerIdentity(
 	}
 }
 
-// resolveActiveExternalCustomerID is retained for callers that only need the
-// account identifier; all customer creation paths must use the full identity.
-func (uc *UseCase) resolveActiveExternalCustomerID(ctx context.Context, mobile string) (model.ExternalCustomerID, error) {
-	result, err := uc.resolveActiveExternalCustomerIdentity(ctx, mobile)
-	if err != nil {
-		return model.ExternalCustomerID{}, err
-	}
-	return result.ExternalCustomerID, nil
-}
-
 // normalizeAuthMobileE164 mirrors the gateway E.164 contract for
 // auth_mobile_number / x-auth-mobile-number: non-empty, leading '+', digits
 // only after '+', length 9..16 inclusive.

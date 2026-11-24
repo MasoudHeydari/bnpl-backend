@@ -29,18 +29,21 @@ const (
 	outcomeDatabaseError     = "DATABASE_ERROR"
 )
 
+// ImportCustomer is a single source CSV row with raw phone and national ID.
 type ImportCustomer struct {
 	RowNumber  int
 	MobileE164 string
 	NationalID string
 }
 
+// ImportInput carries the additive offline batch and operator identity.
 type ImportInput struct {
 	SourceFile string
 	CreatedBy  string
 	Customers  []ImportCustomer
 }
 
+// ImportOutput reports persisted and rejected rows without disclosing PII.
 type ImportOutput struct {
 	Import            model.PolicyAssignmentImport
 	SuccessCount      int
@@ -54,6 +57,7 @@ type ImportOutput struct {
 	DatabaseErrors    int
 }
 
+// FormatSummary produces a human-readable, PII-free audit summary.
 func (o ImportOutput) FormatSummary() string {
 	return fmt.Sprintf(`Trusted Mobile Import Summary
 --------------------------------
@@ -71,6 +75,7 @@ Failed:                 %4d
 `, o.SuccessCount+o.FailureCount, o.Added, o.AlreadyExists, o.InvalidMobile, o.InvalidNationalID, o.Duplicates, o.Conflicts, o.DatabaseErrors, o.SuccessCount, o.FailureCount)
 }
 
+// UseCase imports trusted mobile pairs without calling CRS or allocating credit.
 type UseCase struct {
 	pool     repo.Pool
 	registry repo.TrustedMobile
@@ -80,6 +85,7 @@ type UseCase struct {
 	logger   log.Logger
 }
 
+// New constructs the offline importer with all required repositories.
 func New(pool repo.Pool, registry repo.TrustedMobile, imports repo.PolicyAssignmentImport, phones phonenumber.Canonicalizer, clk clock.Clock, logger log.Logger) (*UseCase, error) {
 	if pool == nil || registry == nil || imports == nil || phones == nil || clk == nil || logger == nil {
 		return nil, errors.New("trustedmobileuc.New: all dependencies are required")

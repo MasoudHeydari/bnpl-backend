@@ -2,6 +2,7 @@ package customerrestrictionrp
 
 import (
 	"context"
+
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
