@@ -193,7 +193,6 @@ func (a *App) NewUseCases() (UseCases, error) {
 		collectionsBatchSize,
 		collectionsPolicies,
 		sharedCreditRepo,
-		a.Infrastructure.Logger,
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize collections use case: %w", op, err)
@@ -567,6 +566,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		customerCreditObserver,
 		a.Repos.TrustedMobile,
 		sharedCreditRepo,
+		a.Infrastructure.Logger,
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize customer credit use case: %w", op, err)

@@ -187,6 +187,20 @@ func TestCreatePartner_ReassignedMobileRejectsBoundReplay(t *testing.T) {
 		Status:             extcustomer.ActiveStatus,
 	}
 
+	// Definitive CRS reassignment safely closes the old checkout and releases
+	// its person-wide claim. Because this fixture has an existing Decision, we
+	// must first prove there is no Contract for that Decision.
+	h.sessionTx.EXPECT().LockByID(h.ctx, existing.ID).Return(existing, nil).Once()
+	h.contractTx.EXPECT().
+		GetByDecisionID(h.ctx, *existing.DecisionID).
+		Return(model.Contract{}, cerr.ResourceNotFound(errors.New("no contract for decision"))).Once()
+	canceled := existing
+	canceled.Status = model.CanceledCheckoutSessionStatus
+	h.sessionTx.EXPECT().
+		MarkCanceledSafely(h.ctx, existing.ID, model.TechnicalFailureCheckoutReason, h.now).
+		Return(canceled, nil).Once()
+	h.expectLifecycleEvent(canceled, checkoutlifecycle.EventTypeCanceled)
+
 	_, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
 	requireCerr(t, err, cerr.CodeForbidden, "error.checkout_credit_purchase_unavailable_for_phone")
 	require.Len(t, h.identityCalls, 1)

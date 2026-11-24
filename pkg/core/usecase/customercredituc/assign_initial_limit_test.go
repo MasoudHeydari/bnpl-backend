@@ -133,7 +133,7 @@ func (d assignInitialLimitDeps) newUseCase() *customercredituc.UseCase {
 		newTestObserver(d.t),
 		absentTrustedMobile{},
 		noExistingSharedCredit{},
-		mock.NewLogger(t),
+		mock.NewLogger(d.t),
 	)
 	if err != nil {
 		panic(err)
