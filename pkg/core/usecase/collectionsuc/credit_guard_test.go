@@ -52,6 +52,7 @@ func newCollectionsUseCase(
 		metricsnoop.New(),
 		"bnpl.audit.events.v1",
 		10, testPolicies(),
+		mock.NewSharedCredit(t),
 	)
 	require.NoError(t, err)
 
@@ -214,6 +215,7 @@ func TestAssertNewCreditAllowed_DueBlocksWithoutDefault(t *testing.T) {
 		"bnpl.audit.events.v1",
 		10,
 		v3Policies(loc),
+		mock.NewSharedCredit(t),
 	)
 	require.NoError(t, err)
 

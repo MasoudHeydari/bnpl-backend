@@ -188,6 +188,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		a.Config.AuditEventsTopic(),
 		collectionsBatchSize,
 		collectionsPolicies,
+		a.Repos.SharedCredit,
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize collections use case: %w", op, err)
