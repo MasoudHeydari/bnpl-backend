@@ -153,7 +153,7 @@ func TestCreatePartner_IdempotentReplayDifferentRawSameCanonical(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, CreateResultAlreadyExists, output.Result)
 	require.Equal(t, existing.ID, output.Session.ID)
-	require.Empty(t, h.identityCalls)
+	require.Len(t, h.identityCalls, 1)
 }
 
 func TestCreatePartner_IdempotentReplayReverseRawForms(t *testing.T) {

@@ -88,7 +88,7 @@ func TestConfirmExternal_CompletedRejectsEvenWithFreshOTP(t *testing.T) {
 	h.seedOTPChallenge(pending, testOTPCode)
 
 	// Terminal statuses are rejected after peek — no FOR UPDATE.
-	h.sessionTx.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(pending, nil).Once()
+
 
 	h.expectExternalConfirmPreflight(pending)
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
@@ -117,7 +117,7 @@ func TestConfirmExternal_TerminalStatesAreRejected(t *testing.T) {
 			session := h.session(withStatus(tt.status))
 			h.seedOTPChallenge(session, testOTPCode)
 
-			h.sessionTx.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(session, nil).Once()
+
 
 			h.expectExternalConfirmPreflight(session)
 			_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))

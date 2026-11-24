@@ -304,10 +304,6 @@ func TestConfirmExternal_UnstartedSessionIsNotReady(t *testing.T) {
 	h := newHarness(t)
 	h.expectPool(0, 1)
 
-	h.sessionTx.EXPECT().
-		GetByPublicToken(h.ctx, h.publicToken).Return(h.session(withCustomer(nil)), nil).Once()
-	h.sessionTx.EXPECT().
-		LockByPublicToken(h.ctx, h.publicToken).Return(h.session(withCustomer(nil)), nil).Once()
 
 	h.expectExternalConfirmPreflight(h.session(withCustomer(nil)))
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
@@ -320,9 +316,6 @@ func TestConfirmExternal_InternalOriginIsNotFound(t *testing.T) {
 	h := newHarness(t)
 	h.expectPool(0, 1)
 
-	h.sessionTx.EXPECT().
-		GetByPublicToken(h.ctx, h.publicToken).
-		Return(h.session(withOrigin(model.InternalCheckoutSessionOrigin)), nil).Once()
 
 	h.expectExternalConfirmPreflight(h.session(withOrigin(model.InternalCheckoutSessionOrigin)))
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
@@ -466,6 +459,34 @@ func TestRequestExternalOTP_SMSFailureLeavesOTPUnsent(t *testing.T) {
 	require.Nil(t, row.Verifier)
 }
 
+// CRS is checked again when consuming OTP, not just when issuing it.
+func TestConfirmExternal_CRSMobileReassignedBeforeConsume(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.expectPool(1, 0)
+	pending := h.session()
+	h.seedOTPChallenge(pending, testOTPCode)
+	h.expectExternalConfirmPreflight(pending)
+	h.identityOutput = extcustomer.ResolveByMobileOutput{
+		ExternalCustomerID: model.ExternalCustomerID(uuid.New()),
+		Status:             extcustomer.ActiveStatus,
+	}
+
+	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
+	requireCerr(t, err, cerr.CodeConflict, "error.checkout_otp_issuance_not_allowed")
+	require.Empty(t, h.contracts.calls)
+	require.Empty(t, h.notificationCalls)
+
+	row, getErr := h.otpChallenges.GetByPurposeSubject(
+		h.ctx,
+		model.OTPPurposeHostedCheckoutConfirm,
+		pending.ID.String(),
+	)
+	require.NoError(t, getErr)
+	require.Nil(t, row.VerifiedAt, "CRS mismatch must not consume the challenge")
+}
+
 func TestConfirmExternal_ValidOTPMarksVerifiedAndRunsConfirmCore(t *testing.T) {
 	t.Parallel()
 
@@ -569,8 +590,8 @@ func TestConfirmExternal_StaleEvaluationGenerationRejectsBeforeConsumingOTPAttem
 	h.expectPool(0, 1)
 	pending := h.session(withGeneration(2))
 	h.seedOTPChallenge(pending, testOTPCode)
-	// Generation mismatch is detected on peek — no FOR UPDATE / consume.
-	h.sessionTx.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(pending, nil).Once()
+	// The preflight read rejects stale generations before any OTP transaction.
+
 
 	h.expectExternalConfirmPreflight(pending)
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))

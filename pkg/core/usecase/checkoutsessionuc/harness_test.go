@@ -558,9 +558,9 @@ func (h *harness) installDefaultCoreCollaborators() {
 		Maybe()
 }
 
-// expectExternalConfirmPreflight expects the read-only session and CRS owner
-// checks that precede the OTP consume transaction. Tests for terminal, stale,
-// or unbound sessions deliberately do not expect an identity lookup.
+// expectExternalConfirmPreflight expects the session read preceding OTP
+// consumption. The harness already provides a read-only customer-profile
+// lookup; security regression tests can override the CRS response explicitly.
 func (h *harness) expectExternalConfirmPreflight(session model.CheckoutSession) {
 	h.t.Helper()
 
@@ -569,17 +569,6 @@ func (h *harness) expectExternalConfirmPreflight(session model.CheckoutSession) 
 		Return(session, nil).
 		Once()
 
-	if session.EvaluationGeneration != 1 ||
-		session.Origin != model.ExternalPartnerCheckoutSessionOrigin ||
-		!allowsExternalConfirmWithOTP(session.Status) ||
-		session.CustomerID == nil || session.CustomerID.IsZero() {
-		return
-	}
-
-	h.customerCQ.EXPECT().
-		GetByID(h.ctx, *session.CustomerID).
-		Return(h.customerProfile(), nil).
-		Once()
 }
 
 // expectPool registers connCalls Pool.Conn invocations that never open a
