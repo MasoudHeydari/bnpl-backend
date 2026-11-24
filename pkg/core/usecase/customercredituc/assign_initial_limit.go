@@ -206,11 +206,9 @@ func (uc *UseCase) prepareInitialLimitAssignment(
 				return trustErr
 			}
 
-			decisionQ := uc.decision.Tx(tx)
 			if existing, err := uc.enrollExistingSharedCredit(
 				ctx,
 				tx,
-				decisionQ,
 				profile,
 				currency,
 				model.PayInInstallmentsCreditKind,
@@ -239,6 +237,7 @@ func (uc *UseCase) prepareInitialLimitAssignment(
 
 			account, err := accountQ.LockByCustomerIDAndCurrency(ctx, profile.ID, currency)
 			if err == nil && account.IsUsableAt(now) {
+				decisionQ := uc.decision.Tx(tx)
 				output, loadErr := uc.outputFromExistingCreditAccount(ctx, decisionQ, account)
 				if loadErr != nil {
 					return loadErr
@@ -370,7 +369,7 @@ func (uc *UseCase) persistInitialLimitAssignment(
 				return customerProfileChangedConflictError(fmt.Errorf("%s: customer profile changed during initial limit assignment", op))
 			}
 
-			if existing, err := uc.enrollExistingSharedCredit(ctx, tx, decisionQ, profile, assessment.Currency, model.PayInInstallmentsCreditKind, now); err != nil {
+			if existing, err := uc.enrollExistingSharedCredit(ctx, tx, profile, assessment.Currency, model.PayInInstallmentsCreditKind, now); err != nil {
 				return err
 			} else if existing != nil {
 				output = *existing

@@ -41,7 +41,6 @@ func (uc *UseCase) lockCreditOwnerForAssignment(
 func (uc *UseCase) enrollExistingSharedCredit(
 	ctx context.Context,
 	tx repo.Tx,
-	decisions repo.DecisionTxQueryer,
 	profile model.CustomerProfile,
 	currency model.Currency,
 	kind model.CreditKind,
@@ -88,7 +87,8 @@ func (uc *UseCase) enrollExistingSharedCredit(
 		return nil, fmt.Errorf("%s: enroll account: %w", op, err)
 	}
 
-	output, err := uc.outputFromExistingCreditAccount(ctx, decisions, account)
+	decisionQ := uc.decision.Tx(tx)
+	output, err := uc.outputFromExistingCreditAccount(ctx, decisionQ, account)
 	if err != nil {
 		return nil, err
 	}

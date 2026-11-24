@@ -76,14 +76,16 @@ func TestSharedCreditEnrollmentReturnsExistingGrantForOtherAccount(t *testing.T)
 		LimitAmountMinor:    100000000,
 	}
 	coordinator := &enrollmentCoordinator{account: account}
-	uc := &UseCase{sharedCredit: coordinator}
+	tx := mock.NewTx(t)
+	decisionRepo := mock.NewDecision(t)
 	decisionQ := mock.NewDecisionTxQueryer(t)
+	decisionRepo.EXPECT().Tx(tx).Return(decisionQ).Once()
 	decisionQ.EXPECT().GetByID(ctx, decisionID).Return(model.Decision{ID: decisionID}, nil).Once()
+	uc := &UseCase{sharedCredit: coordinator, decision: decisionRepo}
 
 	output, err := uc.enrollExistingSharedCredit(
 		ctx,
-		mock.NewTx(t),
-		decisionQ,
+		tx,
 		model.CustomerProfile{ID: otherID, CreditOwnerID: ownerID},
 		model.IRRCurrency,
 		model.PayInInstallmentsCreditKind,
@@ -118,7 +120,6 @@ func TestOtherAccountCannotRenewExpiredSharedCredit(t *testing.T) {
 	output, err := uc.enrollExistingSharedCredit(
 		ctx,
 		mock.NewTx(t),
-		mock.NewDecisionTxQueryer(t),
 		model.CustomerProfile{ID: otherID, CreditOwnerID: ownerID},
 		model.IRRCurrency,
 		model.PayInInstallmentsCreditKind,

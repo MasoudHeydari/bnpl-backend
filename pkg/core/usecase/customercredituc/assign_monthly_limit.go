@@ -64,7 +64,7 @@ func (uc *UseCase) assignMonthlyCreditLimit(
 			}
 
 			currency := model.IRRCurrency
-			if shared, err := uc.enrollExistingSharedCredit(ctx, tx, decisionQ, profile, currency, model.PayNextMonthCreditKind, now); err != nil {
+			if shared, err := uc.enrollExistingSharedCredit(ctx, tx, profile, currency, model.PayNextMonthCreditKind, now); err != nil {
 				return err
 			} else if shared != nil {
 				prior = shared
@@ -157,7 +157,7 @@ func (uc *UseCase) assignMonthlyCreditLimit(
 				return cerr.InternalError(fmt.Errorf("%s: product credit repository unavailable", op))
 			}
 
-			if shared, err := uc.enrollExistingSharedCredit(ctx, tx, decisionQ, currentProfile, assessed.Currency, model.PayNextMonthCreditKind, now); err != nil {
+			if shared, err := uc.enrollExistingSharedCredit(ctx, tx, currentProfile, assessed.Currency, model.PayNextMonthCreditKind, now); err != nil {
 				return err
 			} else if shared != nil {
 				output = *shared
