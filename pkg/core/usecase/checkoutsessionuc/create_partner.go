@@ -62,9 +62,16 @@ func (uc *UseCase) CreatePartner(
 		return CreatePartnerOutput{}, bindErr
 	}
 
-	previews, previewErr := uc.buildCreditKindsPreview(ctx, bound)
-	if previewErr != nil {
-		return CreatePartnerOutput{}, previewErr
+	// A replay of a closed or financially in-flight session must not disclose
+	// fresh account-level eligibility. The merchant may still observe the
+	// durable checkout status and use the existing status endpoint.
+	var previews []CreditKindPreview
+	if bound.Status.AllowsCustomerContinuation() && !bound.IsExpiredAt(uc.clock.Now().UTC()) {
+		var previewErr error
+		previews, previewErr = uc.buildCreditKindsPreview(ctx, bound)
+		if previewErr != nil {
+			return CreatePartnerOutput{}, previewErr
+		}
 	}
 
 	return CreatePartnerOutput{
@@ -150,7 +157,7 @@ func (uc *UseCase) ensureExternalCustomerBoundForPreview(
 		)
 	}
 
-	bound, err := uc.bindExternalCustomer(ctx, session.PublicToken, externalCustomerID)
+	bound, err := uc.bindExternalCustomer(ctx, session.PublicToken, externalCustomerID, phone)
 	if err != nil {
 		if isCreditPurchaseUnavailableForPhone(err) {
 			unavailable, unavailableErr := uc.persistExternalUnavailable(ctx, session.PublicToken)

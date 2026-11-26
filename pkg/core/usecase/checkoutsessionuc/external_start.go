@@ -84,7 +84,7 @@ func (uc *UseCase) ensureOfferPreparedForStartSession(
 	if session.CustomerID != nil && session.DecisionID != nil && !session.DecisionID.IsZero() {
 		// Replayed START must revalidate the old phone before disclosing
 		// an already-prepared Offer. New preparation does the same once.
-		if err := uc.ensureBoundSessionMobileOwnership(ctx, session); err != nil {
+		if _, err := uc.revalidateBoundExternalMobileOwnershipForCommand(ctx, session); err != nil {
 			return model.CheckoutSession{}, err
 		}
 
@@ -218,6 +218,7 @@ func (uc *UseCase) bindExternalCustomer(
 	ctx context.Context,
 	token model.CheckoutSessionToken,
 	externalCustomerID model.ExternalCustomerID,
+	expectedPhone string,
 ) (model.CheckoutSession, error) {
 	const op = "checkoutsessionuc.UseCase.bindExternalCustomer"
 
@@ -244,6 +245,16 @@ func (uc *UseCase) bindExternalCustomer(
 						expired = true
 
 						return nil
+					}
+
+					// The phone resolved by CRS must still be the one persisted in
+					// the locked session before BindCustomer can acquire a claim.
+					phone, err := uc.decryptCustomerPhone(locked)
+					if err != nil {
+						return err
+					}
+					if phone != expectedPhone || expectedPhone == "" {
+						return checkoutCustomerIdentityConflictError(fmt.Errorf("%s: phone binding changed during CRS resolution", op))
 					}
 
 					profile, err := customerProfileQ.GetByExternalCustomerID(ctx, externalCustomerID)

@@ -69,8 +69,10 @@ func (uc *UseCase) prepareExternalOffer(
 	// The persisted binding is not proof that the merchant phone still
 	// belongs to this customer. CRS revalidation is a read outside the TX;
 	// retries may reuse Decisions only after this boundary succeeds.
-	if err := uc.ensureBoundSessionMobileOwnership(ctx, session); err != nil {
-		return model.CheckoutSession{}, Offer{}, err
+	if session.CustomerID != nil && !session.CustomerID.IsZero() {
+		if _, err := uc.revalidateBoundExternalMobileOwnershipForCommand(ctx, session); err != nil {
+			return model.CheckoutSession{}, Offer{}, err
+		}
 	}
 
 	// Already prepared: replay without recreating the Decision/Offer.
@@ -113,7 +115,7 @@ func (uc *UseCase) prepareExternalOffer(
 		)
 	}
 
-	bound, err := uc.bindExternalCustomer(ctx, session.PublicToken, externalCustomerID)
+	bound, err := uc.bindExternalCustomer(ctx, session.PublicToken, externalCustomerID, phone)
 	if err != nil {
 		if isCreditPurchaseUnavailableForPhone(err) {
 			unavailable, unavailableErr := uc.persistExternalUnavailable(ctx, session.PublicToken)

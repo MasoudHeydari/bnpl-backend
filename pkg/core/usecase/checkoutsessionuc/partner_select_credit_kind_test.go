@@ -448,3 +448,23 @@ func TestSelectCreditKind_TransientCRSFailureDoesNotReleaseClaim(t *testing.T) {
 	})
 	requireCerr(t, err, cerr.CodeForbidden, "error.checkout_credit_purchase_unavailable_for_phone")
 }
+
+// A preflight skipped for a confirming session must not authorize selection if
+// the saga reopens the session before the mutation acquires its row lock.
+func TestSelectCreditKind_ReopenedSessionRequiresNewCRSPreflight(t *testing.T) {
+	h := newHarness(t)
+	h.expectPool(1, 1)
+	confirming := h.session(withStatus(model.ConfirmingCheckoutSessionStatus))
+	open := h.session()
+	merchant := model.MerchantProfile{ID: h.merchantPID, ExternalMerchantID: h.merchantID, Status: model.ActiveMerchantStatus}
+	h.sessionCQ.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(confirming, nil).Once()
+	h.merchantCQ.EXPECT().GetByID(h.ctx, h.merchantPID).Return(merchant, nil).Once()
+	h.sessionTx.EXPECT().LockByPublicToken(h.ctx, h.publicToken).Return(open, nil).Once()
+	h.merchantTx.EXPECT().GetByID(h.ctx, h.merchantPID).Return(merchant, nil).Once()
+	_, err := h.uc.SelectCreditKind(h.ctx, SelectCreditKindInput{
+		Token: h.publicToken, ExternalMerchantID: h.merchantID,
+		CreditKind: open.CreditKind, ExpectedEvaluationGeneration: open.EvaluationGeneration,
+	})
+	requireCerr(t, err, cerr.CodeForbidden, "error.checkout_customer_identity_conflict")
+	require.Empty(t, h.identityCalls)
+}

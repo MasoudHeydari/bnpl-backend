@@ -23,6 +23,11 @@ type TerminateCheckoutSafelyInput struct {
 	Reason model.CheckoutCancellationReason
 	// TerminalStatus must be canceled or expired.
 	TerminalStatus model.CheckoutSessionStatus
+
+	// reassignedBinding is used only by mobile-ownership invalidation. A
+	// concurrent confirmation or a different binding must not be canceled by
+	// a stale CRS observation. Other safe-termination callers leave it nil.
+	reassignedBinding *model.CheckoutSession
 }
 
 // TerminateCheckoutSafelyOutput reports the session after a safe termination
@@ -108,6 +113,26 @@ func (uc *UseCase) terminateCheckoutSafelyTx(
 		}
 
 		return TerminateCheckoutSafelyOutput{}, err
+	}
+
+	if expected := input.reassignedBinding; expected != nil {
+		if !canRetireReassignedCheckout(*expected) || !canRetireReassignedCheckout(locked) ||
+			*locked.CustomerID != *expected.CustomerID {
+			// The caller still rejects the old phone; normal lifecycle recovery
+			// owns any concurrent confirmation or terminal state.
+			return TerminateCheckoutSafelyOutput{Session: locked, AlreadyTerminal: locked.Status.IsTerminal()}, nil
+		}
+		expectedPhone, err := uc.decryptCustomerPhone(*expected)
+		if err != nil {
+			return TerminateCheckoutSafelyOutput{}, err
+		}
+		lockedPhone, err := uc.decryptCustomerPhone(locked)
+		if err != nil {
+			return TerminateCheckoutSafelyOutput{}, err
+		}
+		if lockedPhone != expectedPhone {
+			return TerminateCheckoutSafelyOutput{Session: locked}, nil
+		}
 	}
 
 	switch locked.Status {

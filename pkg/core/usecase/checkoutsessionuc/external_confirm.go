@@ -70,7 +70,7 @@ func (uc *UseCase) ConfirmExternal(
 		)
 	}
 
-	ownership, err := uc.revalidateBoundExternalMobileOwnership(ctx, session)
+	ownership, err := uc.revalidateBoundExternalMobileOwnershipForCommand(ctx, session)
 	if err != nil {
 		return ConfirmOutput{}, err
 	}

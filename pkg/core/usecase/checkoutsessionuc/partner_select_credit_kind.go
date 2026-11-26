@@ -158,11 +158,6 @@ func (uc *UseCase) selectPartnerCreditKind(
 				))
 			}
 
-			// Fence a concurrent change after the out-of-transaction CRS preflight.
-			if err := uc.assertSelectedPartnerOwnership(locked, ownership); err != nil {
-				return err
-			}
-
 			if locked.ContractID != nil && !locked.ContractID.IsZero() {
 				return checkoutSessionNotContinuableError(fmt.Errorf(
 					"%s: checkout already linked to a contract", op,
@@ -178,6 +173,12 @@ func (uc *UseCase) selectPartnerCreditKind(
 			now := uc.clock.Now().UTC()
 			if locked.IsExpiredAt(now) {
 				return checkoutSessionExpiredError()
+			}
+
+			// Fence a concurrent change after the out-of-transaction CRS preflight.
+			// A previously confirming session can reopen while we acquire the lock.
+			if err := uc.assertSelectedPartnerOwnership(locked, ownership); err != nil {
+				return err
 			}
 
 			// Same-kind idempotent replay: return durable state without mutating
@@ -304,15 +305,17 @@ func (uc *UseCase) preflightPartnerCreditKind(
 
 // assertSelectedPartnerOwnership fences a change of binding while CRS was
 // resolving. It touches only the locked local row and decrypts the stored
-// phone; it never calls CRS inside a transaction.
+// phone; it never calls CRS inside a transaction. The local customer ID
+// identifies the same external customer ID by the immutable profile identity
+// constraint, so the local binding is sufficient to fence that identity.
 func (uc *UseCase) assertSelectedPartnerOwnership(
 	locked model.CheckoutSession,
 	expected boundExternalMobileOwnership,
 ) error {
 	const op = "checkoutsessionuc.UseCase.assertSelectedPartnerOwnership"
 
-	if expected.CustomerID.IsZero() {
-		return nil
+	if expected.CustomerID.IsZero() || expected.ExternalCustomerID.IsZero() || expected.Phone == "" {
+		return checkoutCustomerIdentityConflictError(fmt.Errorf("%s: current CRS ownership preflight is required", op))
 	}
 
 	if locked.CustomerID == nil || *locked.CustomerID != expected.CustomerID {

@@ -134,6 +134,23 @@ func (uc *UseCase) ensureBoundSessionMobileOwnership(
 	return err
 }
 
+// revalidateBoundExternalMobileOwnershipForCommand rejects an invalid phone
+// and retires a definitively reassigned, still-open checkout when safe. Reads
+// use the non-mutating helper instead. Temporary CRS errors retain the claim.
+func (uc *UseCase) revalidateBoundExternalMobileOwnershipForCommand(
+	ctx context.Context,
+	session model.CheckoutSession,
+) (boundExternalMobileOwnership, error) {
+	ownership, err := uc.revalidateBoundExternalMobileOwnership(ctx, session)
+	if err != nil {
+		if terminateErr := uc.terminateReassignedCheckoutIfSafe(ctx, session, err); terminateErr != nil {
+			return boundExternalMobileOwnership{}, terminateErr
+		}
+		return boundExternalMobileOwnership{}, err
+	}
+	return ownership, nil
+}
+
 // isOpaqueMobileOwnershipFailure reports opaque fail-closed ownership errors
 // that Partner Create maps to phone-scoped unavailable without leaking why.
 func isOpaqueMobileOwnershipFailure(err error) bool {
@@ -145,6 +162,14 @@ func isOpaqueMobileOwnershipFailure(err error) bool {
 	return appErr.MessageKey == "error.checkout_otp_issuance_not_allowed"
 }
 
+// canRetireReassignedCheckout deliberately excludes confirmation and payment
+// recovery. CRS ownership is not evidence about a previously authorized FC
+// operation. Those sessions continue through the existing saga/reconciliation.
+func canRetireReassignedCheckout(session model.CheckoutSession) bool {
+	return session.Status == model.OpenCheckoutSessionStatus &&
+		session.ContractID == nil && session.ConfirmationAttemptID == nil &&
+		session.CustomerID != nil && !session.CustomerID.IsZero()
+}
 
 // terminateReassignedCheckoutIfSafe retires only an identity-invalidated
 // checkout whose financial effects can be PROVEN absent. Reusing the shared
@@ -157,14 +182,16 @@ func (uc *UseCase) terminateReassignedCheckoutIfSafe(
 ) error {
 	const op = "checkoutsessionuc.UseCase.terminateReassignedCheckoutIfSafe"
 
-	if !errors.Is(identityErr, errCheckoutMobileOwnerChanged) {
+	if !errors.Is(identityErr, errCheckoutMobileOwnerChanged) ||
+		!canRetireReassignedCheckout(session) {
 		return nil
 	}
 
 	_, err := uc.TerminateCheckoutSafely(ctx, TerminateCheckoutSafelyInput{
-		SessionID:      session.ID,
-		Reason:         model.TechnicalFailureCheckoutReason,
-		TerminalStatus: model.CanceledCheckoutSessionStatus,
+		SessionID:         session.ID,
+		Reason:            model.TechnicalFailureCheckoutReason,
+		TerminalStatus:    model.CanceledCheckoutSessionStatus,
+		reassignedBinding: &session,
 	})
 	if err != nil {
 		// Inconclusive FC effects or a concurrent Confirm must retain the

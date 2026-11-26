@@ -643,3 +643,20 @@ func TestCreatePartner_BranchOfferPreparationModeIsAuthoritative(t *testing.T) {
 		require.Empty(t, h.decisions.calls)
 	})
 }
+
+// A replay after the original checkout was canceled must not disclose fresh
+// eligibility for the previously bound account to a stale merchant phone.
+func TestCreatePartner_CanceledReplayDoesNotPreviewCredit(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.expectPool(0, 1)
+	h.expectActiveMerchant()
+	existing := h.session(withStatus(model.CanceledCheckoutSessionStatus), func(s *model.CheckoutSession) { s.IdempotencyKey = testAttemptKey })
+	h.sessionTx.EXPECT().LockByMerchantIdempotencyKey(h.ctx, h.merchantPID, testAttemptKey).Return(existing, nil).Once()
+	output, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
+	require.NoError(t, err)
+	require.Equal(t, CreateResultAlreadyExists, output.Result)
+	require.Equal(t, model.CanceledCheckoutSessionStatus, output.Session.Status)
+	require.Empty(t, output.CreditKinds)
+	require.Empty(t, h.identityCalls)
+}

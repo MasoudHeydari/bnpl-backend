@@ -135,3 +135,16 @@ func TestTerminateCheckoutSafely_ConfirmedMerchantEntitlementBlocks(t *testing.T
 
 	_ = testifymock.Anything
 }
+
+// A stale reassignment observation cannot cancel an operation that acquired
+// confirmation ownership while CRS resolution was in progress.
+func TestReassignedCheckout_ConcurrentConfirmationRetainsClaim(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.expectPool(1, 1)
+	open := h.session()
+	confirming := h.session(withStatus(model.ConfirmingCheckoutSessionStatus), withConfirmationAttempt(h.confirmationAttemptID))
+	h.sessionTx.EXPECT().LockByID(h.ctx, open.ID).Return(confirming, nil).Once()
+	require.NoError(t, h.uc.terminateReassignedCheckoutIfSafe(h.ctx, open, errCheckoutMobileOwnerChanged))
+	// No cancellation, contract mutation, or saga fencing is expected.
+}

@@ -167,7 +167,7 @@ func (uc *UseCase) loadExternalSessionForOTPRequest(
 func (uc *UseCase) preflightExternalOTPPhone(
 	ctx context.Context, session model.CheckoutSession,
 ) (model.CustomerID, string, error) {
-	ownership, err := uc.revalidateBoundExternalMobileOwnership(ctx, session)
+	ownership, err := uc.revalidateBoundExternalMobileOwnershipForCommand(ctx, session)
 	if err != nil {
 		return model.CustomerID{}, "", err
 	}

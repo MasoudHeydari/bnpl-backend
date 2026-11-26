@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
+	"github.com/parstis/bnpl-backend/pkg/core/event/checkoutlifecycle"
 	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"
 	"github.com/parstis/bnpl-backend/pkg/core/external/notification"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
@@ -249,6 +250,8 @@ func TestStartExternal_ReassignedMobileBlocksPreparedOffer(t *testing.T) {
 		Status:             extcustomer.ActiveStatus,
 	}
 
+	h.expectSafeReassignedCancellation(h.session())
+
 	_, err := h.uc.StartExternal(h.ctx, h.startExternalInput(1))
 	requireCerr(t, err, cerr.CodeConflict, "error.checkout_otp_issuance_not_allowed")
 	require.Empty(t, h.contracts.calls)
@@ -393,6 +396,8 @@ func TestRequestExternalOTP_RejectsReassignedMerchantPhone(t *testing.T) {
 		ExternalCustomerID: model.ExternalCustomerID(uuid.New()),
 		Status:             extcustomer.ActiveStatus,
 	}
+	h.expectSafeReassignedCancellation(session)
+
 	_, err := h.uc.RequestExternalOTP(h.ctx, RequestExternalOTPInput{Token: h.publicToken, EvaluationGeneration: 1})
 	requireCerr(t, err, cerr.CodeConflict, "error.checkout_otp_issuance_not_allowed")
 	require.Empty(t, h.notificationCalls)
@@ -516,6 +521,8 @@ func TestConfirmExternal_CRSMobileReassignedBeforeConsume(t *testing.T) {
 		ExternalCustomerID: model.ExternalCustomerID(uuid.New()),
 		Status:             extcustomer.ActiveStatus,
 	}
+
+	h.expectSafeReassignedCancellation(pending)
 
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
 	requireCerr(t, err, cerr.CodeConflict, "error.checkout_otp_issuance_not_allowed")
@@ -668,4 +675,20 @@ func TestConfirmExternal_ConsumedOTPRejectsArbitraryCode(t *testing.T) {
 	h.expectExternalConfirmPreflight(pending)
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput("999999", 1))
 	requireCerr(t, err, cerr.CodeConflict, "error.otp_already_consumed")
+}
+
+// expectSafeReassignedCancellation proves the command retires an open claim
+// through the normal cancellation and lifecycle-outbox path.
+func (h *harness) expectSafeReassignedCancellation(open model.CheckoutSession) {
+	h.t.Helper()
+	h.sessionTx.EXPECT().LockByID(h.ctx, open.ID).Return(open, nil).Once()
+	if open.DecisionID != nil {
+		h.contractTx.EXPECT().GetByDecisionID(h.ctx, *open.DecisionID).
+			Return(model.Contract{}, cerr.ResourceNotFound(errors.New("no contract for decision"))).Once()
+	}
+	canceled := open
+	canceled.Status = model.CanceledCheckoutSessionStatus
+	h.sessionTx.EXPECT().MarkCanceledSafely(h.ctx, open.ID, model.TechnicalFailureCheckoutReason, h.now).
+		Return(canceled, nil).Once()
+	h.expectLifecycleEvent(canceled, checkoutlifecycle.EventTypeCanceled)
 }
