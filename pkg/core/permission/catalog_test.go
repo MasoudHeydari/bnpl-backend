@@ -26,7 +26,7 @@ func TestCatalogParity(t *testing.T) {
 		seenCodes[perm.Code] = struct{}{}
 	}
 
-	require.Len(t, all, 62, "expected 59 previous codes + credit-allocations:read:any + credit-allocations:manage:any + credit-requests:read:any")
+	require.Len(t, all, 62, "expected 59 previous codes + credit:allocations:read:any + credit:allocations:manage:any + credit:requests:read:any")
 	require.Contains(t, seenCodes, "bnpl:credit-limits:create:self")
 	require.Contains(t, seenCodes, "bnpl:decisions:create:self")
 	require.Contains(t, seenCodes, "bnpl:contracts:approve")
@@ -35,9 +35,9 @@ func TestCatalogParity(t *testing.T) {
 	require.Contains(t, seenCodes, "bnpl:merchant-terminals:manage:merchant")
 	require.Contains(t, seenCodes, "bnpl:merchants:read:any")
 	require.Contains(t, seenCodes, "bnpl:merchants:credit-kinds:update:any")
-	require.Contains(t, seenCodes, "bnpl:credit-allocations:read:any")
-	require.Contains(t, seenCodes, "bnpl:credit-allocations:manage:any")
-	require.Contains(t, seenCodes, "bnpl:credit-requests:read:any")
+	require.Contains(t, seenCodes, "bnpl:credit:allocations:read:any")
+	require.Contains(t, seenCodes, "bnpl:credit:allocations:manage:any")
+	require.Contains(t, seenCodes, "bnpl:credit:requests:read:any")
 }
 
 func TestCatalogGroupingsCoverAllWithoutDuplicates(t *testing.T) {

@@ -106,7 +106,7 @@ type groupRequest struct {
 // ListGroups handles GET /api/v1/admin/credits/groups.
 //
 // @Summary List credit groups
-// @Description Requires bnpl:credit-allocations:read:any.
+// @Description Requires bnpl:credit:allocations:read:any.
 // @Tags Credit Allocation Admin
 // @Produce json
 // @Param x-auth-subject-id header string true "Authenticated administrator subject UUID issued by Identity Service" format(uuid)
@@ -134,7 +134,7 @@ func (rs *resource) ListGroups(c *gin.Context) {
 // PutGroup handles PUT /api/v1/admin/credits/groups/{group_code}.
 //
 // @Summary Create or update group; existing credits are unchanged
-// @Description Requires bnpl:credit-allocations:manage:any.
+// @Description Requires bnpl:credit:allocations:manage:any.
 // @Tags Credit Allocation Admin
 // @Produce json
 // @Accept json
@@ -173,7 +173,7 @@ func (rs *resource) PutGroup(c *gin.Context) {
 // ListEligibility handles GET /api/v1/admin/credits/eligibility.
 //
 // @Summary List eligibility entries; cursor is the last entry ID
-// @Description Requires bnpl:credit-allocations:read:any.
+// @Description Requires bnpl:credit:allocations:read:any.
 // @Tags Credit Allocation Admin
 // @Produce json
 // @Param group_code query string false "group_code"
@@ -221,7 +221,7 @@ func (rs *resource) ListEligibility(c *gin.Context) {
 // GetEligibility handles GET /api/v1/admin/credits/eligibility/{eligibility_id}.
 //
 // @Summary Read eligibility, mobile aliases and current membership
-// @Description Requires bnpl:credit-allocations:read:any.
+// @Description Requires bnpl:credit:allocations:read:any.
 // @Tags Credit Allocation Admin
 // @Produce json
 // @Param eligibility_id path string true "eligibility_id" format(uuid)
@@ -254,7 +254,7 @@ func (rs *resource) GetEligibility(c *gin.Context) {
 // PutEligibility handles PUT /api/v1/admin/credits/eligibility.
 //
 // @Summary Register eligibility or replace group membership; null removes membership
-// @Description Requires bnpl:credit-allocations:manage:any.
+// @Description Requires bnpl:credit:allocations:manage:any.
 // @Tags Credit Allocation Admin
 // @Produce json
 // @Accept json
@@ -369,7 +369,7 @@ func bindRuleJSON(c *gin.Context, req any) bool {
 // ImportEligibility handles POST /api/v1/admin/credits/eligibility/import.
 //
 // @Summary Atomically import a JSON array (default 1000 items and 2 MiB); null group removes membership
-// @Description Requires bnpl:credit-allocations:manage:any.
+// @Description Requires bnpl:credit:allocations:manage:any.
 // @Tags Credit Allocation Admin
 // @Produce json
 // @Accept json
@@ -427,7 +427,7 @@ func (rs *resource) ImportEligibility(c *gin.Context) {
 // ListRules handles GET /api/v1/admin/credits/allocation/rules.
 //
 // @Summary List current group and individual allocation rules
-// @Description Requires bnpl:credit-allocations:read:any.
+// @Description Requires bnpl:credit:allocations:read:any.
 // @Tags Credit Allocation Admin
 // @Produce json
 // @Param x-auth-subject-id header string true "Authenticated administrator subject UUID issued by Identity Service" format(uuid)
@@ -455,7 +455,7 @@ func (rs *resource) ListRules(c *gin.Context) {
 // PutRule handles PUT /api/v1/admin/credits/allocation/rules.
 //
 // @Summary Append a group or individual allocation rule revision. Default amounts are forbidden.
-// @Description Requires bnpl:credit-allocations:manage:any.
+// @Description Requires bnpl:credit:allocations:manage:any.
 // @Tags Credit Allocation Admin
 // @Produce json
 // @Accept json
@@ -500,7 +500,7 @@ func (rs *resource) PutRule(c *gin.Context) {
 // ListRequests handles GET /api/v1/admin/credits/requests.
 //
 // @Summary List pending or processing requests for a product
-// @Description Requires bnpl:credit-requests:read:any.
+// @Description Requires bnpl:credit:requests:read:any.
 // @Tags Credit Allocation Admin
 // @Produce json
 // @Param credit_kind query string true "credit_kind"
@@ -544,7 +544,7 @@ func (rs *resource) ListRequests(c *gin.Context) {
 // ListDefaults handles GET /api/v1/admin/credits/allocation/defaults.
 //
 // @Summary List current public allocation settings
-// @Description Requires bnpl:credit-allocations:read:any.
+// @Description Requires bnpl:credit:allocations:read:any.
 // @Tags Credit Allocation Admin
 // @Produce json
 // @Param x-auth-subject-id header string true "Authenticated administrator subject UUID issued by Identity Service" format(uuid)
@@ -572,7 +572,7 @@ func (rs *resource) ListDefaults(c *gin.Context) {
 // PutDefault handles PUT /api/v1/admin/credits/allocation/defaults.
 //
 // @Summary Enable or disable public risk assessment. Enabling is unavailable until a real assessor is implemented.
-// @Description Requires bnpl:credit-allocations:manage:any.
+// @Description Requires bnpl:credit:allocations:manage:any.
 // @Tags Credit Allocation Admin
 // @Produce json
 // @Accept json

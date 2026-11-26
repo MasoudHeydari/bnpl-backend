@@ -16,6 +16,8 @@ packages:
       CreditAccountConnQueryer:
       CreditAccountQueryer:
       CreditAccountTxQueryer:
+      CreditAccountProductQueryer:
+      CreditAccountProductTxQueryer:
       SharedCredit:
       SharedCreditTxQueryer:
       CreditAllocation:

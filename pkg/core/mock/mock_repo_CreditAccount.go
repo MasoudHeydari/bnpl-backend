@@ -90,19 +90,19 @@ func (_c *CreditAccount_Conn_Call) RunAndReturn(run func(conn repo.Conn) repo.Cr
 }
 
 // Tx provides a mock function for the type CreditAccount
-func (_mock *CreditAccount) Tx(tx repo.Tx) repo.CreditAccountTxQueryer {
+func (_mock *CreditAccount) Tx(tx repo.Tx) repo.CreditAccountProductTxQueryer {
 	ret := _mock.Called(tx)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Tx")
 	}
 
-	var r0 repo.CreditAccountTxQueryer
-	if returnFunc, ok := ret.Get(0).(func(repo.Tx) repo.CreditAccountTxQueryer); ok {
+	var r0 repo.CreditAccountProductTxQueryer
+	if returnFunc, ok := ret.Get(0).(func(repo.Tx) repo.CreditAccountProductTxQueryer); ok {
 		r0 = returnFunc(tx)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(repo.CreditAccountTxQueryer)
+			r0 = ret.Get(0).(repo.CreditAccountProductTxQueryer)
 		}
 	}
 	return r0
@@ -132,12 +132,12 @@ func (_c *CreditAccount_Tx_Call) Run(run func(tx repo.Tx)) *CreditAccount_Tx_Cal
 	return _c
 }
 
-func (_c *CreditAccount_Tx_Call) Return(creditAccountTxQueryer repo.CreditAccountTxQueryer) *CreditAccount_Tx_Call {
-	_c.Call.Return(creditAccountTxQueryer)
+func (_c *CreditAccount_Tx_Call) Return(creditAccountProductTxQueryer repo.CreditAccountProductTxQueryer) *CreditAccount_Tx_Call {
+	_c.Call.Return(creditAccountProductTxQueryer)
 	return _c
 }
 
-func (_c *CreditAccount_Tx_Call) RunAndReturn(run func(tx repo.Tx) repo.CreditAccountTxQueryer) *CreditAccount_Tx_Call {
+func (_c *CreditAccount_Tx_Call) RunAndReturn(run func(tx repo.Tx) repo.CreditAccountProductTxQueryer) *CreditAccount_Tx_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -22,7 +22,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "List current public allocation settings Requires bnpl:credit-allocations:read:any.",
+                "description": "List current public allocation settings Requires bnpl:credit:allocations:read:any.",
                 "produces": [
                     "application/json"
                 ],
@@ -57,7 +57,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "bnpl:credit-allocations:read:any",
+                        "example": "bnpl:credit:allocations:read:any",
                         "description": "Comma-separated gateway permissions",
                         "name": "x-auth-permissions",
                         "in": "header",
@@ -251,7 +251,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Enable or disable public risk assessment. Enabling is unavailable until a real assessor is implemented. Requires bnpl:credit-allocations:manage:any.",
+                "description": "Enable or disable public risk assessment. Enabling is unavailable until a real assessor is implemented. Requires bnpl:credit:allocations:manage:any.",
                 "produces": [
                     "application/json"
                 ],
@@ -286,7 +286,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "bnpl:credit-allocations:manage:any",
+                        "example": "bnpl:credit:allocations:manage:any",
                         "description": "Comma-separated gateway permissions",
                         "name": "x-auth-permissions",
                         "in": "header",
@@ -500,7 +500,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "List current group and individual allocation rules Requires bnpl:credit-allocations:read:any.",
+                "description": "List current group and individual allocation rules Requires bnpl:credit:allocations:read:any.",
                 "produces": [
                     "application/json"
                 ],
@@ -535,7 +535,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "bnpl:credit-allocations:read:any",
+                        "example": "bnpl:credit:allocations:read:any",
                         "description": "Comma-separated gateway permissions",
                         "name": "x-auth-permissions",
                         "in": "header",
@@ -729,7 +729,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Append a group or individual allocation rule revision. Default amounts are forbidden. Risk-based is reserved and cannot yet be enabled. Requires bnpl:credit-allocations:manage:any.",
+                "description": "Append a group or individual allocation rule revision. Default amounts are forbidden. Risk-based is reserved and cannot yet be enabled. Requires bnpl:credit:allocations:manage:any.",
                 "produces": [
                     "application/json"
                 ],
@@ -764,7 +764,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "bnpl:credit-allocations:manage:any",
+                        "example": "bnpl:credit:allocations:manage:any",
                         "description": "Comma-separated gateway permissions",
                         "name": "x-auth-permissions",
                         "in": "header",
@@ -978,7 +978,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "List eligibility entries; cursor is the last entry ID Requires bnpl:credit-allocations:read:any.",
+                "description": "List eligibility entries; cursor is the last entry ID Requires bnpl:credit:allocations:read:any.",
                 "produces": [
                     "application/json"
                 ],
@@ -1032,7 +1032,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "bnpl:credit-allocations:read:any",
+                        "example": "bnpl:credit:allocations:read:any",
                         "description": "Comma-separated gateway permissions",
                         "name": "x-auth-permissions",
                         "in": "header",
@@ -1226,7 +1226,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Register eligibility or replace group membership; null removes membership Requires bnpl:credit-allocations:manage:any.",
+                "description": "Register eligibility or replace group membership; null removes membership Requires bnpl:credit:allocations:manage:any.",
                 "produces": [
                     "application/json"
                 ],
@@ -1261,7 +1261,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "bnpl:credit-allocations:manage:any",
+                        "example": "bnpl:credit:allocations:manage:any",
                         "description": "Comma-separated gateway permissions",
                         "name": "x-auth-permissions",
                         "in": "header",
@@ -1469,7 +1469,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Atomically import a JSON array (default 1000 items and 2 MiB); null group removes membership Requires bnpl:credit-allocations:manage:any.",
+                "description": "Atomically import a JSON array (default 1000 items and 2 MiB); null group removes membership Requires bnpl:credit:allocations:manage:any.",
                 "produces": [
                     "application/json"
                 ],
@@ -1504,7 +1504,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "bnpl:credit-allocations:manage:any",
+                        "example": "bnpl:credit:allocations:manage:any",
                         "description": "Comma-separated gateway permissions",
                         "name": "x-auth-permissions",
                         "in": "header",
@@ -1728,7 +1728,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Read eligibility, mobile aliases and current membership Requires bnpl:credit-allocations:read:any.",
+                "description": "Read eligibility, mobile aliases and current membership Requires bnpl:credit:allocations:read:any.",
                 "produces": [
                     "application/json"
                 ],
@@ -1770,7 +1770,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "bnpl:credit-allocations:read:any",
+                        "example": "bnpl:credit:allocations:read:any",
                         "description": "Comma-separated gateway permissions",
                         "name": "x-auth-permissions",
                         "in": "header",
@@ -1966,7 +1966,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "List credit groups Requires bnpl:credit-allocations:read:any.",
+                "description": "List credit groups Requires bnpl:credit:allocations:read:any.",
                 "produces": [
                     "application/json"
                 ],
@@ -2001,7 +2001,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "bnpl:credit-allocations:read:any",
+                        "example": "bnpl:credit:allocations:read:any",
                         "description": "Comma-separated gateway permissions",
                         "name": "x-auth-permissions",
                         "in": "header",
@@ -2197,7 +2197,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Create or update group; existing credits are unchanged Requires bnpl:credit-allocations:manage:any.",
+                "description": "Create or update group; existing credits are unchanged Requires bnpl:credit:allocations:manage:any.",
                 "produces": [
                     "application/json"
                 ],
@@ -2238,7 +2238,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "bnpl:credit-allocations:manage:any",
+                        "example": "bnpl:credit:allocations:manage:any",
                         "description": "Comma-separated gateway permissions",
                         "name": "x-auth-permissions",
                         "in": "header",
@@ -2446,7 +2446,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "List pending or processing requests for a product Requires bnpl:credit-requests:read:any.",
+                "description": "List pending or processing requests for a product Requires bnpl:credit:requests:read:any.",
                 "produces": [
                     "application/json"
                 ],
@@ -2505,7 +2505,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "bnpl:credit-requests:read:any",
+                        "example": "bnpl:credit:requests:read:any",
                         "description": "Comma-separated gateway permissions",
                         "name": "x-auth-permissions",
                         "in": "header",

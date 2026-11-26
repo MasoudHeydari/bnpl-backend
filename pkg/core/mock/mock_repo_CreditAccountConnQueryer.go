@@ -6,6 +6,7 @@ package mock
 
 import (
 	"context"
+	"time"
 
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	mock "github.com/stretchr/testify/mock"
@@ -182,6 +183,84 @@ func (_c *CreditAccountConnQueryer_GetByCustomerIDAndCurrency_Call) RunAndReturn
 	return _c
 }
 
+// GetByCustomerIDCurrencyAndKind provides a mock function for the type CreditAccountConnQueryer
+func (_mock *CreditAccountConnQueryer) GetByCustomerIDCurrencyAndKind(context1 context.Context, customerID model.CustomerID, currency model.Currency, creditKind model.CreditKind) (model.CreditAccount, error) {
+	ret := _mock.Called(context1, customerID, currency, creditKind)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetByCustomerIDCurrencyAndKind")
+	}
+
+	var r0 model.CreditAccount
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CustomerID, model.Currency, model.CreditKind) (model.CreditAccount, error)); ok {
+		return returnFunc(context1, customerID, currency, creditKind)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CustomerID, model.Currency, model.CreditKind) model.CreditAccount); ok {
+		r0 = returnFunc(context1, customerID, currency, creditKind)
+	} else {
+		r0 = ret.Get(0).(model.CreditAccount)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.CustomerID, model.Currency, model.CreditKind) error); ok {
+		r1 = returnFunc(context1, customerID, currency, creditKind)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// CreditAccountConnQueryer_GetByCustomerIDCurrencyAndKind_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetByCustomerIDCurrencyAndKind'
+type CreditAccountConnQueryer_GetByCustomerIDCurrencyAndKind_Call struct {
+	*mock.Call
+}
+
+// GetByCustomerIDCurrencyAndKind is a helper method to define mock.On call
+//   - context1 context.Context
+//   - customerID model.CustomerID
+//   - currency model.Currency
+//   - creditKind model.CreditKind
+func (_e *CreditAccountConnQueryer_Expecter) GetByCustomerIDCurrencyAndKind(context1 any, customerID any, currency any, creditKind any) *CreditAccountConnQueryer_GetByCustomerIDCurrencyAndKind_Call {
+	return &CreditAccountConnQueryer_GetByCustomerIDCurrencyAndKind_Call{Call: _e.mock.On("GetByCustomerIDCurrencyAndKind", context1, customerID, currency, creditKind)}
+}
+
+func (_c *CreditAccountConnQueryer_GetByCustomerIDCurrencyAndKind_Call) Run(run func(context1 context.Context, customerID model.CustomerID, currency model.Currency, creditKind model.CreditKind)) *CreditAccountConnQueryer_GetByCustomerIDCurrencyAndKind_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.CustomerID
+		if args[1] != nil {
+			arg1 = args[1].(model.CustomerID)
+		}
+		var arg2 model.Currency
+		if args[2] != nil {
+			arg2 = args[2].(model.Currency)
+		}
+		var arg3 model.CreditKind
+		if args[3] != nil {
+			arg3 = args[3].(model.CreditKind)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *CreditAccountConnQueryer_GetByCustomerIDCurrencyAndKind_Call) Return(creditAccount model.CreditAccount, err error) *CreditAccountConnQueryer_GetByCustomerIDCurrencyAndKind_Call {
+	_c.Call.Return(creditAccount, err)
+	return _c
+}
+
+func (_c *CreditAccountConnQueryer_GetByCustomerIDCurrencyAndKind_Call) RunAndReturn(run func(context1 context.Context, customerID model.CustomerID, currency model.Currency, creditKind model.CreditKind) (model.CreditAccount, error)) *CreditAccountConnQueryer_GetByCustomerIDCurrencyAndKind_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetByID provides a mock function for the type CreditAccountConnQueryer
 func (_mock *CreditAccountConnQueryer) GetByID(ctx context.Context, id model.CreditAccountID) (model.CreditAccount, error) {
 	ret := _mock.Called(ctx, id)
@@ -310,6 +389,152 @@ func (_c *CreditAccountConnQueryer_GetByLastLimitDecisionID_Call) Return(creditA
 }
 
 func (_c *CreditAccountConnQueryer_GetByLastLimitDecisionID_Call) RunAndReturn(run func(ctx context.Context, decisionID model.DecisionID) (model.CreditAccount, error)) *CreditAccountConnQueryer_GetByLastLimitDecisionID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// HasUnpaidMonthlyCycleBefore provides a mock function for the type CreditAccountConnQueryer
+func (_mock *CreditAccountConnQueryer) HasUnpaidMonthlyCycleBefore(context1 context.Context, customerID model.CustomerID, currency model.Currency, time1 time.Time) (bool, error) {
+	ret := _mock.Called(context1, customerID, currency, time1)
+
+	if len(ret) == 0 {
+		panic("no return value specified for HasUnpaidMonthlyCycleBefore")
+	}
+
+	var r0 bool
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CustomerID, model.Currency, time.Time) (bool, error)); ok {
+		return returnFunc(context1, customerID, currency, time1)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CustomerID, model.Currency, time.Time) bool); ok {
+		r0 = returnFunc(context1, customerID, currency, time1)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.CustomerID, model.Currency, time.Time) error); ok {
+		r1 = returnFunc(context1, customerID, currency, time1)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// CreditAccountConnQueryer_HasUnpaidMonthlyCycleBefore_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'HasUnpaidMonthlyCycleBefore'
+type CreditAccountConnQueryer_HasUnpaidMonthlyCycleBefore_Call struct {
+	*mock.Call
+}
+
+// HasUnpaidMonthlyCycleBefore is a helper method to define mock.On call
+//   - context1 context.Context
+//   - customerID model.CustomerID
+//   - currency model.Currency
+//   - time1 time.Time
+func (_e *CreditAccountConnQueryer_Expecter) HasUnpaidMonthlyCycleBefore(context1 any, customerID any, currency any, time1 any) *CreditAccountConnQueryer_HasUnpaidMonthlyCycleBefore_Call {
+	return &CreditAccountConnQueryer_HasUnpaidMonthlyCycleBefore_Call{Call: _e.mock.On("HasUnpaidMonthlyCycleBefore", context1, customerID, currency, time1)}
+}
+
+func (_c *CreditAccountConnQueryer_HasUnpaidMonthlyCycleBefore_Call) Run(run func(context1 context.Context, customerID model.CustomerID, currency model.Currency, time1 time.Time)) *CreditAccountConnQueryer_HasUnpaidMonthlyCycleBefore_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.CustomerID
+		if args[1] != nil {
+			arg1 = args[1].(model.CustomerID)
+		}
+		var arg2 model.Currency
+		if args[2] != nil {
+			arg2 = args[2].(model.Currency)
+		}
+		var arg3 time.Time
+		if args[3] != nil {
+			arg3 = args[3].(time.Time)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *CreditAccountConnQueryer_HasUnpaidMonthlyCycleBefore_Call) Return(b bool, err error) *CreditAccountConnQueryer_HasUnpaidMonthlyCycleBefore_Call {
+	_c.Call.Return(b, err)
+	return _c
+}
+
+func (_c *CreditAccountConnQueryer_HasUnpaidMonthlyCycleBefore_Call) RunAndReturn(run func(context1 context.Context, customerID model.CustomerID, currency model.Currency, time1 time.Time) (bool, error)) *CreditAccountConnQueryer_HasUnpaidMonthlyCycleBefore_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListByCustomerID provides a mock function for the type CreditAccountConnQueryer
+func (_mock *CreditAccountConnQueryer) ListByCustomerID(context1 context.Context, customerID model.CustomerID) ([]model.CreditAccount, error) {
+	ret := _mock.Called(context1, customerID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListByCustomerID")
+	}
+
+	var r0 []model.CreditAccount
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CustomerID) ([]model.CreditAccount, error)); ok {
+		return returnFunc(context1, customerID)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CustomerID) []model.CreditAccount); ok {
+		r0 = returnFunc(context1, customerID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]model.CreditAccount)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.CustomerID) error); ok {
+		r1 = returnFunc(context1, customerID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// CreditAccountConnQueryer_ListByCustomerID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListByCustomerID'
+type CreditAccountConnQueryer_ListByCustomerID_Call struct {
+	*mock.Call
+}
+
+// ListByCustomerID is a helper method to define mock.On call
+//   - context1 context.Context
+//   - customerID model.CustomerID
+func (_e *CreditAccountConnQueryer_Expecter) ListByCustomerID(context1 any, customerID any) *CreditAccountConnQueryer_ListByCustomerID_Call {
+	return &CreditAccountConnQueryer_ListByCustomerID_Call{Call: _e.mock.On("ListByCustomerID", context1, customerID)}
+}
+
+func (_c *CreditAccountConnQueryer_ListByCustomerID_Call) Run(run func(context1 context.Context, customerID model.CustomerID)) *CreditAccountConnQueryer_ListByCustomerID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.CustomerID
+		if args[1] != nil {
+			arg1 = args[1].(model.CustomerID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *CreditAccountConnQueryer_ListByCustomerID_Call) Return(creditAccounts []model.CreditAccount, err error) *CreditAccountConnQueryer_ListByCustomerID_Call {
+	_c.Call.Return(creditAccounts, err)
+	return _c
+}
+
+func (_c *CreditAccountConnQueryer_ListByCustomerID_Call) RunAndReturn(run func(context1 context.Context, customerID model.CustomerID) ([]model.CreditAccount, error)) *CreditAccountConnQueryer_ListByCustomerID_Call {
 	_c.Call.Return(run)
 	return _c
 }

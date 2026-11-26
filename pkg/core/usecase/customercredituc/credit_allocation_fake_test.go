@@ -88,7 +88,7 @@ func (disabledCreditAllocationTx) GetRule(
 ) (model.CreditAllocationRule, error) {
 	if scope == model.DefaultCreditAllocationScope {
 		return model.CreditAllocationRule{
-			ID:         uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+			ID:         model.CreditAllocationRuleID(uuid.MustParse("11111111-1111-1111-1111-111111111111")),
 			Scope:      model.DefaultCreditAllocationScope,
 			CreditKind: kind,
 			Currency:   currency,
@@ -116,22 +116,22 @@ func (disabledCreditAllocationTx) GetLatestRequest(context.Context, model.Custom
 	return model.CreditRequest{}, cerr.ResourceNotFound(errors.New("no request"))
 }
 
-func (disabledCreditAllocationTx) GetRequest(context.Context, uuid.UUID, bool) (model.CreditRequest, error) {
+func (disabledCreditAllocationTx) GetRequest(context.Context, model.CreditRequestID, bool) (model.CreditRequest, error) {
 	return model.CreditRequest{}, cerr.ResourceNotFound(errors.New("no request"))
 }
 
 func (disabledCreditAllocationTx) InsertRequest(_ context.Context, r model.CreditRequest) (model.CreditRequest, error) {
-	r.ID = uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	r.ID = model.CreditRequestID(uuid.MustParse("22222222-2222-2222-2222-222222222222"))
 	r.Status = model.PendingCreditRequestStatus
 	r.UpdatedAt = r.RequestedAt
 	return r, nil
 }
 
-func (disabledCreditAllocationTx) QueueIdentityRecheck(context.Context, uuid.UUID, time.Time) error {
+func (disabledCreditAllocationTx) QueueIdentityRecheck(context.Context, model.CreditRequestID, time.Time) error {
 	return nil
 }
 
-func (disabledCreditAllocationTx) ClaimRequest(context.Context, uuid.UUID, time.Time, time.Time) (model.CreditRequest, error) {
+func (disabledCreditAllocationTx) ClaimRequest(context.Context, model.CreditRequestID, time.Time, time.Time) (model.CreditRequest, error) {
 	return model.CreditRequest{}, cerr.ResourceNotFound(errors.New("nothing to claim"))
 }
 
@@ -149,7 +149,7 @@ func (disabledCreditAllocationTx) FinishRequest(
 	model.CreditRequestStatus,
 	string,
 	*model.DecisionID,
-	*uuid.UUID,
+	*model.CreditAllocationRuleID,
 	*time.Time,
 	time.Time,
 ) (model.CreditRequest, error) {

@@ -92,7 +92,7 @@ func (q txQueryer) GetOpenRequest(ctx context.Context, owner model.CreditOwnerID
 func (q txQueryer) GetLatestRequest(ctx context.Context, customer model.CustomerID, kind model.CreditKind, currency model.Currency) (model.CreditRequest, error) {
 	return postgres.QueryOne[model.CreditRequest](ctx, q.Tx, "get latest customer credit request", `SELECT * FROM credit_requests WHERE customer_id=$1 AND credit_kind=$2 AND currency=$3 ORDER BY requested_at DESC,id DESC LIMIT 1`, customer, kind, currency)
 }
-func (q txQueryer) GetRequest(ctx context.Context, id uuid.UUID, lock bool) (model.CreditRequest, error) {
+func (q txQueryer) GetRequest(ctx context.Context, id model.CreditRequestID, lock bool) (model.CreditRequest, error) {
 	query := `SELECT * FROM credit_requests WHERE id=$1`
 	if lock {
 		query += ` FOR UPDATE`
@@ -102,7 +102,7 @@ func (q txQueryer) GetRequest(ctx context.Context, id uuid.UUID, lock bool) (mod
 func (q txQueryer) InsertRequest(ctx context.Context, r model.CreditRequest) (model.CreditRequest, error) {
 	return postgres.QueryOne[model.CreditRequest](ctx, q.Tx, "insert credit request", `INSERT INTO credit_requests(credit_owner_id,customer_id,external_customer_id,mobile_e164,national_code,credit_kind,currency,status,queue_source,next_attempt_at,requested_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,'pending',$8,$9,$10,$10) RETURNING *`, r.CreditOwnerID, r.CustomerID, r.ExternalCustomerID, r.MobileE164, r.NationalCode, r.CreditKind, r.Currency, r.QueueSource, r.NextAttemptAt, r.RequestedAt)
 }
-func (q txQueryer) ClaimRequest(ctx context.Context, id uuid.UUID, now, until time.Time) (model.CreditRequest, error) {
+func (q txQueryer) ClaimRequest(ctx context.Context, id model.CreditRequestID, now, until time.Time) (model.CreditRequest, error) {
 	return postgres.QueryOne[model.CreditRequest](ctx, q.Tx, "claim credit request", `UPDATE credit_requests SET status='processing',lease_token=gen_random_uuid(),lease_until=$3,updated_at=$2 WHERE id=$1 AND queue_source IS NOT NULL AND next_attempt_at<=$2 AND (status='pending' OR (status='processing' AND lease_until<=$2)) RETURNING *`, id, now, until)
 }
 
@@ -130,7 +130,7 @@ func (q txQueryer) QueuePublicRequests(ctx context.Context, now time.Time, limit
 func (q txQueryer) ListDueRequests(ctx context.Context, now time.Time, limit int) ([]model.CreditRequest, error) {
 	return postgres.QueryAll[model.CreditRequest](ctx, q.Tx, "list due credit requests", `SELECT * FROM credit_requests WHERE queue_source IS NOT NULL AND next_attempt_at<=$1 AND (status='pending' OR (status='processing' AND lease_until<=$1)) ORDER BY next_attempt_at,id LIMIT $2`, now, limit)
 }
-func (q txQueryer) FinishRequest(ctx context.Context, r model.CreditRequest, status model.CreditRequestStatus, reason string, decision *model.DecisionID, rule *uuid.UUID, next *time.Time, now time.Time) (model.CreditRequest, error) {
+func (q txQueryer) FinishRequest(ctx context.Context, r model.CreditRequest, status model.CreditRequestStatus, reason string, decision *model.DecisionID, rule *model.CreditAllocationRuleID, next *time.Time, now time.Time) (model.CreditRequest, error) {
 	return postgres.QueryOne[model.CreditRequest](ctx, q.Tx, "finish credit request", `UPDATE credit_requests SET status=$3,reason_code=$4,decision_id=$5,allocation_rule_id=$6,next_attempt_at=$7,queue_source=CASE WHEN $7::timestamptz IS NULL THEN NULL ELSE queue_source END,lease_token=NULL,lease_until=NULL,updated_at=$8,completed_at=CASE WHEN $3 IN ('approved','rejected','canceled') THEN $8 ELSE NULL END WHERE id=$1 AND lease_token=$2 AND status='processing' AND lease_until>$8 RETURNING *`, r.ID, r.LeaseToken, status, reason, decision, rule, next, now)
 }
 
@@ -154,7 +154,7 @@ func (q txQueryer) ListEligibility(ctx context.Context, group *string, after *uu
 func (q txQueryer) ListEligibilityMobiles(ctx context.Context, id uuid.UUID) ([]model.CreditEligibilityMobile, error) {
 	return postgres.QueryAll[model.CreditEligibilityMobile](ctx, q.Tx, "list eligibility mobiles", `SELECT * FROM credit_eligibility_mobiles WHERE eligibility_id=$1 ORDER BY mobile_e164`, id)
 }
-func (q txQueryer) QueueIdentityRecheck(ctx context.Context, id uuid.UUID, now time.Time) error {
+func (q txQueryer) QueueIdentityRecheck(ctx context.Context, id model.CreditRequestID, now time.Time) error {
 	_, err := q.Exec(ctx, `UPDATE credit_requests SET queue_source='identity_recheck',next_attempt_at=$2,updated_at=$2 WHERE id=$1 AND status='pending' AND queue_source IS NULL`, id, now)
 	return postgres.MapError(err)
 }

@@ -568,7 +568,7 @@ func validateCreateInput(input CreateInput) error {
 
 func loadCurrentCreditAccount(
 	ctx context.Context,
-	accountQ repo.CreditAccountQueryer,
+	accountQ repo.CreditAccountConnQueryer,
 	customerID model.CustomerID,
 	currency model.Currency,
 	at time.Time,
@@ -584,12 +584,8 @@ func loadCurrentCreditAccount(
 		account, err = accountQ.GetByCustomerIDAndCurrency(ctx, customerID, currency)
 
 	case model.PayNextMonthCreditKind:
-		productQ, ok := accountQ.(repo.CreditAccountProductQueryer)
-		if !ok {
-			return model.CreditAccount{}, false, cerr.InternalError(fmt.Errorf("%s: credit account repository does not support monthly products", op))
-		}
+		account, err = accountQ.GetByCustomerIDCurrencyAndKind(ctx, customerID, currency, kind)
 
-		account, err = productQ.GetByCustomerIDCurrencyAndKind(ctx, customerID, currency, kind)
 	default:
 		return model.CreditAccount{}, false, cerr.InvalidArgument(fmt.Errorf("%s: unsupported credit kind %q", op, kind))
 	}

@@ -31,15 +31,15 @@ type CreditAllocationTxQueryer interface {
 	ListRules(context.Context) ([]model.CreditAllocationRule, error)
 	GetOpenRequest(context.Context, model.CreditOwnerID, model.CreditKind, model.Currency) (model.CreditRequest, error)
 	GetLatestRequest(context.Context, model.CustomerID, model.CreditKind, model.Currency) (model.CreditRequest, error)
-	GetRequest(context.Context, uuid.UUID, bool) (model.CreditRequest, error)
+	GetRequest(context.Context, model.CreditRequestID, bool) (model.CreditRequest, error)
 	InsertRequest(context.Context, model.CreditRequest) (model.CreditRequest, error)
-	QueueIdentityRecheck(context.Context, uuid.UUID, time.Time) error
-	ClaimRequest(context.Context, uuid.UUID, time.Time, time.Time) (model.CreditRequest, error)
+	QueueIdentityRecheck(context.Context, model.CreditRequestID, time.Time) error
+	ClaimRequest(context.Context, model.CreditRequestID, time.Time, time.Time) (model.CreditRequest, error)
 	QueuePublicRequests(context.Context, time.Time, int) error
 	ListDueRequests(context.Context, time.Time, int) ([]model.CreditRequest, error)
 	// FinishRequest compares the lease token and releases it atomically. A nil
 	// next attempt defers a pending request until eligibility changes or public assessment availability.
-	FinishRequest(context.Context, model.CreditRequest, model.CreditRequestStatus, string, *model.DecisionID, *uuid.UUID, *time.Time, time.Time) (model.CreditRequest, error)
+	FinishRequest(context.Context, model.CreditRequest, model.CreditRequestStatus, string, *model.DecisionID, *model.CreditAllocationRuleID, *time.Time, time.Time) (model.CreditRequest, error)
 	QueueEligibility(context.Context, *uuid.UUID, *string, *model.CreditKind, *model.Currency, time.Time) error
 
 	ListPendingRequests(context.Context, model.CreditKind, time.Time, int) ([]model.CreditRequest, error)

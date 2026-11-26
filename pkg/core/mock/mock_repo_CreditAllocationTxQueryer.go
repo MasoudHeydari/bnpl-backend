@@ -104,8 +104,8 @@ func (_c *CreditAllocationTxQueryer_BindEligibility_Call) RunAndReturn(run func(
 }
 
 // ClaimRequest provides a mock function for the type CreditAllocationTxQueryer
-func (_mock *CreditAllocationTxQueryer) ClaimRequest(context1 context.Context, uUID uuid.UUID, time1 time.Time, time11 time.Time) (model.CreditRequest, error) {
-	ret := _mock.Called(context1, uUID, time1, time11)
+func (_mock *CreditAllocationTxQueryer) ClaimRequest(context1 context.Context, creditRequestID model.CreditRequestID, time1 time.Time, time11 time.Time) (model.CreditRequest, error) {
+	ret := _mock.Called(context1, creditRequestID, time1, time11)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ClaimRequest")
@@ -113,16 +113,16 @@ func (_mock *CreditAllocationTxQueryer) ClaimRequest(context1 context.Context, u
 
 	var r0 model.CreditRequest
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, time.Time, time.Time) (model.CreditRequest, error)); ok {
-		return returnFunc(context1, uUID, time1, time11)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CreditRequestID, time.Time, time.Time) (model.CreditRequest, error)); ok {
+		return returnFunc(context1, creditRequestID, time1, time11)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, time.Time, time.Time) model.CreditRequest); ok {
-		r0 = returnFunc(context1, uUID, time1, time11)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CreditRequestID, time.Time, time.Time) model.CreditRequest); ok {
+		r0 = returnFunc(context1, creditRequestID, time1, time11)
 	} else {
 		r0 = ret.Get(0).(model.CreditRequest)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID, time.Time, time.Time) error); ok {
-		r1 = returnFunc(context1, uUID, time1, time11)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.CreditRequestID, time.Time, time.Time) error); ok {
+		r1 = returnFunc(context1, creditRequestID, time1, time11)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -136,22 +136,22 @@ type CreditAllocationTxQueryer_ClaimRequest_Call struct {
 
 // ClaimRequest is a helper method to define mock.On call
 //   - context1 context.Context
-//   - uUID uuid.UUID
+//   - creditRequestID model.CreditRequestID
 //   - time1 time.Time
 //   - time11 time.Time
-func (_e *CreditAllocationTxQueryer_Expecter) ClaimRequest(context1 any, uUID any, time1 any, time11 any) *CreditAllocationTxQueryer_ClaimRequest_Call {
-	return &CreditAllocationTxQueryer_ClaimRequest_Call{Call: _e.mock.On("ClaimRequest", context1, uUID, time1, time11)}
+func (_e *CreditAllocationTxQueryer_Expecter) ClaimRequest(context1 any, creditRequestID any, time1 any, time11 any) *CreditAllocationTxQueryer_ClaimRequest_Call {
+	return &CreditAllocationTxQueryer_ClaimRequest_Call{Call: _e.mock.On("ClaimRequest", context1, creditRequestID, time1, time11)}
 }
 
-func (_c *CreditAllocationTxQueryer_ClaimRequest_Call) Run(run func(context1 context.Context, uUID uuid.UUID, time1 time.Time, time11 time.Time)) *CreditAllocationTxQueryer_ClaimRequest_Call {
+func (_c *CreditAllocationTxQueryer_ClaimRequest_Call) Run(run func(context1 context.Context, creditRequestID model.CreditRequestID, time1 time.Time, time11 time.Time)) *CreditAllocationTxQueryer_ClaimRequest_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 uuid.UUID
+		var arg1 model.CreditRequestID
 		if args[1] != nil {
-			arg1 = args[1].(uuid.UUID)
+			arg1 = args[1].(model.CreditRequestID)
 		}
 		var arg2 time.Time
 		if args[2] != nil {
@@ -176,14 +176,14 @@ func (_c *CreditAllocationTxQueryer_ClaimRequest_Call) Return(creditRequest mode
 	return _c
 }
 
-func (_c *CreditAllocationTxQueryer_ClaimRequest_Call) RunAndReturn(run func(context1 context.Context, uUID uuid.UUID, time1 time.Time, time11 time.Time) (model.CreditRequest, error)) *CreditAllocationTxQueryer_ClaimRequest_Call {
+func (_c *CreditAllocationTxQueryer_ClaimRequest_Call) RunAndReturn(run func(context1 context.Context, creditRequestID model.CreditRequestID, time1 time.Time, time11 time.Time) (model.CreditRequest, error)) *CreditAllocationTxQueryer_ClaimRequest_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // FinishRequest provides a mock function for the type CreditAllocationTxQueryer
-func (_mock *CreditAllocationTxQueryer) FinishRequest(context1 context.Context, creditRequest model.CreditRequest, creditRequestStatus model.CreditRequestStatus, s string, decisionID *model.DecisionID, uUID *uuid.UUID, time1 *time.Time, time11 time.Time) (model.CreditRequest, error) {
-	ret := _mock.Called(context1, creditRequest, creditRequestStatus, s, decisionID, uUID, time1, time11)
+func (_mock *CreditAllocationTxQueryer) FinishRequest(context1 context.Context, creditRequest model.CreditRequest, creditRequestStatus model.CreditRequestStatus, s string, decisionID *model.DecisionID, creditAllocationRuleID *model.CreditAllocationRuleID, time1 *time.Time, time11 time.Time) (model.CreditRequest, error) {
+	ret := _mock.Called(context1, creditRequest, creditRequestStatus, s, decisionID, creditAllocationRuleID, time1, time11)
 
 	if len(ret) == 0 {
 		panic("no return value specified for FinishRequest")
@@ -191,16 +191,16 @@ func (_mock *CreditAllocationTxQueryer) FinishRequest(context1 context.Context, 
 
 	var r0 model.CreditRequest
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CreditRequest, model.CreditRequestStatus, string, *model.DecisionID, *uuid.UUID, *time.Time, time.Time) (model.CreditRequest, error)); ok {
-		return returnFunc(context1, creditRequest, creditRequestStatus, s, decisionID, uUID, time1, time11)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CreditRequest, model.CreditRequestStatus, string, *model.DecisionID, *model.CreditAllocationRuleID, *time.Time, time.Time) (model.CreditRequest, error)); ok {
+		return returnFunc(context1, creditRequest, creditRequestStatus, s, decisionID, creditAllocationRuleID, time1, time11)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CreditRequest, model.CreditRequestStatus, string, *model.DecisionID, *uuid.UUID, *time.Time, time.Time) model.CreditRequest); ok {
-		r0 = returnFunc(context1, creditRequest, creditRequestStatus, s, decisionID, uUID, time1, time11)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CreditRequest, model.CreditRequestStatus, string, *model.DecisionID, *model.CreditAllocationRuleID, *time.Time, time.Time) model.CreditRequest); ok {
+		r0 = returnFunc(context1, creditRequest, creditRequestStatus, s, decisionID, creditAllocationRuleID, time1, time11)
 	} else {
 		r0 = ret.Get(0).(model.CreditRequest)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, model.CreditRequest, model.CreditRequestStatus, string, *model.DecisionID, *uuid.UUID, *time.Time, time.Time) error); ok {
-		r1 = returnFunc(context1, creditRequest, creditRequestStatus, s, decisionID, uUID, time1, time11)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.CreditRequest, model.CreditRequestStatus, string, *model.DecisionID, *model.CreditAllocationRuleID, *time.Time, time.Time) error); ok {
+		r1 = returnFunc(context1, creditRequest, creditRequestStatus, s, decisionID, creditAllocationRuleID, time1, time11)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -218,14 +218,14 @@ type CreditAllocationTxQueryer_FinishRequest_Call struct {
 //   - creditRequestStatus model.CreditRequestStatus
 //   - s string
 //   - decisionID *model.DecisionID
-//   - uUID *uuid.UUID
+//   - creditAllocationRuleID *model.CreditAllocationRuleID
 //   - time1 *time.Time
 //   - time11 time.Time
-func (_e *CreditAllocationTxQueryer_Expecter) FinishRequest(context1 any, creditRequest any, creditRequestStatus any, s any, decisionID any, uUID any, time1 any, time11 any) *CreditAllocationTxQueryer_FinishRequest_Call {
-	return &CreditAllocationTxQueryer_FinishRequest_Call{Call: _e.mock.On("FinishRequest", context1, creditRequest, creditRequestStatus, s, decisionID, uUID, time1, time11)}
+func (_e *CreditAllocationTxQueryer_Expecter) FinishRequest(context1 any, creditRequest any, creditRequestStatus any, s any, decisionID any, creditAllocationRuleID any, time1 any, time11 any) *CreditAllocationTxQueryer_FinishRequest_Call {
+	return &CreditAllocationTxQueryer_FinishRequest_Call{Call: _e.mock.On("FinishRequest", context1, creditRequest, creditRequestStatus, s, decisionID, creditAllocationRuleID, time1, time11)}
 }
 
-func (_c *CreditAllocationTxQueryer_FinishRequest_Call) Run(run func(context1 context.Context, creditRequest model.CreditRequest, creditRequestStatus model.CreditRequestStatus, s string, decisionID *model.DecisionID, uUID *uuid.UUID, time1 *time.Time, time11 time.Time)) *CreditAllocationTxQueryer_FinishRequest_Call {
+func (_c *CreditAllocationTxQueryer_FinishRequest_Call) Run(run func(context1 context.Context, creditRequest model.CreditRequest, creditRequestStatus model.CreditRequestStatus, s string, decisionID *model.DecisionID, creditAllocationRuleID *model.CreditAllocationRuleID, time1 *time.Time, time11 time.Time)) *CreditAllocationTxQueryer_FinishRequest_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -247,9 +247,9 @@ func (_c *CreditAllocationTxQueryer_FinishRequest_Call) Run(run func(context1 co
 		if args[4] != nil {
 			arg4 = args[4].(*model.DecisionID)
 		}
-		var arg5 *uuid.UUID
+		var arg5 *model.CreditAllocationRuleID
 		if args[5] != nil {
-			arg5 = args[5].(*uuid.UUID)
+			arg5 = args[5].(*model.CreditAllocationRuleID)
 		}
 		var arg6 *time.Time
 		if args[6] != nil {
@@ -278,7 +278,7 @@ func (_c *CreditAllocationTxQueryer_FinishRequest_Call) Return(creditRequest1 mo
 	return _c
 }
 
-func (_c *CreditAllocationTxQueryer_FinishRequest_Call) RunAndReturn(run func(context1 context.Context, creditRequest model.CreditRequest, creditRequestStatus model.CreditRequestStatus, s string, decisionID *model.DecisionID, uUID *uuid.UUID, time1 *time.Time, time11 time.Time) (model.CreditRequest, error)) *CreditAllocationTxQueryer_FinishRequest_Call {
+func (_c *CreditAllocationTxQueryer_FinishRequest_Call) RunAndReturn(run func(context1 context.Context, creditRequest model.CreditRequest, creditRequestStatus model.CreditRequestStatus, s string, decisionID *model.DecisionID, creditAllocationRuleID *model.CreditAllocationRuleID, time1 *time.Time, time11 time.Time) (model.CreditRequest, error)) *CreditAllocationTxQueryer_FinishRequest_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -770,8 +770,8 @@ func (_c *CreditAllocationTxQueryer_GetOpenRequest_Call) RunAndReturn(run func(c
 }
 
 // GetRequest provides a mock function for the type CreditAllocationTxQueryer
-func (_mock *CreditAllocationTxQueryer) GetRequest(context1 context.Context, uUID uuid.UUID, b bool) (model.CreditRequest, error) {
-	ret := _mock.Called(context1, uUID, b)
+func (_mock *CreditAllocationTxQueryer) GetRequest(context1 context.Context, creditRequestID model.CreditRequestID, b bool) (model.CreditRequest, error) {
+	ret := _mock.Called(context1, creditRequestID, b)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetRequest")
@@ -779,16 +779,16 @@ func (_mock *CreditAllocationTxQueryer) GetRequest(context1 context.Context, uUI
 
 	var r0 model.CreditRequest
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, bool) (model.CreditRequest, error)); ok {
-		return returnFunc(context1, uUID, b)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CreditRequestID, bool) (model.CreditRequest, error)); ok {
+		return returnFunc(context1, creditRequestID, b)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, bool) model.CreditRequest); ok {
-		r0 = returnFunc(context1, uUID, b)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CreditRequestID, bool) model.CreditRequest); ok {
+		r0 = returnFunc(context1, creditRequestID, b)
 	} else {
 		r0 = ret.Get(0).(model.CreditRequest)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID, bool) error); ok {
-		r1 = returnFunc(context1, uUID, b)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.CreditRequestID, bool) error); ok {
+		r1 = returnFunc(context1, creditRequestID, b)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -802,21 +802,21 @@ type CreditAllocationTxQueryer_GetRequest_Call struct {
 
 // GetRequest is a helper method to define mock.On call
 //   - context1 context.Context
-//   - uUID uuid.UUID
+//   - creditRequestID model.CreditRequestID
 //   - b bool
-func (_e *CreditAllocationTxQueryer_Expecter) GetRequest(context1 any, uUID any, b any) *CreditAllocationTxQueryer_GetRequest_Call {
-	return &CreditAllocationTxQueryer_GetRequest_Call{Call: _e.mock.On("GetRequest", context1, uUID, b)}
+func (_e *CreditAllocationTxQueryer_Expecter) GetRequest(context1 any, creditRequestID any, b any) *CreditAllocationTxQueryer_GetRequest_Call {
+	return &CreditAllocationTxQueryer_GetRequest_Call{Call: _e.mock.On("GetRequest", context1, creditRequestID, b)}
 }
 
-func (_c *CreditAllocationTxQueryer_GetRequest_Call) Run(run func(context1 context.Context, uUID uuid.UUID, b bool)) *CreditAllocationTxQueryer_GetRequest_Call {
+func (_c *CreditAllocationTxQueryer_GetRequest_Call) Run(run func(context1 context.Context, creditRequestID model.CreditRequestID, b bool)) *CreditAllocationTxQueryer_GetRequest_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 uuid.UUID
+		var arg1 model.CreditRequestID
 		if args[1] != nil {
-			arg1 = args[1].(uuid.UUID)
+			arg1 = args[1].(model.CreditRequestID)
 		}
 		var arg2 bool
 		if args[2] != nil {
@@ -836,7 +836,7 @@ func (_c *CreditAllocationTxQueryer_GetRequest_Call) Return(creditRequest model.
 	return _c
 }
 
-func (_c *CreditAllocationTxQueryer_GetRequest_Call) RunAndReturn(run func(context1 context.Context, uUID uuid.UUID, b bool) (model.CreditRequest, error)) *CreditAllocationTxQueryer_GetRequest_Call {
+func (_c *CreditAllocationTxQueryer_GetRequest_Call) RunAndReturn(run func(context1 context.Context, creditRequestID model.CreditRequestID, b bool) (model.CreditRequest, error)) *CreditAllocationTxQueryer_GetRequest_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1883,16 +1883,16 @@ func (_c *CreditAllocationTxQueryer_QueueEligibility_Call) RunAndReturn(run func
 }
 
 // QueueIdentityRecheck provides a mock function for the type CreditAllocationTxQueryer
-func (_mock *CreditAllocationTxQueryer) QueueIdentityRecheck(context1 context.Context, uUID uuid.UUID, time1 time.Time) error {
-	ret := _mock.Called(context1, uUID, time1)
+func (_mock *CreditAllocationTxQueryer) QueueIdentityRecheck(context1 context.Context, creditRequestID model.CreditRequestID, time1 time.Time) error {
+	ret := _mock.Called(context1, creditRequestID, time1)
 
 	if len(ret) == 0 {
 		panic("no return value specified for QueueIdentityRecheck")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, time.Time) error); ok {
-		r0 = returnFunc(context1, uUID, time1)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CreditRequestID, time.Time) error); ok {
+		r0 = returnFunc(context1, creditRequestID, time1)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -1906,21 +1906,21 @@ type CreditAllocationTxQueryer_QueueIdentityRecheck_Call struct {
 
 // QueueIdentityRecheck is a helper method to define mock.On call
 //   - context1 context.Context
-//   - uUID uuid.UUID
+//   - creditRequestID model.CreditRequestID
 //   - time1 time.Time
-func (_e *CreditAllocationTxQueryer_Expecter) QueueIdentityRecheck(context1 any, uUID any, time1 any) *CreditAllocationTxQueryer_QueueIdentityRecheck_Call {
-	return &CreditAllocationTxQueryer_QueueIdentityRecheck_Call{Call: _e.mock.On("QueueIdentityRecheck", context1, uUID, time1)}
+func (_e *CreditAllocationTxQueryer_Expecter) QueueIdentityRecheck(context1 any, creditRequestID any, time1 any) *CreditAllocationTxQueryer_QueueIdentityRecheck_Call {
+	return &CreditAllocationTxQueryer_QueueIdentityRecheck_Call{Call: _e.mock.On("QueueIdentityRecheck", context1, creditRequestID, time1)}
 }
 
-func (_c *CreditAllocationTxQueryer_QueueIdentityRecheck_Call) Run(run func(context1 context.Context, uUID uuid.UUID, time1 time.Time)) *CreditAllocationTxQueryer_QueueIdentityRecheck_Call {
+func (_c *CreditAllocationTxQueryer_QueueIdentityRecheck_Call) Run(run func(context1 context.Context, creditRequestID model.CreditRequestID, time1 time.Time)) *CreditAllocationTxQueryer_QueueIdentityRecheck_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 uuid.UUID
+		var arg1 model.CreditRequestID
 		if args[1] != nil {
-			arg1 = args[1].(uuid.UUID)
+			arg1 = args[1].(model.CreditRequestID)
 		}
 		var arg2 time.Time
 		if args[2] != nil {
@@ -1940,7 +1940,7 @@ func (_c *CreditAllocationTxQueryer_QueueIdentityRecheck_Call) Return(err error)
 	return _c
 }
 
-func (_c *CreditAllocationTxQueryer_QueueIdentityRecheck_Call) RunAndReturn(run func(context1 context.Context, uUID uuid.UUID, time1 time.Time) error) *CreditAllocationTxQueryer_QueueIdentityRecheck_Call {
+func (_c *CreditAllocationTxQueryer_QueueIdentityRecheck_Call) RunAndReturn(run func(context1 context.Context, creditRequestID model.CreditRequestID, time1 time.Time) error) *CreditAllocationTxQueryer_QueueIdentityRecheck_Call {
 	_c.Call.Return(run)
 	return _c
 }

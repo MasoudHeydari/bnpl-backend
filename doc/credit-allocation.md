@@ -14,17 +14,17 @@ All paths below have `/api/v1/admin` prefix. Gateway injects authenticated admin
 
 | Method | Path | Permission |
 |---|---|---|
-| GET | `/credits/groups` | `bnpl:credit-allocations:read:any` |
-| PUT | `/credits/groups/{group_code}` | `bnpl:credit-allocations:manage:any` |
-| GET | `/credits/eligibility` | `bnpl:credit-allocations:read:any` |
-| GET | `/credits/eligibility/{eligibility_id}` | `bnpl:credit-allocations:read:any` |
-| PUT | `/credits/eligibility` | `bnpl:credit-allocations:manage:any` |
-| POST | `/credits/eligibility/import` | `bnpl:credit-allocations:manage:any` |
-| GET | `/credits/allocation/rules` | `bnpl:credit-allocations:read:any` |
-| PUT | `/credits/allocation/rules` | `bnpl:credit-allocations:manage:any` |
-| GET | `/credits/allocation/defaults` | `bnpl:credit-allocations:read:any` |
-| PUT | `/credits/allocation/defaults` | `bnpl:credit-allocations:manage:any` |
-| GET | `/credits/requests` | `bnpl:credit-requests:read:any` |
+| GET | `/credits/groups` | `bnpl:credit:allocations:read:any` |
+| PUT | `/credits/groups/{group_code}` | `bnpl:credit:allocations:manage:any` |
+| GET | `/credits/eligibility` | `bnpl:credit:allocations:read:any` |
+| GET | `/credits/eligibility/{eligibility_id}` | `bnpl:credit:allocations:read:any` |
+| PUT | `/credits/eligibility` | `bnpl:credit:allocations:manage:any` |
+| POST | `/credits/eligibility/import` | `bnpl:credit:allocations:manage:any` |
+| GET | `/credits/allocation/rules` | `bnpl:credit:allocations:read:any` |
+| PUT | `/credits/allocation/rules` | `bnpl:credit:allocations:manage:any` |
+| GET | `/credits/allocation/defaults` | `bnpl:credit:allocations:read:any` |
+| PUT | `/credits/allocation/defaults` | `bnpl:credit:allocations:manage:any` |
+| GET | `/credits/requests` | `bnpl:credit:requests:read:any` |
 
 Create group `bank_employees` with `PUT /credits/groups/bank_employees`:
 

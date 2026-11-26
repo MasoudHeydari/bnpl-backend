@@ -197,20 +197,14 @@ func (uc *UseCase) buildCreditKindsPreview(
 				continue
 			}
 
-			products, ok := uc.creditAccount.Conn(conn).(repo.CreditAccountProductQueryer)
-			if !ok {
-				return cerr.InternalError(fmt.Errorf(
-					"%s: product-aware credit account repository unavailable", op,
-				))
-			}
-
+			creditAccountQ := uc.creditAccount.Conn(conn)
 			if model.EffectiveCreditKind(kind) == model.PayNextMonthCreditKind {
 				cutoff, cutoffErr := jalali.StartOfFollowingTehranMonth(now)
 				if cutoffErr != nil {
 					return fmt.Errorf("%s: monthly cycle cutoff: %w", op, cutoffErr)
 				}
 
-				blocked, cycleErr := products.HasUnpaidMonthlyCycleBefore(
+				blocked, cycleErr := creditAccountQ.HasUnpaidMonthlyCycleBefore(
 					ctx, *session.CustomerID, session.Currency, cutoff,
 				)
 				if cycleErr != nil {
@@ -228,7 +222,7 @@ func (uc *UseCase) buildCreditKindsPreview(
 				}
 			}
 
-			account, err := products.GetByCustomerIDCurrencyAndKind(
+			account, err := creditAccountQ.GetByCustomerIDCurrencyAndKind(
 				ctx, *session.CustomerID, session.Currency, kind,
 			)
 			if err != nil {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
@@ -53,7 +52,7 @@ func (uc *UseCase) submitCreditRequest(ctx context.Context, input AssignInitialL
 	now := uc.clock.Now().UTC()
 	uc.observer.LimitAssignmentAttempted(ctx, input.SubjectID.AsExternalSubjectID())
 	var output AssignInitialLimitOutput
-	var processID uuid.UUID
+	var processID model.CreditRequestID
 	var profileID model.CustomerID
 	err = uc.allocationTx(ctx, func(ctx context.Context, tx repo.Tx, q repo.CreditAllocationTxQueryer) error {
 		if err := q.LockConfiguration(ctx, false); err != nil {
@@ -175,7 +174,7 @@ func (uc *UseCase) submitCreditRequest(ctx context.Context, input AssignInitialL
 	if err != nil {
 		return AssignInitialLimitOutput{}, err
 	}
-	if processID != uuid.Nil {
+	if !processID.IsZero() {
 		processed, err := uc.processCreditRequest(ctx, processID)
 		if err != nil {
 			return AssignInitialLimitOutput{}, err
@@ -234,7 +233,7 @@ func (uc *UseCase) ProcessDueCreditRequests(ctx context.Context, limit int) erro
 	return firstErr
 }
 
-func (uc *UseCase) processCreditRequest(ctx context.Context, id uuid.UUID) (AssignInitialLimitOutput, error) {
+func (uc *UseCase) processCreditRequest(ctx context.Context, id model.CreditRequestID) (AssignInitialLimitOutput, error) {
 	var claimed model.CreditRequest
 	now := uc.clock.Now().UTC()
 	err := uc.allocationTx(ctx, func(ctx context.Context, _ repo.Tx, q repo.CreditAllocationTxQueryer) error {
@@ -307,7 +306,7 @@ func (uc *UseCase) finalizeCreditRequest(ctx context.Context, claimed model.Cred
 		if r.Status != model.ProcessingCreditRequestStatus || r.LeaseToken == nil || claimed.LeaseToken == nil || *r.LeaseToken != *claimed.LeaseToken || r.LeaseUntil == nil || !r.LeaseUntil.After(now) {
 			return nil
 		}
-		finish := func(status model.CreditRequestStatus, reason string, decision *model.DecisionID, rule *uuid.UUID, next *time.Time) error {
+		finish := func(status model.CreditRequestStatus, reason string, decision *model.DecisionID, rule *model.CreditAllocationRuleID, next *time.Time) error {
 			completed, err := q.FinishRequest(ctx, r, status, reason, decision, rule, next, now)
 			if err != nil {
 				return err
@@ -379,12 +378,7 @@ func (uc *UseCase) finalizeCreditRequest(ctx context.Context, claimed model.Cred
 		if err != nil {
 			return err
 		}
-		creditAccountQ := uc.creditAccount.Tx(tx)
-		accountQ, ok := creditAccountQ.(repo.CreditAccountProductTxQueryer)
-		if !ok {
-			return cerr.InternalError(fmt.Errorf("product credit repository is required"))
-		}
-
+		accountQ := uc.creditAccount.Tx(tx)
 		if err := accountQ.ExpireDueByCustomerIDCurrencyAndKind(ctx, profile.ID, r.Currency, r.CreditKind, now); err != nil {
 			return err
 		}

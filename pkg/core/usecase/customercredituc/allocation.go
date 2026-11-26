@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/policy/initialcreditlimit"
@@ -81,9 +80,11 @@ func (uc *UseCase) fixedLimitAssessment(rule model.CreditAllocationRule, selecte
 	}, now)
 }
 
-func ruleReference(rule model.CreditAllocationRule) *uuid.UUID {
-	if rule.ID == uuid.Nil {
+func ruleReference(rule model.CreditAllocationRule) *model.CreditAllocationRuleID {
+	if rule.ID.IsZero() {
 		return nil
 	}
-	return &rule.ID
+
+	id := rule.ID
+	return &id
 }

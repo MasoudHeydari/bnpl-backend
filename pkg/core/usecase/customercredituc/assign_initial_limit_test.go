@@ -46,7 +46,7 @@ type assignInitialLimitDeps struct {
 	customerProfile    *mock.CustomerProfile
 	customerProfileTx  *mock.CustomerProfileTxQueryer
 	creditAccount      *mock.CreditAccount
-	creditAccountTx    *mock.CreditAccountTxQueryer
+	creditAccountTx    *mock.CreditAccountProductTxQueryer
 	decision           *mock.Decision
 	decisionTx         *mock.DecisionTxQueryer
 	outbox             *mock.Outbox
@@ -78,7 +78,7 @@ func newAssignInitialLimitDeps(t *testing.T, now time.Time) assignInitialLimitDe
 		customerProfile:    mock.NewCustomerProfile(t),
 		customerProfileTx:  mock.NewCustomerProfileTxQueryer(t),
 		creditAccount:      mock.NewCreditAccount(t),
-		creditAccountTx:    mock.NewCreditAccountTxQueryer(t),
+		creditAccountTx:    mock.NewCreditAccountProductTxQueryer(t),
 		decision:           mock.NewDecision(t),
 		decisionTx:         mock.NewDecisionTxQueryer(t),
 		outbox:             mock.NewOutbox(t),

@@ -107,10 +107,6 @@ func (uc *UseCase) GetAllSummaries(ctx context.Context, input Input) (AllSummari
 			}
 
 			currency := selectedPolicy.Terms().Currency
-			products, ok := creditAccountQ.(repo.CreditAccountProductTxQueryer)
-			if !ok {
-				return cerr.InternalError(fmt.Errorf("%s: product-aware account repository unavailable", op))
-			}
 
 			// Read restrictions once for one consistent response. Restriction
 			// truth is independent of assignment state.
@@ -126,20 +122,20 @@ func (uc *UseCase) GetAllSummaries(ctx context.Context, input Input) (AllSummari
 				monthlyBlocked := false
 				if kind == model.PayNextMonthCreditKind {
 					monthlyBlocked, err = monthlyPreviousCycleBlocked(
-						ctx, products, profile.ID, currency, now,
+						ctx, creditAccountQ, profile.ID, currency, now,
 					)
 					if err != nil {
 						return err
 					}
 				}
 
-				if err := products.ExpireDueByCustomerIDCurrencyAndKind(
+				if err := creditAccountQ.ExpireDueByCustomerIDCurrencyAndKind(
 					ctx, profile.ID, currency, kind, now,
 				); err != nil {
 					return err
 				}
 
-				account, err := products.GetByCustomerIDCurrencyAndKind(
+				account, err := creditAccountQ.GetByCustomerIDCurrencyAndKind(
 					ctx, profile.ID, currency, kind,
 				)
 				var item Output

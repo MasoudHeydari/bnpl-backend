@@ -68,16 +68,11 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 
 				account, err = accountQ.GetByCustomerIDAndCurrency(ctx, profile.ID, currency)
 			} else {
-				products, ok := accountQ.(repo.CreditAccountProductTxQueryer)
-				if !ok {
-					return cerr.InternalError(fmt.Errorf("credit account product repository is unavailable"))
-				}
-
-				if err = products.ExpireDueByCustomerIDCurrencyAndKind(ctx, profile.ID, currency, kind, now); err != nil {
+				if err = accountQ.ExpireDueByCustomerIDCurrencyAndKind(ctx, profile.ID, currency, kind, now); err != nil {
 					return err
 				}
 
-				account, err = products.GetByCustomerIDCurrencyAndKind(ctx, profile.ID, currency, kind)
+				account, err = accountQ.GetByCustomerIDCurrencyAndKind(ctx, profile.ID, currency, kind)
 			}
 
 			if err != nil {
@@ -110,13 +105,8 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 			// the next Jalali month, even before the due date on day 5.
 			monthlyBlocked := false
 			if kind == model.PayNextMonthCreditKind {
-				products, ok := accountQ.(repo.CreditAccountProductTxQueryer)
-				if !ok {
-					return cerr.InternalError(fmt.Errorf("%s: credit repository missing monthly product queries", op))
-				}
-
 				monthlyBlocked, err = monthlyPreviousCycleBlocked(
-					ctx, products, profile.ID, currency, now,
+					ctx, accountQ, profile.ID, currency, now,
 				)
 				if err != nil {
 					return err

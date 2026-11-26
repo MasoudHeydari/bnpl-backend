@@ -141,7 +141,7 @@ func TestGetSummary_ExpiredLimit_ReturnsExpiredNotZeroAssigned(t *testing.T) {
 	customerProfile := mock.NewCustomerProfile(t)
 	customerProfileTx := mock.NewCustomerProfileTxQueryer(t)
 	creditAccount := mock.NewCreditAccount(t)
-	creditAccountTx := mock.NewCreditAccountTxQueryer(t)
+	creditAccountTx := mock.NewCreditAccountProductTxQueryer(t)
 	policyAssignment := mock.NewPolicyAssignment(t)
 
 	externalCustomerID := model.ExternalCustomerID(uuid.New())
@@ -288,7 +288,7 @@ func TestGetSummary_ActiveLimit_UsesInternalCustomerIDNotExternal(t *testing.T) 
 	customerProfile := mock.NewCustomerProfile(t)
 	customerProfileTx := mock.NewCustomerProfileTxQueryer(t)
 	creditAccount := mock.NewCreditAccount(t)
-	creditAccountTx := mock.NewCreditAccountTxQueryer(t)
+	creditAccountTx := mock.NewCreditAccountProductTxQueryer(t)
 	policyAssignment := mock.NewPolicyAssignment(t)
 
 	externalCustomerID := model.ExternalCustomerID(uuid.MustParse("11111111-1111-4111-8111-111111111111"))
@@ -421,7 +421,7 @@ func TestGetSummary_NoLimit_ReturnsNotAssigned(t *testing.T) {
 	customerProfile := mock.NewCustomerProfile(t)
 	customerProfileTx := mock.NewCustomerProfileTxQueryer(t)
 	creditAccount := mock.NewCreditAccount(t)
-	creditAccountTx := mock.NewCreditAccountTxQueryer(t)
+	creditAccountTx := mock.NewCreditAccountProductTxQueryer(t)
 	policyAssignment := mock.NewPolicyAssignment(t)
 
 	externalCustomerID := model.ExternalCustomerID(uuid.New())

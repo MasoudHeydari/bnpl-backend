@@ -2887,7 +2887,7 @@ info:
 paths:
   /api/v1/admin/credits/allocation/defaults:
     get:
-      description: List current public allocation settings Requires bnpl:credit-allocations:read:any.
+      description: List current public allocation settings Requires bnpl:credit:allocations:read:any.
       parameters:
       - description: Authenticated administrator subject UUID issued by Identity Service
         format: uuid
@@ -2908,7 +2908,7 @@ paths:
         required: true
         type: string
       - description: Comma-separated gateway permissions
-        example: bnpl:credit-allocations:read:any
+        example: bnpl:credit:allocations:read:any
         in: header
         name: x-auth-permissions
         required: true
@@ -3048,7 +3048,7 @@ paths:
     put:
       consumes:
       - application/json
-      description: Enable or disable public risk assessment. Enabling is unavailable until a real assessor is implemented. Requires bnpl:credit-allocations:manage:any.
+      description: Enable or disable public risk assessment. Enabling is unavailable until a real assessor is implemented. Requires bnpl:credit:allocations:manage:any.
       parameters:
       - description: Authenticated administrator subject UUID issued by Identity Service
         format: uuid
@@ -3069,7 +3069,7 @@ paths:
         required: true
         type: string
       - description: Comma-separated gateway permissions
-        example: bnpl:credit-allocations:manage:any
+        example: bnpl:credit:allocations:manage:any
         in: header
         name: x-auth-permissions
         required: true
@@ -3228,7 +3228,7 @@ paths:
       - Credit Allocation Admin
   /api/v1/admin/credits/allocation/rules:
     get:
-      description: List current group and individual allocation rules Requires bnpl:credit-allocations:read:any.
+      description: List current group and individual allocation rules Requires bnpl:credit:allocations:read:any.
       parameters:
       - description: Authenticated administrator subject UUID issued by Identity Service
         format: uuid
@@ -3249,7 +3249,7 @@ paths:
         required: true
         type: string
       - description: Comma-separated gateway permissions
-        example: bnpl:credit-allocations:read:any
+        example: bnpl:credit:allocations:read:any
         in: header
         name: x-auth-permissions
         required: true
@@ -3389,7 +3389,7 @@ paths:
     put:
       consumes:
       - application/json
-      description: Append a group or individual allocation rule revision. Default amounts are forbidden. Risk-based is reserved and cannot yet be enabled. Requires bnpl:credit-allocations:manage:any.
+      description: Append a group or individual allocation rule revision. Default amounts are forbidden. Risk-based is reserved and cannot yet be enabled. Requires bnpl:credit:allocations:manage:any.
       parameters:
       - description: Authenticated administrator subject UUID issued by Identity Service
         format: uuid
@@ -3410,7 +3410,7 @@ paths:
         required: true
         type: string
       - description: Comma-separated gateway permissions
-        example: bnpl:credit-allocations:manage:any
+        example: bnpl:credit:allocations:manage:any
         in: header
         name: x-auth-permissions
         required: true
@@ -3569,7 +3569,7 @@ paths:
       - Credit Allocation Admin
   /api/v1/admin/credits/eligibility:
     get:
-      description: List eligibility entries; cursor is the last entry ID Requires bnpl:credit-allocations:read:any.
+      description: List eligibility entries; cursor is the last entry ID Requires bnpl:credit:allocations:read:any.
       parameters:
       - in: query
         name: group_code
@@ -3603,7 +3603,7 @@ paths:
         required: true
         type: string
       - description: Comma-separated gateway permissions
-        example: bnpl:credit-allocations:read:any
+        example: bnpl:credit:allocations:read:any
         in: header
         name: x-auth-permissions
         required: true
@@ -3743,7 +3743,7 @@ paths:
     put:
       consumes:
       - application/json
-      description: Register eligibility or replace group membership; null removes membership Requires bnpl:credit-allocations:manage:any.
+      description: Register eligibility or replace group membership; null removes membership Requires bnpl:credit:allocations:manage:any.
       parameters:
       - description: Authenticated administrator subject UUID issued by Identity Service
         format: uuid
@@ -3764,7 +3764,7 @@ paths:
         required: true
         type: string
       - description: Comma-separated gateway permissions
-        example: bnpl:credit-allocations:manage:any
+        example: bnpl:credit:allocations:manage:any
         in: header
         name: x-auth-permissions
         required: true
@@ -3911,7 +3911,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: Atomically import a JSON array (default 1000 items and 2 MiB); null group removes membership Requires bnpl:credit-allocations:manage:any.
+      description: Atomically import a JSON array (default 1000 items and 2 MiB); null group removes membership Requires bnpl:credit:allocations:manage:any.
       parameters:
       - description: Authenticated administrator subject UUID issued by Identity Service
         format: uuid
@@ -3932,7 +3932,7 @@ paths:
         required: true
         type: string
       - description: Comma-separated gateway permissions
-        example: bnpl:credit-allocations:manage:any
+        example: bnpl:credit:allocations:manage:any
         in: header
         name: x-auth-permissions
         required: true
@@ -4108,7 +4108,7 @@ paths:
       - Credit Allocation Admin
   /api/v1/admin/credits/eligibility/{eligibility_id}:
     get:
-      description: Read eligibility, mobile aliases and current membership Requires bnpl:credit-allocations:read:any.
+      description: Read eligibility, mobile aliases and current membership Requires bnpl:credit:allocations:read:any.
       parameters:
       - format: uuid
         in: path
@@ -4134,7 +4134,7 @@ paths:
         required: true
         type: string
       - description: Comma-separated gateway permissions
-        example: bnpl:credit-allocations:read:any
+        example: bnpl:credit:allocations:read:any
         in: header
         name: x-auth-permissions
         required: true
@@ -4273,7 +4273,7 @@ paths:
       - Credit Allocation Admin
   /api/v1/admin/credits/groups:
     get:
-      description: List credit groups Requires bnpl:credit-allocations:read:any.
+      description: List credit groups Requires bnpl:credit:allocations:read:any.
       parameters:
       - description: Authenticated administrator subject UUID issued by Identity Service
         format: uuid
@@ -4294,7 +4294,7 @@ paths:
         required: true
         type: string
       - description: Comma-separated gateway permissions
-        example: bnpl:credit-allocations:read:any
+        example: bnpl:credit:allocations:read:any
         in: header
         name: x-auth-permissions
         required: true
@@ -4435,7 +4435,7 @@ paths:
     put:
       consumes:
       - application/json
-      description: Create or update group; existing credits are unchanged Requires bnpl:credit-allocations:manage:any.
+      description: Create or update group; existing credits are unchanged Requires bnpl:credit:allocations:manage:any.
       parameters:
       - in: path
         name: group_code
@@ -4460,7 +4460,7 @@ paths:
         required: true
         type: string
       - description: Comma-separated gateway permissions
-        example: bnpl:credit-allocations:manage:any
+        example: bnpl:credit:allocations:manage:any
         in: header
         name: x-auth-permissions
         required: true
@@ -4605,7 +4605,7 @@ paths:
       - Credit Allocation Admin
   /api/v1/admin/credits/requests:
     get:
-      description: List pending or processing requests for a product Requires bnpl:credit-requests:read:any.
+      description: List pending or processing requests for a product Requires bnpl:credit:requests:read:any.
       parameters:
       - enum:
         - pay_in_installments
@@ -4643,7 +4643,7 @@ paths:
         required: true
         type: string
       - description: Comma-separated gateway permissions
-        example: bnpl:credit-requests:read:any
+        example: bnpl:credit:requests:read:any
         in: header
         name: x-auth-permissions
         required: true

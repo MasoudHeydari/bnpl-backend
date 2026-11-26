@@ -1,10 +1,57 @@
 package model
 
 import (
+	"database/sql/driver"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+// CreditAllocationRuleID uniquely identifies an immutable allocation rule revision.
+type CreditAllocationRuleID uuid.UUID
+
+// ParseCreditAllocationRuleID parses a CreditAllocationRuleID from its canonical string form.
+func ParseCreditAllocationRuleID(value string) (CreditAllocationRuleID, error) {
+	id, err := uuid.Parse(value)
+	if err != nil {
+		return CreditAllocationRuleID{}, fmt.Errorf("parse credit allocation rule id: %w", err)
+	}
+
+	return CreditAllocationRuleID(id), nil
+}
+
+func (id CreditAllocationRuleID) UUID() uuid.UUID { return uuid.UUID(id) }
+
+func (id CreditAllocationRuleID) String() string { return uuid.UUID(id).String() }
+
+func (id CreditAllocationRuleID) IsZero() bool { return uuid.UUID(id) == uuid.Nil }
+
+func (id CreditAllocationRuleID) MarshalText() ([]byte, error) { return uuid.UUID(id).MarshalText() }
+
+func (id *CreditAllocationRuleID) UnmarshalText(data []byte) error {
+	var u uuid.UUID
+	if err := u.UnmarshalText(data); err != nil {
+		return err
+	}
+
+	*id = CreditAllocationRuleID(u)
+
+	return nil
+}
+
+func (id *CreditAllocationRuleID) Scan(src any) error {
+	var u uuid.UUID
+	if err := u.Scan(src); err != nil {
+		return err
+	}
+
+	*id = CreditAllocationRuleID(u)
+
+	return nil
+}
+
+func (id CreditAllocationRuleID) Value() (driver.Value, error) { return uuid.UUID(id).Value() }
 
 // CreditAllocationStrategy determines how a limit is assessed, independently
 // from the source of eligibility. Risk-based assessment is reserved until a
@@ -69,7 +116,7 @@ type CreditGroupMembership struct {
 // CreditAllocationRule is an immutable configuration revision. A completed
 // request references this exact row, not whichever rule happens to be current.
 type CreditAllocationRule struct {
-	ID               uuid.UUID                `db:"id" json:"id"`
+	ID               CreditAllocationRuleID   `db:"id" json:"id"`
 	Scope            CreditAllocationScope    `db:"scope" json:"scope"`
 	GroupCode        *string                  `db:"group_code" json:"group_code,omitempty"`
 	EligibilityID    *uuid.UUID               `db:"eligibility_id" json:"eligibility_id,omitempty"`

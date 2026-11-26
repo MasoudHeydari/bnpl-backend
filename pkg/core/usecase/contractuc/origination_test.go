@@ -33,7 +33,7 @@ type originationDeps struct {
 	merchantProfile      *mock.MerchantProfile
 	merchantProfileTx    *mock.MerchantProfileTxQueryer
 	creditAccount        *mock.CreditAccount
-	creditAccountTx      *mock.CreditAccountTxQueryer
+	creditAccountTx      *mock.CreditAccountProductTxQueryer
 	decision             *mock.Decision
 	decisionCQ           *mock.DecisionConnQueryer
 	decisionTx           *mock.DecisionTxQueryer
@@ -68,7 +68,7 @@ func newOriginationDeps(t *testing.T, now time.Time) originationDeps {
 		merchantProfile:      mock.NewMerchantProfile(t),
 		merchantProfileTx:    mock.NewMerchantProfileTxQueryer(t),
 		creditAccount:        mock.NewCreditAccount(t),
-		creditAccountTx:      mock.NewCreditAccountTxQueryer(t),
+		creditAccountTx:      mock.NewCreditAccountProductTxQueryer(t),
 		decision:             mock.NewDecision(t),
 		decisionCQ:           mock.NewDecisionConnQueryer(t),
 		decisionTx:           mock.NewDecisionTxQueryer(t),
