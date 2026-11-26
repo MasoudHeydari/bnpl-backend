@@ -32,6 +32,13 @@ func PrivilegeRegistry() []TablePrivilegePolicy {
 const PrivilegeMigration = "000_schema.sql"
 
 var privileges = []TablePrivilegePolicy{
+	{Schema: "bnpl", Table: "credit_allocation_control", Migration: PrivilegeMigration, Description: "Credit allocation configuration and durable request processing; immutable identity and history are not writable.", Operations: []Operation{SelectOperation}, UpdateColumns: []string{"revision"}},
+	{Schema: "bnpl", Table: "credit_groups", Migration: PrivilegeMigration, Description: "Credit allocation configuration and durable request processing; immutable identity and history are not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"enabled", "name", "updated_at", "updated_by"}},
+	{Schema: "bnpl", Table: "credit_eligibility_entries", Migration: PrivilegeMigration, Description: "Credit allocation configuration and durable request processing; immutable identity and history are not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"credit_owner_id"}},
+	{Schema: "bnpl", Table: "credit_eligibility_mobiles", Migration: PrivilegeMigration, Description: "Credit allocation configuration and durable request processing; immutable identity and history are not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{}},
+	{Schema: "bnpl", Table: "credit_group_memberships", Migration: PrivilegeMigration, Description: "Credit allocation configuration and durable request processing; immutable identity and history are not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{}},
+	{Schema: "bnpl", Table: "credit_allocation_rules", Migration: PrivilegeMigration, Description: "Credit allocation configuration and durable request processing; immutable identity and history are not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{}},
+	{Schema: "bnpl", Table: "credit_requests", Migration: PrivilegeMigration, Description: "Credit allocation configuration and durable request processing; immutable identity and history are not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"allocation_rule_id", "completed_at", "decision_id", "lease_token", "lease_until", "next_attempt_at", "queue_source", "reason_code", "status", "updated_at"}},
 	{Schema: "bnpl", Table: "migrations", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation}, UpdateColumns: []string{}},
 	{Schema: "bnpl", Table: "integration_outbox", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"attempt_count", "last_error", "lock_version", "locked_at", "locked_by", "next_attempt_at", "published_at", "status"}},
 	{Schema: "bnpl", Table: "integration_inbox", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"failed_at", "failure_code", "failure_message", "processed_at", "status", "updated_at"}},
@@ -111,7 +118,7 @@ var privileges = []TablePrivilegePolicy{
 }
 
 // PrivilegeMigrationSHA256 fingerprints the reviewed baseline privilege grants.
-const PrivilegeMigrationSHA256 = "sha256:05c55a29407c4af0068ed9ce46d36f37dceaf2ab260eac8b69783ce56864cc92"
+const PrivilegeMigrationSHA256 = "sha256:73600df0ed8dabac8f399e6eb534ffbf2969522cf2aafc208b1a4c7ceb2e6c98"
 
 const PermissionHistoryMigration = "000_schema.sql"
-const PermissionHistoryMigrationSHA256 = "sha256:05c55a29407c4af0068ed9ce46d36f37dceaf2ab260eac8b69783ce56864cc92"
+const PermissionHistoryMigrationSHA256 = "sha256:73600df0ed8dabac8f399e6eb534ffbf2969522cf2aafc208b1a4c7ceb2e6c98"

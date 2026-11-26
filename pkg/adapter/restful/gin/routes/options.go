@@ -3,6 +3,7 @@ package routes
 import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/checkoutsessionrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/contractrs"
+	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/creditallocationrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/customercreditrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/customerrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/decisionrs"
@@ -11,6 +12,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/merchantrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/merchantterminalrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/swaggerrs"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/creditallocationuc"
 )
 
 // RegisterOptions groups registration options for HTTP resources.
@@ -49,4 +51,7 @@ type RegisterOptions struct {
 
 	// CustomerCredit configures registration of customer credit resources.
 	CustomerCredit customercreditrs.RegisterOptions
+	// CreditAllocation configures administrative credit allocation routes.
+	CreditAllocation        *creditallocationuc.UseCase
+	CreditAllocationOptions creditallocationrs.RegisterOptions
 }

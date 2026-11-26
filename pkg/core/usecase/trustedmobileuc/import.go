@@ -12,6 +12,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/creditallocationuc"
 )
 
 var nationalIDPattern = regexp.MustCompile(`^[0-9]{10}$`)
@@ -77,12 +78,13 @@ Failed:                 %4d
 
 // UseCase imports trusted mobile pairs without calling CRS or allocating credit.
 type UseCase struct {
-	pool     repo.Pool
-	registry repo.TrustedMobile
-	imports  repo.PolicyAssignmentImport
-	phones   phonenumber.Canonicalizer
-	clock    clock.Clock
-	logger   log.Logger
+	pool       repo.Pool
+	registry   repo.TrustedMobile
+	allocation repo.CreditAllocation
+	imports    repo.PolicyAssignmentImport
+	phones     phonenumber.Canonicalizer
+	clock      clock.Clock
+	logger     log.Logger
 }
 
 // New constructs the offline importer with all required repositories.
@@ -91,6 +93,13 @@ func New(pool repo.Pool, registry repo.TrustedMobile, imports repo.PolicyAssignm
 		return nil, errors.New("trustedmobileuc.New: all dependencies are required")
 	}
 	return &UseCase{pool: pool, registry: registry, imports: imports, phones: phones, clock: clk, logger: logger}, nil
+}
+
+// WithCreditAllocation integrates the legacy Trusted identity import with the
+// common eligibility registry without coupling it to the credit grant path.
+func (uc *UseCase) WithCreditAllocation(allocation repo.CreditAllocation) *UseCase {
+	uc.allocation = allocation
+	return uc
 }
 
 // Import performs a durable, additive, idempotent CSV import without external
@@ -158,7 +167,7 @@ func (uc *UseCase) Import(ctx context.Context, input ImportInput) (ImportOutput,
 					} else {
 						out.AlreadyExists++
 					}
-				case errors.Is(err, ErrNationalIDConflict):
+				case errors.Is(err, ErrNationalIDConflict) || creditallocationuc.IsIdentityConflict(err):
 					out.Conflicts++
 					code = outcomeConflict
 				default:
@@ -206,6 +215,15 @@ func (uc *UseCase) insertRow(ctx context.Context, importID model.PolicyAssignmen
 	var added bool
 	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 		return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
+			// Configuration first, then identity registry: the same order as
+			// the general importer and the credit request finalization path.
+			var allocationQ repo.CreditAllocationTxQueryer
+			if uc.allocation != nil {
+				allocationQ = uc.allocation.Tx(tx)
+				if err := allocationQ.LockConfiguration(ctx, true); err != nil {
+					return err
+				}
+			}
 			q := uc.imports.Tx(tx)
 			item, err := q.CreateItem(ctx, importID, rowNumber, &nationalID, nil, now)
 			if err != nil {
@@ -221,6 +239,12 @@ func (uc *UseCase) insertRow(ctx context.Context, importID model.PolicyAssignmen
 			)
 			if err != nil {
 				return err
+			}
+			if allocationQ != nil {
+				group := "trusted_customers"
+				if _, err := creditallocationuc.RegisterEligibilityInTx(ctx, allocationQ, creditallocationuc.EligibilityInput{NationalCode: nationalID, MobileE164: mobile, GroupCode: &group}, actor, now, true); err != nil {
+					return err
+				}
 			}
 			_, err = q.MarkItemSucceeded(ctx, item.ID, now)
 			return err

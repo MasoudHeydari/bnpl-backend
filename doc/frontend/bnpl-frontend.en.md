@@ -144,7 +144,7 @@ Every route below uses the gateway identity context and the listed backend permi
 | Method | Path | Permission | Status |
 | --- | --- | --- | --- |
 | `GET` | `/api/v1/customer-credit` | `bnpl:credit-limits:read:self` | `200` |
-| `POST` | `/api/v1/customer-credit/initiate` | `bnpl:credit-limits:create:self` | `201` if any product newly created; else `200` |
+| `POST` | `/api/v1/customer-credit/initiate` | `bnpl:credit-limits:create:self` | `201` new grant; `202` new pending request; `200` replay/rejection |
 | `POST` | `/api/v1/checkout-decisions` | `bnpl:decisions:create:self` | `201` new; `200` replay |
 | `POST` | `/api/v1/checkout-decisions/{decision_id}/contracts` | `bnpl:contracts:create:self` | `201` new; `200` existing |
 | `POST` | `/api/v1/contracts/{contract_id}/cancel` | `bnpl:contracts:cancel:self` | `202` started; `200` replay |
@@ -178,7 +178,7 @@ No customer ID or tenant ID is accepted from the browser for these operations. T
         "available_amount_minor": 500000000,
         "currency": "IRR",
         "expires_at": "2027-11-19T10:41:34Z",
-        "application": { "status": "assigned" }
+        "credit_request": { "id": "00000000-0000-4000-8000-000000000001", "status": "approved", "requested_at": "2026-11-19T12:00:00Z" }
       },
       {
         "credit_kind": "pay_next_month",
@@ -188,7 +188,7 @@ No customer ID or tenant ID is accepted from the browser for these operations. T
         "available_amount_minor": 30000000,
         "currency": "IRR",
         "expires_at": "2027-11-19T10:41:34Z",
-        "application": { "status": "assigned" }
+        "credit_request": { "id": "00000000-0000-4000-8000-000000000002", "status": "approved", "requested_at": "2026-11-19T12:00:00Z" }
       }
     ]
   },
@@ -206,7 +206,7 @@ No customer ID or tenant ID is accepted from the browser for these operations. T
 
 **Per-product `credits[].status`:** `active` | `not_assigned` | `expired`.
 
-**Per-product `application.status`:** `assigned` | `not_assigned` | `reassessment_required` (expired).
+**Per-product `credit_request.status`:** `pending` | `processing` | `approved` | `rejected` | `canceled`. The field is absent before submission; it is independent of the account status.
 
 **`credit_usage.status`:** `allowed` | `restricted` | `unavailable`. When `restricted`, optional public `reason` values include `previous_month_unpaid`, `collections_default`, `collections_due`, and `credit_usage_restricted`. An active limit with `restricted` usage must not be treated as spendable for new purchases.
 
@@ -218,7 +218,7 @@ No customer ID or tenant ID is accepted from the browser for these operations. T
 
 Always render **two product cards**. Never sum `available_amount_minor` across kinds.
 
-When aggregate `status=not_assigned`, `meta.code` is `CUSTOMER_CREDIT_NOT_ASSIGNED`.
+When aggregate `status=not_assigned`, inspect `credit_request` first. `CREDIT_REQUEST_RECEIVED` is a successful pending request, not a denial. `CREDIT_REQUEST_REJECTED` carries a terminal rejection; `CREDIT_REQUEST_IDENTITY_MISMATCH` requires a new submission. Display localized `meta.message`.
 
 #### Example: only installment product assigned
 
@@ -233,13 +233,13 @@ When aggregate `status=not_assigned`, `meta.code` is `CUSTOMER_CREDIT_NOT_ASSIGN
       "limit_amount_minor": 90000000,
       "available_amount_minor": 90000000,
       "currency": "IRR",
-      "application": { "status": "assigned" }
+      "credit_request": { "id": "00000000-0000-4000-8000-000000000003", "status": "approved", "requested_at": "2026-11-19T12:00:00Z" }
     },
     {
       "credit_kind": "pay_next_month",
       "status": "not_assigned",
       "credit_usage": { "status": "unavailable" },
-      "application": { "status": "not_assigned" }
+      "credit_request": { "id": "00000000-0000-4000-8000-000000000004", "status": "pending", "requested_at": "2026-11-19T12:00:00Z" }
     }
   ]
 }
@@ -255,13 +255,13 @@ When aggregate `status=not_assigned`, `meta.code` is `CUSTOMER_CREDIT_NOT_ASSIGN
       "credit_kind": "pay_in_installments",
       "status": "not_assigned",
       "credit_usage": { "status": "unavailable" },
-      "application": { "status": "not_assigned" }
+      "credit_request": { "id": "00000000-0000-4000-8000-000000000005", "status": "pending", "requested_at": "2026-11-19T12:00:00Z" }
     },
     {
       "credit_kind": "pay_next_month",
       "status": "not_assigned",
       "credit_usage": { "status": "unavailable" },
-      "application": { "status": "not_assigned" }
+      "credit_request": { "id": "00000000-0000-4000-8000-000000000006", "status": "pending", "requested_at": "2026-11-19T12:00:00Z" }
     }
   ]
 }
@@ -285,7 +285,7 @@ Authorization: Bearer <access-token>
 
 No request body. The access token must include Identity claim `auth_mobile_number` (canonical E.164); Envoy injects `x-auth-mobile-number`. **Browser clients must not forge** trusted gateway headers. BNPL resolves the mobile through Customer Reference Service (`ACTIVE` only) and may create the local profile idempotently without assigning credit until assessment runs.
 
-**Without `credit_kind`:** assigns **both** independent products (all-products response):
+**Without `credit_kind`:** submits requests for both independent products. Only eligible, verified customers receive a grant. The default is disabled for both kinds. Example of an eligible customer:
 
 ~~~json
 {
@@ -321,9 +321,9 @@ No request body. The access token must include Identity claim `auth_mobile_numbe
 }
 ~~~
 
-Per-item `result`: `created` | `already_assigned` | `denied`. Decision `outcome`: `limit_set` | `denied`. HTTP `201` if **any** product was newly `created`; otherwise `200` (including mixed already-assigned/denied). **Never infer success from HTTP 200 alone** — inspect each `credit_limit_decision.outcome` / `result`.
+Per-item `result`: `created` | `already_assigned` | `pending` | `denied`. A pending result has `credit_request`, not a fabricated `credit_limit_decision` or `credit_limit`. HTTP `201` if any product was newly granted, otherwise `202` for a newly pending request, otherwise `200`. Inspect each product, not only HTTP status. A second account of the same legal person may receive a redacted pending result without the first account's request ID.
 
-**With `?credit_kind=…`:** legacy single-product response (`result`, `credit_limit_decision`, optional `credit_limit`) without the aggregate `credits[]` wrapper. `201` only for that product's new creation; `200` for already-assigned or denied.
+**With `?credit_kind=…`:** legacy single-product response (`result`, `credit_limit_decision`, optional `credit_limit`) without the aggregate `credits[]` wrapper. `201` for a new grant, `202` for a new pending request, `200` for replay or rejection.
 
 Trusted-customer Checkout Policy **v2** (three installments) may be selected server-side for eligible CRS customers; ordinary customers use **v1** (four). Monthly product uses Checkout Policy **v3**. Frontend must not hard-code plan length — read returned schedules/`repayment_plan` where exposed.
 

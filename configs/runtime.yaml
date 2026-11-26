@@ -52,6 +52,10 @@ gin:
     max_body_bytes: ${GIN_RESPONSE_LOGGING_MAX_BODY_BYTES}
 
 usecases:
+  credit_allocation:
+    import_max_items: ${CREDIT_ELIGIBILITY_IMPORT_MAX_ITEMS}
+    import_max_body_bytes: ${CREDIT_ELIGIBILITY_IMPORT_MAX_BODY_BYTES}
+
   health:
     enabled: ${HEALTH_ENABLED}
 
@@ -475,6 +479,18 @@ infrastructure:
           timezone: ${TASK_PAYMENT_ATTEMPT_RECONCILIATION_TIMEZONE}
           interval: ${TASK_PAYMENT_ATTEMPT_RECONCILIATION_INTERVAL}
           run_on_start: ${TASK_PAYMENT_ATTEMPT_RECONCILIATION_RUN_ON_START}
+
+      credit_request_processing:
+        # Processes only authorized, due credit requests.
+        enabled: ${TASK_CREDIT_REQUEST_PROCESSING_ENABLED}
+        execution: ${TASK_CREDIT_REQUEST_PROCESSING_EXECUTION}
+        handler: ${TASK_CREDIT_REQUEST_PROCESSING_HANDLER}
+        trigger:
+          type: ${TASK_CREDIT_REQUEST_PROCESSING_TRIGGER_TYPE}
+          cron: ${TASK_CREDIT_REQUEST_PROCESSING_CRON}
+          timezone: ${TASK_CREDIT_REQUEST_PROCESSING_TIMEZONE}
+          interval: ${TASK_CREDIT_REQUEST_PROCESSING_INTERVAL}
+          run_on_start: ${TASK_CREDIT_REQUEST_PROCESSING_RUN_ON_START}
 
       repayment_batch_reconciliation:
         # FC v2 gRPC Get polling; no shared Kafka topic is required.

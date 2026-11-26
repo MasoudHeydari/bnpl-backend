@@ -18,6 +18,8 @@ packages:
       CreditAccountTxQueryer:
       SharedCredit:
       SharedCreditTxQueryer:
+      CreditAllocation:
+      CreditAllocationTxQueryer:
       TrustedMobile:
       TrustedMobileQueryer:
       TrustedMobileTxQueryer:

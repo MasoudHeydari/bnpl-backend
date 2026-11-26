@@ -46,6 +46,9 @@ func StatusCode(code cerr.Code) int {
 	case cerr.CodeServiceUnavailable:
 		return http.StatusServiceUnavailable
 
+	case cerr.CodeUnsupportedMediaType:
+		return http.StatusUnsupportedMediaType
+
 	case cerr.CodePayloadTooLarge:
 		return http.StatusRequestEntityTooLarge
 

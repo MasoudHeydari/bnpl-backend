@@ -337,3 +337,16 @@ success.repayment_batch_created: "درخواست پرداخت گروهی برا�
 
 error.credit_purchase_in_progress: "یک خرید اعتباری دیگر در جریان است. پس از پایان آن دوباره تلاش کنید."
 error.trusted_mobile_national_id_conflict: "کد ملی این شماره تلفن با اطلاعات احرازشده مطابقت ندارد."
+
+success.credit_request_received: "درخواست شما دریافت شد. در صورت واجد شرایط بودن، به شما اعتبار تعلق خواهد گرفت."
+success.credit_request_rejected: "درخواست اعتبار شما تایید نشد."
+success.credit_request_identity_mismatch: "اطلاعات هویتی شما نسبت به زمان ثبت درخواست تغییر کرده است. لطفاً مجدداً درخواست دریافت اعتبار را ثبت کنید."
+success.credit_allocation_configured: "تنظیمات تخصیص اعتبار ثبت شد."
+success.credit_allocation_retrieved: "اطلاعات تخصیص اعتبار دریافت شد."
+error.credit_allocation_input_invalid: "اطلاعات تخصیص اعتبار نامعتبر است."
+error.credit_eligibility_identity_conflict: "اطلاعات موبایل و کد ملی مطابقت ندارد."
+error.credit_allocation_strategy_unavailable: "این روش تخصیص اعتبار هنوز قابل استفاده نیست."
+error.credit_request_identity_mismatch: "اطلاعات هویتی شما تغییر کرده است. لطفاً دوباره درخواست دهید."
+
+error.credit_allocation_currency_not_supported: "این ارز برای تخصیص اعتبار پشتیبانی نمی‌شود."
+error.default.unsupported_media_type: "نوع محتوای درخواست پشتیبانی نمی‌شود."

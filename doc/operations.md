@@ -395,3 +395,7 @@ Outbox is deliberately at-least-once and requires consumer idempotency.
 - [database.md](database.md)
 - [configuration.md](configuration.md)
 - [security.md](security.md)
+
+## Credit allocation
+
+Enable the `credit_request_processing` task to resume authorized credit requests. Configure `TASK_CREDIT_REQUEST_PROCESSING_*` as shown in `.env.example`. See [Credit allocation](credit-allocation.md) for automatic public assessment, retry behavior and integration requirements.

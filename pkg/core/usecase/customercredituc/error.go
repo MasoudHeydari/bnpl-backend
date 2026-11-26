@@ -180,3 +180,8 @@ func initialLimitAssignmentConflictError(cause error) error {
 		},
 	)
 }
+
+// creditRequestIdentityMismatchError rejects a conflicting imported identity pair.
+func creditRequestIdentityMismatchError() error {
+	return cerr.NewPublic(cerr.CodeConflict, "error.credit_request_identity_mismatch", nil, cerr.Details{Violations: []cerr.Violation{{Code: "CREDIT_REQUEST_IDENTITY_MISMATCH", MessageKey: "error.credit_request_identity_mismatch"}}})
+}

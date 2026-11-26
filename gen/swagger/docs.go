@@ -15,6 +15,2685 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/v1/admin/credits/allocation/defaults": {
+            "get": {
+                "security": [
+                    {
+                        "PermissionAuth": []
+                    }
+                ],
+                "description": "List current public allocation settings Requires bnpl:credit-allocations:read:any.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Credit Allocation Admin"
+                ],
+                "summary": "List current public allocation settings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated administrator subject UUID issued by Identity Service",
+                        "name": "x-auth-subject-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated tenant UUID",
+                        "name": "x-auth-tenant-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated business-context UUID",
+                        "name": "x-auth-context-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "bnpl:credit-allocations:read:any",
+                        "description": "Comma-separated gateway permissions",
+                        "name": "x-auth-permissions",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Trace-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Correlation-Id",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "schema": {
+                            "$ref": "#/definitions/creditallocationrs.ListRulesSuccessSchema"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "PermissionAuth": []
+                    }
+                ],
+                "description": "Enable or disable public risk assessment. Enabling is unavailable until a real assessor is implemented. Requires bnpl:credit-allocations:manage:any.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Credit Allocation Admin"
+                ],
+                "summary": "Enable or disable public risk assessment. Enabling is unavailable until a real assessor is implemented.",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated administrator subject UUID issued by Identity Service",
+                        "name": "x-auth-subject-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated tenant UUID",
+                        "name": "x-auth-tenant-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated business-context UUID",
+                        "name": "x-auth-context-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "bnpl:credit-allocations:manage:any",
+                        "description": "Comma-separated gateway permissions",
+                        "name": "x-auth-permissions",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Trace-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Correlation-Id",
+                        "in": "header"
+                    },
+                    {
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/creditallocationuc.DefaultInput"
+                        },
+                        "description": "Public allocation settings; does not accept an amount"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "schema": {
+                            "$ref": "#/definitions/creditallocationrs.PutRuleSuccessSchema"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "415": {
+                        "description": "Unsupported Media Type",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    }
+                },
+                "consumes": [
+                    "application/json"
+                ]
+            }
+        },
+        "/api/v1/admin/credits/allocation/rules": {
+            "get": {
+                "security": [
+                    {
+                        "PermissionAuth": []
+                    }
+                ],
+                "description": "List current group and individual allocation rules Requires bnpl:credit-allocations:read:any.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Credit Allocation Admin"
+                ],
+                "summary": "List current group and individual allocation rules",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated administrator subject UUID issued by Identity Service",
+                        "name": "x-auth-subject-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated tenant UUID",
+                        "name": "x-auth-tenant-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated business-context UUID",
+                        "name": "x-auth-context-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "bnpl:credit-allocations:read:any",
+                        "description": "Comma-separated gateway permissions",
+                        "name": "x-auth-permissions",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Trace-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Correlation-Id",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "schema": {
+                            "$ref": "#/definitions/creditallocationrs.ListRulesSuccessSchema"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "PermissionAuth": []
+                    }
+                ],
+                "description": "Append a group or individual allocation rule revision. Default amounts are forbidden. Risk-based is reserved and cannot yet be enabled. Requires bnpl:credit-allocations:manage:any.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Credit Allocation Admin"
+                ],
+                "summary": "Append a group or individual allocation rule revision. Default amounts are forbidden.",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated administrator subject UUID issued by Identity Service",
+                        "name": "x-auth-subject-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated tenant UUID",
+                        "name": "x-auth-tenant-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated business-context UUID",
+                        "name": "x-auth-context-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "bnpl:credit-allocations:manage:any",
+                        "description": "Comma-separated gateway permissions",
+                        "name": "x-auth-permissions",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Trace-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Correlation-Id",
+                        "in": "header"
+                    },
+                    {
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/creditallocationuc.RuleInput"
+                        },
+                        "description": "Desired configuration"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "schema": {
+                            "$ref": "#/definitions/creditallocationrs.PutRuleSuccessSchema"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "415": {
+                        "description": "Unsupported Media Type",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    }
+                },
+                "consumes": [
+                    "application/json"
+                ]
+            }
+        },
+        "/api/v1/admin/credits/eligibility": {
+            "get": {
+                "security": [
+                    {
+                        "PermissionAuth": []
+                    }
+                ],
+                "description": "List eligibility entries; cursor is the last entry ID Requires bnpl:credit-allocations:read:any.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Credit Allocation Admin"
+                ],
+                "summary": "List eligibility entries; cursor is the last entry ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "name": "group_code",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "name": "after",
+                        "in": "query",
+                        "format": "uuid"
+                    },
+                    {
+                        "type": "integer",
+                        "name": "limit",
+                        "in": "query",
+                        "minimum": 1,
+                        "maximum": 500,
+                        "default": 100
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated administrator subject UUID issued by Identity Service",
+                        "name": "x-auth-subject-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated tenant UUID",
+                        "name": "x-auth-tenant-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated business-context UUID",
+                        "name": "x-auth-context-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "bnpl:credit-allocations:read:any",
+                        "description": "Comma-separated gateway permissions",
+                        "name": "x-auth-permissions",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Trace-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Correlation-Id",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "schema": {
+                            "$ref": "#/definitions/creditallocationrs.ListEligibilitySuccessSchema"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "PermissionAuth": []
+                    }
+                ],
+                "description": "Register eligibility or replace group membership; null removes membership Requires bnpl:credit-allocations:manage:any.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Credit Allocation Admin"
+                ],
+                "summary": "Register eligibility or replace group membership; null removes membership",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated administrator subject UUID issued by Identity Service",
+                        "name": "x-auth-subject-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated tenant UUID",
+                        "name": "x-auth-tenant-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated business-context UUID",
+                        "name": "x-auth-context-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "bnpl:credit-allocations:manage:any",
+                        "description": "Comma-separated gateway permissions",
+                        "name": "x-auth-permissions",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Trace-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Correlation-Id",
+                        "in": "header"
+                    },
+                    {
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/creditallocationuc.EligibilityInput"
+                        },
+                        "description": "Desired configuration"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "schema": {
+                            "$ref": "#/definitions/creditallocationrs.PutEligibilitySuccessSchema"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    }
+                },
+                "consumes": [
+                    "application/json"
+                ]
+            }
+        },
+        "/api/v1/admin/credits/eligibility/import": {
+            "post": {
+                "security": [
+                    {
+                        "PermissionAuth": []
+                    }
+                ],
+                "description": "Atomically import a JSON array (default 1000 items and 2 MiB); null group removes membership Requires bnpl:credit-allocations:manage:any.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Credit Allocation Admin"
+                ],
+                "summary": "Atomically import a JSON array (default 1000 items and 2 MiB); null group removes membership",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated administrator subject UUID issued by Identity Service",
+                        "name": "x-auth-subject-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated tenant UUID",
+                        "name": "x-auth-tenant-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated business-context UUID",
+                        "name": "x-auth-context-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "bnpl:credit-allocations:manage:any",
+                        "description": "Comma-separated gateway permissions",
+                        "name": "x-auth-permissions",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Trace-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Correlation-Id",
+                        "in": "header"
+                    },
+                    {
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "array",
+                            "minItems": 1,
+                            "items": {
+                                "$ref": "#/definitions/creditallocationuc.EligibilityInput"
+                            }
+                        },
+                        "description": "Eligibility entries (maximum configured by environment; defaults to 1000)"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "schema": {
+                            "$ref": "#/definitions/creditallocationrs.ImportEligibilitySuccessSchema"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "Unsupported Media Type",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    }
+                },
+                "consumes": [
+                    "application/json"
+                ]
+            }
+        },
+        "/api/v1/admin/credits/eligibility/{eligibility_id}": {
+            "get": {
+                "security": [
+                    {
+                        "PermissionAuth": []
+                    }
+                ],
+                "description": "Read eligibility, mobile aliases and current membership Requires bnpl:credit-allocations:read:any.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Credit Allocation Admin"
+                ],
+                "summary": "Read eligibility, mobile aliases and current membership",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "name": "eligibility_id",
+                        "in": "path",
+                        "required": true,
+                        "format": "uuid"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated administrator subject UUID issued by Identity Service",
+                        "name": "x-auth-subject-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated tenant UUID",
+                        "name": "x-auth-tenant-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated business-context UUID",
+                        "name": "x-auth-context-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "bnpl:credit-allocations:read:any",
+                        "description": "Comma-separated gateway permissions",
+                        "name": "x-auth-permissions",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Trace-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Correlation-Id",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "schema": {
+                            "$ref": "#/definitions/creditallocationrs.GetEligibilitySuccessSchema"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/credits/groups": {
+            "get": {
+                "security": [
+                    {
+                        "PermissionAuth": []
+                    }
+                ],
+                "description": "List credit groups Requires bnpl:credit-allocations:read:any.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Credit Allocation Admin"
+                ],
+                "summary": "List credit groups",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated administrator subject UUID issued by Identity Service",
+                        "name": "x-auth-subject-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated tenant UUID",
+                        "name": "x-auth-tenant-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated business-context UUID",
+                        "name": "x-auth-context-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "bnpl:credit-allocations:read:any",
+                        "description": "Comma-separated gateway permissions",
+                        "name": "x-auth-permissions",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Trace-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Correlation-Id",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "schema": {
+                            "$ref": "#/definitions/creditallocationrs.ListGroupsSuccessSchema"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/credits/groups/{group_code}": {
+            "put": {
+                "security": [
+                    {
+                        "PermissionAuth": []
+                    }
+                ],
+                "description": "Create or update group; existing credits are unchanged Requires bnpl:credit-allocations:manage:any.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Credit Allocation Admin"
+                ],
+                "summary": "Create or update group; existing credits are unchanged",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "name": "group_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated administrator subject UUID issued by Identity Service",
+                        "name": "x-auth-subject-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated tenant UUID",
+                        "name": "x-auth-tenant-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated business-context UUID",
+                        "name": "x-auth-context-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "bnpl:credit-allocations:manage:any",
+                        "description": "Comma-separated gateway permissions",
+                        "name": "x-auth-permissions",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Trace-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Correlation-Id",
+                        "in": "header"
+                    },
+                    {
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/creditallocationrs.groupRequest"
+                        },
+                        "description": "Desired configuration"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "schema": {
+                            "$ref": "#/definitions/creditallocationrs.PutGroupSuccessSchema"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    }
+                },
+                "consumes": [
+                    "application/json"
+                ]
+            }
+        },
+        "/api/v1/admin/credits/requests": {
+            "get": {
+                "security": [
+                    {
+                        "PermissionAuth": []
+                    }
+                ],
+                "description": "List pending or processing requests for a product Requires bnpl:credit-requests:read:any.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Credit Allocation Admin"
+                ],
+                "summary": "List pending or processing requests for a product",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "name": "credit_kind",
+                        "in": "query",
+                        "required": true,
+                        "enum": [
+                            "pay_in_installments",
+                            "pay_next_month"
+                        ]
+                    },
+                    {
+                        "type": "string",
+                        "name": "before",
+                        "in": "query",
+                        "format": "date-time"
+                    },
+                    {
+                        "type": "integer",
+                        "name": "limit",
+                        "in": "query",
+                        "minimum": 1,
+                        "maximum": 500,
+                        "default": 100
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated administrator subject UUID issued by Identity Service",
+                        "name": "x-auth-subject-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated tenant UUID",
+                        "name": "x-auth-tenant-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Authenticated business-context UUID",
+                        "name": "x-auth-context-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "bnpl:credit-requests:read:any",
+                        "description": "Comma-separated gateway permissions",
+                        "name": "x-auth-permissions",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Trace-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional; reused when present otherwise generated. Always returned.",
+                        "name": "X-Correlation-Id",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "schema": {
+                            "$ref": "#/definitions/creditallocationrs.ListRequestsSuccessSchema"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/serdser.ErrorResponse"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/admin/merchants/{merchant_profile_id}/credit-kinds": {
             "get": {
                 "security": [
@@ -1049,7 +3728,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Public checkout session token (cs_\u003c64 hex\u003e)",
+                        "description": "Public checkout session token (cs_<64 hex>)",
                         "name": "token",
                         "in": "path",
                         "required": true
@@ -1170,7 +3849,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Public checkout session token (cs_\u003c64 hex\u003e)",
+                        "description": "Public checkout session token (cs_<64 hex>)",
                         "name": "token",
                         "in": "path",
                         "required": true
@@ -1282,7 +3961,7 @@ const docTemplate = `{
         },
         "/api/v1/checkout-sessions/{token}/confirm": {
             "post": {
-                "description": "Unauthenticated. Verifies the SMS code, then runs Confirm \u0026 Pay for the customer bound to the checkout. A stale evaluation_generation returns reconfirm_required with the refreshed offer.",
+                "description": "Unauthenticated. Verifies the SMS code, then runs Confirm & Pay for the customer bound to the checkout. A stale evaluation_generation returns reconfirm_required with the refreshed offer.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1296,7 +3975,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Public checkout session token (cs_\u003c64 hex\u003e)",
+                        "description": "Public checkout session token (cs_<64 hex>)",
                         "name": "token",
                         "in": "path",
                         "required": true
@@ -1468,7 +4147,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Public checkout session token (cs_\u003c64 hex\u003e)",
+                        "description": "Public checkout session token (cs_<64 hex>)",
                         "name": "token",
                         "in": "path",
                         "required": true
@@ -1574,7 +4253,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Public checkout session token (cs_\u003c64 hex\u003e)",
+                        "description": "Public checkout session token (cs_<64 hex>)",
                         "name": "token",
                         "in": "path",
                         "required": true
@@ -1706,7 +4385,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Public checkout session token (cs_\u003c64 hex\u003e)",
+                        "description": "Public checkout session token (cs_<64 hex>)",
                         "name": "token",
                         "in": "path",
                         "required": true
@@ -1812,7 +4491,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Public checkout session token (cs_\u003c64 hex\u003e)",
+                        "description": "Public checkout session token (cs_<64 hex>)",
                         "name": "token",
                         "in": "path",
                         "required": true
@@ -2942,7 +5621,7 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Without credit_kind returns pay_in_installments and pay_next_month in one response, even when not assigned.\nWith credit_kind returns the legacy single-product response for backward compatibility.\nResolves x-auth-mobile-number through Customer Reference Service (ACTIVE only); CRS customer_id is customer_profiles.external_customer_id.\nBNPL resolves or provisions the local customer profile automatically when missing. Profile provisioning is idempotent and does not assign initial credit.\nRequires an authenticated customer subject plus gateway-injected mobile; no BNPL profile eligibility or credit limit precondition applies.\nNo request body.\nAvailable credit = effective current credit limit minus active committed financed exposure.\nActive financed exposure is persisted on the customer CreditAccount as outstanding principal from activated contracts.\nCheckout decisions, installment offers, and pre-activation contracts (payment_pending) do not reduce available credit.\nCredit is consumed only when a contract becomes active under its persisted checkout policy.\nWhen no credit limit has been assigned (customer never assessed), data contains only status not_assigned and meta.code is CUSTOMER_CREDIT_NOT_ASSIGNED — clients must initiate credit assessment, not treat this as a zero balance.\nWhen a historical limit exists but is not currently usable (including time-expired), data contains only status expired and expires_at; meta.code is CUSTOMER_CREDIT_EXPIRED — clients must trigger reassessment.\nFor an active limit, limit_amount_minor is the governed total capacity and available_amount_minor is remaining usable credit; both are integer minor-unit amounts in the response currency.",
+                "description": "Returns both independent credit products, or one when credit_kind is specified. Account status and persisted credit_request status are independent. No request record is returned for an account that has not submitted one. Pending requests are not rejected credit decisions.",
                 "produces": [
                     "application/json"
                 ],
@@ -3008,6 +5687,16 @@ const docTemplate = `{
                         "description": "Optional; reused when present otherwise generated. Always returned.",
                         "name": "X-Correlation-Id",
                         "in": "header"
+                    },
+                    {
+                        "name": "credit_kind",
+                        "in": "query",
+                        "type": "string",
+                        "enum": [
+                            "pay_in_installments",
+                            "pay_next_month"
+                        ],
+                        "description": "Optional independent product"
                     }
                 ],
                 "responses": {
@@ -3121,14 +5810,14 @@ const docTemplate = `{
                         "PermissionAuth": []
                     }
                 ],
-                "description": "Assigns the configured initial credit limit after resolving x-auth-mobile-number through Customer Reference Service (ACTIVE only).\nCRS customer_id becomes customer_profiles.external_customer_id. Trusted-customer policy assignments (v2) key off that same id.\nThe customer profile is created automatically when it does not exist; the profile primary key is assigned by the database.\nRequires an authenticated customer subject plus gateway-injected mobile. No request body.\nReturns 201 when a new limit is created, and 200 for already-assigned or denied outcomes.",
+                "description": "Persists one request per legal person and product, then evaluates authorized requests. Default allocation is initially disabled; ordinary requests remain pending. An existing dormant request cannot bypass an explicit rollout campaign. 201: a new credit account grant; 202: newly pending request; 200: replay or terminal rejection. Omit credit_kind for both products; specify it for the single-product envelope.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Credit Limits"
                 ],
-                "summary": "Assign all available customer credit products",
+                "summary": "Submit or resume independent credit requests",
                 "parameters": [
                     {
                         "enum": [
@@ -3201,9 +5890,9 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Already assigned or assessment denied",
+                        "description": "Existing request, active credit, or rejected request",
                         "schema": {
-                            "$ref": "#/definitions/customercreditrs.AssignInitialLimitSuccessSchema"
+                            "$ref": "#/definitions/customercreditrs.AssignAllSuccessSchema"
                         },
                         "headers": {
                             "X-Correlation-Id": {
@@ -3223,7 +5912,27 @@ const docTemplate = `{
                     "201": {
                         "description": "Initial credit limit assigned",
                         "schema": {
-                            "$ref": "#/definitions/customercreditrs.AssignInitialLimitSuccessSchema"
+                            "$ref": "#/definitions/customercreditrs.AssignAllSuccessSchema"
+                        },
+                        "headers": {
+                            "X-Correlation-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Request-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            },
+                            "X-Trace-Id": {
+                                "type": "string",
+                                "description": "Always set: reuse inbound value or generate"
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "Credit request received",
+                        "schema": {
+                            "$ref": "#/definitions/customercreditrs.AssignAllSuccessSchema"
                         },
                         "headers": {
                             "X-Correlation-Id": {
@@ -5411,7 +8120,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Public checkout session token (cs_\u003c64 hex\u003e)",
+                        "description": "Public checkout session token (cs_<64 hex>)",
                         "name": "checkout_session_id",
                         "in": "path",
                         "required": true
@@ -5612,7 +8321,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Public checkout session token (cs_\u003c64 hex\u003e)",
+                        "description": "Public checkout session token (cs_<64 hex>)",
                         "name": "checkout_session_id",
                         "in": "path",
                         "required": true
@@ -5816,7 +8525,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Public checkout session token (cs_\u003c64 hex\u003e)",
+                        "description": "Public checkout session token (cs_<64 hex>)",
                         "name": "checkout_session_id",
                         "in": "path",
                         "required": true
@@ -6029,7 +8738,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Public checkout session token (cs_\u003c64 hex\u003e)",
+                        "description": "Public checkout session token (cs_<64 hex>)",
                         "name": "checkout_session_id",
                         "in": "path",
                         "required": true
@@ -8091,7 +10800,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "checkout_session_id": {
-                    "description": "CheckoutSessionID is the public opaque token (cs_\u003c64 hex\u003e), not the\ninternal UUID. The JSON field name stays checkout_session_id for partners.",
+                    "description": "CheckoutSessionID is the public opaque token (cs_<64 hex>), not the\ninternal UUID. The JSON field name stays checkout_session_id for partners.",
                     "type": "string",
                     "example": "cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
                 },
@@ -8667,6 +11376,286 @@ const docTemplate = `{
                 "CreateContractResultAlreadyExists"
             ]
         },
+        "creditallocationrs.GetEligibilitySuccessSchema": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/creditallocationuc.EligibilityOutput"
+                },
+                "meta": {
+                    "$ref": "#/definitions/serdser.SuccessMetaNoPagination"
+                }
+            }
+        },
+        "creditallocationrs.ImportEligibilitySuccessSchema": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.CreditEligibilityEntry"
+                    }
+                },
+                "meta": {
+                    "$ref": "#/definitions/serdser.SuccessMetaNoPagination"
+                }
+            }
+        },
+        "creditallocationrs.ListEligibilitySuccessSchema": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.CreditEligibilityEntry"
+                    }
+                },
+                "meta": {
+                    "$ref": "#/definitions/serdser.SuccessMetaNoPagination"
+                }
+            }
+        },
+        "creditallocationrs.ListGroupsSuccessSchema": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.CreditGroup"
+                    }
+                },
+                "meta": {
+                    "$ref": "#/definitions/serdser.SuccessMetaNoPagination"
+                }
+            }
+        },
+        "creditallocationrs.ListRequestsSuccessSchema": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/creditallocationuc.PendingRequest"
+                    }
+                },
+                "meta": {
+                    "$ref": "#/definitions/serdser.SuccessMetaNoPagination"
+                }
+            }
+        },
+        "creditallocationrs.ListRulesSuccessSchema": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.CreditAllocationRule"
+                    }
+                },
+                "meta": {
+                    "$ref": "#/definitions/serdser.SuccessMetaNoPagination"
+                }
+            }
+        },
+        "creditallocationrs.PutEligibilitySuccessSchema": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.CreditEligibilityEntry"
+                    }
+                },
+                "meta": {
+                    "$ref": "#/definitions/serdser.SuccessMetaNoPagination"
+                }
+            }
+        },
+        "creditallocationrs.PutGroupSuccessSchema": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/model.CreditGroup"
+                },
+                "meta": {
+                    "$ref": "#/definitions/serdser.SuccessMetaNoPagination"
+                }
+            }
+        },
+        "creditallocationrs.PutRuleSuccessSchema": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/model.CreditAllocationRule"
+                },
+                "meta": {
+                    "$ref": "#/definitions/serdser.SuccessMetaNoPagination"
+                }
+            }
+        },
+        "creditallocationrs.groupRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "enabled"
+            ],
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "creditallocationuc.DefaultInput": {
+            "type": "object",
+            "required": [
+                "credit_kind",
+                "currency",
+                "enabled"
+            ],
+            "properties": {
+                "credit_kind": {
+                    "type": "string",
+                    "enum": [
+                        "pay_in_installments",
+                        "pay_next_month"
+                    ]
+                },
+                "currency": {
+                    "type": "string",
+                    "enum": [
+                        "IRR"
+                    ]
+                },
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Must be false until the risk-based assessor is implemented."
+                }
+            },
+            "additionalProperties": false
+        },
+        "creditallocationuc.EligibilityInput": {
+            "type": "object",
+            "required": [
+                "national_code",
+                "mobile_e164"
+            ],
+            "properties": {
+                "group_code": {
+                    "type": "string"
+                },
+                "mobile_e164": {
+                    "type": "string"
+                },
+                "national_code": {
+                    "type": "string"
+                }
+            }
+        },
+        "creditallocationuc.EligibilityOutput": {
+            "type": "object",
+            "properties": {
+                "entry": {
+                    "$ref": "#/definitions/model.CreditEligibilityEntry"
+                },
+                "membership": {
+                    "$ref": "#/definitions/model.CreditGroupMembership"
+                },
+                "mobiles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.CreditEligibilityMobile"
+                    }
+                }
+            }
+        },
+        "creditallocationuc.PendingRequest": {
+            "type": "object",
+            "properties": {
+                "credit_kind": {
+                    "type": "string",
+                    "enum": [
+                        "pay_in_installments",
+                        "pay_next_month"
+                    ]
+                },
+                "credit_owner_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "customer_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "request": {
+                    "$ref": "#/definitions/model.CreditRequestSummary"
+                }
+            }
+        },
+        "creditallocationuc.RuleInput": {
+            "type": "object",
+            "required": [
+                "scope",
+                "credit_kind",
+                "strategy",
+                "currency"
+            ],
+            "properties": {
+                "credit_kind": {
+                    "type": "string",
+                    "enum": [
+                        "pay_in_installments",
+                        "pay_next_month"
+                    ]
+                },
+                "currency": {
+                    "type": "string",
+                    "enum": [
+                        "IRR"
+                    ]
+                },
+                "eligibility_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "fixed_amount_minor": {
+                    "type": "integer"
+                },
+                "group_code": {
+                    "type": "string"
+                },
+                "scope": {
+                    "type": "string",
+                    "enum": [
+                        "group",
+                        "individual"
+                    ]
+                },
+                "strategy": {
+                    "type": "string",
+                    "enum": [
+                        "disabled",
+                        "fixed_limit",
+                        "deny",
+                        "inherit"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "customercreditrs.AssignAllSuccessSchema": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/customercreditrs.allCreditAssignmentsResponse"
+                },
+                "meta": {
+                    "$ref": "#/definitions/serdser.SuccessMetaNoPagination"
+                }
+            }
+        },
         "customercreditrs.AssignInitialLimitResponseSchema": {
             "type": "object",
             "properties": {
@@ -8675,6 +11664,9 @@ const docTemplate = `{
                 },
                 "credit_limit_decision": {
                     "$ref": "#/definitions/customercreditrs.decisionResponse"
+                },
+                "credit_request": {
+                    "$ref": "#/definitions/model.CreditRequestSummary"
                 },
                 "result": {
                     "allOf": [
@@ -8697,6 +11689,17 @@ const docTemplate = `{
                 }
             }
         },
+        "customercreditrs.GetSingleSuccessSchema": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/customercreditrs.creditSummaryResponse"
+                },
+                "meta": {
+                    "$ref": "#/definitions/serdser.SuccessMetaNoPagination"
+                }
+            }
+        },
         "customercreditrs.GetSuccessSchema": {
             "type": "object",
             "properties": {
@@ -8705,6 +11708,25 @@ const docTemplate = `{
                 },
                 "meta": {
                     "$ref": "#/definitions/serdser.SuccessMetaNoPagination"
+                }
+            }
+        },
+        "customercreditrs.allCreditAssignmentsResponse": {
+            "type": "object",
+            "properties": {
+                "credits": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/customercreditrs.creditAssignmentResponse"
+                    }
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "not_assigned",
+                        "partially_assigned",
+                        "assigned"
+                    ]
                 }
             }
         },
@@ -8731,15 +11753,31 @@ const docTemplate = `{
                 }
             }
         },
-        "customercreditrs.creditApplicationResponse": {
+        "customercreditrs.creditAssignmentResponse": {
             "type": "object",
             "properties": {
-                "status": {
+                "credit_limit": {
+                    "$ref": "#/definitions/customercreditrs.creditLimitResponse"
+                },
+                "credit_limit_decision": {
+                    "$ref": "#/definitions/customercreditrs.decisionResponse"
+                },
+                "credit_request": {
+                    "$ref": "#/definitions/model.CreditRequestSummary"
+                },
+                "result": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/customercredituc.AssignInitialLimitResult"
+                        }
+                    ],
+                    "example": "created"
+                },
+                "credit_kind": {
                     "type": "string",
                     "enum": [
-                        "assigned",
-                        "not_assigned",
-                        "reassessment_required"
+                        "pay_in_installments",
+                        "pay_next_month"
                     ]
                 }
             }
@@ -8791,9 +11829,6 @@ const docTemplate = `{
         "customercreditrs.creditProductResponse": {
             "type": "object",
             "properties": {
-                "application": {
-                    "$ref": "#/definitions/customercreditrs.creditApplicationResponse"
-                },
                 "available_amount_minor": {
                     "type": "integer",
                     "example": 4000000
@@ -8809,6 +11844,60 @@ const docTemplate = `{
                             "$ref": "#/definitions/model.CreditKind"
                         }
                     ]
+                },
+                "credit_request": {
+                    "$ref": "#/definitions/model.CreditRequestSummary"
+                },
+                "credit_usage": {
+                    "$ref": "#/definitions/customercredituc.CreditUsage"
+                },
+                "currency": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.Currency"
+                        }
+                    ],
+                    "example": "IRR"
+                },
+                "expires_at": {
+                    "type": "string",
+                    "example": "2027-08-09T12:00:00Z"
+                },
+                "limit_amount_minor": {
+                    "type": "integer",
+                    "example": 90000000
+                },
+                "status": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/customercredituc.SummaryStatus"
+                        }
+                    ],
+                    "example": "active"
+                }
+            }
+        },
+        "customercreditrs.creditSummaryResponse": {
+            "type": "object",
+            "properties": {
+                "available_amount_minor": {
+                    "type": "integer",
+                    "example": 4000000
+                },
+                "credit_kind": {
+                    "description": "Kept absent on legacy responses; supplied for monthly credit inquiries.",
+                    "enum": [
+                        "pay_in_installments",
+                        "pay_next_month"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.CreditKind"
+                        }
+                    ]
+                },
+                "credit_request": {
+                    "$ref": "#/definitions/model.CreditRequestSummary"
                 },
                 "credit_usage": {
                     "$ref": "#/definitions/customercredituc.CreditUsage"
@@ -8880,12 +11969,14 @@ const docTemplate = `{
             "enum": [
                 "created",
                 "already_assigned",
-                "denied"
+                "denied",
+                "pending"
             ],
             "x-enum-varnames": [
                 "AssignInitialLimitResultCreated",
                 "AssignInitialLimitResultAlreadyAssigned",
-                "AssignInitialLimitResultDenied"
+                "AssignInitialLimitResultDenied",
+                "AssignInitialLimitResultPending"
             ]
         },
         "customercredituc.CreditUsage": {
@@ -10562,6 +13653,151 @@ const docTemplate = `{
                 "RevokedCreditAccountStatus"
             ]
         },
+        "model.CreditAllocationRule": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "credit_kind": {
+                    "type": "string",
+                    "enum": [
+                        "pay_in_installments",
+                        "pay_next_month"
+                    ]
+                },
+                "currency": {
+                    "type": "string",
+                    "enum": [
+                        "IRR"
+                    ]
+                },
+                "eligibility_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "fixed_amount_minor": {
+                    "type": "integer"
+                },
+                "group_code": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "scope": {
+                    "type": "string",
+                    "enum": [
+                        "default",
+                        "group",
+                        "individual"
+                    ]
+                },
+                "strategy": {
+                    "type": "string",
+                    "enum": [
+                        "disabled",
+                        "fixed_limit",
+                        "risk_based",
+                        "deny",
+                        "inherit"
+                    ]
+                },
+                "version": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.CreditEligibilityEntry": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "credit_owner_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "national_code": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.CreditEligibilityMobile": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "eligibility_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "mobile_e164": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.CreditGroup": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "updated_by": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.CreditGroupMembership": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "eligibility_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "group_code": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer"
+                }
+            }
+        },
         "model.CreditKind": {
             "type": "string",
             "enum": [
@@ -10572,6 +13808,32 @@ const docTemplate = `{
                 "PayInInstallmentsCreditKind",
                 "PayNextMonthCreditKind"
             ]
+        },
+        "model.CreditRequestSummary": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "reason_code": {
+                    "type": "string"
+                },
+                "requested_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "pending",
+                        "processing",
+                        "approved",
+                        "rejected",
+                        "canceled"
+                    ]
+                }
+            }
         },
         "model.Currency": {
             "type": "string",

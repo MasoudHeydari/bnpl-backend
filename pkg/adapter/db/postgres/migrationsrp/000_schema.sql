@@ -307,7 +307,8 @@ CREATE TABLE IF NOT EXISTS credit_owners (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
     national_code text NOT NULL UNIQUE,
     created_at timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT chk_credit_owners_national_code CHECK (national_code ~ '^[0-9]{10}$')
+    CONSTRAINT chk_credit_owners_national_code CHECK (national_code ~ '^[0-9]{10}$'),
+    CONSTRAINT uq_credit_owners_id_national_code UNIQUE (id, national_code)
 );
 
 -- A legitimate correction is an operator-reviewed process, not an UPDATE on
@@ -492,6 +493,122 @@ $trusted_identity$;
 CREATE TRIGGER trusted_mobile_identity_immutable
 BEFORE UPDATE OR DELETE ON trusted_mobile_numbers FOR EACH ROW
 EXECUTE FUNCTION bnpl.guard_trusted_mobile_identity ();
+
+-- Credit allocation configuration is independent of verified customer profiles.
+-- A shared lock fences grants against administrative changes; grants do not
+-- acquire an exclusive global lock and can run concurrently for different owners.
+CREATE TABLE credit_allocation_control (
+    id integer PRIMARY KEY CHECK (id = 1),
+    revision bigint NOT NULL DEFAULT 1 CHECK (revision > 0)
+);
+INSERT INTO credit_allocation_control (id) VALUES (1);
+
+CREATE TABLE credit_groups (
+    code text PRIMARY KEY CHECK (code ~ '^[a-z][a-z0-9_]{0,63}$'),
+    name text NOT NULL CHECK (char_length(name) BETWEEN 1 AND 128),
+    enabled boolean NOT NULL,
+    updated_by text NOT NULL,
+    updated_at timestamptz NOT NULL
+);
+
+-- Imported identity pairs are not authoritative until compared with CRS.
+CREATE TABLE credit_eligibility_entries (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
+    national_code text NOT NULL UNIQUE CHECK (national_code ~ '^[0-9]{10}$'),
+    credit_owner_id uuid UNIQUE,
+    created_by text NOT NULL,
+    created_at timestamptz NOT NULL,
+    FOREIGN KEY (credit_owner_id, national_code) REFERENCES credit_owners (id, national_code)
+);
+-- A legal person may have more than one pre-registered mobile. The
+-- group and individual overrides still belong to a single registry entry.
+CREATE TABLE credit_eligibility_mobiles (
+    mobile_e164 text PRIMARY KEY CHECK (mobile_e164 ~ '^\+989[0-9]{9}$'),
+    eligibility_id uuid NOT NULL REFERENCES credit_eligibility_entries (id),
+    created_by text NOT NULL,
+    created_at timestamptz NOT NULL
+);
+
+-- Append-only membership history. The latest revision is the single current
+-- membership; a NULL group ends membership without deleting history.
+CREATE TABLE credit_group_memberships (
+    eligibility_id uuid NOT NULL REFERENCES credit_eligibility_entries (id),
+    version bigint NOT NULL CHECK (version > 0),
+    group_code text REFERENCES credit_groups (code),
+    created_by text NOT NULL,
+    created_at timestamptz NOT NULL,
+    PRIMARY KEY (eligibility_id, version)
+);
+
+-- Rules are immutable revisions; a request retains the exact rule ID used.
+-- 'inherit' removes an override; 'disabled' defers; 'deny' rejects explicitly.
+CREATE TABLE credit_allocation_rules (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
+    scope text NOT NULL,
+    group_code text REFERENCES credit_groups (code),
+    eligibility_id uuid REFERENCES credit_eligibility_entries (id),
+    credit_kind text NOT NULL CHECK (credit_kind IN ('pay_in_installments', 'pay_next_month')),
+    currency text NOT NULL CHECK (currency = 'IRR'),
+    strategy text NOT NULL CHECK (strategy IN ('disabled', 'fixed_limit', 'risk_based', 'deny', 'inherit')),
+    fixed_amount_minor bigint NOT NULL DEFAULT 0,
+    version bigint NOT NULL CHECK (version > 0),
+    created_by text NOT NULL,
+    created_at timestamptz NOT NULL,
+    CHECK ((scope = 'default' AND group_code IS NULL AND eligibility_id IS NULL AND strategy IN ('disabled', 'risk_based')) OR
+           (scope = 'group' AND group_code IS NOT NULL AND eligibility_id IS NULL) OR
+           (scope = 'individual' AND group_code IS NULL AND eligibility_id IS NOT NULL)),
+    CHECK ((strategy = 'fixed_limit' AND fixed_amount_minor > 0) OR (strategy <> 'fixed_limit' AND fixed_amount_minor = 0))
+);
+CREATE UNIQUE INDEX uq_credit_allocation_default_version ON credit_allocation_rules (credit_kind, currency, version) WHERE scope = 'default';
+CREATE UNIQUE INDEX uq_credit_allocation_group_version ON credit_allocation_rules (group_code, credit_kind, currency, version) WHERE scope = 'group';
+CREATE UNIQUE INDEX uq_credit_allocation_individual_version ON credit_allocation_rules (eligibility_id, credit_kind, currency, version) WHERE scope = 'individual';
+
+-- Initially only explicitly configured persons/groups may receive credit.
+INSERT INTO credit_allocation_rules (scope, credit_kind, currency, strategy, version, created_by, created_at)
+VALUES ('default', 'pay_in_installments', 'IRR', 'disabled', 1, 'bnpl', now()),
+       ('default', 'pay_next_month', 'IRR', 'disabled', 1, 'bnpl', now());
+INSERT INTO credit_groups (code, name, enabled, updated_by, updated_at)
+VALUES ('trusted_customers', 'Trusted customers', true, 'bnpl', now());
+INSERT INTO credit_allocation_rules (scope, group_code, credit_kind, currency, strategy, fixed_amount_minor, version, created_by, created_at)
+VALUES ('group', 'trusted_customers', 'pay_in_installments', 'IRR', 'fixed_limit', 2000000000, 1, 'bnpl', now()),
+       ('group', 'trusted_customers', 'pay_next_month', 'IRR', 'fixed_limit', 30000000, 1, 'bnpl', now());
+
+CREATE TABLE credit_requests (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
+    credit_owner_id uuid NOT NULL REFERENCES credit_owners (id),
+    customer_id uuid NOT NULL,
+    external_customer_id uuid NOT NULL,
+    mobile_e164 text NOT NULL CHECK (mobile_e164 ~ '^\+[1-9][0-9]{7,14}$'),
+    national_code text NOT NULL CHECK (national_code ~ '^[0-9]{10}$'),
+    credit_kind text NOT NULL CHECK (credit_kind IN ('pay_in_installments', 'pay_next_month')),
+    currency text NOT NULL CHECK (currency = 'IRR'),
+    status text NOT NULL CHECK (status IN ('pending', 'processing', 'approved', 'rejected', 'canceled')),
+    reason_code text NOT NULL DEFAULT '',
+    decision_id uuid REFERENCES decisions (id),
+    allocation_rule_id uuid REFERENCES credit_allocation_rules (id),
+    -- NULL means dormant until eligibility or public assessment becomes available.
+    queue_source text CHECK (queue_source IN ('new_request', 'eligibility', 'public', 'identity_recheck')),
+    next_attempt_at timestamptz,
+    lease_token uuid,
+    lease_until timestamptz,
+    requested_at timestamptz NOT NULL,
+    updated_at timestamptz NOT NULL,
+    completed_at timestamptz,
+    FOREIGN KEY (credit_owner_id, national_code) REFERENCES credit_owners (id, national_code),
+    FOREIGN KEY (customer_id, credit_owner_id) REFERENCES customer_profiles (id, credit_owner_id),
+    FOREIGN KEY (customer_id, external_customer_id) REFERENCES customer_profiles (id, external_customer_id),
+    CHECK ((status = 'processing') = (lease_token IS NOT NULL AND lease_until IS NOT NULL)),
+    CHECK ((queue_source IS NULL) = (next_attempt_at IS NULL)),
+    CHECK (status <> 'processing' OR queue_source IS NOT NULL),
+    CHECK ((status IN ('approved', 'rejected', 'canceled')) = (completed_at IS NOT NULL)),
+    CHECK (completed_at IS NULL OR queue_source IS NULL),
+    CHECK (status <> 'approved' OR decision_id IS NOT NULL)
+);
+CREATE UNIQUE INDEX uq_credit_requests_open ON credit_requests (credit_owner_id, currency, credit_kind) WHERE status IN ('pending', 'processing');
+CREATE INDEX idx_credit_requests_customer ON credit_requests (customer_id, credit_kind, requested_at DESC, id DESC);
+CREATE INDEX idx_credit_requests_due ON credit_requests (next_attempt_at, id) WHERE queue_source IS NOT NULL;
+CREATE INDEX idx_credit_requests_pending ON credit_requests (credit_kind, requested_at, id) WHERE status = 'pending';
+
 
 -- -----------------------------------------------------------------------------
 -- Merchant Profiles
@@ -2905,6 +3022,18 @@ GRANT UPDATE (updated_at, valid_until) ON bnpl.policy_assignments TO bnpl;
 GRANT SELECT, INSERT ON bnpl.policy_assignment_imports TO bnpl;
 
 GRANT UPDATE (completed_at, failure_count, status, success_count) ON bnpl.policy_assignment_imports TO bnpl;
+
+GRANT SELECT ON bnpl.credit_allocation_control TO bnpl;
+GRANT UPDATE (revision) ON bnpl.credit_allocation_control TO bnpl;
+GRANT SELECT, INSERT ON bnpl.credit_groups TO bnpl;
+GRANT UPDATE (name, enabled, updated_by, updated_at) ON bnpl.credit_groups TO bnpl;
+GRANT SELECT, INSERT ON bnpl.credit_eligibility_entries TO bnpl;
+GRANT UPDATE (credit_owner_id) ON bnpl.credit_eligibility_entries TO bnpl;
+GRANT SELECT, INSERT ON bnpl.credit_eligibility_mobiles TO bnpl;
+GRANT SELECT, INSERT ON bnpl.credit_group_memberships TO bnpl;
+GRANT SELECT, INSERT ON bnpl.credit_allocation_rules TO bnpl;
+GRANT SELECT, INSERT ON bnpl.credit_requests TO bnpl;
+GRANT UPDATE (status, reason_code, decision_id, allocation_rule_id, queue_source, next_attempt_at, lease_token, lease_until, updated_at, completed_at) ON bnpl.credit_requests TO bnpl;
 
 GRANT SELECT, INSERT ON bnpl.trusted_mobile_numbers TO bnpl;
 

@@ -3,6 +3,10 @@ package permission
 // Admin-panel BNPL permissions from the Identity/FC catalog.
 
 var (
+	CreditAllocationsReadAny   = permission("bnpl:credit-allocations:read:any", "Read credit allocation", "Allows reading credit eligibility and configuration.")
+	CreditAllocationsManageAny = permission("bnpl:credit-allocations:manage:any", "Manage credit allocation", "Allows configuring credit groups, eligibility and rules.")
+	CreditRequestsReadAny      = permission("bnpl:credit-requests:read:any", "Read credit requests", "Allows reading pending credit requests.")
+
 	CustomersReadAny = permission(
 		"bnpl:customers:read:any",
 		"Read any BNPL customer",
@@ -141,6 +145,7 @@ var (
 )
 
 var adminPanel = []Permission{
+	CreditAllocationsReadAny, CreditAllocationsManageAny, CreditRequestsReadAny,
 	CustomersReadAny,
 	CustomersBlockAny,
 	CustomersUnblockAny,

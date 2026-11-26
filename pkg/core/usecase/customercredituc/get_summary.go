@@ -56,6 +56,10 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 			}
 
 			currency := selectedPolicy.Terms().Currency
+			request, err := uc.latestCreditRequest(ctx, tx, profile.ID, kind)
+			if err != nil {
+				return err
+			}
 			var account model.CreditAccount
 			if kind == model.PayInInstallmentsCreditKind {
 				if err = accountQ.ExpireDueByCustomerIDAndCurrency(ctx, profile.ID, currency, now); err != nil {
@@ -80,6 +84,7 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 				if cerr.IsCode(err, cerr.CodeResourceNotFound) {
 					output = zeroSummary(profile.ID, currency)
 					output.CreditKind = kind
+					output.CreditRequest = request
 					return nil
 				}
 
@@ -120,6 +125,7 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 
 			output = summaryFromAccount(account, newCreditBlocked || monthlyBlocked)
 			output.CustomerID = profile.ID
+			output.CreditRequest = request
 			output.CreditKind = kind
 			if newCreditBlocked {
 				output.CreditUsage.Reason = publicReason

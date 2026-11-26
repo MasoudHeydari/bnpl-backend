@@ -259,6 +259,9 @@ func (g Gin) validate(environment string) error {
 
 func (u *Usecases) validate(environment string) error {
 	const op = "config.Usecases.validate"
+	if u.CreditAllocation.ImportMaxItems < 0 || u.CreditAllocation.ImportMaxBodyBytes < 0 {
+		return fmt.Errorf("%s: credit allocation import limits must be nonnegative", op)
+	}
 
 	env, err := model.ParseRuntimeEnvironment(environment)
 	if err != nil {

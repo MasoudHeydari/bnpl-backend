@@ -159,6 +159,10 @@ func (uc *UseCase) GetAllSummaries(ctx context.Context, input Input) (AllSummari
 					return err
 				}
 				item.CreditKind = kind
+				item.CreditRequest, err = uc.latestCreditRequest(ctx, tx, profile.ID, kind)
+				if err != nil {
+					return err
+				}
 				output.Credits = append(output.Credits, item)
 			}
 			output.Status = AggregateCreditStatus(output.Credits)

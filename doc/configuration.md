@@ -519,3 +519,11 @@ Fingerprint algorithm selection is **not** configurable. Bootstrap wires the SHA
 - [operations.md](operations.md) — local setup
 - ADR [0003](adr/0003-env-expanded-yaml-config.md)
 - ADR [0009](adr/0009-provider-based-infrastructure-configuration.md)
+
+## Credit allocation
+
+For credit request background processing, copy `TASK_CREDIT_REQUEST_PROCESSING_*` from `.env.example`. In a composite runtime explicitly choose `inprocess` or `temporal` in `TASK_CREDIT_REQUEST_PROCESSING_EXECUTION`; standalone runtimes require an empty execution setting. See [Credit allocation](credit-allocation.md).
+
+### Credit eligibility import
+
+`CREDIT_ELIGIBILITY_IMPORT_MAX_ITEMS` defaults to 1000 and `CREDIT_ELIGIBILITY_IMPORT_MAX_BODY_BYTES` defaults to 2097152. Both bound the JSON import endpoint; missing or zero uses the default, negative values fail configuration validation.

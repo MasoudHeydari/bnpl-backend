@@ -19,6 +19,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/checkoutsessionuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/collectionsuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/contractuc"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/creditallocationuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/customeraccountuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/customercredituc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/decisionuc"
@@ -103,6 +104,9 @@ type UseCases struct {
 
 	// CustomerCredit assigns and summarizes customer credit limits.
 	CustomerCredit *customercredituc.UseCase
+
+	// CreditAllocation manages named and public credit allocation.
+	CreditAllocation *creditallocationuc.UseCase
 
 	// ShortLink creates and resolves modular opaque URL short links.
 	ShortLink *shortlinkuc.UseCase
@@ -566,13 +570,39 @@ func (a *App) NewUseCases() (UseCases, error) {
 		customerCreditObserver,
 		a.Repos.TrustedMobile,
 		sharedCreditRepo,
+		a.Repos.CreditAllocation,
+		initialcreditcatalog.MonthlyRef(),
 		a.Infrastructure.Logger,
 	)
 	if err != nil {
 		return UseCases{}, fmt.Errorf("%s: initialize customer credit use case: %w", op, err)
 	}
 
-	customerCreditUseCase.WithMonthlyLimitPolicy(initialcreditcatalog.MonthlyRef())
+	installmentLimitPolicy, err := initialCreditLimitPolicies.Resolve(initialcreditcatalog.DefaultRef())
+	if err != nil {
+		return UseCases{}, err
+	}
+
+	monthlyLimitPolicy, err := initialCreditLimitPolicies.Resolve(initialcreditcatalog.MonthlyRef())
+	if err != nil {
+		return UseCases{}, err
+	}
+
+	creditAllocationUseCase, err := creditallocationuc.New(
+		a.Pool,
+		a.Repos.CreditAllocation,
+		a.Repos.TrustedMobile,
+		a.Infrastructure.Clock,
+		installmentLimitPolicy,
+		monthlyLimitPolicy,
+		a.Repos.Outbox,
+		a.Infrastructure.IdentifierGenerator,
+		a.Config.AuditEventsTopic(),
+		a.Config.Usecases.CreditAllocation.EffectiveMaxItems(),
+	)
+	if err != nil {
+		return UseCases{}, fmt.Errorf("%s: initialize credit allocation: %w", op, err)
+	}
 
 	merchantUseCase := merchantuc.New(
 		a.Pool,
@@ -756,6 +786,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		MerchantTerminal:                   merchantTerminalUseCase,
 		CustomerAccount:                    customerAccountUseCase,
 		CustomerCredit:                     customerCreditUseCase,
+		CreditAllocation:                   creditAllocationUseCase,
 		ShortLink:                          shortLinkUseCase,
 		RepaymentReminder:                  repaymentReminderUseCase,
 		Collections:                        collectionsUseCase,

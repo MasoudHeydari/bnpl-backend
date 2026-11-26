@@ -16,3 +16,9 @@ type AssignInitialLimitSuccessSchema struct {
 	Data AssignInitialLimitResponseSchema `json:"data"`
 	Meta serdser.SuccessMetaNoPagination  `json:"meta"`
 }
+
+// AssignAllSuccessSchema documents the default two-product response.
+type AssignAllSuccessSchema struct {
+	Data allCreditAssignmentsResponse    `json:"data"`
+	Meta serdser.SuccessMetaNoPagination `json:"meta"`
+}

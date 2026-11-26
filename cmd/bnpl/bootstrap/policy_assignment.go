@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/parstis/bnpl-backend/pkg/adapter/config"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/creditallocationrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/invariants"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/policyassignmentimportrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/trustedmobilerp"
@@ -79,7 +80,7 @@ func ImportTrustedPolicyAssignments(sourceFile, actor string) (trustedmobileuc.I
 		return trustedmobileuc.ImportOutput{}, fmt.Errorf("%s: initialize trusted mobile use case: %w", op, err)
 	}
 
-	return uc.Import(ctx, trustedmobileuc.ImportInput{
+	return uc.WithCreditAllocation(creditallocationrp.New()).Import(ctx, trustedmobileuc.ImportInput{
 		SourceFile: sourceFile,
 		CreatedBy:  actor,
 		Customers:  customers,

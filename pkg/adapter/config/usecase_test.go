@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/creditaccountrp"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/creditallocationrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/trustedmobilerp"
 	sha256fingerprint "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/fingerprint/sha256"
 	lognoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/noop"
@@ -254,6 +255,8 @@ func TestCustomerCredit_newUseCase(t *testing.T) {
 		newTestCustomerCreditObserver(t),
 		trustedmobilerp.New(),
 		creditaccountrp.NewSharedCredit(),
+		creditallocationrp.New(),
+		initialcreditcatalog.MonthlyRef(),
 		mock.NewLogger(t),
 	)
 	require.NoError(t, err)

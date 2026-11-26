@@ -1149,6 +1149,8 @@ type ScheduledTasks struct {
 	// RepaymentBatchReconciliation polls authoritative Financial Core (FC target draft)
 	// collection state using durable BNPL snapshots, not shared Kafka topics.
 	RepaymentBatchReconciliation TaskDefinition `yaml:"repayment_batch_reconciliation"`
+	// CreditRequestProcessing resumes queued credit requests.
+	CreditRequestProcessing TaskDefinition `yaml:"credit_request_processing"`
 
 	// PaymentAttemptExpiration expires local CreateCheckoutPayment windows.
 	PaymentAttemptExpiration TaskDefinition `yaml:"payment_attempt_expiration"`
@@ -1401,6 +1403,9 @@ func (t Task) getTaskDefinitions() ([]TaskDefinitionEntry, error) {
 	// This capability is absent from the legacy baseline task test configuration.
 	// Include it once explicitly configured, even when disabled, so durable
 	// runtimes can remove schedules that an earlier deployment registered.
+	if t.Scheduled.CreditRequestProcessing.Enabled || t.Scheduled.CreditRequestProcessing.Handler != "" {
+		definitions = append(definitions, TaskDefinitionEntry{Name: "credit_request_processing", TaskDefinition: t.Scheduled.CreditRequestProcessing})
+	}
 	if t.Scheduled.RepaymentBatchReconciliation.Enabled ||
 		t.Scheduled.RepaymentBatchReconciliation.Handler != "" {
 		definitions = append(definitions, TaskDefinitionEntry{

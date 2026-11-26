@@ -6,6 +6,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/collectionscaserp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/contractrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/creditaccountrp"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/creditallocationrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/customerprofilerp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/customerrestrictionrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/decisionrp"
@@ -62,6 +63,9 @@ type Repos struct {
 
 	// CreditAccount stores current BNPL credit capacity and exposure.
 	CreditAccount repo.CreditAccount
+
+	// CreditAllocation persists eligibility, requests, and rollout configuration.
+	CreditAllocation repo.CreditAllocation
 
 	// MerchantProfile stores merchant identities.
 	MerchantProfile repo.MerchantProfile
@@ -127,6 +131,7 @@ func NewRepos() Repos {
 		Contract:                   contractrp.New(),
 		CustomerProfile:            customerprofilerp.New(),
 		CreditAccount:              creditaccountrp.New(),
+		CreditAllocation:           creditallocationrp.New(),
 		MerchantProfile:            merchantprofilerp.New(),
 		MerchantBranchProfile:      merchantbranchprofilerp.New(),
 		MerchantTerminal:           merchantterminalrp.New(),

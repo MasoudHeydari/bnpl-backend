@@ -775,6 +775,8 @@ func (c *Config) NewCustomerCreditUseCase(
 	observer customercredituc.Observer,
 	trustedMobile repo.TrustedMobile,
 	sharedCredit repo.SharedCredit,
+	creditAllocation repo.CreditAllocation,
+	monthlyLimitRef policy.Ref,
 	logger corelog.Logger,
 ) (*customercredituc.UseCase, error) {
 	return c.Usecases.CustomerCredit.newUseCase(
@@ -799,6 +801,8 @@ func (c *Config) NewCustomerCreditUseCase(
 		observer,
 		trustedMobile,
 		sharedCredit,
+		creditAllocation,
+		monthlyLimitRef,
 		logger,
 	)
 }
