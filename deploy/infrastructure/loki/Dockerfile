@@ -1,7 +1,7 @@
 # Loki — config + entrypoint baked in (Hamravesh rejects host bind mounts).
 # Compatible with Hamravesh Darkoob.
 
-FROM docker.arvancloud.ir/grafana/loki:3.6.8
+FROM docker.arvancloud.ir/grafana/loki:3.7.10
 
 COPY --chown=loki:loki config.yaml /etc/loki/config.yaml
 

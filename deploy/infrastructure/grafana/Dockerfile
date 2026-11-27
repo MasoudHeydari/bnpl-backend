@@ -4,12 +4,10 @@
 #     -f deploy/infrastructure/grafana/Dockerfile deploy/infrastructure/grafana
 FROM docker.arvancloud.ir/grafana/grafana:12.3.0
 
-USER root
+FROM docker.arvancloud.ir/grafana/grafana:13.3.2
 
-COPY provisioning /etc/grafana/provisioning
-COPY --chmod=755 entrypoint.sh /entrypoint.sh
-
-RUN chown -R grafana:root /etc/grafana/provisioning /entrypoint.sh
+COPY --chown=root:root --chmod=755 provisioning /etc/grafana/provisioning
+COPY --chown=root:root --chmod=755 entrypoint.sh /entrypoint.sh
 
 USER grafana
 
