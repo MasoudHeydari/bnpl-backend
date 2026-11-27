@@ -56,8 +56,14 @@ Internal service DNS follows Hamravesh Darkoob FAQ form
   network access restricted; this bundle does not create NetworkPolicies.
 - Darkoob Compose import supports only: `image`, `command`, `entrypoint`,
   `ports`, `environment`, `volumes`, `depends_on` (Compose >= 3.0). Do not
-  rely on `restart`, `profiles`, `networks`, `env_file`, `healthcheck`,
-  `build`, `container_name`, `tmpfs`, or YAML anchors/`x-*` merge keys.
+  rely on `name`, `restart`, `profiles`, `networks`, `env_file`,
+  `healthcheck`, `build`, `container_name`, `tmpfs`, or YAML anchors/`x-*`
+  merge keys.
+  ([docs](https://docs.hamravesh.com/products/darkube/create/docker-compose/)).
+- Darkoob disks are per-app (replica must stay 1) and are not shared across
+  apps ([disk docs](https://docs.hamravesh.com/products/darkube/manage/disk/)).
+  Named Compose volumes become per-app disks after import; do not assume
+  Docker-style shared named volumes between `promtail` and `bnpl`.
 - BNPL ENV checklist for Darkoob: repo-root `.env.dev.hamravesh.example`
   (mirror of `.env.example` with Hamravesh DNS defaults). Manifests under
   `deploy/bnpl/hamravesh/` stay in sync with that file.

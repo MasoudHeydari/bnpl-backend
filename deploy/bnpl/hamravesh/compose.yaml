@@ -388,12 +388,11 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      # Same named volume as infrastructure Promtail (dpay_service_logs).
-      # BNPL writes LOG_FILE under /var/log/services/bnpl-service/.
+      # Log tree for Promtail scrape: LOG_FILE under
+      # /var/log/services/bnpl-service/. On Darkoob this is a BNPL-app disk,
+      # not an automatically shared volume with the promtail app — see
+      # deploy/infrastructure/promtail/README.md.
       - dpay_service_logs:/var/log/services
 
 volumes:
-  # Prefer an external volume created once by infrastructure compose so both
-  # deployments share the same filesystem for Promtail scrape.
   dpay_service_logs:
-    external: true

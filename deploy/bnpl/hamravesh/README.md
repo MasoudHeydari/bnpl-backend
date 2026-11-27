@@ -6,7 +6,7 @@ Independent BNPL deployment for namespace `parstis-technology-dpay-dev`.
 
 | File | Role |
 | --- | --- |
-| `compose.yaml` | Always-on `bnpl` app (Darkoob Compose import; mounts `dpay_service_logs` for Loki) |
+| `compose.yaml` | Always-on `bnpl` app (Darkoob Compose import; mounts log disk for Promtail scrape) |
 | `jobs.yaml` | One-shot `bnpl-migrate` / `bnpl-init` / `bnpl-import-trusted-customers` |
 | `trusted-customers.csv` | Trusted-cohort mobiles baked into the runtime image for the import job |
 | `certs/` | Dev outbound gRPC mTLS PEMs baked into `runtime-development` |
@@ -35,6 +35,10 @@ or process-global `sentry.Init` is required.
 - Listen on `0.0.0.0` (`GIN_HOST=0.0.0.0`) so cluster traffic reaches the app.
 - Darkoob Compose import supports only: `image`, `command`, `entrypoint`,
   `ports`, `environment`, `volumes`, `depends_on` (Compose >= 3.0).
+  See [Hamravesh docs](https://docs.hamravesh.com/products/darkube/create/docker-compose/).
+- Darkoob disks are per-app and do not share across `bnpl` and `promtail`.
+  File-based Promtail scrape needs a platform-shared disk (or another ship
+  path); see `deploy/infrastructure/promtail/README.md`.
 - `jobs.yaml` must use **flow-form** exec arrays on one line, e.g.
   `command: ["db", "migrate"]` /
   `["policy-assignment", "import-trusted", "--file", "...", "--actor", "..."]`.

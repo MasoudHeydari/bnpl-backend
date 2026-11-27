@@ -1,13 +1,17 @@
 # Hamravesh Darkoob: independent infrastructure-jobs deployment; do not merge files.
-# Internal DNS: <service>.parstis-technology-dpay-dev.svc
-name: dpay-dev-infrastructure-jobs
-
+# Internal DNS (Hamravesh FAQ): <service>.parstis-technology-dpay-dev.svc
+#
+# Darkoob Docker Compose import supports ONLY these keys (Compose >= 3.0):
+#   image, command, entrypoint, ports, environment, volumes, depends_on
+# Unsupported here on purpose: name, restart, profiles, networks, env_file,
+# healthcheck, build, container_name, tmpfs, read_only, x-* anchors/merge.
+#
+# One-shot job: deploy once after Kafka is reachable, then stop/remove the app.
+# Do NOT leave this running as a long-lived Darkoob app.
 
 services:
   kafka-init:
     image: registry.hamdocker.ir/parstis-technology/dpay-kafka-init:v0.1.0
-    restart: "no"
-    profiles: ["bootstrap"]
     environment:
       # Keep in sync with docker-compose.local.yml kafka-init defaults and
       # .env.example KAFKA_TOPIC_* values (v1 naming).
