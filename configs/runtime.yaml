@@ -193,7 +193,9 @@ infrastructure:
     slog:
       level: ${LOG_LEVEL}
       format: ${LOG_FORMAT}
-      # Optional dual-write path for Promtail on Hamravesh (empty = stdout only).
+      # Human-oriented stdout formatting; independent of level. File stays compact.
+      pretty_print: ${LOG_PRETTY_PRINT}
+      # Optional dual-write path for Edge Alloy (empty = stdout only).
       file: ${LOG_FILE}
 
   error_reporting:

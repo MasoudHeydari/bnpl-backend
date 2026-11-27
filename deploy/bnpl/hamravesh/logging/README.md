@@ -28,6 +28,7 @@ Central Alloy → Loki → Grafana (see `deploy/infrastructure/alloy/`).
 
 | File | Role |
 | --- | --- |
+| `entrypoint-alloy.sh` | Root bootstrap: chown `/var/log/services` → start supervisord |
 | `config.alloy` | Edge `loki.source.file` + `loki.write` |
 | `supervisord.conf` | Alloy, BNPL, logrotate, FATAL watchdog |
 | `logrotate.conf` | 50 MiB × 5, copytruncate |
@@ -56,17 +57,16 @@ One-shot jobs (`jobs.yaml`) keep the non-Alloy runtime/dbadmin images.
 | Key | Value |
 | --- | --- |
 | `LOG_PROVIDER` | `slog` |
-| `LOG_LEVEL` | `info` (required for single-line JSON) |
+| `LOG_LEVEL` | `debug` (or `info`) — independent of formatting |
 | `LOG_FORMAT` | `json` |
+| `LOG_PRETTY_PRINT` | `false` (required for collector-friendly JSON) |
 | `LOG_FILE` | `/var/log/services/bnpl-service/bnpl.jsonl` |
 | `ALLOY_PUSH_URL` | `http://alloy.parstis-technology-dpay-dev.svc:3500/loki/api/v1/push` |
 | `APP_ENVIRONMENT` | label source for `application_env` |
 
-### Technical debt: DEBUG pretty JSON
-
-With `LOG_LEVEL=debug`, `newDebugJSONWriter` pretty-prints and colorizes JSON.
-That breaks line-oriented collectors. Do **not** enable DEBUG on Hamravesh Alloy
-until a separate logger change adds a compact-JSON-at-DEBUG option.
+Pretty printing is controlled only by `LOG_PRETTY_PRINT`. When a `LOG_FILE` is
+set, that file always receives compact single-line JSON even if pretty stdout
+is enabled elsewhere.
 
 ### LOG_FILE failure behavior (Go logger unchanged)
 
@@ -88,13 +88,15 @@ Mount `dpay_service_logs` → `/var/log/services` on the **BNPL app only**.
 ```
 
 - Replica count must stay **1** while a disk is attached.
-- After attaching a new disk, ensure `bnpluser` can write (entrypoint/`MkdirAll`
-  create `bnpl-service/`; image seeds ownership, volume mounts can reset it —
-  fix ownership once in the Darkoob console/terminal if needed). Do not use 777.
+- Darkoob mounts often appear as root-owned and hide image `chown`.
+  `entrypoint-alloy.sh` `chown`s `/var/log/services` to `bnpluser` before
+  supervisord starts. Child programs use `user=bnpluser`. Do not use 777.
 - Edge management UI/ready: `127.0.0.1:12345` only (loopback).
 
 ## Supervisor lifecycle
 
+- PID 1: `entrypoint-alloy.sh` → `supervisord` (needed for `/dev/stdout` and
+  disk `chown`). Alloy, BNPL, and logrotate run as `bnpluser`.
 - Priority 10 Alloy starts first, stops last (drain window).
 - Priority 20 BNPL starts second, stops first on SIGTERM (`stopwaitsecs=25`).
 - Alloy crash restarts Alloy only; BNPL keeps running.

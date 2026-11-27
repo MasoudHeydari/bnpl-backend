@@ -40,7 +40,8 @@ make image-alloy
 make push-alloy-to-hamravesh
 ```
 
-Use `LOG_LEVEL=info` so JSON stays single-line (DEBUG pretty-print is tech debt).
+Keep `LOG_PRETTY_PRINT=false` so Alloy tails compact JSONL (`LOG_LEVEL` may be
+`debug`).
 
 ## Hamravesh constraints
 

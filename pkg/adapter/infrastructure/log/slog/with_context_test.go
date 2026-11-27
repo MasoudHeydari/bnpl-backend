@@ -22,7 +22,7 @@ func TestWithContext_AttachesPresentIdentifiers(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
-	logger := adapterslog.New(&buf, stdslog.LevelInfo, corelog.JSONFormat)
+	logger := adapterslog.New(&buf, nil, stdslog.LevelInfo, corelog.JSONFormat, false)
 
 	ctx := context.Background()
 	ctx = trace.WithTraceID(ctx, "trace-1")
@@ -43,7 +43,7 @@ func TestWithContext_MissingIdentifiersAreSkipped(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
-	logger := adapterslog.New(&buf, stdslog.LevelInfo, corelog.JSONFormat)
+	logger := adapterslog.New(&buf, nil, stdslog.LevelInfo, corelog.JSONFormat, false)
 
 	ctx := trace.WithTraceID(context.Background(), "trace-only")
 	logger.WithContext(ctx).Info(corelog.Msg("ops.ping"))
@@ -60,7 +60,7 @@ func TestWithContext_DoesNotDuplicateCorrelationFields(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
-	logger := adapterslog.New(&buf, stdslog.LevelInfo, corelog.JSONFormat)
+	logger := adapterslog.New(&buf, nil, stdslog.LevelInfo, corelog.JSONFormat, false)
 
 	ctx := context.Background()
 	ctx = trace.WithTraceID(ctx, "trace-1")
@@ -80,7 +80,7 @@ func TestWithContext_PreservesPriorAttributes(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
-	logger := adapterslog.New(&buf, stdslog.LevelInfo, corelog.JSONFormat)
+	logger := adapterslog.New(&buf, nil, stdslog.LevelInfo, corelog.JSONFormat, false)
 
 	ctx := trace.WithTraceID(context.Background(), "trace-1")
 	logger.With("component", "checkout").WithContext(ctx).Info(corelog.Msg("ops.enriched"))
@@ -94,7 +94,7 @@ func TestWithContext_ConcurrentSafe(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
-	logger := adapterslog.New(&buf, stdslog.LevelInfo, corelog.JSONFormat)
+	logger := adapterslog.New(&buf, nil, stdslog.LevelInfo, corelog.JSONFormat, false)
 
 	var wg sync.WaitGroup
 	for i := 0; i < 32; i++ {
@@ -115,7 +115,7 @@ func TestEmit_DropsUnknownFields(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
-	logger := adapterslog.New(&buf, stdslog.LevelInfo, corelog.JSONFormat)
+	logger := adapterslog.New(&buf, nil, stdslog.LevelInfo, corelog.JSONFormat, false)
 
 	logger.Info(corelog.Msg("ops.safe"), corelog.TextAttr("password", "secret"), field.Outcome("ok"))
 

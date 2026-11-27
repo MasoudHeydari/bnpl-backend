@@ -171,6 +171,11 @@ type Slog struct {
 	// Format controls log output encoding.
 	Format corelog.Format `yaml:"format"`
 
+	// PrettyPrint enables human-oriented formatting on stdout for JSON logs
+	// (indent + ANSI colors). Independent of Level. Ignored for text format.
+	// When File is set, the file always receives compact single-line JSON.
+	PrettyPrint bool `yaml:"pretty_print"`
+
 	// File is an optional append-only path for dual-write with stdout.
 	// Empty keeps stdout-only logging. On Hamravesh Alloy, Edge Alloy tails
 	// this path inside the BNPL container
@@ -213,21 +218,21 @@ func (l Logger) newSlogLoggerInfrastructure() (corelog.Logger, error) {
 		return nil, err
 	}
 
-	writer, err := l.slogWriter()
+	machine, err := l.slogFileWriter()
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	return adapterslog.New(writer, level, format), nil
+	return adapterslog.New(os.Stdout, machine, level, format, l.Slog.PrettyPrint), nil
 }
 
-// slogWriter returns stdout, or stdout+file when Slog.File is set.
-func (l Logger) slogWriter() (io.Writer, error) {
-	const op = "config.Logger.slogWriter"
+// slogFileWriter opens Slog.File when set. Empty keeps stdout-only logging.
+func (l Logger) slogFileWriter() (io.Writer, error) {
+	const op = "config.Logger.slogFileWriter"
 
 	path := strings.TrimSpace(l.Slog.File)
 	if path == "" {
-		return os.Stdout, nil
+		return nil, nil
 	}
 
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -239,7 +244,7 @@ func (l Logger) slogWriter() (io.Writer, error) {
 		return nil, fmt.Errorf("%s: open log file: %w", op, err)
 	}
 
-	return io.MultiWriter(os.Stdout, file), nil
+	return file, nil
 }
 
 // slogLevel converts config log level to slog level.

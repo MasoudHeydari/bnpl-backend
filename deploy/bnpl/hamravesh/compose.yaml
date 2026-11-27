@@ -154,10 +154,10 @@ services:
       METRICS_PORT: "9090"
       METRICS_PATH: "/metrics"
       LOG_PROVIDER: "slog"
-      # INFO keeps compact single-line JSON (DEBUG enables pretty/color JSON via
-      # newDebugJSONWriter — see deploy/bnpl/hamravesh/logging/README.md).
-      LOG_LEVEL: "info"
+      LOG_LEVEL: "debug"
       LOG_FORMAT: "json"
+      # Pretty is independent of level; keep false so Alloy tails compact JSONL.
+      LOG_PRETTY_PRINT: "false"
       LOG_FILE: "/var/log/services/bnpl-service/bnpl.jsonl"
       # Edge Alloy → Central Alloy (not Loki directly).
       ALLOY_PUSH_URL: "http://alloy.parstis-technology-dpay-dev.svc:3500/loki/api/v1/push"

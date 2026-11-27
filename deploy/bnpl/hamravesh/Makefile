@@ -108,6 +108,7 @@ image-alloy:
 	}
 	@test -f "$(REPO_ROOT)/deploy/bnpl/hamravesh/logging/config.alloy"
 	@test -f "$(REPO_ROOT)/deploy/bnpl/hamravesh/logging/supervisord.conf"
+	@test -f "$(REPO_ROOT)/deploy/bnpl/hamravesh/logging/entrypoint-alloy.sh"
 	docker build \
 		--target runtime-development-alloy \
 		--build-arg BUILD_ENV=development \

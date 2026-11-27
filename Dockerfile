@@ -144,6 +144,10 @@ COPY --chown=bnpluser:bnpluser --chmod=644 \
     deploy/bnpl/hamravesh/logging/logrotate.conf \
     /home/bnpluser/app/logging/logrotate.conf
 
+COPY --chown=root:root --chmod=755 \
+    deploy/bnpl/hamravesh/logging/entrypoint-alloy.sh \
+    /home/bnpluser/app/logging/entrypoint-alloy.sh
+
 COPY --chown=bnpluser:bnpluser --chmod=755 \
     deploy/bnpl/hamravesh/logging/rotate-logs.sh \
     /home/bnpluser/app/logging/rotate-logs.sh
@@ -152,12 +156,12 @@ COPY --chown=bnpluser:bnpluser --chmod=755 \
     deploy/bnpl/hamravesh/logging/quit-on-bnpl-fatal.sh \
     /home/bnpluser/app/logging/quit-on-bnpl-fatal.sh
 
-USER bnpluser
+# Keep USER root so entrypoint-alloy.sh can chown a fresh Darkoob disk at
+# /var/log/services. Supervisord then starts Alloy/BNPL/logrotate with
+# user=bnpluser — the Go process itself is never root.
+USER root
 
-# Supervisord is PID 1. BNPL still starts via scripts/runtime/entrypoint.sh
-# (which execs the Go binary). Edge Alloy listens on loopback :12345 only.
-ENTRYPOINT ["/usr/bin/supervisord"]
-CMD ["-c", "/etc/supervisord.conf"]
+ENTRYPOINT ["/home/bnpluser/app/logging/entrypoint-alloy.sh"]
 
 # Preserve the historical default image when `docker build` is invoked without
 # --target: same layers as runtime-development (no Alloy / supervisor).
