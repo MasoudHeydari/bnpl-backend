@@ -7,7 +7,7 @@ files into a unified manifest. Darkoob resolves service names as
 
 | Deployment | Always-on containers | Separate one-shot jobs |
 | --- | --- | --- |
-| infrastructure | Postgres, Redis, Kafka (`compose.yaml` service `kafka`), Temporal, Temporal UI, Loki, Promtail, Grafana | Kafka topics (`jobs.yaml` service `kafka-init`; image under `kafka-init/`) |
+| infrastructure | Postgres, Redis, Kafka (`compose.yaml` service `kafka`), Temporal, Temporal UI, Loki, Central Alloy, Grafana (Promtail kept for local-dev images only) | Kafka topics (`jobs.yaml` service `kafka-init`; image under `kafka-init/`) |
 | gateway | Envoy | — |
 | bnpl (`bnpl/hamravesh`) | API and internal scheduled runtime | migrate, disposable dev bootstrap |
 | identity | API, outbox, revocation, notification workers | migrate, seed |
@@ -62,8 +62,9 @@ Internal service DNS follows Hamravesh Darkoob FAQ form
   ([docs](https://docs.hamravesh.com/products/darkube/create/docker-compose/)).
 - Darkoob disks are per-app (replica must stay 1) and are not shared across
   apps ([disk docs](https://docs.hamravesh.com/products/darkube/manage/disk/)).
-  Named Compose volumes become per-app disks after import; do not assume
-  Docker-style shared named volumes between `promtail` and `bnpl`.
+  Named Compose volumes become per-app disks after import. Hamravesh log shipping
+  uses Edge Alloy inside BNPL → Central Alloy (`alloy` service) → Loki; do not
+  assume Docker-style shared log volumes between apps.
 - BNPL ENV checklist for Darkoob: repo-root `.env.dev.hamravesh.example`
   (mirror of `.env.example` with Hamravesh DNS defaults). Manifests under
   `deploy/bnpl/hamravesh/` stay in sync with that file.
@@ -128,10 +129,14 @@ make kafka-init-image
 make kafka-init-push-to-hamravesh
 make loki-image
 make loki-push-to-hamravesh
+make alloy-image
+make alloy-push-to-hamravesh
 make promtail-image
 make promtail-push-to-hamravesh
 make grafana-image
 make grafana-push-to-hamravesh
+make bnpl-image-alloy
+make bnpl-push-alloy-to-hamravesh
 ```
 
 Or run inside an app directory:

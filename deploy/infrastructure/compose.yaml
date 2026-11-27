@@ -9,15 +9,15 @@
 #
 # Each Compose service becomes a separate Darkoob app. Named volumes become
 # per-app disks (replica must stay 1). Darkoob does not share one disk across
-# apps — see promtail/README.md for the dpay_service_logs implication.
+# apps — Edge Alloy ships logs over HTTP instead of a shared log volume.
 #
 # Put secret values in the Darkoob panel (see secrets.example); do not commit them.
 
 services:
-  # ── Loki / Promtail / Grafana (log stack) ───────────────────────────────────
-  # Images bake configs (no host bind mounts). Promtail tails /var/log/services
-  # on its own disk; BNPL must write the same tree on a disk it can share with
-  # Promtail (or use another log ship path — see promtail/README.md).
+  # ── Loki / Central Alloy / Grafana (log stack) ──────────────────────────────
+  # Images bake configs (no host bind mounts). Edge Alloy inside BNPL pushes to
+  # Central Alloy; Central Alloy writes to Loki. Do not reintroduce Promtail for
+  # Hamravesh (isolated disks make file scrape impossible across apps).
   loki:
     image: registry.hamdocker.ir/parstis-technology/dpay-loki:v0.1.0
     volumes:
@@ -25,16 +25,17 @@ services:
     ports:
       - "3100:3100"
 
-  promtail:
-    image: registry.hamdocker.ir/parstis-technology/dpay-promtail:v0.1.0
+  alloy:
+    image: registry.hamdocker.ir/parstis-technology/dpay-alloy:v0.1.0
     environment:
       LOKI_PUSH_URL: http://loki.parstis-technology-dpay-dev.svc:3100/loki/api/v1/push
-      APPLICATION_ENV: development
     volumes:
-      - dpay_promtail_positions:/var/lib/promtail
-      - dpay_service_logs:/var/log/services
+      - dpay_alloy_data:/var/lib/alloy/data
     ports:
-      - "3101:3101"
+      # Loki push ingest (edges → central). Keep internal / not public.
+      - "3500:3500"
+      # Alloy management / ready. Keep internal / not public.
+      - "12345:12345"
     depends_on:
       - loki
 
@@ -55,10 +56,8 @@ services:
 
 volumes:
   dpay_loki_data:
-  dpay_promtail_positions:
+  dpay_alloy_data:
   dpay_grafana_data:
-  # Intended log tree: /var/log/services/<service-name>/…
-  # On Darkoob this is a Promtail-app disk, not an automatically shared PVC
-  # with BNPL. Coordinate disk attachment with the platform if both apps must
-  # see the same files; otherwise ship logs another way.
-  dpay_service_logs:
+  # Legacy Promtail volume name retained in comments only — do not attach to
+  # new apps. Existing Darkoob disks named dpay_promtail_positions /
+  # dpay_service_logs (on old promtail app) must not be deleted by this change.

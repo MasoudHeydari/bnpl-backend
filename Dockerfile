@@ -103,3 +103,62 @@ COPY --chown=bnpluser:bnpluser --chmod=600 \
     /home/bnpluser/app/certs/bnpl-service.key
 
 USER bnpluser
+
+# Hamravesh/dev Alloy logging runtime: Edge Grafana Alloy + supervisord +
+# logrotate beside BNPL. Production (`runtime`) and plain `runtime-development`
+# stay free of Alloy/supervisor. Build explicitly with
+# --target runtime-development-alloy (see deploy/bnpl/hamravesh Makefile).
+#
+# Upstream grafana/alloy is glibc-linked; gcompat provides the Alpine shim.
+# Alloy binary path in the official image: /bin/alloy.
+FROM docker.arvancloud.ir/grafana/alloy:v1.22.0 AS alloy-binary
+
+FROM runtime-development AS runtime-development-alloy
+
+USER root
+
+RUN apk add --no-cache \
+        gcompat \
+        logrotate \
+        supervisor \
+    && mkdir -p \
+        /var/log/services/bnpl-service \
+        /var/log/services/alloy-data \
+        /var/log/services/logrotate \
+        /etc/alloy \
+        /home/bnpluser/app/logging \
+    && chown -R bnpluser:bnpluser /var/log/services \
+    && chown -R bnpluser:bnpluser /home/bnpluser/app/logging
+
+COPY --from=alloy-binary --chmod=755 /bin/alloy /usr/local/bin/alloy
+
+COPY --chown=bnpluser:bnpluser --chmod=644 \
+    deploy/bnpl/hamravesh/logging/config.alloy \
+    /etc/alloy/config.alloy
+
+COPY --chown=bnpluser:bnpluser --chmod=644 \
+    deploy/bnpl/hamravesh/logging/supervisord.conf \
+    /etc/supervisord.conf
+
+COPY --chown=bnpluser:bnpluser --chmod=644 \
+    deploy/bnpl/hamravesh/logging/logrotate.conf \
+    /home/bnpluser/app/logging/logrotate.conf
+
+COPY --chown=bnpluser:bnpluser --chmod=755 \
+    deploy/bnpl/hamravesh/logging/rotate-logs.sh \
+    /home/bnpluser/app/logging/rotate-logs.sh
+
+COPY --chown=bnpluser:bnpluser --chmod=755 \
+    deploy/bnpl/hamravesh/logging/quit-on-bnpl-fatal.sh \
+    /home/bnpluser/app/logging/quit-on-bnpl-fatal.sh
+
+USER bnpluser
+
+# Supervisord is PID 1. BNPL still starts via scripts/runtime/entrypoint.sh
+# (which execs the Go binary). Edge Alloy listens on loopback :12345 only.
+ENTRYPOINT ["/usr/bin/supervisord"]
+CMD ["-c", "/etc/supervisord.conf"]
+
+# Preserve the historical default image when `docker build` is invoked without
+# --target: same layers as runtime-development (no Alloy / supervisor).
+FROM runtime-development

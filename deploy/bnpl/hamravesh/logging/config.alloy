@@ -1,0 +1,59 @@
+// Edge Grafana Alloy — runs inside the BNPL container under supervisord.
+//
+// Responsibility: continuously tail the local BNPL JSONL file and forward
+// raw lines to Central Alloy. Parsing / enrichment / Loki write happen only
+// in deploy/infrastructure/alloy.
+//
+// Pin: grafana/alloy:v1.22.0 (same as Central Alloy).
+
+logging {
+	level  = "info"
+	format = "logfmt"
+}
+
+loki.source.file "bnpl" {
+	targets = [
+		{
+			// Absolute path required. Matches LOG_FILE in Hamravesh compose / env.
+			__path__        = "/var/log/services/bnpl-service/bnpl.jsonl",
+			service         = "bnpl-service",
+			application_env = sys.env("APP_ENVIRONMENT"),
+		},
+	]
+
+	// Resume from persisted offsets under --storage.path after restart.
+	// First boot (no positions) reads existing file content from the start.
+	tail_from_end = false
+
+	forward_to = [loki.process.edge_labels.receiver]
+
+	file_watch {
+		min_poll_frequency = "250ms"
+		max_poll_frequency = "1s"
+	}
+}
+
+loki.process "edge_labels" {
+	// loki.source.file attaches `filename` from __path__; drop it to avoid
+	// high-cardinality streams. Keep explicit service + application_env.
+	stage.label_drop {
+		values = ["filename"]
+	}
+
+	forward_to = [loki.write.central.receiver]
+}
+
+loki.write "central" {
+	endpoint {
+		url = sys.env("ALLOY_PUSH_URL")
+
+		batch_wait          = "1s"
+		batch_size          = "1MiB"
+		remote_timeout      = "10s"
+		min_backoff_period  = "500ms"
+		max_backoff_period  = "5m"
+		// Bounded retries: a long Central Alloy outage must not grow forever.
+		max_backoff_retries = 10
+		retry_on_http_429   = true
+	}
+}

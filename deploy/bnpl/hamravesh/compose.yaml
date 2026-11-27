@@ -11,7 +11,7 @@
 
 services:
   bnpl:
-    image: registry.hamdocker.ir/parstis-technology/bnpl-backend:v0.1.0-development
+    image: registry.hamdocker.ir/parstis-technology/bnpl-backend:v0.1.0-development-alloy
     environment:
       CONFIG_FILE: "configs/runtime.yaml"
       APP_ENVIRONMENT: "development"
@@ -154,8 +154,13 @@ services:
       METRICS_PORT: "9090"
       METRICS_PATH: "/metrics"
       LOG_PROVIDER: "slog"
-      LOG_LEVEL: "debug"
+      # INFO keeps compact single-line JSON (DEBUG enables pretty/color JSON via
+      # newDebugJSONWriter — see deploy/bnpl/hamravesh/logging/README.md).
+      LOG_LEVEL: "info"
       LOG_FORMAT: "json"
+      LOG_FILE: "/var/log/services/bnpl-service/bnpl.jsonl"
+      # Edge Alloy → Central Alloy (not Loki directly).
+      ALLOY_PUSH_URL: "http://alloy.parstis-technology-dpay-dev.svc:3500/loki/api/v1/push"
       # Unexpected errors/panics go through the core error-reporting port.
       # DSN/release live in the Darkoob panel (see secrets.example); do not
       # hardcode SENTRY_DSN here or an empty compose value will wipe the secret.
@@ -388,10 +393,8 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      # Log tree for Promtail scrape: LOG_FILE under
-      # /var/log/services/bnpl-service/. On Darkoob this is a BNPL-app disk,
-      # not an automatically shared volume with the promtail app — see
-      # deploy/infrastructure/promtail/README.md.
+      # BNPL-app disk only (Darkoob disks are not shared across apps). Holds
+      # LOG_FILE, Edge Alloy positions/WAL, and logrotate state.
       - dpay_service_logs:/var/log/services
 
 volumes:

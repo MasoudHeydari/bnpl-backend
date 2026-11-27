@@ -1,5 +1,10 @@
 # dpay Promtail
 
+> **Hamravesh:** file scrape across Darkoob apps does not work (isolated disks).
+> Production/dev on Hamravesh uses Edge + Central Grafana Alloy instead
+> (`deploy/bnpl/hamravesh/logging/`, `deploy/infrastructure/alloy/`).
+> This image remains for **local development** and legacy builds.
+
 Own image: `registry.hamdocker.ir/parstis-technology/dpay-promtail:v0.1.0`
 
 Bakes `config.yml` + `entrypoint.sh`. Scrapes

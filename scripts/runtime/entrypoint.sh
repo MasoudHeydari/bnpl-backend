@@ -59,5 +59,8 @@ fi
 log "=================================================="
 log "Starting application..."
 
-# Replace shell with the Go application so it becomes PID 1.
+# Replace this shell with the Go application.
+# In the plain runtime / runtime-development images this process is PID 1.
+# In runtime-development-alloy, supervisord is PID 1 and this script runs as
+# program:bnpl (exec still ensures the Go process is the supervised child).
 exec "${APP}"

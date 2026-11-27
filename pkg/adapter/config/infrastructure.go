@@ -172,8 +172,9 @@ type Slog struct {
 	Format corelog.Format `yaml:"format"`
 
 	// File is an optional append-only path for dual-write with stdout.
-	// Empty keeps stdout-only logging. Used on Hamravesh so Promtail can
-	// scrape a shared volume (LOG_FILE=/var/log/services/bnpl-service/bnpl.jsonl).
+	// Empty keeps stdout-only logging. On Hamravesh Alloy, Edge Alloy tails
+	// this path inside the BNPL container
+	// (LOG_FILE=/var/log/services/bnpl-service/bnpl.jsonl).
 	File string `yaml:"file"`
 }
 

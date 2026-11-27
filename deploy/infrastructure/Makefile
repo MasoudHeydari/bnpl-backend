@@ -6,24 +6,27 @@
 #   make kafka-init-image
 #   make kafka-init-push-to-hamravesh
 #   make loki-image / loki-push-to-hamravesh
-#   make promtail-image / promtail-push-to-hamravesh
+#   make alloy-image / alloy-push-to-hamravesh
+#   make promtail-image / promtail-push-to-hamravesh  (local-dev legacy)
 #   make grafana-image / grafana-push-to-hamravesh
 
 .PHONY: help \
 	postgres-image postgres-tag postgres-push postgres-push-to-hamravesh \
 	kafka-init-image kafka-init-tag kafka-init-push kafka-init-push-to-hamravesh \
 	loki-image loki-tag loki-push loki-push-to-hamravesh \
+	alloy-image alloy-tag alloy-push alloy-push-to-hamravesh \
 	promtail-image promtail-tag promtail-push promtail-push-to-hamravesh \
 	grafana-image grafana-tag grafana-push grafana-push-to-hamravesh
 
 help:
 	@printf '%s\n' \
-		'postgres-*, kafka-init-*, loki-*, promtail-*, grafana-* delegate to subdirectory Makefiles.' \
+		'postgres-*, kafka-init-*, loki-*, alloy-*, promtail-*, grafana-* delegate to subdirectory Makefiles.' \
 		'Pass TAG=... IMAGE_NAME=... through as needed.' \
 		'' \
 		'  make postgres-image && make postgres-push-to-hamravesh' \
 		'  make kafka-init-image && make kafka-init-push-to-hamravesh' \
 		'  make loki-image && make loki-push-to-hamravesh' \
+		'  make alloy-image && make alloy-push-to-hamravesh' \
 		'  make promtail-image && make promtail-push-to-hamravesh' \
 		'  make grafana-image && make grafana-push-to-hamravesh'
 
@@ -62,6 +65,18 @@ loki-push:
 
 loki-push-to-hamravesh:
 	$(MAKE) -C loki push-to-hamravesh
+
+alloy-image:
+	$(MAKE) -C alloy image
+
+alloy-tag:
+	$(MAKE) -C alloy tag
+
+alloy-push:
+	$(MAKE) -C alloy push
+
+alloy-push-to-hamravesh:
+	$(MAKE) -C alloy push-to-hamravesh
 
 promtail-image:
 	$(MAKE) -C promtail image
