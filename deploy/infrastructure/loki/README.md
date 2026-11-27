@@ -3,7 +3,9 @@
 Own image: `registry.hamdocker.ir/parstis-technology/dpay-loki:v0.1.0`
 
 Bakes `config.yaml` + `entrypoint.sh` so Hamravesh does not need host bind
-mounts. Single-binary filesystem TSDB, 744h retention, no auth (dev only).
+mounts. Upstream `grafana/loki` is distroless (no shell); this image copies
+the static binary onto Alpine so the entrypoint can prepare `/loki` dirs.
+Single-binary filesystem TSDB, 744h retention, no auth (dev only).
 
 ```bash
 cd deploy/infrastructure/loki
