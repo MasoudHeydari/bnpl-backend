@@ -9,8 +9,8 @@ USER root
 COPY provisioning /etc/grafana/provisioning
 COPY --chmod=755 entrypoint.sh /entrypoint.sh
 
-RUN chown -R 472:0 /etc/grafana/provisioning /entrypoint.sh
+RUN chown -R grafana:root /etc/grafana/provisioning /entrypoint.sh
 
-USER 472
+USER grafana
 
 ENTRYPOINT ["/entrypoint.sh"]

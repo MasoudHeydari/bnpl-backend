@@ -20,6 +20,14 @@ Canonical BNPL runtime ENV: repo-root
 import job uses the runtime image and the same runtime ENV shape as `compose.yaml`
 `bnpl` (TLS paths point at image-baked certs under `/home/bnpluser/app/certs/`).
 
+### Sentry (error reporting)
+
+Compose sets `ERROR_REPORTING_PROVIDER=sentry`. Put `SENTRY_DSN` (and
+optionally `SENTRY_RELEASE`) in the Darkoob panel from `secrets.example`.
+The app already reports panics and unexpected HTTP/runtime errors through the
+core `errorreporting` port and the Sentry adapter — no `sentrygin` middleware
+or process-global `sentry.Init` is required.
+
 ## Hamravesh constraints
 
 - Internal DNS: `SVC_NAME.NS.svc` (for example

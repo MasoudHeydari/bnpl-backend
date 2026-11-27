@@ -10,8 +10,8 @@ COPY config.yml /etc/promtail/config.yml
 COPY --chmod=755 entrypoint.sh /entrypoint.sh
 
 RUN mkdir -p /var/lib/promtail /var/log/services \
-	&& chown -R 10001:10001 /var/lib/promtail /var/log/services /etc/promtail /entrypoint.sh
+	&& chown -R promtail:promtail /var/lib/promtail /var/log/services /etc/promtail /entrypoint.sh
 
-USER 10001
+USER promtail
 
 ENTRYPOINT ["/entrypoint.sh"]

@@ -156,8 +156,12 @@ services:
       LOG_PROVIDER: "slog"
       LOG_LEVEL: "debug"
       LOG_FORMAT: "json"
-      ERROR_REPORTING_PROVIDER: "noop"
-      SENTRY_DSN: ""
+      # Unexpected errors/panics go through the core error-reporting port.
+      # DSN/release live in the Darkoob panel (see secrets.example); do not
+      # hardcode SENTRY_DSN here or an empty compose value will wipe the secret.
+      ERROR_REPORTING_PROVIDER: "sentry"
+      SENTRY_ENVIRONMENT: "development"
+      SENTRY_SAMPLE_RATE: "1.0"
       SENTRY_DEBUG: "false"
       HTTP_CLIENT_PROVIDER: "standard"
       HTTP_CLIENT_MAX_IN_FLIGHT: "50"
