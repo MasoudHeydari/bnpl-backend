@@ -50,6 +50,7 @@ type ContractQueryer interface {
 	ListActiveByMerchantProfileID(
 		ctx context.Context,
 		merchantProfileID model.MerchantProfileID,
+		scope model.MerchantOutletScope,
 		page pagination.KeysetRequest,
 	) ([]model.Contract, error)
 
@@ -61,6 +62,7 @@ type ContractQueryer interface {
 	ListActiveByMerchantProfileIDOffset(
 		ctx context.Context,
 		merchantProfileID model.MerchantProfileID,
+		scope model.MerchantOutletScope,
 		page pagination.OffsetRequest,
 	) ([]model.Contract, error)
 
@@ -69,6 +71,7 @@ type ContractQueryer interface {
 	CountActiveByMerchantProfileID(
 		ctx context.Context,
 		merchantProfileID model.MerchantProfileID,
+		scope model.MerchantOutletScope,
 	) (int64, error)
 }
 

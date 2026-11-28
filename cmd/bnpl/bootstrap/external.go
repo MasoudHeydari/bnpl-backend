@@ -15,6 +15,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/external/creditassessment"
 	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"
 	extinstallmentpayment "github.com/parstis/bnpl-backend/pkg/core/external/installmentpayment"
+	extmerchant "github.com/parstis/bnpl-backend/pkg/core/external/merchant"
 	extnotification "github.com/parstis/bnpl-backend/pkg/core/external/notification"
 )
 
@@ -41,6 +42,9 @@ type External struct {
 	// CustomerResolver maps a merchant-asserted mobile to a Customer Reference
 	// Service customer_id (stored as customer_profiles.external_customer_id).
 	CustomerResolver extcustomer.Resolver
+
+	// MerchantClient resolves participation and delivers progress reports.
+	MerchantClient extmerchant.Client
 
 	// NotificationSubmitter durably submits checkout OTP notifications.
 	NotificationSubmitter extnotification.Submitter
@@ -165,6 +169,19 @@ func (a *App) NewExternal() (_ External, err error) {
 
 	if customerCloser != nil {
 		external.closers = append(external.closers, customerCloser)
+	}
+
+	var merchantCloser io.Closer
+	external.MerchantClient, merchantCloser, err = a.Config.NewExternalMerchantClient(
+		a.Infrastructure.CircuitBreaker,
+		a.Infrastructure.Logger,
+	)
+	if err != nil {
+		return External{}, fmt.Errorf("%s: initialize external merchant client: %w", op, err)
+	}
+
+	if merchantCloser != nil {
+		external.closers = append(external.closers, merchantCloser)
 	}
 
 	var notificationCloser io.Closer

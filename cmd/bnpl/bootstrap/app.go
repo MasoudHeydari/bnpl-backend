@@ -15,7 +15,6 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 	coretask "github.com/parstis/bnpl-backend/pkg/core/task"
-	"github.com/parstis/bnpl-backend/pkg/core/usecase/merchantprovisioninguc"
 )
 
 // App is the composition root for one BNPL process: configuration, shared
@@ -43,9 +42,6 @@ type App struct {
 
 	// UseCases holds constructed application use cases.
 	UseCases UseCases
-
-	// MerchantProvisioning is constructed only for the isolated provisioning runtime.
-	MerchantProvisioning *merchantprovisioninguc.UseCase
 
 	// Infrastructure holds shared runtime adapters (logger, metrics, messaging).
 	Infrastructure Infrastructure
@@ -88,10 +84,6 @@ type TaskJobResolver interface {
 func NewApp(ctx context.Context, c *config.Config) (_ *App, err error) {
 	const op = "bootstrap.NewApp"
 
-	if err = c.ValidateMerchantProvisioning(); err != nil {
-		return nil, fmt.Errorf("%s: validate Merchant Provisioning: %w", op, err)
-	}
-
 	app := &App{
 		Config: c,
 	}
@@ -119,20 +111,6 @@ func NewApp(ctx context.Context, c *config.Config) (_ *App, err error) {
 
 	if err = app.wireDependencyChecker(); err != nil {
 		return nil, fmt.Errorf("%s: wire dependency checker: %w", op, err)
-	}
-
-	// Provisioning is deliberately independent of financial and other business clients.
-	if c.MerchantProvisioning.Only {
-		app.UseCases.Health = c.NewHealthUseCase(
-			app.Infrastructure.LifecycleState,
-			app.Infrastructure.DependencyChecker,
-		)
-		app.MerchantProvisioning, err = app.newMerchantProvisioning()
-		if err != nil {
-			return nil, fmt.Errorf("%s: initialize merchant provisioning: %w", op, err)
-		}
-
-		return app, nil
 	}
 
 	app.External, err = app.NewExternal()
@@ -181,10 +159,6 @@ func (a *App) ConnectionPool(
 func (a *App) RegisterTasks() error {
 	const op = "bootstrap.App.RegisterTasks"
 
-	if a.Config.MerchantProvisioning.Only {
-		return a.registerMerchantProvisioningTask()
-	}
-
 	taskDefinitions, err := a.Config.GetTaskDefinitions()
 	if err != nil {
 		return fmt.Errorf("%s: get task definitions: %w", op, err)
@@ -202,7 +176,10 @@ func (a *App) RegisterTasks() error {
 		a.UseCases.MerchantTerminal,
 		a.UseCases.RepaymentReminder,
 		a.UseCases.Collections,
-	).WithRepaymentBatch(a.UseCases.RepaymentBatch).WithCreditRequests(a.UseCases.CustomerCredit, a.Infrastructure.Trace)
+	).
+		WithRepaymentBatch(a.UseCases.RepaymentBatch).
+		WithCreditRequests(a.UseCases.CustomerCredit, a.Infrastructure.Trace).
+		WithMerchantProvisioning(a.UseCases.MerchantProvisioning)
 
 	for _, entry := range taskDefinitions {
 		newTask := coretask.Task{

@@ -42,20 +42,26 @@ func (f *merchantClient) GetParticipation(context.Context, model.MerchantPartici
 	return f.reference, nil
 }
 
-func (f *merchantClient) ReportReady(_ context.Context, p merchant.Progress) (merchant.Snapshot, error) {
+func (f *merchantClient) ReportProgress(_ context.Context, p merchant.Progress) (merchant.Snapshot, error) {
 	f.reports = append(f.reports, p)
 	if f.unavailable {
 		return merchant.Snapshot{}, errors.New("synthetic timeout")
 	}
 
 	return merchant.Snapshot{
-		RequestID:        p.RequestID,
-		BusinessLine:     "bnpl",
-		Environment:      "SANDBOX",
-		Status:           "READY",
-		OwnerVersion:     p.OwnerVersion,
-		AccountReference: p.AccountReference,
+		RequestID:           p.RequestID,
+		BusinessLine:        "bnpl",
+		Environment:         "SANDBOX",
+		Status:              p.Status,
+		DeclarationRevision: p.DeclarationRevision,
+		Issues:              p.Issues,
+		OwnerVersion:        p.OwnerVersion,
+		AccountReference:    p.AccountReference,
 	}, nil
+}
+
+func (f *merchantClient) GetOutletSetupEligibility(context.Context, model.ExternalMerchantID, model.ExternalBranchID) (merchant.OutletEligibility, error) {
+	return merchant.OutletEligibility{}, nil
 }
 
 func TestProvisionReplayAndDurableCallback(t *testing.T) {
@@ -84,8 +90,12 @@ func TestProvisionReplayAndDurableCallback(t *testing.T) {
 	require.NoError(t, err)
 	mid := model.ExternalMerchantID(uuid.New())
 	rid := model.MerchantParticipationRequestID(uuid.New())
+	aid := model.MerchantApplicationID(uuid.New())
 	client := &merchantClient{reference: merchant.Reference{
 		MerchantID:            mid,
+		ApplicationID:         aid,
+		Status:                "REQUESTED",
+		DeclarationRevision:   1,
 		RequestID:             rid,
 		BusinessLine:          "bnpl",
 		Environment:           "SANDBOX",
@@ -123,10 +133,11 @@ func TestProvisionReplayAndDurableCallback(t *testing.T) {
 		return uc
 	}
 	input := merchantprovisioninguc.Input{
-		MerchantID:    mid,
-		RequestID:     rid,
-		ApplicationID: model.MerchantApplicationID(uuid.New()),
-		Environment:   "SANDBOX",
+		MerchantID:          mid,
+		RequestID:           rid,
+		ApplicationID:       aid,
+		DeclarationRevision: 1,
+		Environment:         "SANDBOX",
 		Event: model.InboxEvent{
 			EventID:            uuid.NewString(),
 			EventType:          "merchant_product_participation_requested",
@@ -138,59 +149,38 @@ func TestProvisionReplayAndDurableCallback(t *testing.T) {
 		},
 	}
 	uc := makeUC()
-	declaration := client.reference.SelfDeclaration
-	client.reference.SelfDeclaration = nil
-	require.ErrorIs(t, uc.Process(ctx, input), merchantprovisioninguc.ErrInvalidReference)
-	var accountCount, requestCount int
-	err = pool.Pool.QueryRow(ctx, `
-SELECT
-    (SELECT count(*) FROM merchant_profiles),
-    (SELECT count(*) FROM merchant_participation_requests)
-`).Scan(&accountCount, &requestCount)
+	declaration := *client.reference.SelfDeclaration
+	invalid := declaration
+	invalid.MaxTenureMonths = 13
+	client.reference.SelfDeclaration = &invalid
+	require.NoError(t, uc.Process(ctx, input))
+	var accountCount int
+	err = pool.Pool.QueryRow(ctx, `SELECT count(*) FROM merchant_profiles`).Scan(&accountCount)
 	require.NoError(t, err)
 	require.Zero(t, accountCount)
-	require.Zero(t, requestCount)
-	invalidDeclaration := *declaration
-	invalidDeclaration.MaxTenureMonths = 0
-	client.reference.SelfDeclaration = &invalidDeclaration
-	require.ErrorIs(t, uc.Process(ctx, input), merchantprovisioninguc.ErrInvalidReference)
-	// Neither platform ceiling may be exceeded, even if the other limit is valid.
-	for _, outsidePolicy := range []model.MerchantSelfDeclaration{
-		{
-			MaxAmountMinor:    5_000_000_001,
-			MaxAmountCurrency: model.IRRCurrency,
-			MaxTenureMonths:   7,
-		},
-		{
-			MaxAmountMinor:    370_000_000,
-			MaxAmountCurrency: model.IRRCurrency,
-			MaxTenureMonths:   13,
-		},
-	} {
-		client.reference.SelfDeclaration = &outsidePolicy
-		require.ErrorIs(t, uc.Process(ctx, input), merchantprovisioninguc.ErrInvalidReference)
-	}
+	require.NoError(t, uc.DeliverDue(ctx))
+	require.Len(t, client.reports, 1)
+	require.Equal(t, model.MerchantParticipationChangesRequested, client.reports[0].Status)
+	require.Equal(t, int64(1), client.reports[0].OwnerVersion)
+	require.NotEmpty(t, client.reports[0].Issues)
 
-	err = pool.Pool.QueryRow(ctx, `
-SELECT
-    (SELECT count(*) FROM merchant_profiles),
-    (SELECT count(*) FROM merchant_participation_requests)
-`).Scan(&accountCount, &requestCount)
-	require.NoError(t, err)
-	require.Zero(t, accountCount)
-	require.Zero(t, requestCount)
-	client.reference.SelfDeclaration = declaration
-	require.NoError(t, uc.Process(ctx, input))
+	client.reference.SelfDeclaration = &declaration
+	client.reference.DeclarationRevision = 2
+	client.reference.OwnerVersion = 1
+	corrected := input
+	corrected.DeclarationRevision = 2
+	corrected.Event.EventID = uuid.NewString()
+	corrected.Event.PayloadFingerprint = "sha256:" + strings.Repeat("b", 64)
+	require.NoError(t, uc.Process(ctx, corrected))
 	client.unavailable = true
-	require.NoError(t, uc.Process(ctx, input))
-	changed := input
-	changed.Event.PayloadFingerprint = "sha256:" + strings.Repeat("b", 64)
+	require.NoError(t, uc.Process(ctx, corrected))
+	changed := corrected
+	changed.Event.PayloadFingerprint = "sha256:" + strings.Repeat("c", 64)
 	require.ErrorIs(t, uc.Process(ctx, changed), merchantprovisioninguc.ErrConflict)
-	// A distinct event for the same command must not need another HTTP read.
 	replay := input
 	replay.Event.EventID = uuid.NewString()
 	require.NoError(t, uc.Process(ctx, replay))
-	require.Equal(t, 5, client.readCount)
+	require.Equal(t, 2, client.readCount)
 	var accounts, requests, terminals int
 	err = pool.Pool.QueryRow(ctx, `
 SELECT
@@ -213,15 +203,17 @@ WHERE external_merchant_id = $1
 	require.Equal(t, int64(370_000_000), maxAmountMinor)
 	require.Equal(t, 7, maxTenureMonths)
 	require.NoError(t, uc.DeliverDue(ctx))
-	require.Len(t, client.reports, 1)
+	require.Len(t, client.reports, 2)
 	// Construct a new use case to simulate a process restart and retry the same immutable result.
 	clk.Time = clk.Time.Add(time.Minute)
 	client.unavailable = false
 	require.NoError(t, makeUC().DeliverDue(ctx))
-	require.Len(t, client.reports, 2)
-	require.Equal(t, client.reports[0], client.reports[1])
+	require.Len(t, client.reports, 3)
+	require.Equal(t, client.reports[1], client.reports[2])
+	require.Equal(t, model.MerchantParticipationReady, client.reports[2].Status)
+	require.Equal(t, int64(2), client.reports[2].OwnerVersion)
 	var status string
-	err = pool.Pool.QueryRow(ctx, `SELECT delivery_status FROM merchant_participation_requests WHERE request_id=$1`, rid).Scan(&status)
+	err = pool.Pool.QueryRow(ctx, `SELECT delivery_status FROM merchant_participation_progress_deliveries WHERE request_id=$1 AND declaration_revision=2`, rid).Scan(&status)
 	require.NoError(t, err)
 	require.Equal(t, "delivered", status)
 
@@ -230,7 +222,9 @@ WHERE external_merchant_id = $1
 	newRequest.RequestID = model.MerchantParticipationRequestID(uuid.New())
 	newRequest.Event.EventID = uuid.NewString()
 	client.reference.RequestID = newRequest.RequestID
-	differentDeclaration := *declaration
+	client.reference.OwnerVersion = 0
+	client.reference.DeclarationRevision = 1
+	differentDeclaration := declaration
 	differentDeclaration.MaxAmountMinor++
 	client.reference.SelfDeclaration = &differentDeclaration
 	require.ErrorIs(t, uc.Process(ctx, newRequest), merchantprovisioninguc.ErrConflict)

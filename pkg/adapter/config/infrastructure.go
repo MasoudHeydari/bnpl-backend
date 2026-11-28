@@ -818,6 +818,9 @@ type Kafka struct {
 // Topic names are centralized here so use cases and adapters do not depend on
 // hard-coded Kafka topic strings.
 type Topics struct {
+	// MerchantParticipationRequests receives Merchant participation commands.
+	MerchantParticipationRequests string `yaml:"merchant_participation_requests"`
+
 	// PaymentResults receives payment gateway or financial-core payment result
 	// events.
 	PaymentResults string `yaml:"payment_results"`
@@ -877,6 +880,9 @@ type Consumer struct {
 	// Topics contains physical Kafka topics consumed by this service.
 	Topics []string `yaml:"topics"`
 
+	// MerchantParticipationTopic is an optional additional subscription.
+	MerchantParticipationTopic string `yaml:"merchant_participation_topic"`
+
 	// InitialOffset is the transport-neutral policy ("oldest" | "newest") used
 	// when a consumer group has no committed offset. Parsed via
 	// messaging.ParseInitialOffset and mapped to broker constants by the Kafka
@@ -896,6 +902,16 @@ type Consumer struct {
 	// QuarantineTopic stores transport/envelope failures that handlers explicitly
 	// classify as non-retryable. It must not be one of the consumed source topics.
 	QuarantineTopic string `yaml:"quarantine_topic"`
+}
+
+// SubscriptionTopics returns the configured topics without mutating configuration.
+func (c Consumer) SubscriptionTopics() []string {
+	topics := append([]string(nil), c.Topics...)
+	if c.MerchantParticipationTopic != "" {
+		topics = append(topics, c.MerchantParticipationTopic)
+	}
+
+	return topics
 }
 
 func (c Consumer) quarantineTopic(groupID string) string {
@@ -1013,7 +1029,7 @@ func (m Messaging) newSubscriberInfrastructureWithConsumer(
 		return saramamessaging.NewConsumer(
 			m.Kafka.Brokers,
 			m.Kafka.GroupID,
-			m.Kafka.Consumer.Topics,
+			m.Kafka.Consumer.SubscriptionTopics(),
 			logger,
 			saramamessaging.ConsumerConfig{
 				ClientID:            m.Kafka.ClientID,
@@ -1113,6 +1129,9 @@ type Composite struct{}
 // Runtime-created or user-triggered work should be executed through Dispatch,
 // not registered here.
 type ScheduledTasks struct {
+	// MerchantProgressDelivery delivers durable participation reports.
+	MerchantProgressDelivery TaskDefinition `yaml:"merchant_progress_delivery"`
+
 	// RuntimeGoroutineMetrics periodically records runtime goroutine metrics.
 	RuntimeGoroutineMetrics TaskDefinition `yaml:"runtime_goroutine_metrics"`
 
@@ -1406,6 +1425,13 @@ func (t Task) getTaskDefinitions() ([]TaskDefinitionEntry, error) {
 			TaskDefinition: t.Scheduled.CollectionsAssessment,
 			Name:           "collections_assessment",
 		},
+	}
+
+	if t.Scheduled.MerchantProgressDelivery.Enabled || t.Scheduled.MerchantProgressDelivery.Handler != "" {
+		definitions = append(definitions, TaskDefinitionEntry{
+			Name:           "merchant_progress_delivery",
+			TaskDefinition: t.Scheduled.MerchantProgressDelivery,
+		})
 	}
 
 	// This capability is absent from the legacy baseline task test configuration.

@@ -22,6 +22,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/collectionsuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/contractuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/installmentlifecycleuc"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/merchantprovisioninguc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/merchantterminaluc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/outboxpublisheruc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/paymentattemptexpirationuc"
@@ -42,6 +43,7 @@ type Registry struct {
 	paymentattemptexpirationuc     *paymentattemptexpirationuc.UseCase
 	sagaexecutoruc                 *sagaexecutoruc.UseCase
 	merchantterminaluc             *merchantterminaluc.UseCase
+	merchantProvisioning           *merchantprovisioninguc.UseCase
 	repaymentreminderuc            *repaymentreminderuc.UseCase
 	collectionsuc                  *collectionsuc.UseCase
 	repaymentBatchUC               *repaymentbatchuc.UseCase
@@ -89,6 +91,12 @@ func (r Registry) WithRepaymentBatch(uc *repaymentbatchuc.UseCase) Registry {
 func (r Registry) WithCreditRequests(uc *customercredituc.UseCase, provider trace.Provider) Registry {
 	r.creditRequests = uc
 	r.traceProvider = provider
+	return r
+}
+
+// WithMerchantProvisioning installs the durable participation delivery handler.
+func (r Registry) WithMerchantProvisioning(uc *merchantprovisioninguc.UseCase) Registry {
+	r.merchantProvisioning = uc
 	return r
 }
 
@@ -153,6 +161,13 @@ func (r Registry) Resolve(handler string) (coretask.Job, error) {
 		}
 
 		return paymentattemptjob.Expiration(r.paymentattemptexpirationuc), nil
+
+	case "merchant_progress_delivery":
+		if r.merchantProvisioning == nil {
+			return nil, fmt.Errorf("%s: merchant provisioning use case is not configured", op)
+		}
+
+		return r.merchantProvisioning.DeliverDue, nil
 
 	case "merchant_terminal_issuance_scrub":
 		return merchantterminaljob.IssuanceDeliveryCleanup(r.logger, r.merchantterminaluc), nil

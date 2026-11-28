@@ -1,2 +1,2 @@
-// Package merchant implements the internal Merchant Service HTTP contract.
+// Package merchant identifies supported Merchant Service integration providers.
 package merchant

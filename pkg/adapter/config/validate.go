@@ -27,10 +27,6 @@ import (
 func (c *Config) Validate() error {
 	const op = "config.Config.Validate"
 
-	if err := c.ValidateMerchantProvisioning(); err != nil {
-		return err
-	}
-
 	if err := c.Runtime.validate(); err != nil {
 		return err
 	}
@@ -45,10 +41,6 @@ func (c *Config) Validate() error {
 
 	if err := c.Domain.validate(); err != nil {
 		return err
-	}
-
-	if c.MerchantProvisioning.Only {
-		return c.Infrastructure.validate(c.Runtime.Environment)
 	}
 
 	if err := c.Usecases.validate(c.Runtime.Environment); err != nil {
@@ -111,6 +103,10 @@ func (c *Config) Validate() error {
 	}
 
 	if err := c.External.validate(c.Runtime.Environment, c.Infrastructure.HTTPClient); err != nil {
+		return err
+	}
+
+	if err := c.validateMerchantParticipation(env); err != nil {
 		return err
 	}
 
@@ -644,7 +640,7 @@ func (m Messaging) validate(env model.RuntimeEnvironment) error {
 			return fmt.Errorf("%s: invalid infrastructure.messaging.kafka.consumer.quarantine_topic: value or group_id is required", op)
 		}
 
-		for _, topic := range m.Kafka.Consumer.Topics {
+		for _, topic := range m.Kafka.Consumer.SubscriptionTopics() {
 			if strings.TrimSpace(topic) == quarantineTopic {
 				return fmt.Errorf("%s: infrastructure.messaging.kafka.consumer.quarantine_topic must not be consumed by the same consumer group", op)
 			}

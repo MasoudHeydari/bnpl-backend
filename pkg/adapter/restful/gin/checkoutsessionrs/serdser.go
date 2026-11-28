@@ -230,17 +230,11 @@ func authenticatedMerchantID(c *gin.Context) (model.ExternalMerchantID, bool) {
 		return principal.ExternalMerchantID, true
 	}
 
-	// Routes that still use gateway authentication carry the merchant as the
-	// subject.
-	authCtx, ok := permission.FromContext(c.Request.Context())
-	if !ok {
-		serdser.SerErr(c, cerr.Unauthorized(
-			fmt.Errorf("%s: authentication context is missing", op),
-		))
-		return model.ExternalMerchantID{}, false
-	}
+	serdser.SerErr(c, cerr.Unauthorized(
+		fmt.Errorf("%s: terminal principal is missing", op),
+	))
 
-	return authCtx.SubjectID.AsExternalMerchantID(), true
+	return model.ExternalMerchantID{}, false
 }
 
 func authenticatedExternalSubjectID(c *gin.Context) (model.ExternalSubjectID, bool) {

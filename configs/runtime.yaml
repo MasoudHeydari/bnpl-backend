@@ -2,14 +2,6 @@ application: runtime
 runtime:
   environment: ${APP_ENVIRONMENT}
 
-# Isolated provisioning-only pilot. All commercial HTTP routes stay closed.
-merchant_provisioning:
-  enabled: ${MERCHANT_PROVISIONING_ENABLED}
-  only: ${MERCHANT_PROVISIONING_ONLY}
-  environment: ${MERCHANT_PARTICIPATION_ENVIRONMENT}
-  base_url: ${EXTERNAL_MERCHANT_HTTP_BASE_URL}
-  token: ${EXTERNAL_MERCHANT_HTTP_TOKEN}
-
 # Deployment-enabled domain capabilities. Must be a non-empty subset of the
 # jurisdictions this BNPL build supports in code (currently IR only).
 domain:
@@ -285,6 +277,7 @@ infrastructure:
       client_id: ${KAFKA_CLIENT_ID}
       group_id: ${KAFKA_GROUP_ID}
       topics:
+        merchant_participation_requests: ${KAFKA_TOPIC_MERCHANT_PARTICIPATION_REQUESTS}
         payment_results: ${KAFKA_TOPIC_PAYMENT_RESULTS}
         audit_events: ${KAFKA_TOPIC_AUDIT_EVENTS}
         payment_application_results: ${KAFKA_TOPIC_PAYMENT_APPLICATION_RESULTS}
@@ -304,6 +297,7 @@ infrastructure:
         topics:
           - ${KAFKA_CONSUMER_TOPIC_PAYMENT_RESULTS}
           - ${KAFKA_CONSUMER_TOPIC_INSTALLMENT_PAYMENT_RECONCILIATION_RESULTS}
+        merchant_participation_topic: ${KAFKA_CONSUMER_TOPIC_MERCHANT_PARTICIPATION_REQUESTS}
         initial_offset: ${KAFKA_CONSUMER_INITIAL_OFFSET}
         allow_newest_initial_offset: ${KAFKA_CONSUMER_ALLOW_NEWEST_INITIAL_OFFSET}
         retry_initial_backoff: ${KAFKA_CONSUMER_RETRY_INITIAL_BACKOFF}
@@ -423,6 +417,17 @@ infrastructure:
           timezone: ${TASK_CHECKOUT_VERIFICATION_EXPIRY_TIMEZONE}
           interval: ${TASK_CHECKOUT_VERIFICATION_EXPIRY_INTERVAL}
           run_on_start: ${TASK_CHECKOUT_VERIFICATION_EXPIRY_RUN_ON_START}
+
+      merchant_progress_delivery:
+        enabled: ${TASK_MERCHANT_PROGRESS_DELIVERY_ENABLED}
+        execution: ${TASK_MERCHANT_PROGRESS_DELIVERY_EXECUTION}
+        handler: ${TASK_MERCHANT_PROGRESS_DELIVERY_HANDLER}
+        trigger:
+          type: ${TASK_MERCHANT_PROGRESS_DELIVERY_TRIGGER_TYPE}
+          cron: ${TASK_MERCHANT_PROGRESS_DELIVERY_CRON}
+          timezone: ${TASK_MERCHANT_PROGRESS_DELIVERY_TIMEZONE}
+          interval: ${TASK_MERCHANT_PROGRESS_DELIVERY_INTERVAL}
+          run_on_start: ${TASK_MERCHANT_PROGRESS_DELIVERY_RUN_ON_START}
 
       merchant_terminal_issuance_scrub:
         enabled: ${TASK_MERCHANT_TERMINAL_ISSUANCE_SCRUB_ENABLED}
@@ -574,6 +579,22 @@ external:
         cert_file: ${EXTERNAL_FINANCIAL_CORE_GRPC_TLS_CERT_FILE}
         key_file: ${EXTERNAL_FINANCIAL_CORE_GRPC_TLS_KEY_FILE}
         server_name: ${EXTERNAL_FINANCIAL_CORE_GRPC_TLS_SERVER_NAME}
+
+  merchant:
+    provider: ${EXTERNAL_MERCHANT_PROVIDER}
+
+    noop:
+
+    grpc:
+      address: ${EXTERNAL_MERCHANT_GRPC_ADDRESS}
+      timeout: ${EXTERNAL_MERCHANT_GRPC_TIMEOUT}
+      connection_timeout: ${EXTERNAL_MERCHANT_GRPC_CONNECTION_TIMEOUT}
+      environment: ${MERCHANT_PARTICIPATION_ENVIRONMENT}
+      tls:
+        ca_file: ${EXTERNAL_MERCHANT_GRPC_TLS_CA_FILE}
+        cert_file: ${EXTERNAL_MERCHANT_GRPC_TLS_CERT_FILE}
+        key_file: ${EXTERNAL_MERCHANT_GRPC_TLS_KEY_FILE}
+        server_name: ${EXTERNAL_MERCHANT_GRPC_TLS_SERVER_NAME}
 
   customer:
     provider: ${EXTERNAL_CUSTOMER_PROVIDER}

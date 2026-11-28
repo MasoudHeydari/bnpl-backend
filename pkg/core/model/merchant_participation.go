@@ -104,19 +104,36 @@ func (id *MerchantApplicationID) Scan(src any) error {
 
 func (id MerchantApplicationID) Value() (driver.Value, error) { return uuid.UUID(id).Value() }
 
-// MerchantParticipation records the accepted command and its immutable READY report.
+// MerchantParticipationIssue is a non-sensitive, stable declaration validation result.
+type MerchantParticipationIssue struct {
+	Field   string `json:"field"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+const (
+	MerchantParticipationReady            = "READY"
+	MerchantParticipationChangesRequested = "CHANGES_REQUESTED"
+)
+
+// MerchantParticipation records one immutable evaluation and its durable report.
 // Delivery state is independent of account readiness.
 type MerchantParticipation struct {
-	RequestID      MerchantParticipationRequestID `db:"request_id"`
-	ApplicationID  MerchantApplicationID          `db:"application_id"`
-	MerchantID     ExternalMerchantID             `db:"external_merchant_id"`
-	ProfileID      MerchantProfileID              `db:"merchant_profile_id"`
-	Environment    string                         `db:"environment"`
-	EventID        string                         `db:"progress_event_id"`
-	OwnerVersion   int64                          `db:"owner_version"`
-	DeliveryStatus string                         `db:"delivery_status"`
-	AttemptCount   int64                          `db:"attempt_count"`
-	NextAttemptAt  time.Time                      `db:"next_attempt_at"`
+	RequestID           MerchantParticipationRequestID `db:"request_id"`
+	ApplicationID       MerchantApplicationID          `db:"application_id"`
+	MerchantID          ExternalMerchantID             `db:"external_merchant_id"`
+	ProfileID           *MerchantProfileID             `db:"merchant_profile_id"`
+	Environment         string                         `db:"environment"`
+	EventID             string                         `db:"progress_event_id"`
+	OwnerVersion        int64                          `db:"owner_version"`
+	DeclarationRevision int64                          `db:"declaration_revision"`
+	PolicyID            string                         `db:"policy_id"`
+	PolicyVersion       string                         `db:"policy_version"`
+	ProgressStatus      string                         `db:"progress_status"`
+	Issues              []MerchantParticipationIssue   `db:"issues"`
+	DeliveryStatus      string                         `db:"delivery_status"`
+	AttemptCount        int64                          `db:"attempt_count"`
+	NextAttemptAt       time.Time                      `db:"next_attempt_at"`
 }
 
 // MatchesCommand compares only the immutable business identity of a request.

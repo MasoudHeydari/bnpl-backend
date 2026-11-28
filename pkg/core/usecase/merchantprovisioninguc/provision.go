@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -14,8 +15,8 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
-// Process provisions a configured account, never a terminal, outlet or credential.
-// An already completed event/request does not need a live Merchant dependency.
+// Process evaluates the current declaration and records one immutable outcome.
+// A completed event or revision does not need a live Merchant dependency.
 func (uc *UseCase) Process(ctx context.Context, input Input) error {
 	const op = "merchantprovisioninguc.Process"
 
@@ -23,12 +24,13 @@ func (uc *UseCase) Process(ctx context.Context, input Input) error {
 		input.MerchantID.IsZero() ||
 		input.ApplicationID.IsZero() ||
 		input.RequestID.IsZero() ||
+		input.DeclarationRevision < 0 ||
 		input.Event.EventID == "" ||
 		input.Event.PayloadFingerprint == "" {
 		return ErrInvalidReference
 	}
 
-	var alreadyProcessed, existingRequest bool
+	var alreadyProcessed, evaluated bool
 	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
 		inboxQ := uc.inbox.Conn(conn)
 		participationQ := uc.participation.Conn(conn)
@@ -59,7 +61,7 @@ func (uc *UseCase) Process(ctx context.Context, input Input) error {
 			return ErrConflict
 		}
 
-		existingRequest = true
+		evaluated = p.DeclarationRevision >= input.DeclarationRevision
 		return nil
 	})
 	if err != nil {
@@ -72,7 +74,9 @@ func (uc *UseCase) Process(ctx context.Context, input Input) error {
 
 	var ref merchant.Reference
 	var terms merchantprovisioning.Terms
-	if !existingRequest {
+	var skip bool
+	issues := make([]model.MerchantParticipationIssue, 0)
+	if !evaluated {
 		ref, err = uc.client.GetParticipation(ctx, input.RequestID)
 		if err != nil {
 			if errors.Is(err, merchant.ErrReferenceNotFound) {
@@ -83,21 +87,48 @@ func (uc *UseCase) Process(ctx context.Context, input Input) error {
 		}
 
 		if ref.MerchantID != input.MerchantID ||
+			ref.ApplicationID != input.ApplicationID ||
 			ref.RequestID != input.RequestID ||
 			ref.BusinessLine != "bnpl" ||
-			ref.Environment != input.Environment ||
-			ref.BaseApplicationStatus != "APPROVED" ||
-			strings.TrimSpace(ref.TradeName) == "" {
+			ref.Environment != input.Environment {
 			return ErrInvalidReference
 		}
 
-		if ref.SelfDeclaration == nil {
-			return fmt.Errorf("%s: missing merchant self declaration: %w", op, ErrInvalidReference)
-		}
+		switch {
+		case ref.DeclarationRevision < input.DeclarationRevision:
+			return fmt.Errorf("%s: declaration snapshot is behind the event", op)
 
-		terms, err = uc.policy.Evaluate(*ref.SelfDeclaration)
-		if err != nil {
-			return fmt.Errorf("%s: evaluate merchant declaration: %w: %w", op, ErrInvalidReference, err)
+		case ref.DeclarationRevision > input.DeclarationRevision:
+			skip = true
+
+		case ref.BaseApplicationStatus != "APPROVED" || ref.Status == "REJECTED" || ref.Status == "SUSPENDED":
+			skip = true
+
+		case ref.Status != "REQUESTED":
+			// READY without a corresponding local durable evaluation is an
+			// operational conflict. Never reconstruct accounts from a remote status.
+			return ErrConflict
+
+		case ref.DeclarationRevision == 0 || ref.SelfDeclaration == nil:
+			issues = append(issues, model.MerchantParticipationIssue{
+				Field:   "self_declaration",
+				Code:    "bnpl.declaration_required",
+				Message: "Complete the BNPL self declaration.",
+			})
+
+		default:
+			terms, err = uc.policy.Evaluate(*ref.SelfDeclaration)
+			if err != nil {
+				if !errors.Is(err, merchantprovisioning.ErrInvalidDeclaration) {
+					return fmt.Errorf("%s: evaluate merchant declaration: %w", op, err)
+				}
+
+				issues = append(issues, model.MerchantParticipationIssue{
+					Field:   "self_declaration",
+					Code:    "bnpl.invalid_self_declaration",
+					Message: "Declared amount, currency or tenure does not satisfy BNPL policy.",
+				})
+			}
 		}
 	}
 
@@ -123,45 +154,70 @@ func (uc *UseCase) Process(ctx context.Context, input Input) error {
 				return ErrConflict
 			}
 
-			p, err := participationQ.Get(ctx, input.RequestID)
-			if err == nil {
-				if !p.MatchesCommand(input.MerchantID, input.ApplicationID, input.Environment) {
+			current, err := participationQ.Get(ctx, input.RequestID)
+			exists := err == nil
+			if err != nil && !cerr.IsCode(err, cerr.CodeResourceNotFound) {
+				return err
+			}
+
+			if exists && !current.MatchesCommand(input.MerchantID, input.ApplicationID, input.Environment) {
+				return ErrConflict
+			}
+
+			if !skip && (!exists || current.DeclarationRevision < input.DeclarationRevision) {
+				if evaluated {
+					return fmt.Errorf("%s: durable evaluation disappeared", op)
+				}
+
+				// A fresh revision may follow a previously delivered rejection,
+				// never a READY account. Merchant cannot assign a new BNPL version.
+				if exists && current.ProgressStatus != model.MerchantParticipationChangesRequested {
 					return ErrConflict
 				}
-			} else if cerr.IsCode(err, cerr.CodeResourceNotFound) {
-				if existingRequest {
-					return fmt.Errorf("%s: durable request disappeared", op)
+
+				if ref.OwnerVersion != current.OwnerVersion || ref.OwnerVersion == math.MaxInt64 {
+					return ErrConflict
 				}
 
-				profile, err := uc.ensureProfile(
-					ctx,
-					merchantProfileQ,
-					input.MerchantID,
-					ref.TradeName,
-					terms,
-					now,
-				)
-				if err != nil {
-					return err
+				p := model.MerchantParticipation{
+					RequestID:           input.RequestID,
+					ApplicationID:       input.ApplicationID,
+					MerchantID:          input.MerchantID,
+					Environment:         input.Environment,
+					DeclarationRevision: input.DeclarationRevision,
+					EventID:             uc.ids.Generate(),
+					OwnerVersion:        ref.OwnerVersion + 1,
+					PolicyID:            uc.policy.Ref().ID,
+					PolicyVersion:       uc.policy.Ref().Version,
+					Issues:              issues,
+					ProgressStatus:      model.MerchantParticipationChangesRequested,
+				}
+				if len(issues) == 0 {
+					if strings.TrimSpace(ref.TradeName) == "" {
+						return ErrInvalidReference
+					}
+
+					profile, err := uc.ensureProfile(
+						ctx,
+						merchantProfileQ,
+						input.MerchantID,
+						ref.TradeName,
+						terms,
+						now,
+					)
+					if err != nil {
+						return err
+					}
+
+					p.ProfileID = &profile.ID
+					p.ProgressStatus = model.MerchantParticipationReady
 				}
 
-				p = model.MerchantParticipation{
-					RequestID:     input.RequestID,
-					ApplicationID: input.ApplicationID,
-					MerchantID:    input.MerchantID,
-					ProfileID:     profile.ID,
-					Environment:   input.Environment,
-					EventID:       uc.ids.Generate(),
-					OwnerVersion:  1,
-				}
-				err = participationQ.Insert(ctx, p, now)
-				if err != nil {
-					// A concurrent command can win a unique constraint. Roll back and let
-					// the consumer retry against the winning committed request/account.
+				if err := participationQ.Insert(ctx, p, now); err != nil {
+					// A concurrent evaluation can win a unique constraint. Roll
+					// back and retry against the committed result.
 					return err
 				}
-			} else {
-				return err
 			}
 
 			_, err = inboxQ.MarkProcessed(ctx, inbox.ID, now, now)
@@ -173,7 +229,7 @@ func (uc *UseCase) Process(ctx context.Context, input Input) error {
 		})
 	})
 	if err != nil {
-		return fmt.Errorf("%s: persist account and READY report: %w", op, err)
+		return fmt.Errorf("%s: persist evaluation and report: %w", op, err)
 	}
 
 	return nil

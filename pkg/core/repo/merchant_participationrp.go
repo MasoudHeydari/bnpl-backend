@@ -22,12 +22,13 @@ type MerchantParticipationTxQueryer interface {
 
 // MerchantProgressDeliveryResult is conditional on the claimed attempt generation.
 type MerchantProgressDeliveryResult struct {
-	RequestID     model.MerchantParticipationRequestID
-	AttemptCount  int64
-	Status        string
-	Reason        string
-	NextAttemptAt time.Time
-	Now           time.Time
+	RequestID           model.MerchantParticipationRequestID
+	DeclarationRevision int64
+	AttemptCount        int64
+	Status              string
+	Reason              string
+	NextAttemptAt       time.Time
+	Now                 time.Time
 }
 
 // MerchantParticipation persists participation and independently tracks callback delivery.

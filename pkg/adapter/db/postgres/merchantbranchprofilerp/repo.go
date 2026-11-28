@@ -83,26 +83,41 @@ func (q connQueryer) ListByMerchantID(
 func (q connQueryer) ListByMerchantIDKeyset(
 	ctx context.Context,
 	merchantID model.ExternalMerchantID,
+	scope model.MerchantOutletScope,
 	page pagination.KeysetRequest,
 ) ([]model.MerchantBranchProfile, error) {
-	return ListByMerchantIDKeyset(ctx, q.Conn, merchantID, page)
+	return ListByMerchantIDKeyset(
+		ctx,
+		q.Conn,
+		merchantID,
+		scope,
+		page,
+	)
 }
 
 // ListByMerchantIDOffset returns branch profiles for a merchant using offset pagination.
 func (q connQueryer) ListByMerchantIDOffset(
 	ctx context.Context,
 	merchantID model.ExternalMerchantID,
+	scope model.MerchantOutletScope,
 	page pagination.OffsetRequest,
 ) ([]model.MerchantBranchProfile, error) {
-	return ListByMerchantIDOffset(ctx, q.Conn, merchantID, page)
+	return ListByMerchantIDOffset(
+		ctx,
+		q.Conn,
+		merchantID,
+		scope,
+		page,
+	)
 }
 
 // CountByMerchantID returns how many branch profiles belong to the merchant.
 func (q connQueryer) CountByMerchantID(
 	ctx context.Context,
 	merchantID model.ExternalMerchantID,
+	scope model.MerchantOutletScope,
 ) (int64, error) {
-	return CountByMerchantID(ctx, q.Conn, merchantID)
+	return CountByMerchantID(ctx, q.Conn, merchantID, scope)
 }
 
 type txQueryer struct {
@@ -156,26 +171,41 @@ func (q txQueryer) ListByMerchantID(
 func (q txQueryer) ListByMerchantIDKeyset(
 	ctx context.Context,
 	merchantID model.ExternalMerchantID,
+	scope model.MerchantOutletScope,
 	page pagination.KeysetRequest,
 ) ([]model.MerchantBranchProfile, error) {
-	return ListByMerchantIDKeyset(ctx, q.Tx, merchantID, page)
+	return ListByMerchantIDKeyset(
+		ctx,
+		q.Tx,
+		merchantID,
+		scope,
+		page,
+	)
 }
 
 // ListByMerchantIDOffset returns branch profiles for a merchant using offset pagination.
 func (q txQueryer) ListByMerchantIDOffset(
 	ctx context.Context,
 	merchantID model.ExternalMerchantID,
+	scope model.MerchantOutletScope,
 	page pagination.OffsetRequest,
 ) ([]model.MerchantBranchProfile, error) {
-	return ListByMerchantIDOffset(ctx, q.Tx, merchantID, page)
+	return ListByMerchantIDOffset(
+		ctx,
+		q.Tx,
+		merchantID,
+		scope,
+		page,
+	)
 }
 
 // CountByMerchantID returns how many branch profiles belong to the merchant.
 func (q txQueryer) CountByMerchantID(
 	ctx context.Context,
 	merchantID model.ExternalMerchantID,
+	scope model.MerchantOutletScope,
 ) (int64, error) {
-	return CountByMerchantID(ctx, q.Tx, merchantID)
+	return CountByMerchantID(ctx, q.Tx, merchantID, scope)
 }
 
 // Create stores a new branch profile inside the current transaction.

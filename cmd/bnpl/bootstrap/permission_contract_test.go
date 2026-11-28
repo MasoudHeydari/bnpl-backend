@@ -479,3 +479,44 @@ func TestRegisterPartnerRoutes_RequiresExactEndpointPermission(t *testing.T) {
 		})
 	}
 }
+
+// TestMerchantPanelRequiresResolvedWorkspace guards the pre-integration closed state.
+func TestMerchantPanelRequiresResolvedWorkspace(t *testing.T) {
+	cfg := noopTestConfig()
+	cfg.Usecases.Health.Enabled = false
+	cfg.Gin.Swagger.Enabled = false
+	app := testAppWithInfrastructure(t, cfg)
+	usecases, err := app.NewUseCases()
+	require.NoError(t, err)
+	app.UseCases = usecases
+	engine, err := cfg.NewGinEngine(app.Infrastructure.Trace, app.Infrastructure.Logger, app.Infrastructure.ErrorReporter)
+	require.NoError(t, err)
+	require.NoError(t, app.RegisterRoutes(engine))
+
+	for _, route := range protectedRoutePermissions() {
+		if route.SwaggerPath != "/api/v1/merchant" && !strings.HasPrefix(route.SwaggerPath, "/api/v1/merchant/") {
+			continue
+		}
+
+		t.Run(route.Method+" "+route.SwaggerPath, func(t *testing.T) {
+			req := httptest.NewRequest(route.Method, route.GinPath, http.NoBody)
+			req.Header.Set(header.AuthSubjectID, uuid.NewString())
+			req.Header.Set(header.AuthTenantID, uuid.NewString())
+			req.Header.Set(header.AuthContextID, uuid.NewString())
+			req.Header.Set(header.AuthPermissions, route.Permission.Code)
+			recorder := httptest.NewRecorder()
+			engine.ServeHTTP(recorder, req)
+			require.Equal(t, http.StatusUnauthorized, recorder.Code)
+
+			if strings.HasPrefix(route.SwaggerPath, "/api/v1/merchant/terminal") {
+				req = req.Clone(req.Context())
+				req.Header.Set(header.AuthMerchantID, uuid.NewString())
+				req.Header.Set(header.AuthOutletScope, "SELECTED_OUTLETS")
+				req.Header.Set(header.AuthOutletIDs, "[]")
+				recorder = httptest.NewRecorder()
+				engine.ServeHTTP(recorder, req)
+				require.Equal(t, http.StatusForbidden, recorder.Code)
+			}
+		})
+	}
+}

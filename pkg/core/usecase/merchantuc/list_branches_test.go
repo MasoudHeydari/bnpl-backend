@@ -23,7 +23,8 @@ func TestListBranches_MissingMerchantID(t *testing.T) {
 
 	uc := merchantuc.New(nil, nil, nil, nil)
 	_, err := uc.ListBranches(context.Background(), merchantuc.ListBranchesInput{
-		Mode: merchantuc.PaginationModeKeyset,
+		OutletScope: model.MerchantOutletScope{Kind: model.AllMerchantOutlets},
+		Mode:        merchantuc.PaginationModeKeyset,
 	})
 	require.True(t, cerr.IsCode(err, cerr.CodeInvalidArgument))
 }
@@ -51,6 +52,7 @@ func TestListBranches_Keyset_EmptyWhenMerchantMissing(t *testing.T) {
 	uc := merchantuc.New(pool, merchantProfile, branchProfile, nil)
 
 	out, err := uc.ListBranches(context.Background(), merchantuc.ListBranchesInput{
+		OutletScope:        model.MerchantOutletScope{Kind: model.AllMerchantOutlets},
 		ExternalMerchantID: merchantID,
 		Mode:               merchantuc.PaginationModeKeyset,
 		Keyset:             pagination.KeysetRequest{Limit: 20},
@@ -97,6 +99,7 @@ func TestListBranches_Keyset_ReturnsBranches(t *testing.T) {
 		ListByMerchantIDKeyset(
 			testifymock.Anything,
 			merchantID,
+			model.MerchantOutletScope{Kind: model.AllMerchantOutlets},
 			testifymock.MatchedBy(func(page pagination.KeysetRequest) bool {
 				return page.Limit == 21 && page.Order == pagination.OrderDesc
 			}),
@@ -115,6 +118,7 @@ func TestListBranches_Keyset_ReturnsBranches(t *testing.T) {
 	uc := merchantuc.New(pool, merchantProfile, branchProfile, nil)
 
 	out, err := uc.ListBranches(context.Background(), merchantuc.ListBranchesInput{
+		OutletScope:        model.MerchantOutletScope{Kind: model.AllMerchantOutlets},
 		ExternalMerchantID: merchantID,
 		Mode:               merchantuc.PaginationModeKeyset,
 		Keyset:             pagination.KeysetRequest{Limit: 20},
@@ -149,12 +153,13 @@ func TestListBranches_Page_ReturnsTotals(t *testing.T) {
 		Return(model.MerchantProfile{ID: model.MerchantProfileID(uuid.New()), ExternalMerchantID: merchantID}, nil)
 	branchProfile.EXPECT().Conn(testifymock.Anything).Return(branchQ).Once()
 	branchQ.EXPECT().
-		CountByMerchantID(testifymock.Anything, merchantID).
+		CountByMerchantID(testifymock.Anything, merchantID, model.MerchantOutletScope{Kind: model.AllMerchantOutlets}).
 		Return(int64(3), nil)
 	branchQ.EXPECT().
 		ListByMerchantIDOffset(
 			testifymock.Anything,
 			merchantID,
+			model.MerchantOutletScope{Kind: model.AllMerchantOutlets},
 			testifymock.MatchedBy(func(page pagination.OffsetRequest) bool {
 				return page.Page == 1 && page.Limit == 20
 			}),
@@ -172,6 +177,7 @@ func TestListBranches_Page_ReturnsTotals(t *testing.T) {
 	uc := merchantuc.New(pool, merchantProfile, branchProfile, nil)
 
 	out, err := uc.ListBranches(context.Background(), merchantuc.ListBranchesInput{
+		OutletScope:        model.MerchantOutletScope{Kind: model.AllMerchantOutlets},
 		ExternalMerchantID: merchantID,
 		Mode:               merchantuc.PaginationModePage,
 		Offset: pagination.OffsetRequest{

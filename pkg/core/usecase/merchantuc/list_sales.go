@@ -19,6 +19,10 @@ func (uc *UseCase) ListSales(ctx context.Context, input ListSalesInput) (ListSal
 		return ListSalesOutput{}, merchantIDRequiredError()
 	}
 
+	if !input.OutletScope.IsValid() {
+		return ListSalesOutput{}, cerr.Forbidden(nil)
+	}
+
 	if !input.Mode.IsValid() {
 		return ListSalesOutput{}, invalidPaginationModeError()
 	}
@@ -52,7 +56,7 @@ func (uc *UseCase) listSalesKeyset(ctx context.Context, input ListSalesInput) (L
 		contractQ repo.ContractConnQueryer,
 		merchantProfileID model.MerchantProfileID,
 	) ([]model.Contract, error) {
-		return contractQ.ListActiveByMerchantProfileID(ctx, merchantProfileID, fetchPage)
+		return contractQ.ListActiveByMerchantProfileID(ctx, merchantProfileID, input.OutletScope, fetchPage)
 	})
 	if err != nil {
 		return ListSalesOutput{}, err
@@ -108,7 +112,7 @@ func (uc *UseCase) listSalesPage(ctx context.Context, input ListSalesInput) (Lis
 		}
 
 		contractQ := uc.contract.Conn(conn)
-		count, countErr := contractQ.CountActiveByMerchantProfileID(ctx, profile.ID)
+		count, countErr := contractQ.CountActiveByMerchantProfileID(ctx, profile.ID, input.OutletScope)
 		if countErr != nil {
 			return countErr
 		}
@@ -118,6 +122,7 @@ func (uc *UseCase) listSalesPage(ctx context.Context, input ListSalesInput) (Lis
 		rows, listErr := contractQ.ListActiveByMerchantProfileIDOffset(
 			ctx,
 			profile.ID,
+			input.OutletScope,
 			page,
 		)
 		if listErr != nil {

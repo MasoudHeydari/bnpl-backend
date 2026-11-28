@@ -325,17 +325,35 @@ func ListActiveByMerchantProfileID[Q postgres.Queryer](
 	ctx context.Context,
 	q Q,
 	merchantProfileID model.MerchantProfileID,
+	scope model.MerchantOutletScope,
 	page pagination.KeysetRequest,
 ) ([]model.Contract, error) {
+	if !scope.IsValid() {
+		return nil, cerr.Forbidden(nil)
+	}
+
+	outletIDs := make([]string, 0, len(scope.OutletIDs))
+	for _, id := range scope.OutletIDs {
+		outletIDs = append(outletIDs, id.String())
+	}
+
 	page.Order = pagination.OrderDesc
 	page.Normalize()
 	if err := page.Validate(); err != nil {
 		return nil, cerr.InvalidArgument(err)
 	}
 
-	args := []any{merchantProfileID, model.ActiveContractStatus, model.CancelingContractStatus}
+	args := []any{merchantProfileID, model.ActiveContractStatus, model.CancelingContractStatus, scope.IsAllOutlets(), outletIDs}
 	var conditions []string
 	conditions = append(conditions, "merchant_profile_id = $1", "status IN ($2, $3)")
+	conditions = append(conditions, `($4 OR EXISTS (
+    SELECT 1
+    FROM merchant_branch_profiles b
+    JOIN merchant_profiles m ON m.external_merchant_id = b.external_merchant_id
+    WHERE b.id = contracts.merchant_branch_profile_id
+      AND m.id = contracts.merchant_profile_id
+      AND b.external_branch_id = ANY($5::text[]::uuid[])
+  ))`)
 
 	keysetWhere, keysetArgs, err := postgres.KeysetWhere("created_at", "id", page, len(args)+1)
 	if err != nil {
@@ -372,13 +390,23 @@ func ListActiveByMerchantProfileIDOffset[Q postgres.Queryer](
 	ctx context.Context,
 	q Q,
 	merchantProfileID model.MerchantProfileID,
+	scope model.MerchantOutletScope,
 	page pagination.OffsetRequest,
 ) ([]model.Contract, error) {
+	if !scope.IsValid() {
+		return nil, cerr.Forbidden(nil)
+	}
+
+	outletIDs := make([]string, 0, len(scope.OutletIDs))
+	for _, id := range scope.OutletIDs {
+		outletIDs = append(outletIDs, id.String())
+	}
+
 	page.Order = pagination.OrderDesc
 	page.Sort = pagination.DefaultSort
 	page.Normalize()
 
-	args := []any{merchantProfileID, model.ActiveContractStatus, model.CancelingContractStatus}
+	args := []any{merchantProfileID, model.ActiveContractStatus, model.CancelingContractStatus, scope.IsAllOutlets(), outletIDs}
 	limitOffsetSQL, limitOffsetArgs := postgres.LimitOffset(page, len(args)+1)
 	args = append(args, limitOffsetArgs...)
 
@@ -386,6 +414,14 @@ func ListActiveByMerchantProfileIDOffset[Q postgres.Queryer](
 FROM contracts
 WHERE merchant_profile_id = $1
   AND status IN ($2, $3)
+  AND ($4 OR EXISTS (
+    SELECT 1
+    FROM merchant_branch_profiles b
+    JOIN merchant_profiles m ON m.external_merchant_id = b.external_merchant_id
+    WHERE b.id = contracts.merchant_branch_profile_id
+      AND m.id = contracts.merchant_profile_id
+      AND b.external_branch_id = ANY($5::text[]::uuid[])
+  ))
 ORDER BY created_at DESC, id DESC
 ` + limitOffsetSQL
 
@@ -404,12 +440,30 @@ func CountActiveByMerchantProfileID[Q postgres.Queryer](
 	ctx context.Context,
 	q Q,
 	merchantProfileID model.MerchantProfileID,
+	scope model.MerchantOutletScope,
 ) (int64, error) {
+	if !scope.IsValid() {
+		return 0, cerr.Forbidden(nil)
+	}
+
+	outletIDs := make([]string, 0, len(scope.OutletIDs))
+	for _, id := range scope.OutletIDs {
+		outletIDs = append(outletIDs, id.String())
+	}
+
 	const query = `
 SELECT COUNT(*) AS count
 FROM contracts
 WHERE merchant_profile_id = $1
   AND status IN ($2, $3)
+  AND ($4 OR EXISTS (
+    SELECT 1
+    FROM merchant_branch_profiles b
+    JOIN merchant_profiles m ON m.external_merchant_id = b.external_merchant_id
+    WHERE b.id = contracts.merchant_branch_profile_id
+      AND m.id = contracts.merchant_profile_id
+      AND b.external_branch_id = ANY($5::text[]::uuid[])
+  ))
 `
 
 	type countRow struct {
@@ -424,6 +478,8 @@ WHERE merchant_profile_id = $1
 		merchantProfileID,
 		model.ActiveContractStatus,
 		model.CancelingContractStatus,
+		scope.IsAllOutlets(),
+		outletIDs,
 	)
 	if err != nil {
 		return 0, err

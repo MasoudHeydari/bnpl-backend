@@ -1,132 +1,93 @@
-# Merchant participation provisioning — isolated Dev pilot
+# Merchant participation and workspace access
 
-Contract: [final Merchant agreement](merchant-bnpl-dev-pilot-final-fa.md).
+The authoritative participation contract is [Merchant gRPC v1](bnpl-participation-grpc.fa.md).
+The ordinary BNPL runtime consumes Merchant requests alongside its existing
+consumers and jobs. Merchant is an external provider (`grpc` or `noop`); there
+is no provisioning-only runtime and no Sandbox-specific domain policy.
 
-The opt-in provisioning-only runtime consumes the configured participation environment on one topic, resolves the
-request through Merchant, creates the BNPL profile and installment eligibility,
-and records the immutable READY report in the same transaction as the inbox.
-It runs the delivery worker and health endpoints, not panel, checkout, financial
-clients or other business jobs. There is one account per Merchant in this
-isolated database; no terminal, credential, or purchase source is created.
-The existing `display_name` column is a local projection of `trade_name`;
-legal name and other public fields are not inferred. Existing non-pilot routes
-are unchanged. Do not use this runtime for LIVE or enable normal business routes
-until the remaining authorization and financial contracts are implemented.
+## Development deployment
 
-## Deployment prerequisites
+Use an isolated disposable database, separate credentials and topics, and the
+appropriate development Financial Core and other service dependencies. The
+standard `bnpl-dbadmin db init-dev` command initializes the schema and fixtures;
+**it destroys the configured development schema**. The baseline schema changed
+for this pre-release integration; never run it on a shared or valuable database.
 
-Use a dedicated disposable database and isolated PostgreSQL managed roles (a
-separate cluster is recommended), an empty dedicated participation topic and a
-separate credential namespace. Use the existing development initializer with
-its database-admin config pointed only to the new isolated database:
+Generate code with the existing tools before building or testing:
 
 ```sh
-bnpl-dbadmin --config /path/to/sandbox-dbadmin.yaml db init-dev
+make proto
+make mock
+make test-all
 ```
 
-`init-dev` destructively recreates the managed schema and loads the standard
-Dev fixtures. This is intentionally the same database initializer as ordinary
-Dev. The pilot merchant must have a new ID distinct from seeded fixtures. Never
-run this command against shared Dev or any non-disposable database.
-
-In the standard BNPL runtime configuration, set the following (alongside the
-normal isolated database, logging, health and infrastructure settings):
+Configure the existing runtime with its normal settings plus:
 
 ```dotenv
 APP_ENVIRONMENT=development
-MERCHANT_PROVISIONING_ENABLED=true
-MERCHANT_PROVISIONING_ONLY=true
+EXTERNAL_MERCHANT_PROVIDER=grpc
+EXTERNAL_MERCHANT_GRPC_ADDRESS=<merchant-private-host:port>
+EXTERNAL_MERCHANT_GRPC_TIMEOUT=5s
+EXTERNAL_MERCHANT_GRPC_CONNECTION_TIMEOUT=5s
 MERCHANT_PARTICIPATION_ENVIRONMENT=SANDBOX
-EXTERNAL_MERCHANT_HTTP_BASE_URL=https://<approved-merchant-internal-origin>
-EXTERNAL_MERCHANT_HTTP_TOKEN=<service-token-from-deployment-secret>
-EXTERNAL_FINANCIAL_CORE_PROVIDER=noop
-HTTP_CLIENT_PROVIDER=standard
+EXTERNAL_MERCHANT_GRPC_TLS_CA_FILE=<ca-file>
+EXTERNAL_MERCHANT_GRPC_TLS_CERT_FILE=<bnpl-client-cert-file>
+EXTERNAL_MERCHANT_GRPC_TLS_KEY_FILE=<bnpl-client-key-file>
+EXTERNAL_MERCHANT_GRPC_TLS_SERVER_NAME=<merchant-certificate-dns-name>
 CIRCUIT_BREAKER_PROVIDER=gobreaker
-MESSAGING_PROVIDER=kafka
-TASK_PROVIDER=inprocess
-KAFKA_CLIENT_ID=bnpl-sandbox
-KAFKA_GROUP_ID=bnpl-sandbox-consumer-group
-KAFKA_CONSUMER_INITIAL_OFFSET=oldest
-KAFKA_CONSUMER_QUARANTINE_TOPIC=bnpl.sandbox.consumer.quarantine.v1
+KAFKA_TOPIC_MERCHANT_PARTICIPATION_REQUESTS=merchant.business.line.participation.requests.v1
+KAFKA_CONSUMER_TOPIC_MERCHANT_PARTICIPATION_REQUESTS=merchant.business.line.participation.requests.v1
+TASK_MERCHANT_PROGRESS_DELIVERY_ENABLED=true
+TASK_MERCHANT_PROGRESS_DELIVERY_HANDLER=merchant_progress_delivery
 ```
 
-For the current pilot, provisioning requires both the development build tag and
-`APP_ENVIRONMENT=development`, and the configured participation environment must
-be `SANDBOX`. `MERCHANT_PROVISIONING_ONLY` explicitly closes all commercial
-surfaces; it is a temporary safety restriction while panel authorization and
-financial isolation are pending, not a Sandbox build profile. Until those
-contracts are implemented both provisioning flags must be enabled together.
-Ordinary runtime behavior is unchanged when both are disabled. Sandbox
-isolation is a deployment concern: use the same binary, domain, policy and
-schema, with separate database, credentials, topics and financial dependencies.
-The wire adapter matches the configured participation environment; the core
-records it for request identity and never branches financing policy on it.
+Keep the other configured consumer subscriptions and scheduled tasks. The
+optional participation subscription is appended at consumer construction without
+mutating configuration. Set an appropriate isolated Kafka group and quarantine
+configuration. The default example uses the noop provider, no participation
+subscription and disabled delivery. SANDBOX requires development build/runtime;
+LIVE is rejected by configuration until separately agreed and tested.
 
-## Merchant self declaration (contract extension pending Merchant approval)
+## Participation and declarations
 
-The existing GET participation response must be extended with the following
-object in `data` for each request, populated by the merchant's self declaration
-before publishing the participation event. It is not present in the original
-agreed pilot contract; coordinate deployment with Merchant before producing
-new requests. No Kafka schema change is needed.
+The gRPC adapter uses existing mTLS, RPC deadlines and circuit breaker. The
+consumer validates the configured environment and matches the authoritative
+request, application, merchant and declaration revision. An older event does
+not evaluate a newer declaration; a future event waits for the reference.
 
-```json
-{
-  "self_declaration": {
-    "max_amount_minor": 370000000,
-    "max_amount_currency": "IRR",
-    "max_tenure_months": 7
-  }
-}
-```
+The platform policy permits positive IRR amounts up to 5,000,000,000 minor units
+and terms up to 12 months. Accepted declared terms are stored unchanged. Missing
+or invalid declarations produce a durable CHANGES_REQUESTED outcome instead of
+creating an account or quarantining a business rejection. Malformed envelopes
+and contradictory identities remain quarantine candidates.
 
-All values are required and immutable for the request. Amount and tenure are
-positive integers; currency currently must be IRR. Amount is in the smallest
-currency unit and tenure in months. Merchant provisioning policy v1 permits
-amounts up to and including 5,000,000,000 IRR (500 million tomans) and tenure up
-to and including 12 months in all deployments. These are platform ceilings, not
-merchant defaults; both fit the corresponding PostgreSQL bigint/integer columns.
-No environment or hard-coded amount/tenure defaults are used; accepted values
-are stored as declared, without clamping. Missing or invalid declarations
-are nonretryable invalid references and go through the existing quarantine
-policy: no account or READY callback is created. Fix the source contract before
-publishing. Same-request replay recovers the durable result; changes to existing
-merchant financing settings are a separate operation, not provisioning replay.
+Request identity, immutable evaluation (request and declaration revision), and
+immutable progress delivery (event ID and owner version) are persisted together
+with the processed inbox record. Retries reuse the original report. A corrected
+declaration under the same request can be evaluated again. No terminal, outlet,
+financial entitlement or purchase source is created by participation READY.
+The existing funding, settlement, risk, jurisdiction and installment credit
+policy defaults remain unchanged. The outlet eligibility RPC is a reference
+operation only, not a user authorization check or an automatic setup operation.
 
-Other existing initial terms (IR/IRR, platform funding, direct settlement, low
-risk and installment credit only) are retained in the explicitly injected
-versioned `pkg/core/policy/merchantprovisioning/v1` policy, not in the use case.
-They remain provisional BNPL-owned decisions, not underwriting approval or
-merchant declarations. Checkout policy still governs actual purchase approval.
+## Panel authorization
 
-The runtime subscribes only to the agreed participation topic. `oldest` is
-appropriate only for the agreed fresh isolated topic; do not replay historic
-messages. The HTTP adapter reads the bearer token directly from the process environment
-at startup, keeps it redacted and uses the shared named Merchant circuit
-breaker. Temporary HTTP/transport failures count toward opening the circuit;
-conclusive contract/access errors do not. An open circuit is retryable.
-The trusted HTTPS origin and disabled redirects are unchanged; the actual
-service identity and claims must be confirmed. Restart/redeploy to rotate the
-environment token. Do not send credentials in messages,
-configuration committed to git, logs or reports. Kafka authentication TLS/SASL
-is not supplied by this patch; confirm and implement the infrastructure's
-actual mechanism before connecting to any shared or authenticated broker.
+The Gateway must resolve Merchant workspace on every protected panel request
+and inject `x-auth-merchant-id`, `x-auth-outlet-scope`, and `x-auth-outlet-ids`
+after stripping client values. IDs are canonical UUIDs; the outlet list is a
+JSON array, not CSV. `ALL_OUTLETS` requires an empty list; `SELECTED_OUTLETS`
+with an empty list returns no outlet-scoped data. Merchant ID is not Subject ID.
+BNPL retains its existing operation permissions. Outlet restrictions are applied
+in SQL before counts and pagination; the external branch ID must be the actual
+Merchant outlet ID, never inferred from an online store ID. Terminal and API key
+operations require merchant-wide scope because the current terminal is owned by
+Merchant, not an outlet. Partner API authentication remains separate.
 
-## Durable delivery
-
-`merchant_participation_requests` stores the request identity, profile reference,
-progress event ID and owner version. The pilot emits READY directly (version 1),
-not intermediate or rejection callbacks. Invalid/conflicting events go through
-the existing consumer quarantine policy. A transient callback failure retries
-the same snapshot with backoff. A lease recovers work after a crash. Permanent
-errors or a mismatched successful response set delivery to `blocked` and require
-operator investigation. Correct the cause and use an audited owner-approved
-requeue on the isolated database if appropriate; do not change the event ID,
-version, or account reference. The worker does not recreate accounts on retry.
-
-## Verification
-
-Run `make test-all` (unit and PostgreSQL integration). Compare a real broker
-message against the contract fixture only after infrastructure approval.
-Financial Sandbox, permanent purchase-source reference ownership, panel
-context/membership authorization, and end-to-end checkout are separate work.
+The Gateway authorization adapter is still pending. Both supplied Envoy configs
+strip the three client headers; neither synthesizes them or grants access.
+Before enabling panel routes, verify trusted Gateway-only access to the BNPL
+listener (including direct network access restrictions), authenticated upstream
+connection, header stripping and per-request workspace resolution. Verify two
+merchants, two outlets, empty selected scope, forbidden terminal operations and
+invalid/missing headers in shared Dev. Never open the panel based on forged or
+client-provided workspace headers.

@@ -11,10 +11,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/middleware"
-	"github.com/parstis/bnpl-backend/pkg/adapter/restful/header"
+	"github.com/parstis/bnpl-backend/pkg/core/merchantterminal"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
-	"github.com/parstis/bnpl-backend/pkg/core/permission"
 	returndestination "github.com/parstis/bnpl-backend/pkg/core/policy/returndestination"
 )
 
@@ -34,7 +32,7 @@ func TestToUpsertReturnDestinationInput_PreservesRawReturnURLWhitespace(t *testi
 		t.Run(rawURL, func(t *testing.T) {
 			t.Parallel()
 
-			merchantID := model.SubjectID(uuid.New())
+			merchantID := model.ExternalMerchantID(uuid.New())
 			w := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(w)
 
@@ -47,15 +45,10 @@ func TestToUpsertReturnDestinationInput_PreservesRawReturnURLWhitespace(t *testi
 				bytes.NewReader(payload),
 			)
 			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set(header.AuthSubjectID, merchantID.String())
-			req.Header.Set(header.AuthTenantID, uuid.New().String())
-			req.Header.Set(header.AuthContextID, uuid.New().String())
-			req.Header.Set(header.AuthPermissions, permission.CheckoutReturnDestinationsManageMerchant.Code)
-			c.Request = req
+			c.Request = req.WithContext(merchantterminal.WithMerchantPrincipal(req.Context(), merchantterminal.MerchantPrincipal{
+				ExternalMerchantID: merchantID,
+			}))
 			c.Params = gin.Params{{Key: "destination_name", Value: "damz-web"}}
-
-			middleware.AuthContext().Attach()(c)
-			require.False(t, c.IsAborted())
 
 			input, ok := toUpsertReturnDestinationInput(c)
 			require.True(t, ok)

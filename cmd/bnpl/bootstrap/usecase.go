@@ -28,6 +28,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/healthcheckuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/installmentlifecycleuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/installmentrepaymentuc"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/merchantprovisioninguc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/merchantterminaluc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/merchantuc"
 	otpusecase "github.com/parstis/bnpl-backend/pkg/core/usecase/otp"
@@ -88,6 +89,9 @@ type UseCases struct {
 
 	// Contract creates, activates, and cancels BNPL contracts.
 	Contract *contractuc.UseCase
+
+	// MerchantProvisioning evaluates declarations and persists progress.
+	MerchantProvisioning *merchantprovisioninguc.UseCase
 
 	// Merchant serves merchant-facing queries.
 	Merchant *merchantuc.UseCase
@@ -766,6 +770,20 @@ func (a *App) NewUseCases() (UseCases, error) {
 	// authoritative BNPL-facing provisioning contract that returns those
 	// fields for an existing entitlement.
 
+	merchantProvisioningUseCase, err := a.Config.NewMerchantProvisioningUseCase(
+		a.Pool,
+		a.Repos.Inbox,
+		a.Repos.MerchantParticipation,
+		a.Repos.MerchantProfile,
+		a.External.MerchantClient,
+		a.Infrastructure.Clock,
+		a.Infrastructure.DomainUUIDGenerator,
+		a.Infrastructure.Logger,
+	)
+	if err != nil {
+		return UseCases{}, fmt.Errorf("%s: construct merchant provisioning use case: %w", op, err)
+	}
+
 	return UseCases{
 		OutboxPublisher:                    outboxPublisherUseCase,
 		Health:                             healthUseCase,
@@ -782,6 +800,7 @@ func (a *App) NewUseCases() (UseCases, error) {
 		SagaExecutor:                       sagaExecutorUseCase,
 		Contract:                           contractUseCase,
 		Merchant:                           merchantUseCase,
+		MerchantProvisioning:               merchantProvisioningUseCase,
 		MerchantCreditKind:                 merchantCreditKindUseCase,
 		MerchantTerminal:                   merchantTerminalUseCase,
 		CustomerAccount:                    customerAccountUseCase,

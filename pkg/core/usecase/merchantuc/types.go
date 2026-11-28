@@ -24,12 +24,12 @@ func (m PaginationMode) IsValid() bool {
 	return m == PaginationModeKeyset || m == PaginationModePage
 }
 
-// GetProfileInput identifies the authenticated external merchant (Identity Service subject).
+// GetProfileInput identifies the authenticated external merchant.
 //
-// ExternalMerchantID is merchant_profiles.external_merchant_id from x-auth-subject-id, not
+// ExternalMerchantID is merchant_profiles.external_merchant_id from Merchant Workspace, not
 // merchant_profiles.id.
 type GetProfileInput struct {
-	// ExternalMerchantID is the Identity Service subject mapped to merchant_profiles.external_merchant_id.
+	// ExternalMerchantID is the resolved Merchant identity mapped to merchant_profiles.external_merchant_id.
 	ExternalMerchantID model.ExternalMerchantID
 }
 
@@ -37,7 +37,7 @@ type GetProfileInput struct {
 //
 // RiskTier is intentionally omitted from this merchant-facing projection.
 type GetProfileOutput struct {
-	// ExternalMerchantID is the Identity Service subject mapped to merchant_profiles.external_merchant_id.
+	// ExternalMerchantID is the resolved Merchant identity mapped to merchant_profiles.external_merchant_id.
 	ExternalMerchantID model.ExternalMerchantID
 	// DisplayName is the merchant display name.
 	DisplayName string
@@ -75,13 +75,14 @@ type GetProfileOutput struct {
 
 // ListBranchesInput identifies the authenticated external merchant and pagination mode.
 //
-// ExternalMerchantID is the Identity Service subject ID (x-auth-subject-id /
-// merchant_profiles.external_merchant_id), not merchant_profiles.id.
+// ExternalMerchantID is the Merchant Workspace identity (merchant_profiles.external_merchant_id), not merchant_profiles.id.
 //
 // Exactly one of Keyset or Offset is consumed according to Mode.
 type ListBranchesInput struct {
-	// ExternalMerchantID is the Identity Service subject mapped to merchant_profiles.external_merchant_id.
+	// ExternalMerchantID is the resolved Merchant identity mapped to merchant_profiles.external_merchant_id.
 	ExternalMerchantID model.ExternalMerchantID
+	// OutletScope is the resolved authorization scope for the query.
+	OutletScope model.MerchantOutletScope
 	// Mode selects the pagination mode.
 	Mode PaginationMode
 	// Keyset carries keyset pagination parameters or results.
@@ -137,13 +138,14 @@ type ListBranchesOutput struct {
 
 // ListSalesInput identifies the authenticated external merchant and pagination mode.
 //
-// ExternalMerchantID is the Identity Service subject ID (x-auth-subject-id /
-// merchant_profiles.external_merchant_id), not merchant_profiles.id.
+// ExternalMerchantID is the Merchant Workspace identity (merchant_profiles.external_merchant_id), not merchant_profiles.id.
 //
 // Exactly one of Keyset or Offset is consumed according to Mode.
 type ListSalesInput struct {
-	// ExternalMerchantID is the Identity Service subject mapped to merchant_profiles.external_merchant_id.
+	// ExternalMerchantID is the resolved Merchant identity mapped to merchant_profiles.external_merchant_id.
 	ExternalMerchantID model.ExternalMerchantID
+	// OutletScope is the resolved authorization scope for the query.
+	OutletScope model.MerchantOutletScope
 	// Mode selects the pagination mode.
 	Mode PaginationMode
 	// Keyset carries keyset pagination parameters or results.

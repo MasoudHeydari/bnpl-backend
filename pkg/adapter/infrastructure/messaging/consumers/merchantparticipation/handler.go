@@ -80,6 +80,8 @@ func decode(msg messaging.Message, hasher fingerprint.Hasher, environment string
 		event.MerchantID.IsZero() ||
 		event.ApplicationID.IsZero() ||
 		event.RequestID.IsZero() ||
+		event.DeclarationRevision == nil ||
+		*event.DeclarationRevision < 0 ||
 		event.EventType != eventType ||
 		event.SchemaVersion != 1 ||
 		event.BusinessLine != "bnpl" ||
@@ -132,9 +134,10 @@ func decode(msg messaging.Message, hasher fingerprint.Hasher, environment string
 			PayloadFingerprint: hash.String(),
 			ConsumerName:       "merchant_participation",
 		},
-		MerchantID:    event.MerchantID,
-		ApplicationID: event.ApplicationID,
-		RequestID:     event.RequestID,
-		Environment:   event.Environment,
+		MerchantID:          event.MerchantID,
+		ApplicationID:       event.ApplicationID,
+		RequestID:           event.RequestID,
+		Environment:         event.Environment,
+		DeclarationRevision: *event.DeclarationRevision,
 	}, nil
 }

@@ -56,7 +56,23 @@ var privileges = []TablePrivilegePolicy{
 		Schema:        "bnpl",
 		Table:         "merchant_participation_requests",
 		Migration:     PrivilegeMigration,
-		Description:   "Immutable provisioning result and leased callback delivery.",
+		Description:   "Immutable Merchant participation identity.",
+		Operations:    []Operation{SelectOperation, InsertOperation},
+		UpdateColumns: []string{},
+	},
+	{
+		Schema:        "bnpl",
+		Table:         "merchant_participation_evaluations",
+		Migration:     PrivilegeMigration,
+		Description:   "Immutable policy evaluation for a declaration revision.",
+		Operations:    []Operation{SelectOperation, InsertOperation},
+		UpdateColumns: []string{},
+	},
+	{
+		Schema:        "bnpl",
+		Table:         "merchant_participation_progress_deliveries",
+		Migration:     PrivilegeMigration,
+		Description:   "Immutable progress identity and leased callback delivery.",
 		Operations:    []Operation{SelectOperation, InsertOperation},
 		UpdateColumns: []string{"attempt_count", "delivery_status", "last_error", "next_attempt_at", "updated_at"},
 	},
@@ -126,7 +142,7 @@ var privileges = []TablePrivilegePolicy{
 }
 
 // PrivilegeMigrationSHA256 fingerprints the reviewed baseline privilege grants.
-const PrivilegeMigrationSHA256 = "sha256:55724178bbf1d755f02e47f0ee8fa11ce5f5035db2af42197f181b13b4fe97c5"
+const PrivilegeMigrationSHA256 = "sha256:515101dd77b89e6fd2b796516298f4bd979b068336c885dd80ac96b640b5b2ab"
 
 const PermissionHistoryMigration = "000_schema.sql"
-const PermissionHistoryMigrationSHA256 = "sha256:55724178bbf1d755f02e47f0ee8fa11ce5f5035db2af42197f181b13b4fe97c5"
+const PermissionHistoryMigrationSHA256 = "sha256:515101dd77b89e6fd2b796516298f4bd979b068336c885dd80ac96b640b5b2ab"

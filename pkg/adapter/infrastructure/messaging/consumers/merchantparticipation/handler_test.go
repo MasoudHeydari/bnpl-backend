@@ -26,6 +26,7 @@ func fixture() messaging.Message {
 			`"application_id":"4d16a4fa-8bdc-4e50-9bb7-6d88fd7c1846",` +
 			`"request_id":"0bb456eb-945a-401d-b5d7-d51a974a7426",` +
 			`"business_line_code":"bnpl",` +
+			`"declaration_revision":1,` +
 			`"environment":"SANDBOX"}`),
 		Headers: map[string][]byte{
 			"x-event-id":       []byte(eventID),

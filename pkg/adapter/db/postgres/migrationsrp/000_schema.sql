@@ -668,26 +668,53 @@ CREATE TABLE IF NOT EXISTS merchant_profiles (
 );
 
 -- -----------------------------------------------------------------------------
--- Merchant participation and durable READY delivery
+-- Merchant participation identity, immutable declaration evaluations and durable reports
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS merchant_participation_requests (
     request_id uuid PRIMARY KEY,
     application_id uuid NOT NULL,
     external_merchant_id uuid NOT NULL,
-    merchant_profile_id uuid NOT NULL,
     environment text NOT NULL CHECK (environment IN ('SANDBOX', 'LIVE')),
-    progress_event_id uuid NOT NULL UNIQUE,
-    owner_version bigint NOT NULL CHECK (owner_version = 1),
+    created_at timestamptz NOT NULL,
+    UNIQUE (request_id, external_merchant_id)
+);
+
+CREATE TABLE IF NOT EXISTS merchant_participation_evaluations (
+    request_id uuid NOT NULL,
+    declaration_revision bigint NOT NULL CHECK (declaration_revision >= 0),
+    external_merchant_id uuid NOT NULL,
+    merchant_profile_id uuid,
+    policy_id text NOT NULL,
+    policy_version text NOT NULL,
+    progress_status text NOT NULL CHECK (progress_status IN ('READY', 'CHANGES_REQUESTED')),
+    issues jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(issues) = 'array'),
+    created_at timestamptz NOT NULL,
+    PRIMARY KEY (request_id, declaration_revision),
+    FOREIGN KEY (request_id, external_merchant_id) REFERENCES merchant_participation_requests (request_id, external_merchant_id),
+    FOREIGN KEY (merchant_profile_id, external_merchant_id) REFERENCES merchant_profiles (id, external_merchant_id),
+    CHECK (
+        (progress_status = 'READY' AND merchant_profile_id IS NOT NULL AND declaration_revision > 0 AND issues = '[]'::jsonb)
+        OR (progress_status = 'CHANGES_REQUESTED' AND merchant_profile_id IS NULL AND jsonb_array_length(issues) BETWEEN 1 AND 32)
+    )
+);
+
+CREATE TABLE IF NOT EXISTS merchant_participation_progress_deliveries (
+    progress_event_id uuid PRIMARY KEY,
+    request_id uuid NOT NULL,
+    declaration_revision bigint NOT NULL,
+    owner_version bigint NOT NULL CHECK (owner_version > 0),
     delivery_status text NOT NULL CHECK (delivery_status IN ('pending', 'delivered', 'blocked')),
     attempt_count bigint NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
     next_attempt_at timestamptz NOT NULL,
     last_error text NOT NULL DEFAULT '',
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
-    CONSTRAINT fk_merchant_participation_profile FOREIGN KEY (merchant_profile_id, external_merchant_id) REFERENCES merchant_profiles (id, external_merchant_id)
+    UNIQUE (request_id, owner_version),
+    UNIQUE (request_id, declaration_revision),
+    FOREIGN KEY (request_id, declaration_revision) REFERENCES merchant_participation_evaluations (request_id, declaration_revision)
 );
 
-CREATE INDEX IF NOT EXISTS idx_merchant_participation_due ON merchant_participation_requests (next_attempt_at, request_id) WHERE delivery_status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_merchant_participation_due ON merchant_participation_progress_deliveries (next_attempt_at, request_id) WHERE delivery_status = 'pending';
 
 -- -----------------------------------------------------------------------------
 -- Merchant Branch Profiles
@@ -3066,7 +3093,11 @@ GRANT UPDATE (error_code, error_message, status, updated_at) ON bnpl.policy_assi
 
 GRANT SELECT, INSERT ON bnpl.merchant_participation_requests TO bnpl;
 
-GRANT UPDATE (attempt_count, delivery_status, last_error, next_attempt_at, updated_at) ON bnpl.merchant_participation_requests TO bnpl;
+GRANT SELECT, INSERT ON bnpl.merchant_participation_evaluations TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.merchant_participation_progress_deliveries TO bnpl;
+
+GRANT UPDATE (attempt_count, delivery_status, last_error, next_attempt_at, updated_at) ON bnpl.merchant_participation_progress_deliveries TO bnpl;
 
 GRANT SELECT, INSERT ON bnpl.merchant_profiles TO bnpl;
 

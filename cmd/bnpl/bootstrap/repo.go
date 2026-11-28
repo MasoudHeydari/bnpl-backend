@@ -16,6 +16,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/installmentchargerp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/installmentrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/merchantbranchprofilerp"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/merchantparticipationrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/merchantprofilerp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/merchantterminalrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/otprp"
@@ -66,6 +67,9 @@ type Repos struct {
 
 	// CreditAllocation persists eligibility, requests, and rollout configuration.
 	CreditAllocation repo.CreditAllocation
+
+	// MerchantParticipation persists revision evaluations and reports.
+	MerchantParticipation repo.MerchantParticipation
 
 	// MerchantProfile stores merchant identities.
 	MerchantProfile repo.MerchantProfile
@@ -133,6 +137,7 @@ func NewRepos() Repos {
 		CreditAccount:              creditaccountrp.New(),
 		CreditAllocation:           creditallocationrp.New(),
 		MerchantProfile:            merchantprofilerp.New(),
+		MerchantParticipation:      merchantparticipationrp.New(),
 		MerchantBranchProfile:      merchantbranchprofilerp.New(),
 		MerchantTerminal:           merchantterminalrp.New(),
 		Installment:                installmentrp.New(),

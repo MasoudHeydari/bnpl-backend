@@ -50,6 +50,7 @@ type MerchantBranchProfileQueryer interface {
 	ListByMerchantIDKeyset(
 		ctx context.Context,
 		merchantID model.ExternalMerchantID,
+		scope model.MerchantOutletScope,
 		page pagination.KeysetRequest,
 	) ([]model.MerchantBranchProfile, error)
 
@@ -61,6 +62,7 @@ type MerchantBranchProfileQueryer interface {
 	ListByMerchantIDOffset(
 		ctx context.Context,
 		merchantID model.ExternalMerchantID,
+		scope model.MerchantOutletScope,
 		page pagination.OffsetRequest,
 	) ([]model.MerchantBranchProfile, error)
 
@@ -69,6 +71,7 @@ type MerchantBranchProfileQueryer interface {
 	CountByMerchantID(
 		ctx context.Context,
 		merchantID model.ExternalMerchantID,
+		scope model.MerchantOutletScope,
 	) (int64, error)
 }
 
