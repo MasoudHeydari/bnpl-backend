@@ -21,6 +21,7 @@ var ErrFatalConsumerExit = errors.New("fatal kafka consumer exit")
 
 // ConsumerConfig configures Kafka consumer behavior.
 type ConsumerConfig struct {
+	ClientID            string
 	InitialOffset       adaptermessaging.InitialOffset
 	RetryInitialBackoff time.Duration
 	RetryMaxBackoff     time.Duration
@@ -95,6 +96,10 @@ func NewConsumer(
 	}
 
 	config := sarama.NewConfig()
+	if cfg.ClientID != "" {
+		config.ClientID = cfg.ClientID
+	}
+
 	config.Consumer.Group.Rebalance.GroupStrategies = []sarama.BalanceStrategy{
 		sarama.NewBalanceStrategyRoundRobin(),
 	}

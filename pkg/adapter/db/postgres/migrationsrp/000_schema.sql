@@ -657,6 +657,7 @@ CREATE TABLE IF NOT EXISTS merchant_profiles (
     -- Creation and update timestamps.
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT uq_merchant_profiles_id_external UNIQUE (id, external_merchant_id),
     CONSTRAINT chk_merchant_profiles_status CHECK (status IN ('pending_review', 'active', 'deactivated', 'suspended', 'terminated')),
     CONSTRAINT chk_merchant_profiles_risk_tier CHECK (risk_tier IN ('low', 'medium', 'high')),
     CONSTRAINT chk_merchant_profiles_max_tenure_months CHECK (max_tenure_months >= 0),
@@ -665,6 +666,28 @@ CREATE TABLE IF NOT EXISTS merchant_profiles (
     CONSTRAINT chk_merchant_profiles_currencies CHECK (jsonb_typeof(currencies) = 'array' AND currencies <@ '["IRR", "EUR", "USD"]'::jsonb),
     CONSTRAINT chk_merchant_profiles_max_amount_currency CHECK (max_amount_currency = '' OR max_amount_currency IN ('IRR', 'EUR', 'USD'))
 );
+
+-- -----------------------------------------------------------------------------
+-- Merchant Sandbox participation and durable READY delivery
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS merchant_participation_requests (
+    request_id uuid PRIMARY KEY,
+    application_id uuid NOT NULL,
+    external_merchant_id uuid NOT NULL,
+    merchant_profile_id uuid NOT NULL,
+    environment text NOT NULL CHECK (environment = 'SANDBOX'),
+    progress_event_id uuid NOT NULL UNIQUE,
+    owner_version bigint NOT NULL CHECK (owner_version = 1),
+    delivery_status text NOT NULL CHECK (delivery_status IN ('pending', 'delivered', 'blocked')),
+    attempt_count bigint NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+    next_attempt_at timestamptz NOT NULL,
+    last_error text NOT NULL DEFAULT '',
+    created_at timestamptz NOT NULL,
+    updated_at timestamptz NOT NULL,
+    CONSTRAINT fk_merchant_participation_profile FOREIGN KEY (merchant_profile_id, external_merchant_id) REFERENCES merchant_profiles (id, external_merchant_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_merchant_participation_due ON merchant_participation_requests (next_attempt_at, request_id) WHERE delivery_status = 'pending';
 
 -- -----------------------------------------------------------------------------
 -- Merchant Branch Profiles
@@ -3040,6 +3063,10 @@ GRANT SELECT, INSERT ON bnpl.trusted_mobile_numbers TO bnpl;
 GRANT SELECT, INSERT ON bnpl.policy_assignment_import_items TO bnpl;
 
 GRANT UPDATE (error_code, error_message, status, updated_at) ON bnpl.policy_assignment_import_items TO bnpl;
+
+GRANT SELECT, INSERT ON bnpl.merchant_participation_requests TO bnpl;
+
+GRANT UPDATE (attempt_count, delivery_status, last_error, next_attempt_at, updated_at) ON bnpl.merchant_participation_requests TO bnpl;
 
 GRANT SELECT, INSERT ON bnpl.merchant_profiles TO bnpl;
 

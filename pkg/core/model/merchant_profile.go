@@ -8,7 +8,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// ExternalMerchantID is the external merchant identity (merchant_profiles.external_merchant_id).
+// ExternalMerchantID is the Merchant Service merchant identity (merchant_profiles.external_merchant_id).
+// For the Sandbox pilot it is never derived from an operator subject ID.
 type ExternalMerchantID uuid.UUID
 
 // ParseExternalMerchantID parses a ExternalMerchantID from its canonical string form.

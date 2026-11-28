@@ -27,6 +27,10 @@ import (
 func (c *Config) Validate() error {
 	const op = "config.Config.Validate"
 
+	if err := c.ValidateMerchantSandbox(); err != nil {
+		return err
+	}
+
 	if err := c.Runtime.validate(); err != nil {
 		return err
 	}
@@ -41,6 +45,10 @@ func (c *Config) Validate() error {
 
 	if err := c.Domain.validate(); err != nil {
 		return err
+	}
+
+	if c.MerchantSandbox.Enabled {
+		return c.Infrastructure.validate(c.Runtime.Environment)
 	}
 
 	if err := c.Usecases.validate(c.Runtime.Environment); err != nil {

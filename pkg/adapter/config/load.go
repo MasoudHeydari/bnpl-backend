@@ -76,6 +76,9 @@ type Config struct {
 	// Runtime contains root deployment runtime settings.
 	Runtime Runtime `yaml:"runtime"`
 
+	// MerchantSandbox enables the isolated provisioning-only pilot.
+	MerchantSandbox MerchantSandbox `yaml:"merchant_sandbox"`
+
 	// Database contains PostgreSQL connection and pool settings.
 	Database Database
 
@@ -146,6 +149,11 @@ func Load(path string) (*Config, error) {
 	c := &Config{}
 	if err = n.Decode(c); err != nil {
 		return nil, fmt.Errorf("%s: invalid runtime configuration values", op)
+	}
+
+	if c.MerchantSandbox.Enabled {
+		c.MerchantSandbox.Token = model.NewSecret(os.Getenv("MERCHANT_SANDBOX_TOKEN"))
+		c.Infrastructure.Messaging.Kafka.Consumer.Topics = []string{MerchantParticipationTopic}
 	}
 
 	if err = c.ValidateVersions(); err != nil {

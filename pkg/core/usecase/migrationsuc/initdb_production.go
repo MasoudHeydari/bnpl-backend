@@ -49,10 +49,11 @@ func (iduc *InitDBUseCase) ensureFreshProdSchema(ctx context.Context) error {
 
 	err = connPool.Conn(ctx, func(ctx context.Context, c repo.Conn) error {
 		return c.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
-			q := iduc.ss.NewSchemaRepo().Tx(tx)
+			schemaRepo := iduc.ss.NewSchemaRepo()
+			schemaQ := schemaRepo.Tx(tx)
 			schemaName := SchemaName()
 
-			exists, err := q.Exists(ctx, schemaName)
+			exists, err := schemaQ.Exists(ctx, schemaName)
 			if err != nil {
 				return fmt.Errorf("%s: checking whether schema %q exists: %w", op, schemaName, err)
 			}
@@ -61,7 +62,7 @@ func (iduc *InitDBUseCase) ensureFreshProdSchema(ctx context.Context) error {
 				return schemaAlreadyExistsConflictError(schemaName)
 			}
 
-			return iduc.createSchemaRoleAndPrivileges(ctx, q, schemaName)
+			return iduc.createSchemaRoleAndPrivileges(ctx, schemaQ, schemaName)
 		})
 	})
 	if err != nil {

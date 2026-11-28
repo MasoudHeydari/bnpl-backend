@@ -15,6 +15,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 	coretask "github.com/parstis/bnpl-backend/pkg/core/task"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/merchantprovisioninguc"
 )
 
 // App is the composition root for one BNPL process: configuration, shared
@@ -42,6 +43,9 @@ type App struct {
 
 	// UseCases holds constructed application use cases.
 	UseCases UseCases
+
+	// MerchantSandbox is constructed only for the isolated provisioning runtime.
+	MerchantSandbox *merchantprovisioninguc.UseCase
 
 	// Infrastructure holds shared runtime adapters (logger, metrics, messaging).
 	Infrastructure Infrastructure
@@ -84,6 +88,10 @@ type TaskJobResolver interface {
 func NewApp(ctx context.Context, c *config.Config) (_ *App, err error) {
 	const op = "bootstrap.NewApp"
 
+	if err = c.ValidateMerchantSandbox(); err != nil {
+		return nil, fmt.Errorf("%s: validate Merchant Sandbox: %w", op, err)
+	}
+
 	app := &App{
 		Config: c,
 	}
@@ -111,6 +119,17 @@ func NewApp(ctx context.Context, c *config.Config) (_ *App, err error) {
 
 	if err = app.wireDependencyChecker(); err != nil {
 		return nil, fmt.Errorf("%s: wire dependency checker: %w", op, err)
+	}
+
+	// Provisioning is deliberately independent of financial and other business clients.
+	if c.MerchantSandbox.Enabled {
+		app.UseCases.Health = c.NewHealthUseCase(app.Infrastructure.LifecycleState, app.Infrastructure.DependencyChecker)
+		app.MerchantSandbox, err = app.newMerchantSandbox()
+		if err != nil {
+			return nil, fmt.Errorf("%s: initialize merchant sandbox: %w", op, err)
+		}
+
+		return app, nil
 	}
 
 	app.External, err = app.NewExternal()
@@ -158,6 +177,10 @@ func (a *App) ConnectionPool(
 //	a.Infrastructure.Task.Dispatch(ctx, coretask.Command{...})
 func (a *App) RegisterTasks() error {
 	const op = "bootstrap.App.RegisterTasks"
+
+	if a.Config.MerchantSandbox.Enabled {
+		return a.registerMerchantSandboxTask()
+	}
 
 	taskDefinitions, err := a.Config.GetTaskDefinitions()
 	if err != nil {

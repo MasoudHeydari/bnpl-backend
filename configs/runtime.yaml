@@ -2,6 +2,12 @@ application: runtime
 runtime:
   environment: ${APP_ENVIRONMENT}
 
+# Isolated provisioning-only pilot. All commercial HTTP routes stay closed.
+merchant_sandbox:
+  enabled: ${MERCHANT_SANDBOX_ENABLED}
+  base_url: ${MERCHANT_SANDBOX_BASE_URL}
+  # MERCHANT_SANDBOX_TOKEN is read directly from the process environment.
+
 # Deployment-enabled domain capabilities. Must be a non-empty subset of the
 # jurisdictions this BNPL build supports in code (currently IR only).
 domain:

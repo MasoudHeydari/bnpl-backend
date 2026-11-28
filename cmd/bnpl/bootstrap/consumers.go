@@ -8,6 +8,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/config"
 	adaptermessaging "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/messaging"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/messaging/consumers"
+	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/messaging/consumers/merchantparticipation"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/messaging/consumers/paymentreconciliation"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/messaging/consumers/paymentresult"
 )
@@ -31,6 +32,20 @@ func (a *App) RegisterConsumers() (*consumers.Registry, error) {
 	registry, err := consumers.NewRegistry(a.Infrastructure.Logger, a.Infrastructure.ErrorReporter)
 	if err != nil {
 		return nil, fmt.Errorf("%s: create consumer registry: %w", op, err)
+	}
+
+	if a.Config.MerchantSandbox.Enabled {
+		handler, err := merchantparticipation.New(a.MerchantSandbox, a.Infrastructure.FingerprintHasher)
+		if err != nil {
+			return nil, fmt.Errorf("%s: create merchant participation handler: %w", op, err)
+		}
+
+		err = registry.Register(config.MerchantParticipationTopic, handler.Handle)
+		if err != nil {
+			return nil, fmt.Errorf("%s: register merchant participation handler: %w", op, err)
+		}
+
+		return registry, nil
 	}
 
 	paymentResultHandler := paymentresult.New(
@@ -79,6 +94,15 @@ func validateConsumerSubscriptions(cfg *config.Config) error {
 
 	if cfg == nil {
 		return fmt.Errorf("%s: config is required", op)
+	}
+
+	if cfg.MerchantSandbox.Enabled {
+		topics := cfg.Infrastructure.Messaging.Kafka.Consumer.Topics
+		if len(topics) != 1 || topics[0] != config.MerchantParticipationTopic {
+			return fmt.Errorf("%s: Sandbox must subscribe only to Merchant participation", op)
+		}
+
+		return nil
 	}
 
 	m := cfg.Infrastructure.Messaging

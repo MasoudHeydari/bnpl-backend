@@ -930,6 +930,7 @@ func (m Messaging) newPublisherInfrastructure() (coremessaging.Publisher, error)
 			m.Kafka.Producer.ReturnSuccesses,
 			sarama.RequiredAcks(m.Kafka.Producer.RequiredAcks),
 			m.Kafka.Producer.MaxRetries,
+			m.Kafka.ClientID,
 		)
 
 	default:
@@ -1015,6 +1016,7 @@ func (m Messaging) newSubscriberInfrastructureWithConsumer(
 			m.Kafka.Consumer.Topics,
 			logger,
 			saramamessaging.ConsumerConfig{
+				ClientID:            m.Kafka.ClientID,
 				InitialOffset:       initialOffset,
 				RetryInitialBackoff: m.Kafka.Consumer.RetryInitialBackoff,
 				RetryMaxBackoff:     m.Kafka.Consumer.RetryMaxBackoff,
@@ -1610,7 +1612,12 @@ func (m Messaging) newHealthInfrastructure() (coremessaging.Health, error) {
 		return noopmessaging.NewHealthChecker(), nil
 
 	case messaging.KafkaProvider:
-		client, err := sarama.NewClient(m.Kafka.Brokers, sarama.NewConfig())
+		cfg := sarama.NewConfig()
+		if m.Kafka.ClientID != "" {
+			cfg.ClientID = m.Kafka.ClientID
+		}
+
+		client, err := sarama.NewClient(m.Kafka.Brokers, cfg)
 		if err != nil {
 			return nil, fmt.Errorf("%s: create kafka health client: %w", op, err)
 		}

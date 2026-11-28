@@ -23,6 +23,7 @@ func NewProducer(
 	returnSuccesses bool,
 	requiredAcks sarama.RequiredAcks,
 	maxRetries int,
+	clientID string,
 ) (*Producer, error) {
 	const op = "sarama.NewProducer"
 
@@ -31,6 +32,10 @@ func NewProducer(
 	}
 
 	config := sarama.NewConfig()
+	if clientID != "" {
+		config.ClientID = clientID
+	}
+
 	config.Producer.Return.Successes = returnSuccesses
 	config.Producer.RequiredAcks = requiredAcks
 	config.Producer.Retry.Max = maxRetries
