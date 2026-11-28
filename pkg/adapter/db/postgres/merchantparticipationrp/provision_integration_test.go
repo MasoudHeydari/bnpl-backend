@@ -21,6 +21,7 @@ import (
 	lognoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/noop"
 	"github.com/parstis/bnpl-backend/pkg/core/external/merchant"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
+	merchantprovisioningv1 "github.com/parstis/bnpl-backend/pkg/core/policy/merchantprovisioning/v1"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/merchantprovisioninguc"
 	"github.com/stretchr/testify/require"
 )
@@ -40,13 +41,21 @@ func (f *merchantClient) GetParticipation(context.Context, model.MerchantPartici
 
 	return f.reference, nil
 }
+
 func (f *merchantClient) ReportReady(_ context.Context, p merchant.Progress) (merchant.Snapshot, error) {
 	f.reports = append(f.reports, p)
 	if f.unavailable {
 		return merchant.Snapshot{}, errors.New("synthetic timeout")
 	}
 
-	return merchant.Snapshot{RequestID: p.RequestID, BusinessLine: "bnpl", Environment: "SANDBOX", Status: "READY", OwnerVersion: p.OwnerVersion, AccountReference: p.AccountReference}, nil
+	return merchant.Snapshot{
+		RequestID:        p.RequestID,
+		BusinessLine:     "bnpl",
+		Environment:      "SANDBOX",
+		Status:           "READY",
+		OwnerVersion:     p.OwnerVersion,
+		AccountReference: p.AccountReference,
+	}, nil
 }
 
 func TestProvisionReplayAndDurableCallback(t *testing.T) {
@@ -75,7 +84,19 @@ func TestProvisionReplayAndDurableCallback(t *testing.T) {
 	require.NoError(t, err)
 	mid := model.ExternalMerchantID(uuid.New())
 	rid := model.MerchantParticipationRequestID(uuid.New())
-	client := &merchantClient{reference: merchant.Reference{MerchantID: mid, RequestID: rid, BusinessLine: "bnpl", Environment: "SANDBOX", TradeName: "Synthetic store", BaseApplicationStatus: "APPROVED"}}
+	client := &merchantClient{reference: merchant.Reference{
+		MerchantID:            mid,
+		RequestID:             rid,
+		BusinessLine:          "bnpl",
+		Environment:           "SANDBOX",
+		TradeName:             "Synthetic store",
+		BaseApplicationStatus: "APPROVED",
+		SelfDeclaration: &model.MerchantSelfDeclaration{
+			MaxAmountMinor:    370_000_000,
+			MaxAmountCurrency: model.IRRCurrency,
+			MaxTenureMonths:   7,
+		},
+	}}
 	clk := adapterclock.NewFixed(time.Date(
 		2026,
 		11,
@@ -96,12 +117,69 @@ func TestProvisionReplayAndDurableCallback(t *testing.T) {
 			&clk,
 			uuidgen.New(),
 			lognoop.New(),
+			merchantprovisioningv1.New(),
 		)
 		require.NoError(t, e)
 		return uc
 	}
-	input := merchantprovisioninguc.Input{MerchantID: mid, RequestID: rid, ApplicationID: model.MerchantApplicationID(uuid.New()), Environment: "SANDBOX", Event: model.InboxEvent{EventID: uuid.NewString(), EventType: "merchant_product_participation_requested", EventVersion: "1", SourceService: "merchant_service", Payload: []byte(`{}`), PayloadFingerprint: "sha256:" + strings.Repeat("a", 64), ConsumerName: "merchant_participation"}}
+	input := merchantprovisioninguc.Input{
+		MerchantID:    mid,
+		RequestID:     rid,
+		ApplicationID: model.MerchantApplicationID(uuid.New()),
+		Environment:   "SANDBOX",
+		Event: model.InboxEvent{
+			EventID:            uuid.NewString(),
+			EventType:          "merchant_product_participation_requested",
+			EventVersion:       "1",
+			SourceService:      "merchant_service",
+			Payload:            []byte(`{}`),
+			PayloadFingerprint: "sha256:" + strings.Repeat("a", 64),
+			ConsumerName:       "merchant_participation",
+		},
+	}
 	uc := makeUC()
+	declaration := client.reference.SelfDeclaration
+	client.reference.SelfDeclaration = nil
+	require.ErrorIs(t, uc.Process(ctx, input), merchantprovisioninguc.ErrInvalidReference)
+	var accountCount, requestCount int
+	err = pool.Pool.QueryRow(ctx, `
+SELECT
+    (SELECT count(*) FROM merchant_profiles),
+    (SELECT count(*) FROM merchant_participation_requests)
+`).Scan(&accountCount, &requestCount)
+	require.NoError(t, err)
+	require.Zero(t, accountCount)
+	require.Zero(t, requestCount)
+	invalidDeclaration := *declaration
+	invalidDeclaration.MaxTenureMonths = 0
+	client.reference.SelfDeclaration = &invalidDeclaration
+	require.ErrorIs(t, uc.Process(ctx, input), merchantprovisioninguc.ErrInvalidReference)
+	// Neither platform ceiling may be exceeded, even if the other limit is valid.
+	for _, outsidePolicy := range []model.MerchantSelfDeclaration{
+		{
+			MaxAmountMinor:    5_000_000_001,
+			MaxAmountCurrency: model.IRRCurrency,
+			MaxTenureMonths:   7,
+		},
+		{
+			MaxAmountMinor:    370_000_000,
+			MaxAmountCurrency: model.IRRCurrency,
+			MaxTenureMonths:   13,
+		},
+	} {
+		client.reference.SelfDeclaration = &outsidePolicy
+		require.ErrorIs(t, uc.Process(ctx, input), merchantprovisioninguc.ErrInvalidReference)
+	}
+
+	err = pool.Pool.QueryRow(ctx, `
+SELECT
+    (SELECT count(*) FROM merchant_profiles),
+    (SELECT count(*) FROM merchant_participation_requests)
+`).Scan(&accountCount, &requestCount)
+	require.NoError(t, err)
+	require.Zero(t, accountCount)
+	require.Zero(t, requestCount)
+	client.reference.SelfDeclaration = declaration
 	require.NoError(t, uc.Process(ctx, input))
 	client.unavailable = true
 	require.NoError(t, uc.Process(ctx, input))
@@ -112,19 +190,28 @@ func TestProvisionReplayAndDurableCallback(t *testing.T) {
 	replay := input
 	replay.Event.EventID = uuid.NewString()
 	require.NoError(t, uc.Process(ctx, replay))
-	require.Equal(t, 1, client.readCount)
+	require.Equal(t, 5, client.readCount)
 	var accounts, requests, terminals int
-	err = pool.Pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM merchant_profiles),(SELECT count(*) FROM merchant_participation_requests),(SELECT count(*) FROM merchant_terminals)`).Scan(&accounts, &requests, &terminals)
+	err = pool.Pool.QueryRow(ctx, `
+SELECT
+    (SELECT count(*) FROM merchant_profiles),
+    (SELECT count(*) FROM merchant_participation_requests),
+    (SELECT count(*) FROM merchant_terminals)
+`).Scan(&accounts, &requests, &terminals)
 	require.NoError(t, err)
 	require.Equal(t, 1, accounts)
 	require.Equal(t, 1, requests)
 	require.Zero(t, terminals)
 	var maxAmountMinor int64
 	var maxTenureMonths int
-	err = pool.Pool.QueryRow(ctx, `SELECT max_amount_minor, max_tenure_months FROM merchant_profiles WHERE external_merchant_id=$1`, mid).Scan(&maxAmountMinor, &maxTenureMonths)
+	err = pool.Pool.QueryRow(ctx, `
+SELECT max_amount_minor, max_tenure_months
+FROM merchant_profiles
+WHERE external_merchant_id = $1
+`, mid).Scan(&maxAmountMinor, &maxTenureMonths)
 	require.NoError(t, err)
-	require.Equal(t, int64(1_000_000_000), maxAmountMinor)
-	require.Equal(t, 4, maxTenureMonths)
+	require.Equal(t, int64(370_000_000), maxAmountMinor)
+	require.Equal(t, 7, maxTenureMonths)
 	require.NoError(t, uc.DeliverDue(ctx))
 	require.Len(t, client.reports, 1)
 	// Construct a new use case to simulate a process restart and retry the same immutable result.
@@ -137,4 +224,17 @@ func TestProvisionReplayAndDurableCallback(t *testing.T) {
 	err = pool.Pool.QueryRow(ctx, `SELECT delivery_status FROM merchant_participation_requests WHERE request_id=$1`, rid).Scan(&status)
 	require.NoError(t, err)
 	require.Equal(t, "delivered", status)
+
+	// A new request must not silently overwrite an existing account's limits.
+	newRequest := input
+	newRequest.RequestID = model.MerchantParticipationRequestID(uuid.New())
+	newRequest.Event.EventID = uuid.NewString()
+	client.reference.RequestID = newRequest.RequestID
+	differentDeclaration := *declaration
+	differentDeclaration.MaxAmountMinor++
+	client.reference.SelfDeclaration = &differentDeclaration
+	require.ErrorIs(t, uc.Process(ctx, newRequest), merchantprovisioninguc.ErrConflict)
+	err = pool.Pool.QueryRow(ctx, `SELECT max_amount_minor FROM merchant_profiles WHERE external_merchant_id=$1`, mid).Scan(&maxAmountMinor)
+	require.NoError(t, err)
+	require.Equal(t, int64(370_000_000), maxAmountMinor)
 }

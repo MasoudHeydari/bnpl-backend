@@ -27,7 +27,7 @@ import (
 func (c *Config) Validate() error {
 	const op = "config.Config.Validate"
 
-	if err := c.ValidateMerchantSandbox(); err != nil {
+	if err := c.ValidateMerchantProvisioning(); err != nil {
 		return err
 	}
 
@@ -47,7 +47,7 @@ func (c *Config) Validate() error {
 		return err
 	}
 
-	if c.MerchantSandbox.Enabled {
+	if c.MerchantProvisioning.Only {
 		return c.Infrastructure.validate(c.Runtime.Environment)
 	}
 

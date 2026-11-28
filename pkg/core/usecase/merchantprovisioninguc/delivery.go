@@ -44,13 +44,19 @@ func (uc *UseCase) DeliverDue(ctx context.Context) error {
 
 		attemptCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 		snapshot, sendErr := uc.client.ReportReady(attemptCtx, merchant.Progress{
-			RequestID: p.RequestID, EventID: p.EventID, OwnerVersion: p.OwnerVersion, AccountReference: p.ProfileID.String(),
+			RequestID:        p.RequestID,
+			EventID:          p.EventID,
+			OwnerVersion:     p.OwnerVersion,
+			AccountReference: p.ProfileID.String(),
 		})
 		cancel()
 		now = uc.clock.Now()
 		result := repo.MerchantProgressDeliveryResult{
-			RequestID: p.RequestID, AttemptCount: p.AttemptCount,
-			Status: "delivered", NextAttemptAt: now, Now: now,
+			RequestID:     p.RequestID,
+			AttemptCount:  p.AttemptCount,
+			Status:        "delivered",
+			NextAttemptAt: now,
+			Now:           now,
 		}
 		switch {
 		case errors.Is(sendErr, merchant.ErrBlocked):
@@ -60,7 +66,12 @@ func (uc *UseCase) DeliverDue(ctx context.Context) error {
 			result.Status, result.Reason = "pending", "merchant_temporary_failure"
 			result.NextAttemptAt = now.Add(retryDelay(p.AttemptCount))
 
-		case snapshot.RequestID != p.RequestID || snapshot.BusinessLine != "bnpl" || snapshot.Environment != p.Environment || snapshot.OwnerVersion < p.OwnerVersion || snapshot.Status != "READY" || snapshot.AccountReference != p.ProfileID.String():
+		case snapshot.RequestID != p.RequestID ||
+			snapshot.BusinessLine != "bnpl" ||
+			snapshot.Environment != p.Environment ||
+			snapshot.OwnerVersion < p.OwnerVersion ||
+			snapshot.Status != "READY" ||
+			snapshot.AccountReference != p.ProfileID.String():
 			result.Status, result.Reason = "blocked", "merchant_projection_mismatch"
 		}
 

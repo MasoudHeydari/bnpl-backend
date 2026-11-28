@@ -21,6 +21,7 @@ type Reference struct {
 	Environment           string
 	TradeName             string
 	BaseApplicationStatus string
+	SelfDeclaration       *model.MerchantSelfDeclaration
 }
 
 // Progress is the immutable READY report persisted by BNPL before delivery.

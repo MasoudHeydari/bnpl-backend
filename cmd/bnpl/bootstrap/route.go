@@ -23,10 +23,17 @@ import (
 func (a *App) RegisterRoutes(e *gin.Engine) error {
 	const op = "bootstrap.App.RegisterRoutes"
 
-	// Provisioning-only Sandbox must not expose any business HTTP surface until
+	// Provisioning-only pilot must not expose any business HTTP surface until
 	// trusted panel authorization, source binding and financial isolation exist.
-	if a.Config.MerchantSandbox.Enabled {
-		healthrs.Register(e, a.UseCases.Health, healthrs.RegisterOptions{Enabled: a.Config.Usecases.Health.Enabled})
+	if a.Config.MerchantProvisioning.Only {
+		healthrs.Register(
+			e,
+			a.UseCases.Health,
+			healthrs.RegisterOptions{
+				Enabled: a.Config.Usecases.Health.Enabled,
+			},
+		)
+
 		return nil
 	}
 

@@ -13,15 +13,33 @@ func fixture() messaging.Message {
 	const merchantID = "c4f139c9-8a44-42dd-9aad-6a0f60200b6d"
 	const eventID = "a5166f33-b950-4355-a835-a8216014d6be"
 	return messaging.Message{
-		Key:     []byte(merchantID),
-		Value:   []byte(`{"event_id":"a5166f33-b950-4355-a835-a8216014d6be","event_type":"merchant_product_participation_requested","schema_version":1,"correlation_id":"c4f139c9-8a44-42dd-9aad-6a0f60200b6d","occurred_at":"2026-11-28T08:30:00Z","actor_subject_id":"f014c11d-be85-47e2-adde-29618dcbb2f6","actor_membership_id":null,"actor_context_id":null,"merchant_id":"c4f139c9-8a44-42dd-9aad-6a0f60200b6d","application_id":"4d16a4fa-8bdc-4e50-9bb7-6d88fd7c1846","request_id":"0bb456eb-945a-401d-b5d7-d51a974a7426","business_line_code":"bnpl","environment":"SANDBOX"}`),
-		Headers: map[string][]byte{"x-event-id": []byte(eventID), "x-event-type": []byte(eventType), "x-aggregate-type": []byte("merchant_enrollment"), "x-aggregate-id": []byte(merchantID), "x-schema-version": []byte("1")},
+		Key: []byte(merchantID),
+		Value: []byte(`{"event_id":"a5166f33-b950-4355-a835-a8216014d6be",` +
+			`"event_type":"merchant_product_participation_requested",` +
+			`"schema_version":1,` +
+			`"correlation_id":"c4f139c9-8a44-42dd-9aad-6a0f60200b6d",` +
+			`"occurred_at":"2026-11-28T08:30:00Z",` +
+			`"actor_subject_id":"f014c11d-be85-47e2-adde-29618dcbb2f6",` +
+			`"actor_membership_id":null,` +
+			`"actor_context_id":null,` +
+			`"merchant_id":"c4f139c9-8a44-42dd-9aad-6a0f60200b6d",` +
+			`"application_id":"4d16a4fa-8bdc-4e50-9bb7-6d88fd7c1846",` +
+			`"request_id":"0bb456eb-945a-401d-b5d7-d51a974a7426",` +
+			`"business_line_code":"bnpl",` +
+			`"environment":"SANDBOX"}`),
+		Headers: map[string][]byte{
+			"x-event-id":       []byte(eventID),
+			"x-event-type":     []byte(eventType),
+			"x-aggregate-type": []byte("merchant_enrollment"),
+			"x-aggregate-id":   []byte(merchantID),
+			"x-schema-version": []byte("1"),
+		},
 	}
 }
 
 func TestDecodeContract(t *testing.T) {
 	msg := fixture()
-	input, err := decode(msg, sha256.New())
+	input, err := decode(msg, sha256.New(), "SANDBOX")
 	require.NoError(t, err)
 	require.Equal(t, string(msg.Key), input.MerchantID.String())
 	require.Equal(t, "SANDBOX", input.Environment)
@@ -30,7 +48,7 @@ func TestDecodeContract(t *testing.T) {
 	require.NoError(t, json.Unmarshal(msg.Value, &value))
 	msg.Value, err = json.MarshalIndent(value, "", "  ")
 	require.NoError(t, err)
-	repeat, err := decode(msg, sha256.New())
+	repeat, err := decode(msg, sha256.New(), "SANDBOX")
 	require.NoError(t, err)
 	require.Equal(t, input.Event.PayloadFingerprint, repeat.Event.PayloadFingerprint)
 }
@@ -54,8 +72,27 @@ func TestDecodeRejectsInvalidContract(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			msg := fixture()
 			alter(&msg)
-			_, err := decode(msg, sha256.New())
+			_, err := decode(msg, sha256.New(), "SANDBOX")
 			require.Error(t, err)
 		})
 	}
+}
+
+// The same wire decoder works for either expected participation environment.
+// Deployment configuration still rejects LIVE activation during the pilot.
+func TestDecodeUsesConfiguredEnvironment(t *testing.T) {
+	msg := fixture()
+	var v map[string]any
+	require.NoError(t, json.Unmarshal(msg.Value, &v))
+	v["environment"] = "LIVE"
+	var err error
+	msg.Value, err = json.Marshal(v)
+	require.NoError(t, err)
+	_, err = decode(msg, sha256.New(), "SANDBOX")
+	require.Error(t, err)
+	input, err := decode(msg, sha256.New(), "LIVE")
+	require.NoError(t, err)
+	require.Equal(t, "LIVE", input.Environment)
+	_, err = decode(fixture(), sha256.New(), "LIVE")
+	require.Error(t, err)
 }

@@ -668,14 +668,14 @@ CREATE TABLE IF NOT EXISTS merchant_profiles (
 );
 
 -- -----------------------------------------------------------------------------
--- Merchant Sandbox participation and durable READY delivery
+-- Merchant participation and durable READY delivery
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS merchant_participation_requests (
     request_id uuid PRIMARY KEY,
     application_id uuid NOT NULL,
     external_merchant_id uuid NOT NULL,
     merchant_profile_id uuid NOT NULL,
-    environment text NOT NULL CHECK (environment = 'SANDBOX'),
+    environment text NOT NULL CHECK (environment IN ('SANDBOX', 'LIVE')),
     progress_event_id uuid NOT NULL UNIQUE,
     owner_version bigint NOT NULL CHECK (owner_version = 1),
     delivery_status text NOT NULL CHECK (delivery_status IN ('pending', 'delivered', 'blocked')),

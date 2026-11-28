@@ -12,7 +12,6 @@ import (
 	cbgobreaker "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/circuitbreaker/gobreaker"
 	cbnoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/circuitbreaker/noop"
 	"github.com/parstis/bnpl-backend/pkg/core/circuitbreaker"
-
 	coremerchant "github.com/parstis/bnpl-backend/pkg/core/external/merchant"
 	"github.com/parstis/bnpl-backend/pkg/core/httpclient"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
@@ -44,13 +43,24 @@ func TestInternalMerchantWire(t *testing.T) {
 		require.Equal(t, "Bearer synthetic-token", r.Header.Get("Authorization"))
 		require.True(t, strings.HasPrefix(r.URL.Path, "/internal/v1/business-lines/bnpl/requests/"+requestID.String()))
 		if r.Method == http.MethodGet {
-			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"data":{"merchant_id":"c4f139c9-8a44-42dd-9aad-6a0f60200b6d","request_id":"0bb456eb-945a-401d-b5d7-d51a974a7426","business_line":"bnpl","environment":"SANDBOX","trade_name":"Test","context_id":null,"commercial_status":"inactive","base_application_status":"APPROVED"},"meta":{"request_id":"http-only"}}`))}, nil
+			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"data":{"merchant_id":"c4f139c9-8a44-42dd-9aad-6a0f60200b6d",` +
+				`"request_id":"0bb456eb-945a-401d-b5d7-d51a974a7426",` +
+				`"business_line":"bnpl",` +
+				`"environment":"SANDBOX",` +
+				`"trade_name":"Test",` +
+				`"context_id":null,` +
+				`"commercial_status":"inactive",` +
+				`"base_application_status":"APPROVED",` +
+				`"self_declaration":{"max_amount_minor":370000000,` +
+				`"max_amount_currency":"IRR",` +
+				`"max_tenure_months":7}},` +
+				`"meta":{"request_id":"http-only"}}`))}, nil
 		}
 
 		require.Equal(t, http.MethodPut, r.Method)
 		require.Equal(t, "/internal/v1/business-lines/bnpl/requests/"+requestID.String()+"/progress", r.URL.Path)
-		body, e := io.ReadAll(r.Body)
-		require.NoError(t, e)
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
 		requests = append(requests, string(body))
 		var v map[string]any
 		require.NoError(t, json.Unmarshal(body, &v))
@@ -62,7 +72,12 @@ func TestInternalMerchantWire(t *testing.T) {
 			status = 503
 		}
 
-		return &http.Response{StatusCode: status, Body: io.NopCloser(strings.NewReader(`{"data":{"request_id":"0bb456eb-945a-401d-b5d7-d51a974a7426","code":"bnpl","environment":"SANDBOX","status":"READY","owner_version":1,"external_account_reference":"account"}}`))}, nil
+		return &http.Response{StatusCode: status, Body: io.NopCloser(strings.NewReader(`{"data":{"request_id":"0bb456eb-945a-401d-b5d7-d51a974a7426",` +
+			`"code":"bnpl",` +
+			`"environment":"SANDBOX",` +
+			`"status":"READY",` +
+			`"owner_version":1,` +
+			`"external_account_reference":"account"}}`))}, nil
 	}}
 	c, err := New(executor, cbnoop.New(), "https://merchant.internal", model.NewSecret("synthetic-token"))
 	require.NoError(t, err)
@@ -70,7 +85,18 @@ func TestInternalMerchantWire(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, requestID, ref.RequestID)
 	require.Equal(t, "Test", ref.TradeName)
-	report := coremerchant.Progress{RequestID: requestID, EventID: "30dfce08-466e-4fe1-9c10-d170483b6fa2", OwnerVersion: 1, AccountReference: "account"}
+	require.NotNil(t, ref.SelfDeclaration)
+	require.Equal(t, model.MerchantSelfDeclaration{
+		MaxAmountMinor:    370_000_000,
+		MaxAmountCurrency: model.IRRCurrency,
+		MaxTenureMonths:   7,
+	}, *ref.SelfDeclaration)
+	report := coremerchant.Progress{
+		RequestID:        requestID,
+		EventID:          "30dfce08-466e-4fe1-9c10-d170483b6fa2",
+		OwnerVersion:     1,
+		AccountReference: "account",
+	}
 	_, err = c.ReportReady(context.Background(), report)
 	require.Error(t, err)
 	require.NotErrorIs(t, err, coremerchant.ErrBlocked)
@@ -87,7 +113,10 @@ func TestMerchantCircuitBreaker(t *testing.T) {
 	status := http.StatusConflict
 	executor := fakeExecutor{respond: func(r *http.Request) (*http.Response, error) {
 		calls++
-		return &http.Response{StatusCode: status, Body: io.NopCloser(strings.NewReader(`{}`))}, nil
+		return &http.Response{
+			StatusCode: status,
+			Body:       io.NopCloser(strings.NewReader(`{}`)),
+		}, nil
 	}}
 	breaker := cbgobreaker.New(cbgobreaker.Config{
 		MaxRequests:      1,
@@ -97,7 +126,12 @@ func TestMerchantCircuitBreaker(t *testing.T) {
 	})
 	c, err := New(executor, breaker, "https://merchant.internal", model.NewSecret("synthetic-token"))
 	require.NoError(t, err)
-	report := coremerchant.Progress{RequestID: requestID, EventID: "30dfce08-466e-4fe1-9c10-d170483b6fa2", OwnerVersion: 1, AccountReference: "account"}
+	report := coremerchant.Progress{
+		RequestID:        requestID,
+		EventID:          "30dfce08-466e-4fe1-9c10-d170483b6fa2",
+		OwnerVersion:     1,
+		AccountReference: "account",
+	}
 	_, err = c.ReportReady(context.Background(), report)
 	require.ErrorIs(t, err, coremerchant.ErrBlocked)
 	status = http.StatusNotFound
@@ -124,4 +158,21 @@ func TestMerchantClientRequiresBreakerAndBearerToken(t *testing.T) {
 
 	_, err := New(executor, nil, "https://merchant.internal", model.NewSecret("synthetic-token"))
 	require.Error(t, err)
+}
+
+func TestParticipationReferenceWithoutDeclaration(t *testing.T) {
+	executor := fakeExecutor{respond: func(r *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(strings.NewReader(`{"data":{"trade_name":"Test"}}`)),
+		}, nil
+	}}
+	c, err := New(executor, cbnoop.New(), "https://merchant.internal", model.NewSecret("synthetic-token"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ref, err := c.GetParticipation(context.Background(), model.MerchantParticipationRequestID{})
+	require.NoError(t, err)
+	require.Nil(t, ref.SelfDeclaration)
 }

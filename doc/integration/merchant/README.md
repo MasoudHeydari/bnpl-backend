@@ -2,7 +2,7 @@
 
 Contract: [final Merchant agreement](merchant-bnpl-dev-pilot-final-fa.md).
 
-The opt-in provisioning-only runtime consumes one SANDBOX topic, resolves the
+The opt-in provisioning-only runtime consumes the configured participation environment on one topic, resolves the
 request through Merchant, creates the BNPL profile and installment eligibility,
 and records the immutable READY report in the same transaction as the inbox.
 It runs the delivery worker and health endpoints, not panel, checkout, financial
@@ -34,9 +34,11 @@ normal isolated database, logging, health and infrastructure settings):
 
 ```dotenv
 APP_ENVIRONMENT=development
-MERCHANT_SANDBOX_ENABLED=true
-MERCHANT_SANDBOX_BASE_URL=https://<approved-merchant-internal-origin>
-MERCHANT_SANDBOX_TOKEN=<service-token-from-deployment-secret>
+MERCHANT_PROVISIONING_ENABLED=true
+MERCHANT_PROVISIONING_ONLY=true
+MERCHANT_PARTICIPATION_ENVIRONMENT=SANDBOX
+EXTERNAL_MERCHANT_HTTP_BASE_URL=https://<approved-merchant-internal-origin>
+EXTERNAL_MERCHANT_HTTP_TOKEN=<service-token-from-deployment-secret>
 EXTERNAL_FINANCIAL_CORE_PROVIDER=noop
 HTTP_CLIENT_PROVIDER=standard
 CIRCUIT_BREAKER_PROVIDER=gobreaker
@@ -48,14 +50,55 @@ KAFKA_CONSUMER_INITIAL_OFFSET=oldest
 KAFKA_CONSUMER_QUARANTINE_TOPIC=bnpl.sandbox.consumer.quarantine.v1
 ```
 
-Sandbox activation requires both the development build tag and
-`APP_ENVIRONMENT=development`; any other combination fails configuration
-validation. Sandbox isolation is a deployment concern, not a financing policy.
-Initial merchant terms are owned by BNPL and persisted per merchant profile:
-IRR/IR, maximum transaction amount 1,000,000,000 IRR (the lower existing Dev
-merchant fixture cap), four-month maximum tenure, platform funding, direct
-settlement, low risk, installment credit only. These are initial onboarding
-terms for the pilot, not an approved production underwriting policy.
+For the current pilot, provisioning requires both the development build tag and
+`APP_ENVIRONMENT=development`, and the configured participation environment must
+be `SANDBOX`. `MERCHANT_PROVISIONING_ONLY` explicitly closes all commercial
+surfaces; it is a temporary safety restriction while panel authorization and
+financial isolation are pending, not a Sandbox build profile. Until those
+contracts are implemented both provisioning flags must be enabled together.
+Ordinary runtime behavior is unchanged when both are disabled. Sandbox
+isolation is a deployment concern: use the same binary, domain, policy and
+schema, with separate database, credentials, topics and financial dependencies.
+The wire adapter matches the configured participation environment; the core
+records it for request identity and never branches financing policy on it.
+
+## Merchant self declaration (contract extension pending Merchant approval)
+
+The existing GET participation response must be extended with the following
+object in `data` for each request, populated by the merchant's self declaration
+before publishing the participation event. It is not present in the original
+agreed pilot contract; coordinate deployment with Merchant before producing
+new requests. No Kafka schema change is needed.
+
+```json
+{
+  "self_declaration": {
+    "max_amount_minor": 370000000,
+    "max_amount_currency": "IRR",
+    "max_tenure_months": 7
+  }
+}
+```
+
+All values are required and immutable for the request. Amount and tenure are
+positive integers; currency currently must be IRR. Amount is in the smallest
+currency unit and tenure in months. Merchant provisioning policy v1 permits
+amounts up to and including 5,000,000,000 IRR (500 million tomans) and tenure up
+to and including 12 months in all deployments. These are platform ceilings, not
+merchant defaults; both fit the corresponding PostgreSQL bigint/integer columns.
+No environment or hard-coded amount/tenure defaults are used; accepted values
+are stored as declared, without clamping. Missing or invalid declarations
+are nonretryable invalid references and go through the existing quarantine
+policy: no account or READY callback is created. Fix the source contract before
+publishing. Same-request replay recovers the durable result; changes to existing
+merchant financing settings are a separate operation, not provisioning replay.
+
+Other existing initial terms (IR/IRR, platform funding, direct settlement, low
+risk and installment credit only) are retained in the explicitly injected
+versioned `pkg/core/policy/merchantprovisioning/v1` policy, not in the use case.
+They remain provisional BNPL-owned decisions, not underwriting approval or
+merchant declarations. Checkout policy still governs actual purchase approval.
+
 The runtime subscribes only to the agreed participation topic. `oldest` is
 appropriate only for the agreed fresh isolated topic; do not replay historic
 messages. The HTTP adapter reads the bearer token directly from the process environment

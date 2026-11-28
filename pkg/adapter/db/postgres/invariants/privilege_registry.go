@@ -52,7 +52,14 @@ var privileges = []TablePrivilegePolicy{
 	{Schema: "bnpl", Table: "policy_assignment_imports", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"completed_at", "failure_count", "status", "success_count"}},
 	{Schema: "bnpl", Table: "trusted_mobile_numbers", Migration: PrivilegeMigration, Description: "Immutable raw trusted mobile and national ID registry; runtime can only select and insert.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{}},
 	{Schema: "bnpl", Table: "policy_assignment_import_items", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"error_code", "error_message", "status", "updated_at"}},
-	{Schema: "bnpl", Table: "merchant_participation_requests", Migration: PrivilegeMigration, Description: "Immutable provisioning result and leased callback delivery.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"attempt_count", "delivery_status", "last_error", "next_attempt_at", "updated_at"}},
+	{
+		Schema:        "bnpl",
+		Table:         "merchant_participation_requests",
+		Migration:     PrivilegeMigration,
+		Description:   "Immutable provisioning result and leased callback delivery.",
+		Operations:    []Operation{SelectOperation, InsertOperation},
+		UpdateColumns: []string{"attempt_count", "delivery_status", "last_error", "next_attempt_at", "updated_at"},
+	},
 	{Schema: "bnpl", Table: "merchant_profiles", Migration: PrivilegeMigration, Description: "Minimal UPDATE(id) compatibility exception for existing SELECT FOR UPDATE; no repository key mutation.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"id"}},
 	{Schema: "bnpl", Table: "merchant_branch_profiles", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"offer_preparation_mode", "updated_at"}},
 	{Schema: "bnpl", Table: "merchant_pos_terminals", Migration: PrivilegeMigration, Description: "Minimal UPDATE(id) compatibility exception for existing SELECT FOR UPDATE; no repository key mutation.", Operations: []Operation{SelectOperation}, UpdateColumns: []string{"id"}},
@@ -119,7 +126,7 @@ var privileges = []TablePrivilegePolicy{
 }
 
 // PrivilegeMigrationSHA256 fingerprints the reviewed baseline privilege grants.
-const PrivilegeMigrationSHA256 = "sha256:8e0be104e44edd0178e784d0d287997e8794d966f18f5719f224a4062bdecccb"
+const PrivilegeMigrationSHA256 = "sha256:55724178bbf1d755f02e47f0ee8fa11ce5f5035db2af42197f181b13b4fe97c5"
 
 const PermissionHistoryMigration = "000_schema.sql"
-const PermissionHistoryMigrationSHA256 = "sha256:8e0be104e44edd0178e784d0d287997e8794d966f18f5719f224a4062bdecccb"
+const PermissionHistoryMigrationSHA256 = "sha256:55724178bbf1d755f02e47f0ee8fa11ce5f5035db2af42197f181b13b4fe97c5"

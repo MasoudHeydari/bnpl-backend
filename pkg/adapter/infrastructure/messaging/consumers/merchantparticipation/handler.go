@@ -7,9 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"time"
 
 	"github.com/google/uuid"
+	"github.com/parstis/bnpl-backend/pkg/core/external/merchant"
 	"github.com/parstis/bnpl-backend/pkg/core/fingerprint"
 	"github.com/parstis/bnpl-backend/pkg/core/messaging"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
@@ -18,53 +18,52 @@ import (
 
 const eventType = "merchant_product_participation_requested"
 
-type requestedEvent struct {
-	EventID           uuid.UUID                            `json:"event_id"`
-	EventType         string                               `json:"event_type"`
-	SchemaVersion     int                                  `json:"schema_version"`
-	CorrelationID     uuid.UUID                            `json:"correlation_id"`
-	OccurredAt        time.Time                            `json:"occurred_at"`
-	ActorSubjectID    uuid.UUID                            `json:"actor_subject_id"`
-	ActorMembershipID *uuid.UUID                           `json:"actor_membership_id"`
-	ActorContextID    *uuid.UUID                           `json:"actor_context_id"`
-	MerchantID        model.ExternalMerchantID             `json:"merchant_id"`
-	ApplicationID     model.MerchantApplicationID          `json:"application_id"`
-	RequestID         model.MerchantParticipationRequestID `json:"request_id"`
-	BusinessLine      string                               `json:"business_line_code"`
-	Environment       string                               `json:"environment"`
-}
-
 // Handler validates the transport envelope and delegates business processing.
 type Handler struct {
-	uc     *merchantprovisioninguc.UseCase
-	hasher fingerprint.Hasher
+	uc          *merchantprovisioninguc.UseCase
+	hasher      fingerprint.Hasher
+	environment string
 }
 
-func New(uc *merchantprovisioninguc.UseCase, hasher fingerprint.Hasher) (*Handler, error) {
+// New constructs the participation consumer handler.
+func New(uc *merchantprovisioninguc.UseCase, hasher fingerprint.Hasher, environment string) (*Handler, error) {
 	const op = "merchantparticipation.New"
+
 	if uc == nil || hasher == nil {
 		return nil, fmt.Errorf("%s: use case and fingerprint hasher required", op)
 	}
 
-	return &Handler{uc: uc, hasher: hasher}, nil
+	if environment != "SANDBOX" && environment != "LIVE" {
+		return nil, fmt.Errorf("%s: invalid expected participation environment", op)
+	}
+
+	return &Handler{
+		uc:          uc,
+		hasher:      hasher,
+		environment: environment,
+	}, nil
 }
 
+// Handle validates a Kafka message and delegates durable processing.
 func (h *Handler) Handle(ctx context.Context, msg messaging.Message) error {
-	input, err := decode(msg, h.hasher)
+	input, err := decode(msg, h.hasher, h.environment)
 	if err != nil {
 		return messaging.NonRetryable(err)
 	}
 
 	err = h.uc.Process(ctx, input)
-	if errors.Is(err, merchantprovisioninguc.ErrConflict) || errors.Is(err, merchantprovisioninguc.ErrInvalidReference) {
+	if errors.Is(err, merchantprovisioninguc.ErrConflict) ||
+		errors.Is(err, merchantprovisioninguc.ErrInvalidReference) ||
+		errors.Is(err, merchant.ErrBlocked) {
 		return messaging.NonRetryable(err)
 	}
 
 	return err
 }
 
-func decode(msg messaging.Message, hasher fingerprint.Hasher) (merchantprovisioninguc.Input, error) {
+func decode(msg messaging.Message, hasher fingerprint.Hasher, environment string) (merchantprovisioninguc.Input, error) {
 	const op = "merchantparticipation.decode"
+
 	var input merchantprovisioninguc.Input
 	var event requestedEvent
 	decoder := json.NewDecoder(bytes.NewReader(msg.Value))
@@ -74,7 +73,17 @@ func decode(msg messaging.Message, hasher fingerprint.Hasher) (merchantprovision
 		return input, fmt.Errorf("%s: invalid participation envelope", op)
 	}
 
-	if event.EventID == uuid.Nil || event.CorrelationID == uuid.Nil || event.ActorSubjectID == uuid.Nil || event.OccurredAt.IsZero() || event.MerchantID.IsZero() || event.ApplicationID.IsZero() || event.RequestID.IsZero() || event.EventType != eventType || event.SchemaVersion != 1 || event.BusinessLine != "bnpl" || event.Environment != "SANDBOX" {
+	if event.EventID == uuid.Nil ||
+		event.CorrelationID == uuid.Nil ||
+		event.ActorSubjectID == uuid.Nil ||
+		event.OccurredAt.IsZero() ||
+		event.MerchantID.IsZero() ||
+		event.ApplicationID.IsZero() ||
+		event.RequestID.IsZero() ||
+		event.EventType != eventType ||
+		event.SchemaVersion != 1 ||
+		event.BusinessLine != "bnpl" ||
+		event.Environment != environment {
 		return input, fmt.Errorf("%s: invalid or unsupported participation identity, version or environment", op)
 	}
 
@@ -83,8 +92,11 @@ func decode(msg messaging.Message, hasher fingerprint.Hasher) (merchantprovision
 	}
 
 	expected := map[string]string{
-		"x-event-id": event.EventID.String(), "x-event-type": eventType,
-		"x-aggregate-type": "merchant_enrollment", "x-aggregate-id": event.MerchantID.String(), "x-schema-version": "1",
+		"x-event-id":       event.EventID.String(),
+		"x-event-type":     eventType,
+		"x-aggregate-type": "merchant_enrollment",
+		"x-aggregate-id":   event.MerchantID.String(),
+		"x-schema-version": "1",
 	}
 	for key, value := range expected {
 		if string(msg.Headers[key]) != value {
@@ -110,7 +122,19 @@ func decode(msg messaging.Message, hasher fingerprint.Hasher) (merchantprovision
 	}
 
 	return merchantprovisioninguc.Input{
-		Event:      model.InboxEvent{EventID: event.EventID.String(), EventType: eventType, EventVersion: "1", SourceService: "merchant_service", CorrelationID: &correlation, Payload: canonical, PayloadFingerprint: hash.String(), ConsumerName: "merchant_participation"},
-		MerchantID: event.MerchantID, ApplicationID: event.ApplicationID, RequestID: event.RequestID, Environment: event.Environment,
+		Event: model.InboxEvent{
+			EventID:            event.EventID.String(),
+			EventType:          eventType,
+			EventVersion:       "1",
+			SourceService:      "merchant_service",
+			CorrelationID:      &correlation,
+			Payload:            canonical,
+			PayloadFingerprint: hash.String(),
+			ConsumerName:       "merchant_participation",
+		},
+		MerchantID:    event.MerchantID,
+		ApplicationID: event.ApplicationID,
+		RequestID:     event.RequestID,
+		Environment:   event.Environment,
 	}, nil
 }

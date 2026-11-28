@@ -44,8 +44,8 @@ type App struct {
 	// UseCases holds constructed application use cases.
 	UseCases UseCases
 
-	// MerchantSandbox is constructed only for the isolated provisioning runtime.
-	MerchantSandbox *merchantprovisioninguc.UseCase
+	// MerchantProvisioning is constructed only for the isolated provisioning runtime.
+	MerchantProvisioning *merchantprovisioninguc.UseCase
 
 	// Infrastructure holds shared runtime adapters (logger, metrics, messaging).
 	Infrastructure Infrastructure
@@ -88,8 +88,8 @@ type TaskJobResolver interface {
 func NewApp(ctx context.Context, c *config.Config) (_ *App, err error) {
 	const op = "bootstrap.NewApp"
 
-	if err = c.ValidateMerchantSandbox(); err != nil {
-		return nil, fmt.Errorf("%s: validate Merchant Sandbox: %w", op, err)
+	if err = c.ValidateMerchantProvisioning(); err != nil {
+		return nil, fmt.Errorf("%s: validate Merchant Provisioning: %w", op, err)
 	}
 
 	app := &App{
@@ -122,11 +122,14 @@ func NewApp(ctx context.Context, c *config.Config) (_ *App, err error) {
 	}
 
 	// Provisioning is deliberately independent of financial and other business clients.
-	if c.MerchantSandbox.Enabled {
-		app.UseCases.Health = c.NewHealthUseCase(app.Infrastructure.LifecycleState, app.Infrastructure.DependencyChecker)
-		app.MerchantSandbox, err = app.newMerchantSandbox()
+	if c.MerchantProvisioning.Only {
+		app.UseCases.Health = c.NewHealthUseCase(
+			app.Infrastructure.LifecycleState,
+			app.Infrastructure.DependencyChecker,
+		)
+		app.MerchantProvisioning, err = app.newMerchantProvisioning()
 		if err != nil {
-			return nil, fmt.Errorf("%s: initialize merchant sandbox: %w", op, err)
+			return nil, fmt.Errorf("%s: initialize merchant provisioning: %w", op, err)
 		}
 
 		return app, nil
@@ -178,8 +181,8 @@ func (a *App) ConnectionPool(
 func (a *App) RegisterTasks() error {
 	const op = "bootstrap.App.RegisterTasks"
 
-	if a.Config.MerchantSandbox.Enabled {
-		return a.registerMerchantSandboxTask()
+	if a.Config.MerchantProvisioning.Only {
+		return a.registerMerchantProvisioningTask()
 	}
 
 	taskDefinitions, err := a.Config.GetTaskDefinitions()

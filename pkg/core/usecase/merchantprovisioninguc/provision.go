@@ -10,6 +10,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/external/merchant"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
+	"github.com/parstis/bnpl-backend/pkg/core/policy/merchantprovisioning"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
@@ -18,7 +19,12 @@ import (
 func (uc *UseCase) Process(ctx context.Context, input Input) error {
 	const op = "merchantprovisioninguc.Process"
 
-	if input.Environment != "SANDBOX" || input.MerchantID.IsZero() || input.ApplicationID.IsZero() || input.RequestID.IsZero() || input.Event.EventID == "" || input.Event.PayloadFingerprint == "" {
+	if strings.TrimSpace(input.Environment) == "" ||
+		input.MerchantID.IsZero() ||
+		input.ApplicationID.IsZero() ||
+		input.RequestID.IsZero() ||
+		input.Event.EventID == "" ||
+		input.Event.PayloadFingerprint == "" {
 		return ErrInvalidReference
 	}
 
@@ -65,6 +71,7 @@ func (uc *UseCase) Process(ctx context.Context, input Input) error {
 	}
 
 	var ref merchant.Reference
+	var terms merchantprovisioning.Terms
 	if !existingRequest {
 		ref, err = uc.client.GetParticipation(ctx, input.RequestID)
 		if err != nil {
@@ -75,8 +82,22 @@ func (uc *UseCase) Process(ctx context.Context, input Input) error {
 			return fmt.Errorf("%s: read participation reference: %w", op, err)
 		}
 
-		if ref.MerchantID != input.MerchantID || ref.RequestID != input.RequestID || ref.BusinessLine != "bnpl" || ref.Environment != input.Environment || ref.BaseApplicationStatus != "APPROVED" || strings.TrimSpace(ref.TradeName) == "" {
+		if ref.MerchantID != input.MerchantID ||
+			ref.RequestID != input.RequestID ||
+			ref.BusinessLine != "bnpl" ||
+			ref.Environment != input.Environment ||
+			ref.BaseApplicationStatus != "APPROVED" ||
+			strings.TrimSpace(ref.TradeName) == "" {
 			return ErrInvalidReference
+		}
+
+		if ref.SelfDeclaration == nil {
+			return fmt.Errorf("%s: missing merchant self declaration: %w", op, ErrInvalidReference)
+		}
+
+		terms, err = uc.policy.Evaluate(*ref.SelfDeclaration)
+		if err != nil {
+			return fmt.Errorf("%s: evaluate merchant declaration: %w: %w", op, ErrInvalidReference, err)
 		}
 	}
 
@@ -112,15 +133,26 @@ func (uc *UseCase) Process(ctx context.Context, input Input) error {
 					return fmt.Errorf("%s: durable request disappeared", op)
 				}
 
-				profile, err := uc.ensureProfile(ctx, merchantProfileQ, input.MerchantID, ref.TradeName, now)
+				profile, err := uc.ensureProfile(
+					ctx,
+					merchantProfileQ,
+					input.MerchantID,
+					ref.TradeName,
+					terms,
+					now,
+				)
 				if err != nil {
 					return err
 				}
 
 				p = model.MerchantParticipation{
-					RequestID: input.RequestID, ApplicationID: input.ApplicationID,
-					MerchantID: input.MerchantID, ProfileID: profile.ID, Environment: input.Environment,
-					EventID: uc.ids.Generate(), OwnerVersion: 1,
+					RequestID:     input.RequestID,
+					ApplicationID: input.ApplicationID,
+					MerchantID:    input.MerchantID,
+					ProfileID:     profile.ID,
+					Environment:   input.Environment,
+					EventID:       uc.ids.Generate(),
+					OwnerVersion:  1,
 				}
 				err = participationQ.Insert(ctx, p, now)
 				if err != nil {
@@ -152,6 +184,7 @@ func (uc *UseCase) ensureProfile(
 	merchantProfileQ repo.MerchantProfileTxQueryer,
 	merchantID model.ExternalMerchantID,
 	tradeName string,
+	terms merchantprovisioning.Terms,
 	now time.Time,
 ) (model.MerchantProfile, error) {
 	profile, err := merchantProfileQ.LockByMerchantID(ctx, merchantID)
@@ -159,6 +192,12 @@ func (uc *UseCase) ensureProfile(
 		// Do not reactivate or change the policy of an existing account on replay.
 		if profile.Status != model.ActiveMerchantStatus {
 			return model.MerchantProfile{}, ErrInvalidReference
+		}
+
+		if profile.MaxAmountMinor != terms.Limits.MaxAmountMinor ||
+			profile.MaxAmountCurrency != terms.Limits.MaxAmountCurrency ||
+			profile.MaxTenureMonths != terms.Limits.MaxTenureMonths {
+			return model.MerchantProfile{}, ErrConflict
 		}
 
 		return profile, nil
@@ -179,15 +218,15 @@ func (uc *UseCase) ensureProfile(
 		"",
 		"",
 		model.ActiveMerchantStatus,
-		[]model.FundingModel{model.PlatformFundedFundingModel},
-		[]model.SettlementModel{model.DirectSettlementModel},
-		[]model.Currency{model.IRRCurrency},
-		model.LowRiskTier,
-		defaultMerchantMaxAmountMinor,
-		model.IRRCurrency,
-		defaultMerchantMaxTenureMonths,
-		false,
-		model.IRJurisdiction,
+		terms.FundingModels,
+		terms.SettlementModels,
+		terms.Currencies,
+		terms.RiskTier,
+		terms.Limits.MaxAmountMinor,
+		terms.Limits.MaxAmountCurrency,
+		terms.Limits.MaxTenureMonths,
+		terms.RequiresBranchMode,
+		terms.Jurisdiction,
 		now,
 		now,
 	)
@@ -195,9 +234,17 @@ func (uc *UseCase) ensureProfile(
 		return model.MerchantProfile{}, err
 	}
 
-	err = merchantProfileQ.SetCreditKindEnabled(ctx, profile.ID, model.PayInInstallmentsCreditKind, true, now)
-	if err != nil {
-		return model.MerchantProfile{}, err
+	for _, kind := range terms.CreditKinds {
+		err = merchantProfileQ.SetCreditKindEnabled(
+			ctx,
+			profile.ID,
+			kind,
+			true,
+			now,
+		)
+		if err != nil {
+			return model.MerchantProfile{}, err
+		}
 	}
 
 	return profile, nil

@@ -36,6 +36,7 @@ type internalOrigin struct{ host string }
 
 func (p internalOrigin) CheckHost(host string) error {
 	const op = "merchant.internalOrigin.CheckHost"
+
 	if !strings.EqualFold(host, p.host) {
 		return fmt.Errorf("%s: unexpected Merchant host", op)
 	}
@@ -45,7 +46,12 @@ func (p internalOrigin) CheckHost(host string) error {
 
 func (p internalOrigin) CheckAddr(addr netip.Addr) error {
 	const op = "merchant.internalOrigin.CheckAddr"
-	if !addr.IsValid() || addr.IsUnspecified() || addr.IsMulticast() || addr.IsLinkLocalUnicast() || addr.IsLoopback() {
+
+	if !addr.IsValid() ||
+		addr.IsUnspecified() ||
+		addr.IsMulticast() ||
+		addr.IsLinkLocalUnicast() ||
+		addr.IsLoopback() {
 		return fmt.Errorf("%s: invalid internal Merchant address", op)
 	}
 
@@ -67,7 +73,13 @@ func New(client httpclient.Client, breaker circuitbreaker.CircuitBreaker, baseUR
 	}
 
 	u, err := url.Parse(baseURL)
-	if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
+	if err != nil ||
+		u.Scheme != "https" ||
+		u.Hostname() == "" ||
+		u.User != nil ||
+		u.RawQuery != "" ||
+		u.Fragment != "" ||
+		(u.Path != "" && u.Path != "/") {
 		return nil, fmt.Errorf("%s: internal HTTPS origin is required", op)
 	}
 
@@ -78,71 +90,72 @@ func New(client httpclient.Client, breaker circuitbreaker.CircuitBreaker, baseUR
 	}
 
 	profile, err := executor.NewSecureProfile(httpclient.SecureProfileConfig{
-		Name: "merchant-sandbox", NetworkPolicy: internalOrigin{host: u.Hostname()},
-		Timeout: 10 * time.Second, DialTimeout: 3 * time.Second,
+		Name:          "merchant",
+		NetworkPolicy: internalOrigin{host: u.Hostname()},
+		Timeout:       10 * time.Second,
+		DialTimeout:   3 * time.Second,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("%s: create secure profile: %w", op, err)
 	}
 
-	return &Client{executor: executor, profile: profile, base: strings.TrimRight(u.String(), "/"), token: token, breaker: breaker}, nil
+	return &Client{
+		executor: executor,
+		profile:  profile,
+		base:     strings.TrimRight(u.String(), "/"),
+		token:    token,
+		breaker:  breaker,
+	}, nil
 }
 
-type referenceDTO struct {
-	MerchantID            model.ExternalMerchantID             `json:"merchant_id"`
-	RequestID             model.MerchantParticipationRequestID `json:"request_id"`
-	BusinessLine          string                               `json:"business_line"`
-	Environment           string                               `json:"environment"`
-	TradeName             string                               `json:"trade_name"`
-	BaseApplicationStatus string                               `json:"base_application_status"`
-}
-
-type progressDTO struct {
-	EventID          string     `json:"event_id"`
-	OwnerVersion     int64      `json:"owner_version"`
-	Status           string     `json:"status"`
-	AccountReference string     `json:"external_account_reference"`
-	Issues           []issueDTO `json:"issues"`
-}
-
-type issueDTO struct {
-	Field   string `json:"field"`
-	Code    string `json:"code"`
-	Message string `json:"message"`
-}
-
-type snapshotDTO struct {
-	RequestID        model.MerchantParticipationRequestID `json:"request_id"`
-	Code             string                               `json:"code"`
-	Environment      string                               `json:"environment"`
-	Status           string                               `json:"status"`
-	OwnerVersion     int64                                `json:"owner_version"`
-	AccountReference *string                              `json:"external_account_reference"`
-}
-
+// GetParticipation reads the authoritative participation reference.
 func (c *Client) GetParticipation(ctx context.Context, id model.MerchantParticipationRequestID) (coremerchant.Reference, error) {
 	var result struct {
 		Data referenceDTO `json:"data"`
 	}
-	err := c.do(ctx, http.MethodGet, id.String(), nil, &result)
+	err := c.do(
+		ctx,
+		http.MethodGet,
+		id.String(),
+		nil,
+		&result,
+	)
 	if err != nil {
 		return coremerchant.Reference{}, err
 	}
 
 	d := result.Data
+	var declaration *model.MerchantSelfDeclaration
+	if d.SelfDeclaration != nil {
+		declaration = &model.MerchantSelfDeclaration{
+			MaxAmountMinor:    d.SelfDeclaration.MaxAmountMinor,
+			MaxAmountCurrency: d.SelfDeclaration.MaxAmountCurrency,
+			MaxTenureMonths:   d.SelfDeclaration.MaxTenureMonths,
+		}
+	}
+
 	return coremerchant.Reference{
-		MerchantID: d.MerchantID,
-		RequestID: d.RequestID,
-		BusinessLine: d.BusinessLine,
-		Environment: d.Environment,
-		TradeName: d.TradeName,
+		MerchantID:            d.MerchantID,
+		RequestID:             d.RequestID,
+		BusinessLine:          d.BusinessLine,
+		Environment:           d.Environment,
+		TradeName:             d.TradeName,
 		BaseApplicationStatus: d.BaseApplicationStatus,
+		SelfDeclaration:       declaration,
 	}, nil
 }
 
+// ReportReady sends the immutable readiness report and returns the current projection.
 func (c *Client) ReportReady(ctx context.Context, p coremerchant.Progress) (coremerchant.Snapshot, error) {
 	const op = "merchant.Client.ReportReady"
-	body, err := json.Marshal(progressDTO{EventID: p.EventID, OwnerVersion: p.OwnerVersion, Status: "READY", AccountReference: p.AccountReference, Issues: []issueDTO{}})
+
+	body, err := json.Marshal(progressDTO{
+		EventID:          p.EventID,
+		OwnerVersion:     p.OwnerVersion,
+		Status:           "READY",
+		AccountReference: p.AccountReference,
+		Issues:           []issueDTO{},
+	})
 	if err != nil {
 		return coremerchant.Snapshot{}, fmt.Errorf("%s: encode progress: %w", op, err)
 	}
@@ -150,13 +163,25 @@ func (c *Client) ReportReady(ctx context.Context, p coremerchant.Progress) (core
 	var result struct {
 		Data snapshotDTO `json:"data"`
 	}
-	err = c.do(ctx, http.MethodPut, p.RequestID.String()+"/progress", body, &result)
+	err = c.do(
+		ctx,
+		http.MethodPut,
+		p.RequestID.String()+"/progress",
+		body,
+		&result,
+	)
 	if err != nil {
 		return coremerchant.Snapshot{}, err
 	}
 
 	d := result.Data
-	snapshot := coremerchant.Snapshot{RequestID: d.RequestID, BusinessLine: d.Code, Environment: d.Environment, Status: d.Status, OwnerVersion: d.OwnerVersion}
+	snapshot := coremerchant.Snapshot{
+		RequestID:    d.RequestID,
+		BusinessLine: d.Code,
+		Environment:  d.Environment,
+		Status:       d.Status,
+		OwnerVersion: d.OwnerVersion,
+	}
 	if d.AccountReference != nil {
 		snapshot.AccountReference = *d.AccountReference
 	}
@@ -166,11 +191,18 @@ func (c *Client) ReportReady(ctx context.Context, p coremerchant.Progress) (core
 
 func (c *Client) do(ctx context.Context, method, path string, body []byte, output any) error {
 	const op = "merchant.Client.do"
+
 	// A reachable Merchant returning a conclusive request/authorization error
 	// is not a dependency outage. Preserve that error without tripping the circuit.
 	var conclusiveErr error
 	err := c.breaker.Execute(ctx, "merchant", func(ctx context.Context) error {
-		callErr := c.doRequest(ctx, method, path, body, output)
+		callErr := c.doRequest(
+			ctx,
+			method,
+			path,
+			body,
+			output,
+		)
 		if errors.Is(callErr, coremerchant.ErrBlocked) || errors.Is(callErr, coremerchant.ErrReferenceNotFound) {
 			conclusiveErr = callErr
 			return nil
@@ -187,6 +219,7 @@ func (c *Client) do(ctx context.Context, method, path string, body []byte, outpu
 
 func (c *Client) doRequest(ctx context.Context, method, path string, body []byte, output any) error {
 	const op = "merchant.Client.doRequest"
+
 	req, err := http.NewRequestWithContext(ctx, method, c.base+"/internal/v1/business-lines/bnpl/requests/"+path, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("%s: construct request: %w", op, err)

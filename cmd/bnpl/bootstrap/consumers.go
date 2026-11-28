@@ -34,8 +34,12 @@ func (a *App) RegisterConsumers() (*consumers.Registry, error) {
 		return nil, fmt.Errorf("%s: create consumer registry: %w", op, err)
 	}
 
-	if a.Config.MerchantSandbox.Enabled {
-		handler, err := merchantparticipation.New(a.MerchantSandbox, a.Infrastructure.FingerprintHasher)
+	if a.Config.MerchantProvisioning.Only {
+		handler, err := merchantparticipation.New(
+			a.MerchantProvisioning,
+			a.Infrastructure.FingerprintHasher,
+			a.Config.MerchantProvisioning.Environment,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("%s: create merchant participation handler: %w", op, err)
 		}
@@ -96,10 +100,10 @@ func validateConsumerSubscriptions(cfg *config.Config) error {
 		return fmt.Errorf("%s: config is required", op)
 	}
 
-	if cfg.MerchantSandbox.Enabled {
+	if cfg.MerchantProvisioning.Only {
 		topics := cfg.Infrastructure.Messaging.Kafka.Consumer.Topics
 		if len(topics) != 1 || topics[0] != config.MerchantParticipationTopic {
-			return fmt.Errorf("%s: Sandbox must subscribe only to Merchant participation", op)
+			return fmt.Errorf("%s: Provisioning-only pilot must subscribe only to Merchant participation", op)
 		}
 
 		return nil

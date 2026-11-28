@@ -9,7 +9,7 @@ import (
 )
 
 // ExternalMerchantID is the Merchant Service merchant identity (merchant_profiles.external_merchant_id).
-// For the Sandbox pilot it is never derived from an operator subject ID.
+// A participation request uses the Merchant-owned identity, never an operator subject ID.
 type ExternalMerchantID uuid.UUID
 
 // ParseExternalMerchantID parses a ExternalMerchantID from its canonical string form.
