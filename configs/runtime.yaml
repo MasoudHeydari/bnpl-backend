@@ -52,6 +52,10 @@ gin:
     max_body_bytes: ${GIN_RESPONSE_LOGGING_MAX_BODY_BYTES}
 
 usecases:
+  credit_allocation:
+    import_max_items: ${CREDIT_ELIGIBILITY_IMPORT_MAX_ITEMS}
+    import_max_body_bytes: ${CREDIT_ELIGIBILITY_IMPORT_MAX_BODY_BYTES}
+
   health:
     enabled: ${HEALTH_ENABLED}
 
@@ -189,7 +193,9 @@ infrastructure:
     slog:
       level: ${LOG_LEVEL}
       format: ${LOG_FORMAT}
-      # Optional dual-write path for Promtail on Hamravesh (empty = stdout only).
+      # Human-oriented stdout formatting; independent of level. File stays compact.
+      pretty_print: ${LOG_PRETTY_PRINT}
+      # Optional dual-write path for Edge Alloy (empty = stdout only).
       file: ${LOG_FILE}
 
   error_reporting:
@@ -271,6 +277,7 @@ infrastructure:
       client_id: ${KAFKA_CLIENT_ID}
       group_id: ${KAFKA_GROUP_ID}
       topics:
+        merchant_participation_requests: ${KAFKA_TOPIC_MERCHANT_PARTICIPATION_REQUESTS}
         payment_results: ${KAFKA_TOPIC_PAYMENT_RESULTS}
         audit_events: ${KAFKA_TOPIC_AUDIT_EVENTS}
         payment_application_results: ${KAFKA_TOPIC_PAYMENT_APPLICATION_RESULTS}
@@ -290,6 +297,7 @@ infrastructure:
         topics:
           - ${KAFKA_CONSUMER_TOPIC_PAYMENT_RESULTS}
           - ${KAFKA_CONSUMER_TOPIC_INSTALLMENT_PAYMENT_RECONCILIATION_RESULTS}
+        merchant_participation_topic: ${KAFKA_CONSUMER_TOPIC_MERCHANT_PARTICIPATION_REQUESTS}
         initial_offset: ${KAFKA_CONSUMER_INITIAL_OFFSET}
         allow_newest_initial_offset: ${KAFKA_CONSUMER_ALLOW_NEWEST_INITIAL_OFFSET}
         retry_initial_backoff: ${KAFKA_CONSUMER_RETRY_INITIAL_BACKOFF}
@@ -410,6 +418,17 @@ infrastructure:
           interval: ${TASK_CHECKOUT_VERIFICATION_EXPIRY_INTERVAL}
           run_on_start: ${TASK_CHECKOUT_VERIFICATION_EXPIRY_RUN_ON_START}
 
+      merchant_progress_delivery:
+        enabled: ${TASK_MERCHANT_PROGRESS_DELIVERY_ENABLED}
+        execution: ${TASK_MERCHANT_PROGRESS_DELIVERY_EXECUTION}
+        handler: ${TASK_MERCHANT_PROGRESS_DELIVERY_HANDLER}
+        trigger:
+          type: ${TASK_MERCHANT_PROGRESS_DELIVERY_TRIGGER_TYPE}
+          cron: ${TASK_MERCHANT_PROGRESS_DELIVERY_CRON}
+          timezone: ${TASK_MERCHANT_PROGRESS_DELIVERY_TIMEZONE}
+          interval: ${TASK_MERCHANT_PROGRESS_DELIVERY_INTERVAL}
+          run_on_start: ${TASK_MERCHANT_PROGRESS_DELIVERY_RUN_ON_START}
+
       merchant_terminal_issuance_scrub:
         enabled: ${TASK_MERCHANT_TERMINAL_ISSUANCE_SCRUB_ENABLED}
         execution: ${TASK_MERCHANT_TERMINAL_ISSUANCE_SCRUB_EXECUTION}
@@ -475,6 +494,18 @@ infrastructure:
           timezone: ${TASK_PAYMENT_ATTEMPT_RECONCILIATION_TIMEZONE}
           interval: ${TASK_PAYMENT_ATTEMPT_RECONCILIATION_INTERVAL}
           run_on_start: ${TASK_PAYMENT_ATTEMPT_RECONCILIATION_RUN_ON_START}
+
+      credit_request_processing:
+        # Processes only authorized, due credit requests.
+        enabled: ${TASK_CREDIT_REQUEST_PROCESSING_ENABLED}
+        execution: ${TASK_CREDIT_REQUEST_PROCESSING_EXECUTION}
+        handler: ${TASK_CREDIT_REQUEST_PROCESSING_HANDLER}
+        trigger:
+          type: ${TASK_CREDIT_REQUEST_PROCESSING_TRIGGER_TYPE}
+          cron: ${TASK_CREDIT_REQUEST_PROCESSING_CRON}
+          timezone: ${TASK_CREDIT_REQUEST_PROCESSING_TIMEZONE}
+          interval: ${TASK_CREDIT_REQUEST_PROCESSING_INTERVAL}
+          run_on_start: ${TASK_CREDIT_REQUEST_PROCESSING_RUN_ON_START}
 
       repayment_batch_reconciliation:
         # FC v2 gRPC Get polling; no shared Kafka topic is required.
@@ -548,6 +579,22 @@ external:
         cert_file: ${EXTERNAL_FINANCIAL_CORE_GRPC_TLS_CERT_FILE}
         key_file: ${EXTERNAL_FINANCIAL_CORE_GRPC_TLS_KEY_FILE}
         server_name: ${EXTERNAL_FINANCIAL_CORE_GRPC_TLS_SERVER_NAME}
+
+  merchant:
+    provider: ${EXTERNAL_MERCHANT_PROVIDER}
+
+    noop:
+
+    grpc:
+      address: ${EXTERNAL_MERCHANT_GRPC_ADDRESS}
+      timeout: ${EXTERNAL_MERCHANT_GRPC_TIMEOUT}
+      connection_timeout: ${EXTERNAL_MERCHANT_GRPC_CONNECTION_TIMEOUT}
+      environment: ${MERCHANT_PARTICIPATION_ENVIRONMENT}
+      tls:
+        ca_file: ${EXTERNAL_MERCHANT_GRPC_TLS_CA_FILE}
+        cert_file: ${EXTERNAL_MERCHANT_GRPC_TLS_CERT_FILE}
+        key_file: ${EXTERNAL_MERCHANT_GRPC_TLS_KEY_FILE}
+        server_name: ${EXTERNAL_MERCHANT_GRPC_TLS_SERVER_NAME}
 
   customer:
     provider: ${EXTERNAL_CUSTOMER_PROVIDER}

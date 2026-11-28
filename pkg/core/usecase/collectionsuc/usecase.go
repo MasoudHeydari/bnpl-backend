@@ -20,6 +20,7 @@ import (
 type UseCase struct {
 	pool                repo.Pool
 	customerProfile     repo.CustomerProfile
+	sharedCredit        repo.SharedCredit
 	installment         repo.Installment
 	decision            repo.Decision
 	defaultEpisode      repo.DefaultEpisode
@@ -53,6 +54,7 @@ func New(
 	auditDestination string,
 	batchSize int,
 	policies *collections.Registry,
+	sharedCredit repo.SharedCredit,
 ) (*UseCase, error) {
 	const op = "collectionsuc.New"
 
@@ -66,6 +68,10 @@ func New(
 
 	if customerProfile == nil {
 		return nil, fmt.Errorf("%s: customer profile repository is required", op)
+	}
+
+	if sharedCredit == nil {
+		return nil, fmt.Errorf("%s: shared credit repository is required", op)
 	}
 
 	if installment == nil {
@@ -119,6 +125,7 @@ func New(
 	return &UseCase{
 		pool:                pool,
 		customerProfile:     customerProfile,
+		sharedCredit:        sharedCredit,
 		installment:         installment,
 		decision:            decision,
 		defaultEpisode:      defaultEpisode,

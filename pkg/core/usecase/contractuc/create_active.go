@@ -189,6 +189,16 @@ func (uc *UseCase) prepareMerchantFunding(
 			creditAccountQ := uc.creditAccount.Tx(tx)
 			installmentQ := uc.installment.Tx(tx)
 
+			// Collections and new merchant-funded commitments serialize on
+			// the same legal person before locking the account profile.
+			if err := uc.newCreditUsageGuard.LockCreditOwnerForCheckout(
+				ctx,
+				tx,
+				input.ExternalSubjectID,
+			); err != nil {
+				return fmt.Errorf("%s: lock legal person: %w", op, err)
+			}
+
 			profile, err := profileQ.LockByExternalSubjectID(ctx, input.ExternalSubjectID)
 			if err != nil {
 				if cerr.IsCode(err, cerr.CodeResourceNotFound) {
@@ -380,6 +390,17 @@ func (uc *UseCase) prepareMerchantFunding(
 					return reloadErr
 				}
 
+				if !profile.CreditOwnerID.IsZero() {
+					pending, pendingErr := contractQ.GetPaymentPendingByCreditOwnerID(ctx, profile.CreditOwnerID)
+					if pendingErr == nil {
+						return personCreditPurchaseInProgressError(pending.ID)
+					}
+
+					if !cerr.IsCode(pendingErr, cerr.CodeResourceNotFound) {
+						return pendingErr
+					}
+				}
+
 				return cerr.Conflict(fmt.Errorf("%s: another pre-activation contract already occupies the credit account", op))
 			}
 
@@ -520,7 +541,7 @@ func (uc *UseCase) finalizeMerchantFundingActivation(
 				return err
 			}
 
-			if account.CustomerID != contractRow.CustomerID || account.Currency != contractRow.Currency {
+			if !model.CreditBelongsToContract(account, contractRow) {
 				return cerr.InternalError(fmt.Errorf("%s: contract credit account ownership changed before activation", op))
 			}
 

@@ -241,7 +241,7 @@ func (uc *UseCase) CreateForCustomer(
 				return getErr
 			}
 
-			if account.CustomerID != profile.ID || account.Currency != installment.Currency {
+			if !model.CreditBelongsToCustomer(account, profile, installment.Currency) {
 				return cerr.Conflict(fmt.Errorf("%s: credit account/contract identity mismatch", op))
 			}
 

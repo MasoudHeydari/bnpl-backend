@@ -16,6 +16,8 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/permission"
 )
 
+var testMerchantID = model.ExternalMerchantID(uuid.MustParse("88888888-8888-4888-8888-888888888888"))
+
 func newTestContext(
 	t *testing.T,
 	method string,
@@ -36,7 +38,12 @@ func newTestContext(
 	}
 
 	if authCtx != nil {
-		req = req.WithContext(permission.WithAuthContext(req.Context(), *authCtx))
+		ctx := permission.WithAuthContext(req.Context(), *authCtx)
+		ctx = permission.WithMerchantWorkspace(ctx, permission.MerchantWorkspace{
+			MerchantID: testMerchantID,
+			Scope:      model.MerchantOutletScope{Kind: model.AllMerchantOutlets},
+		})
+		req = req.WithContext(ctx)
 	}
 
 	c.Request = req
@@ -66,7 +73,7 @@ func TestToRotateInput_EmptyBodyUsesDefaultGrace(t *testing.T) {
 	input, ok := toRotateInput(c)
 
 	require.True(t, ok)
-	require.Equal(t, authCtx.SubjectID.AsExternalMerchantID(), input.ExternalMerchantID)
+	require.Equal(t, testMerchantID, input.ExternalMerchantID)
 	require.Equal(t, "key-1", input.IdempotencyKey)
 	require.Nil(t, input.GracePeriod)
 }
@@ -185,7 +192,7 @@ func TestToRetireInput(t *testing.T) {
 	input, ok := toRetireInput(c)
 
 	require.True(t, ok)
-	require.Equal(t, authCtx.SubjectID.AsExternalMerchantID(), input.ExternalMerchantID)
+	require.Equal(t, testMerchantID, input.ExternalMerchantID)
 	require.Equal(t, credentialID, input.CredentialID.UUID())
 
 	bad, _ := newTestContext(

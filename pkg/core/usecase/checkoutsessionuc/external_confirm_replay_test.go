@@ -26,6 +26,7 @@ func TestConfirmExternal_ConsumedOTPNeverReplaysPublicConfirm(t *testing.T) {
 	h.expectOTPContinuationDeps(consumed)
 	h.sessionTx.EXPECT().LockByPublicToken(h.ctx, h.publicToken).Return(consumed, nil).Once()
 
+	h.expectExternalConfirmPreflight(consumed)
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
 	requireCerr(t, err, cerr.CodeConflict, "error.otp_already_consumed")
 	require.Empty(t, h.contracts.calls)
@@ -65,6 +66,7 @@ func TestConfirmExternal_FreshOTPOnProcessingRunsConfirmCore(t *testing.T) {
 	}, nil).Once()
 	h.expectCheckoutPaymentAttemptLoad(true)
 
+	h.expectExternalConfirmPreflight(pending)
 	output, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
 	require.NoError(t, err)
 	require.Equal(t, model.ProcessingCheckoutSessionStatus, output.Session.Status)
@@ -86,8 +88,8 @@ func TestConfirmExternal_CompletedRejectsEvenWithFreshOTP(t *testing.T) {
 	h.seedOTPChallenge(pending, testOTPCode)
 
 	// Terminal statuses are rejected after peek — no FOR UPDATE.
-	h.sessionTx.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(pending, nil).Once()
 
+	h.expectExternalConfirmPreflight(pending)
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
 	requireCerr(t, err, cerr.CodeConflict, "error.checkout_session_cannot_continue_in_its_current_state")
 }
@@ -114,8 +116,7 @@ func TestConfirmExternal_TerminalStatesAreRejected(t *testing.T) {
 			session := h.session(withStatus(tt.status))
 			h.seedOTPChallenge(session, testOTPCode)
 
-			h.sessionTx.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(session, nil).Once()
-
+			h.expectExternalConfirmPreflight(session)
 			_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
 			requireCerr(t, err, cerr.CodeConflict, "error.checkout_session_cannot_continue_in_its_current_state")
 		})

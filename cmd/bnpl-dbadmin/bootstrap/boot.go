@@ -37,7 +37,7 @@ func configured(fn func(context.Context, *dbadminconfig.Config, corelog.Logger) 
 	if e != nil {
 		return e
 	}
-	logger := adapterslog.New(os.Stderr, nil, corelog.Format(c.Logging.Format))
+	logger := adapterslog.New(os.Stderr, nil, nil, corelog.Format(c.Logging.Format), false)
 	defer func() {
 		if recover() != nil {
 			err = fmt.Errorf("dbadmin: command panic; resources closed")

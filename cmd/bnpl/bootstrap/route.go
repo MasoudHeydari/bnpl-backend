@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin"
+	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/creditallocationrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/healthrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/merchantrs"
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/routes"
@@ -46,6 +47,8 @@ func (a *App) RegisterRoutes(e *gin.Engine) error {
 		a.UseCases.CustomerCredit,
 		a.UseCases.MerchantTerminal,
 		routes.RegisterOptions{
+			CreditAllocation:           a.UseCases.CreditAllocation,
+			CreditAllocationOptions:    creditallocationrs.RegisterOptions{ImportMaxItems: a.Config.Usecases.CreditAllocation.EffectiveMaxItems(), ImportMaxBodyBytes: a.Config.Usecases.CreditAllocation.EffectiveMaxBodyBytes()},
 			RepaymentBatchProviderCode: a.Config.External.FinancialCore.CheckoutPaymentProviderCode,
 			RepaymentBatchReturnURL:    a.Config.External.FinancialCore.PaymentReturnURL,
 			Merchant: merchantrs.RegisterOptions{

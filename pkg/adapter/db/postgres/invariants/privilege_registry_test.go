@@ -40,7 +40,7 @@ func TestPrivilegeRegistryMatchesInitialSchema(t *testing.T) {
 		}
 
 	}
-	require.Len(t, seen, 43)
+	require.Len(t, seen, 55)
 	a := PrivilegeRegistry()
 	a[0].Operations[0] = "DELETE"
 	require.Equal(t, SelectOperation, PrivilegeRegistry()[0].Operations[0])

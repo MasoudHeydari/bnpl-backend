@@ -13,20 +13,19 @@ import (
 // by the Decision's immutable policy. A monthly checkout must never consume
 // installment capacity or vice versa; no amount is reserved by this lock.
 func lockCheckoutCreditAccount(
-	ctx context.Context, q repo.CreditAccountTxQueryer,
-	customerID model.CustomerID, currency model.Currency, kind model.CreditKind,
+	ctx context.Context,
+	q repo.CreditAccountProductTxQueryer,
+	customerID model.CustomerID,
+	currency model.Currency,
+	kind model.CreditKind,
 ) (model.CreditAccount, error) {
 	switch model.EffectiveCreditKind(kind) {
 	case model.PayInInstallmentsCreditKind:
 		return q.LockByCustomerIDAndCurrency(ctx, customerID, currency)
 
 	case model.PayNextMonthCreditKind:
-		productQ, ok := q.(repo.CreditAccountProductTxQueryer)
-		if !ok {
-			return model.CreditAccount{}, cerr.InternalError(fmt.Errorf("credit account repository has no monthly product support"))
-		}
+		return q.LockByCustomerIDCurrencyAndKind(ctx, customerID, currency, kind)
 
-		return productQ.LockByCustomerIDCurrencyAndKind(ctx, customerID, currency, kind)
 	default:
 		return model.CreditAccount{}, cerr.InternalError(fmt.Errorf("unsupported checkout credit kind %q", kind))
 	}

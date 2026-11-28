@@ -6,10 +6,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	testifymock "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"
+	"github.com/parstis/bnpl-backend/pkg/core/event/checkoutlifecycle"
+	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"
 	"github.com/parstis/bnpl-backend/pkg/core/external/notification"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/otpcode"
@@ -68,10 +71,6 @@ func withOTPAttempts(count int) func(*model.OTPChallenge) {
 	return func(c *model.OTPChallenge) { c.AttemptCount = count }
 }
 
-func withOTPNotificationAcceptedAt(at time.Time) func(*model.OTPChallenge) {
-	return func(c *model.OTPChallenge) { c.NotificationAcceptedAt = &at }
-}
-
 func withOTPVerifiedAt(at time.Time) func(*model.OTPChallenge) {
 	return func(c *model.OTPChallenge) {
 		c.VerifiedAt = &at
@@ -83,10 +82,6 @@ func withOTPVerifiedAt(at time.Time) func(*model.OTPChallenge) {
 
 func withOrigin(origin model.CheckoutSessionOrigin) func(*model.CheckoutSession) {
 	return func(s *model.CheckoutSession) { s.Origin = origin }
-}
-
-func (h *harness) approvedDecision() {
-	h.setApprovedDecisionCreateOutput()
 }
 
 // expectExternalBind expects the lookup-only bind transaction for an unbound session.
@@ -154,8 +149,35 @@ func TestGetExternal_ProjectsPreparedOfferWithoutSideEffects(t *testing.T) {
 	require.NotNil(t, got.Offer)
 	require.Equal(t, ApprovedOfferOutcome, got.Offer.Outcome)
 	require.Zero(t, got.Offer.AvailableCreditMinor)
-	require.Len(t, h.identityCalls, identityCallsBefore)
+	require.Len(t, h.identityCalls, identityCallsBefore+1)
 	require.Len(t, h.decisions.calls, decisionCreatesBefore)
+	require.Empty(t, h.notificationCalls)
+}
+
+// A public checkout token must not expose a prepared Offer if the merchant
+// phone was reassigned in CRS after the original Decision was persisted.
+func TestGetExternal_ReassignedMobileDoesNotProjectOffer(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.expectPool(2, 0)
+	session := h.session()
+	h.sessionCQ.EXPECT().
+		GetByPublicToken(h.ctx, h.publicToken).
+		Return(session, nil).
+		Once()
+	h.merchantCQ.EXPECT().
+		GetByID(h.ctx, h.merchantPID).
+		Return(model.MerchantProfile{ID: h.merchantPID, DisplayName: "Shop"}, nil).
+		Once()
+	h.identityOutput = extcustomer.ResolveByMobileOutput{
+		ExternalCustomerID: model.ExternalCustomerID(uuid.New()),
+		Status:             extcustomer.ActiveStatus,
+	}
+
+	_, err := h.uc.GetExternal(h.ctx, GetExternalInput{Token: h.publicToken})
+	requireCerr(t, err, cerr.CodeConflict, "error.checkout_otp_issuance_not_allowed")
+	require.Empty(t, h.decisions.calls)
 	require.Empty(t, h.notificationCalls)
 }
 
@@ -212,7 +234,28 @@ func TestStartExternal_ReturnsPreparedOfferWithoutSendingOTP(t *testing.T) {
 	require.Equal(t, 1, got.EvaluationGeneration)
 	require.Equal(t, ApprovedOfferOutcome, got.Offer.Outcome)
 	require.Empty(t, h.notificationCalls)
-	require.Empty(t, h.identityCalls)
+	require.Len(t, h.identityCalls, 1)
+}
+
+// START cannot replay a previously prepared Offer after CRS changes the
+// ownership of the merchant-supplied mobile number.
+func TestStartExternal_ReassignedMobileBlocksPreparedOffer(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.expectPool(2, 0)
+	h.expectStartExternalPrepareLoad()
+	h.identityOutput = extcustomer.ResolveByMobileOutput{
+		ExternalCustomerID: model.ExternalCustomerID(uuid.New()),
+		Status:             extcustomer.ActiveStatus,
+	}
+
+	h.expectSafeReassignedCancellation(h.session())
+
+	_, err := h.uc.StartExternal(h.ctx, h.startExternalInput(1))
+	requireCerr(t, err, cerr.CodeConflict, "error.checkout_otp_issuance_not_allowed")
+	require.Empty(t, h.contracts.calls)
+	require.Empty(t, h.notificationCalls)
 }
 
 func TestStartExternal_DeniedOfferNeverIssuesOTP(t *testing.T) {
@@ -232,7 +275,7 @@ func TestStartExternal_DeniedOfferNeverIssuesOTP(t *testing.T) {
 	require.Equal(t, DeniedOfferOutcome, got.Offer.Outcome)
 	require.Equal(t, model.OpenCheckoutSessionStatus, got.Session.Status)
 	require.Empty(t, h.notificationCalls)
-	require.Empty(t, h.identityCalls)
+	require.Len(t, h.identityCalls, 1)
 }
 
 func TestStartExternal_LinkedContractCannotStart(t *testing.T) {
@@ -268,7 +311,7 @@ func TestStartExternal_StaleGenerationDoesNotPrepareAgain(t *testing.T) {
 	require.Equal(t, 2, got.EvaluationGeneration)
 	require.Equal(t, ApprovedOfferOutcome, got.Offer.Outcome)
 	require.Empty(t, h.notificationCalls)
-	require.Empty(t, h.identityCalls)
+	require.Len(t, h.identityCalls, 1)
 }
 
 func TestStartExternal_InternalOriginIsNotFound(t *testing.T) {
@@ -310,11 +353,7 @@ func TestConfirmExternal_UnstartedSessionIsNotReady(t *testing.T) {
 	h := newHarness(t)
 	h.expectPool(0, 1)
 
-	h.sessionTx.EXPECT().
-		GetByPublicToken(h.ctx, h.publicToken).Return(h.session(withCustomer(nil)), nil).Once()
-	h.sessionTx.EXPECT().
-		LockByPublicToken(h.ctx, h.publicToken).Return(h.session(withCustomer(nil)), nil).Once()
-
+	h.expectExternalConfirmPreflight(h.session(withCustomer(nil)))
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
 	requireCerr(t, err, cerr.CodeConflict, "error.checkout_offer_is_not_ready")
 }
@@ -325,10 +364,7 @@ func TestConfirmExternal_InternalOriginIsNotFound(t *testing.T) {
 	h := newHarness(t)
 	h.expectPool(0, 1)
 
-	h.sessionTx.EXPECT().
-		GetByPublicToken(h.ctx, h.publicToken).
-		Return(h.session(withOrigin(model.InternalCheckoutSessionOrigin)), nil).Once()
-
+	h.expectExternalConfirmPreflight(h.session(withOrigin(model.InternalCheckoutSessionOrigin)))
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
 	requireCerr(t, err, cerr.CodeResourceNotFound, "error.checkout_session_not_found")
 }
@@ -346,6 +382,40 @@ func TestConfirmExternal_MalformedInputIsRejectedBeforeAnyRead(t *testing.T) {
 
 	_, err = h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 0))
 	requireCerr(t, err, cerr.CodeInvalidArgument, "error.evaluation_generation_required")
+}
+
+// Stale merchant phones must not receive an OTP after CRS remaps them to
+// another customer account. Even a previously bound checkout must re-resolve.
+func TestRequestExternalOTP_RejectsReassignedMerchantPhone(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.expectPool(1, 0)
+	session := h.session()
+	h.sessionCQ.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(session, nil).Once()
+	h.identityOutput = extcustomer.ResolveByMobileOutput{
+		ExternalCustomerID: model.ExternalCustomerID(uuid.New()),
+		Status:             extcustomer.ActiveStatus,
+	}
+	h.expectSafeReassignedCancellation(session)
+
+	_, err := h.uc.RequestExternalOTP(h.ctx, RequestExternalOTPInput{Token: h.publicToken, EvaluationGeneration: 1})
+	requireCerr(t, err, cerr.CodeConflict, "error.checkout_otp_issuance_not_allowed")
+	require.Empty(t, h.notificationCalls)
+	require.Len(t, h.identityCalls, 1)
+}
+
+// A CRS failure must fail closed rather than delivering to the unverified
+// merchant-provided number.
+func TestRequestExternalOTP_CRSErrorBlocksDelivery(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.expectPool(1, 0)
+	session := h.session()
+	h.sessionCQ.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(session, nil).Once()
+	h.identityErr = cerr.ServiceUnavailable(errors.New("CRS temporarily unavailable"))
+	_, err := h.uc.RequestExternalOTP(h.ctx, RequestExternalOTPInput{Token: h.publicToken, EvaluationGeneration: 1})
+	requireCerr(t, err, cerr.CodeConflict, "error.checkout_otp_issuance_not_allowed")
+	require.Empty(t, h.notificationCalls)
 }
 
 func TestRequestExternalOTP_IssuesAndSendsOTPOutsideTransactions(t *testing.T) {
@@ -438,6 +508,36 @@ func TestRequestExternalOTP_SMSFailureLeavesOTPUnsent(t *testing.T) {
 	require.Nil(t, row.Verifier)
 }
 
+// CRS is checked again when consuming OTP, not just when issuing it.
+func TestConfirmExternal_CRSMobileReassignedBeforeConsume(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.expectPool(1, 0)
+	pending := h.session()
+	h.seedOTPChallenge(pending, testOTPCode)
+	h.expectExternalConfirmPreflight(pending)
+	h.identityOutput = extcustomer.ResolveByMobileOutput{
+		ExternalCustomerID: model.ExternalCustomerID(uuid.New()),
+		Status:             extcustomer.ActiveStatus,
+	}
+
+	h.expectSafeReassignedCancellation(pending)
+
+	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
+	requireCerr(t, err, cerr.CodeConflict, "error.checkout_otp_issuance_not_allowed")
+	require.Empty(t, h.contracts.calls)
+	require.Empty(t, h.notificationCalls)
+
+	row, getErr := h.otpChallenges.GetByPurposeSubject(
+		h.ctx,
+		model.OTPPurposeHostedCheckoutConfirm,
+		pending.ID.String(),
+	)
+	require.NoError(t, getErr)
+	require.Nil(t, row.VerifiedAt, "CRS mismatch must not consume the challenge")
+}
+
 func TestConfirmExternal_ValidOTPMarksVerifiedAndRunsConfirmCore(t *testing.T) {
 	t.Parallel()
 
@@ -458,6 +558,7 @@ func TestConfirmExternal_ValidOTPMarksVerifiedAndRunsConfirmCore(t *testing.T) {
 	h.sessionTx.EXPECT().LockByID(h.ctx, h.sessionID).Return(verified, nil).Once()
 	h.expectCustomerLock()
 
+	h.expectExternalConfirmPreflight(pending)
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
 	requireCerr(t, err, cerr.CodeConflict, "error.checkout_offer_is_not_ready")
 	require.Empty(t, h.contracts.calls)
@@ -475,6 +576,7 @@ func TestConfirmExternal_WrongOTPRecordsFailureAndRejects(t *testing.T) {
 	h.sessionTx.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(pending, nil).Once()
 	h.sessionTx.EXPECT().LockByPublicToken(h.ctx, h.publicToken).Return(pending, nil).Once()
 
+	h.expectExternalConfirmPreflight(pending)
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput("000000", 1))
 	requireCerr(t, err, cerr.CodeInvalidArgument, "error.otp_invalid")
 
@@ -496,6 +598,7 @@ func TestConfirmExternal_LastWrongAttemptReportsLocked(t *testing.T) {
 	h.sessionTx.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(pending, nil).Once()
 	h.sessionTx.EXPECT().LockByPublicToken(h.ctx, h.publicToken).Return(pending, nil).Once()
 
+	h.expectExternalConfirmPreflight(pending)
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput("000000", 1))
 	requireCerr(t, err, cerr.CodeForbidden, "error.otp_locked")
 }
@@ -511,6 +614,7 @@ func TestConfirmExternal_ExhaustedAttemptsRejectEvenTheCorrectCode(t *testing.T)
 	h.sessionTx.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(locked, nil).Once()
 	h.sessionTx.EXPECT().LockByPublicToken(h.ctx, h.publicToken).Return(locked, nil).Once()
 
+	h.expectExternalConfirmPreflight(locked)
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
 	requireCerr(t, err, cerr.CodeForbidden, "error.otp_locked")
 }
@@ -525,6 +629,7 @@ func TestConfirmExternal_ExpiredOTPIsRejectedWithoutCountingAnAttempt(t *testing
 	h.sessionTx.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(pending, nil).Once()
 	h.sessionTx.EXPECT().LockByPublicToken(h.ctx, h.publicToken).Return(pending, nil).Once()
 
+	h.expectExternalConfirmPreflight(pending)
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
 	requireCerr(t, err, cerr.CodeConflict, "error.otp_expired")
 }
@@ -536,9 +641,9 @@ func TestConfirmExternal_StaleEvaluationGenerationRejectsBeforeConsumingOTPAttem
 	h.expectPool(0, 1)
 	pending := h.session(withGeneration(2))
 	h.seedOTPChallenge(pending, testOTPCode)
-	// Generation mismatch is detected on peek — no FOR UPDATE / consume.
-	h.sessionTx.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(pending, nil).Once()
+	// The preflight read rejects stale generations before any OTP transaction.
 
+	h.expectExternalConfirmPreflight(pending)
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
 	requireCerr(t, err, cerr.CodeConflict, "error.checkout_offer_reconfirm_required")
 }
@@ -552,6 +657,7 @@ func TestConfirmExternal_NoIssuedOTPIsNotRequested(t *testing.T) {
 	h.sessionTx.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(pending, nil).Once()
 	h.sessionTx.EXPECT().LockByPublicToken(h.ctx, h.publicToken).Return(pending, nil).Once()
 
+	h.expectExternalConfirmPreflight(pending)
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput(testOTPCode, 1))
 	requireCerr(t, err, cerr.CodeConflict, "error.otp_not_requested")
 }
@@ -566,6 +672,23 @@ func TestConfirmExternal_ConsumedOTPRejectsArbitraryCode(t *testing.T) {
 	h.sessionTx.EXPECT().GetByPublicToken(h.ctx, h.publicToken).Return(pending, nil).Once()
 	h.sessionTx.EXPECT().LockByPublicToken(h.ctx, h.publicToken).Return(pending, nil).Once()
 
+	h.expectExternalConfirmPreflight(pending)
 	_, err := h.uc.ConfirmExternal(h.ctx, h.confirmExternalInput("999999", 1))
 	requireCerr(t, err, cerr.CodeConflict, "error.otp_already_consumed")
+}
+
+// expectSafeReassignedCancellation proves the command retires an open claim
+// through the normal cancellation and lifecycle-outbox path.
+func (h *harness) expectSafeReassignedCancellation(open model.CheckoutSession) {
+	h.t.Helper()
+	h.sessionTx.EXPECT().LockByID(h.ctx, open.ID).Return(open, nil).Once()
+	if open.DecisionID != nil {
+		h.contractTx.EXPECT().GetByDecisionID(h.ctx, *open.DecisionID).
+			Return(model.Contract{}, cerr.ResourceNotFound(errors.New("no contract for decision"))).Once()
+	}
+	canceled := open
+	canceled.Status = model.CanceledCheckoutSessionStatus
+	h.sessionTx.EXPECT().MarkCanceledSafely(h.ctx, open.ID, model.TechnicalFailureCheckoutReason, h.now).
+		Return(canceled, nil).Once()
+	h.expectLifecycleEvent(canceled, checkoutlifecycle.EventTypeCanceled)
 }

@@ -47,6 +47,8 @@ import (
 // Usecases groups configuration sections used to build application-layer
 // use cases.
 type Usecases struct {
+	// CreditAllocation bounds administrative eligibility imports.
+	CreditAllocation CreditAllocation `yaml:"credit_allocation"`
 
 	// OutboxPublisher configures outbox publishing use case settings.
 	OutboxPublisher OutboxPublisher `yaml:"outbox_publisher"`
@@ -694,6 +696,11 @@ func (CustomerCredit) newUseCase(
 	idGenerator identifier.Generator,
 	collectionsPolicy collections.Policy,
 	observer customercredituc.Observer,
+	trustedMobile repo.TrustedMobile,
+	sharedCredit repo.SharedCredit,
+	creditAllocation repo.CreditAllocation,
+	monthlyLimitRef policy.Ref,
+	logger log.Logger,
 ) (*customercredituc.UseCase, error) {
 	return customercredituc.New(
 		pool,
@@ -715,6 +722,11 @@ func (CustomerCredit) newUseCase(
 		idGenerator,
 		collectionsPolicy,
 		observer,
+		trustedMobile,
+		sharedCredit,
+		creditAllocation,
+		monthlyLimitRef,
+		logger,
 	)
 }
 
@@ -877,4 +889,23 @@ func (FinancialCorePaymentReconciliation) newUseCase(
 		logger,
 		observer,
 	)
+}
+
+// CreditAllocation configures bounded administrative JSON imports. Zero uses the default.
+type CreditAllocation struct {
+	ImportMaxItems     int   `yaml:"import_max_items"`
+	ImportMaxBodyBytes int64 `yaml:"import_max_body_bytes"`
+}
+
+func (c CreditAllocation) EffectiveMaxItems() int {
+	if c.ImportMaxItems == 0 {
+		return 1000
+	}
+	return c.ImportMaxItems
+}
+func (c CreditAllocation) EffectiveMaxBodyBytes() int64 {
+	if c.ImportMaxBodyBytes == 0 {
+		return 2 << 20
+	}
+	return c.ImportMaxBodyBytes
 }

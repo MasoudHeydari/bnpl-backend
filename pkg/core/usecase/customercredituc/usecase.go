@@ -10,6 +10,7 @@ import (
 	extcustomer "github.com/parstis/bnpl-backend/pkg/core/external/customer"
 	"github.com/parstis/bnpl-backend/pkg/core/fingerprint"
 	"github.com/parstis/bnpl-backend/pkg/core/identifier"
+	"github.com/parstis/bnpl-backend/pkg/core/log"
 	"github.com/parstis/bnpl-backend/pkg/core/policy"
 	"github.com/parstis/bnpl-backend/pkg/core/policy/initialcreditlimit"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
@@ -31,12 +32,16 @@ type UseCase struct {
 	creditAssessmentClient extcreditassessment.Client
 	customerResolver       extcustomer.Resolver
 	policyAssignment       repo.PolicyAssignment
+	trustedMobile          repo.TrustedMobile
+	sharedCredit           repo.SharedCredit
+	creditAllocation       repo.CreditAllocation
 	initialLimitPolicies   *initialcreditlimit.Registry
 	defaultInitialLimitRef policy.Ref
 	monthlyLimitRef        policy.Ref
 	auditDestination       string
 	idGenerator            identifier.Generator
 	observer               Observer
+	logger                 log.Logger
 }
 
 // New constructs a customer credit use case.
@@ -60,6 +65,11 @@ func New(
 	idGenerator identifier.Generator,
 	collectionsPolicy collections.Policy,
 	observer Observer,
+	trustedMobile repo.TrustedMobile,
+	sharedCredit repo.SharedCredit,
+	creditAllocation repo.CreditAllocation,
+	monthlyLimitRef policy.Ref,
+	logger log.Logger,
 ) (*UseCase, error) {
 	const op = "customercredituc.New"
 
@@ -139,6 +149,26 @@ func New(
 		return nil, fmt.Errorf("%s: observer is required", op)
 	}
 
+	if trustedMobile == nil {
+		return nil, fmt.Errorf("%s: trusted mobile repository is required", op)
+	}
+
+	if sharedCredit == nil {
+		return nil, fmt.Errorf("%s: shared credit repository is required", op)
+	}
+
+	if creditAllocation == nil {
+		return nil, fmt.Errorf("%s: credit allocation repository is required", op)
+	}
+
+	if monthlyLimitRef.ID == "" || monthlyLimitRef.Version == "" {
+		return nil, fmt.Errorf("%s: monthly limit policy ref is required", op)
+	}
+
+	if logger == nil {
+		return nil, fmt.Errorf("%s: logger is required", op)
+	}
+
 	return &UseCase{
 		pool:                   pool,
 		collectionsPolicy:      collectionsPolicy,
@@ -154,17 +184,15 @@ func New(
 		creditAssessmentClient: creditAssessmentClient,
 		customerResolver:       customerResolver,
 		policyAssignment:       policyAssignment,
+		trustedMobile:          trustedMobile,
+		sharedCredit:           sharedCredit,
+		creditAllocation:       creditAllocation,
+		logger:                 logger,
 		initialLimitPolicies:   initialLimitPolicies,
 		defaultInitialLimitRef: defaultInitialLimitRef,
+		monthlyLimitRef:        monthlyLimitRef,
 		auditDestination:       auditDestination,
 		idGenerator:            idGenerator,
 		observer:               observer,
 	}, nil
-}
-
-// WithMonthlyLimitPolicy selects the independently registered monthly limit
-// assessment. Legacy credit-limit calls remain on their assigned v1/v2 policy.
-func (uc *UseCase) WithMonthlyLimitPolicy(ref policy.Ref) *UseCase {
-	uc.monthlyLimitRef = ref
-	return uc
 }

@@ -21,10 +21,9 @@ func (uc *UseCase) resolveInitialLimitPolicy(
 	const op = "customercredituc.UseCase.resolveInitialLimitPolicy"
 
 	ref := uc.defaultInitialLimitRef
-	assignment, err := assignmentQ.GetActive(
+	assignment, err := assignmentQ.GetActiveForCustomerOrOwner(
 		ctx,
-		model.CustomerPolicySubjectType,
-		externalCustomerID.String(),
+		externalCustomerID,
 		model.InitialCreditLimitPolicyFamily,
 		now,
 	)

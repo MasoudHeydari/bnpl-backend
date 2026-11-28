@@ -15,6 +15,15 @@ const (
 	// AuthPermissions carries comma-separated gateway permissions.
 	AuthPermissions = "x-auth-permissions"
 
+	// AuthMerchantID is the Merchant identity resolved by the trusted Gateway.
+	AuthMerchantID = "x-auth-merchant-id"
+
+	// AuthOutletScope is the resolved merchant-wide or selected-outlet grant.
+	AuthOutletScope = "x-auth-outlet-scope"
+
+	// AuthOutletIDs carries the compact JSON array of authorized outlet UUIDs.
+	AuthOutletIDs = "x-auth-outlet-ids"
+
 	// AuthMobileNumber carries the authenticated subject's canonical E.164
 	// mobile from the Identity JWT claim auth_mobile_number
 	// (x-auth-mobile-number). Gateway-injected only. Customer credit APIs use

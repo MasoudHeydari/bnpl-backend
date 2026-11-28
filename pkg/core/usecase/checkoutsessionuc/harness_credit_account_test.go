@@ -20,7 +20,7 @@ func (r *harnessCreditAccountRepo) Conn(repo.Conn) repo.CreditAccountConnQueryer
 	return &harnessCreditAccountConn{CreditAccountConnQueryer: r.conn}
 }
 
-func (r *harnessCreditAccountRepo) Tx(repo.Tx) repo.CreditAccountTxQueryer {
+func (r *harnessCreditAccountRepo) Tx(repo.Tx) repo.CreditAccountProductTxQueryer {
 	panic("harnessCreditAccountRepo.Tx is unused in checkout-session unit tests")
 }
 

@@ -23,7 +23,8 @@ func TestListSales_MissingMerchantID(t *testing.T) {
 
 	uc := merchantuc.New(nil, nil, nil, nil)
 	_, err := uc.ListSales(context.Background(), merchantuc.ListSalesInput{
-		Mode: merchantuc.PaginationModeKeyset,
+		OutletScope: model.MerchantOutletScope{Kind: model.AllMerchantOutlets},
+		Mode:        merchantuc.PaginationModeKeyset,
 	})
 	require.True(t, cerr.IsCode(err, cerr.CodeInvalidArgument))
 }
@@ -33,6 +34,7 @@ func TestListSales_InvalidPaginationMode(t *testing.T) {
 
 	uc := merchantuc.New(nil, nil, nil, nil)
 	_, err := uc.ListSales(context.Background(), merchantuc.ListSalesInput{
+		OutletScope:        model.MerchantOutletScope{Kind: model.AllMerchantOutlets},
 		ExternalMerchantID: model.ExternalMerchantID(uuid.New()),
 		Mode:               "cursor",
 	})
@@ -62,6 +64,7 @@ func TestListSales_Keyset_EmptyWhenMerchantMissing(t *testing.T) {
 	uc := merchantuc.New(pool, merchantProfile, nil, contract)
 
 	out, err := uc.ListSales(context.Background(), merchantuc.ListSalesInput{
+		OutletScope:        model.MerchantOutletScope{Kind: model.AllMerchantOutlets},
 		ExternalMerchantID: merchantID,
 		Mode:               merchantuc.PaginationModeKeyset,
 		Keyset:             pagination.KeysetRequest{Limit: 20},
@@ -111,6 +114,7 @@ func TestListSales_Keyset_ReturnsActiveSales(t *testing.T) {
 		ListActiveByMerchantProfileID(
 			testifymock.Anything,
 			profileID,
+			model.MerchantOutletScope{Kind: model.AllMerchantOutlets},
 			testifymock.MatchedBy(func(page pagination.KeysetRequest) bool {
 				return page.Limit == 21 && page.Order == pagination.OrderDesc
 			}),
@@ -130,6 +134,7 @@ func TestListSales_Keyset_ReturnsActiveSales(t *testing.T) {
 	uc := merchantuc.New(pool, merchantProfile, nil, contract)
 
 	out, err := uc.ListSales(context.Background(), merchantuc.ListSalesInput{
+		OutletScope:        model.MerchantOutletScope{Kind: model.AllMerchantOutlets},
 		ExternalMerchantID: merchantID,
 		Mode:               merchantuc.PaginationModeKeyset,
 		Keyset:             pagination.KeysetRequest{Limit: 20},
@@ -165,12 +170,13 @@ func TestListSales_Page_ReturnsTotals(t *testing.T) {
 		Return(model.MerchantProfile{ID: profileID, ExternalMerchantID: merchantID}, nil)
 	contract.EXPECT().Conn(testifymock.Anything).Return(contractQ).Once()
 	contractQ.EXPECT().
-		CountActiveByMerchantProfileID(testifymock.Anything, profileID).
+		CountActiveByMerchantProfileID(testifymock.Anything, profileID, model.MerchantOutletScope{Kind: model.AllMerchantOutlets}).
 		Return(int64(2), nil)
 	contractQ.EXPECT().
 		ListActiveByMerchantProfileIDOffset(
 			testifymock.Anything,
 			profileID,
+			model.MerchantOutletScope{Kind: model.AllMerchantOutlets},
 			testifymock.MatchedBy(func(page pagination.OffsetRequest) bool {
 				return page.Page == 1 && page.Limit == 20 && page.Order == pagination.OrderDesc
 			}),
@@ -189,6 +195,7 @@ func TestListSales_Page_ReturnsTotals(t *testing.T) {
 	uc := merchantuc.New(pool, merchantProfile, nil, contract)
 
 	out, err := uc.ListSales(context.Background(), merchantuc.ListSalesInput{
+		OutletScope:        model.MerchantOutletScope{Kind: model.AllMerchantOutlets},
 		ExternalMerchantID: merchantID,
 		Mode:               merchantuc.PaginationModePage,
 		Offset: pagination.OffsetRequest{

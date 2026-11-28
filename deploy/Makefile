@@ -31,8 +31,10 @@
 	postgres-image postgres-push-to-hamravesh \
 	kafka-init-image kafka-init-push-to-hamravesh \
 	loki-image loki-push-to-hamravesh \
+	alloy-image alloy-push-to-hamravesh \
 	promtail-image promtail-push-to-hamravesh \
 	grafana-image grafana-push-to-hamravesh \
+	bnpl-image-alloy bnpl-push-alloy-to-hamravesh \
 	identity-push-to-hamravesh customer-push-to-hamravesh \
 	financial-core-push-to-hamravesh notification-push-to-hamravesh
 
@@ -44,6 +46,8 @@ help:
 		'BNPL:' \
 		'  make bnpl-image' \
 		'  make bnpl-push-to-hamravesh' \
+		'  make bnpl-image-alloy' \
+		'  make bnpl-push-alloy-to-hamravesh' \
 		'  make bnpl-image-dbadmin' \
 		'  make bnpl-push-dbadmin-to-hamravesh' \
 		'' \
@@ -56,6 +60,8 @@ help:
 		'  make kafka-init-push-to-hamravesh' \
 		'  make loki-image' \
 		'  make loki-push-to-hamravesh' \
+		'  make alloy-image' \
+		'  make alloy-push-to-hamravesh' \
 		'  make promtail-image' \
 		'  make promtail-push-to-hamravesh' \
 		'  make grafana-image' \
@@ -72,6 +78,12 @@ bnpl-image:
 
 bnpl-push-to-hamravesh:
 	$(MAKE) -C bnpl/hamravesh push-to-hamravesh
+
+bnpl-image-alloy:
+	$(MAKE) -C bnpl/hamravesh image-alloy
+
+bnpl-push-alloy-to-hamravesh:
+	$(MAKE) -C bnpl/hamravesh push-alloy-to-hamravesh
 
 bnpl-image-dbadmin:
 	$(MAKE) -C bnpl/hamravesh image-dbadmin
@@ -102,6 +114,12 @@ loki-image:
 
 loki-push-to-hamravesh:
 	$(MAKE) -C infrastructure loki-push-to-hamravesh
+
+alloy-image:
+	$(MAKE) -C infrastructure alloy-image
+
+alloy-push-to-hamravesh:
+	$(MAKE) -C infrastructure alloy-push-to-hamravesh
 
 promtail-image:
 	$(MAKE) -C infrastructure promtail-image

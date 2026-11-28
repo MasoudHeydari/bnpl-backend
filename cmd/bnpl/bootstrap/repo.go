@@ -6,6 +6,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/collectionscaserp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/contractrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/creditaccountrp"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/creditallocationrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/customerprofilerp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/customerrestrictionrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/decisionrp"
@@ -15,6 +16,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/installmentchargerp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/installmentrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/merchantbranchprofilerp"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/merchantparticipationrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/merchantprofilerp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/merchantterminalrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/otprp"
@@ -26,6 +28,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/repaymentreminderrp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/sagarp"
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/shortlinkrp"
+	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres/trustedmobilerp"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
@@ -62,6 +65,12 @@ type Repos struct {
 	// CreditAccount stores current BNPL credit capacity and exposure.
 	CreditAccount repo.CreditAccount
 
+	// CreditAllocation persists eligibility, requests, and rollout configuration.
+	CreditAllocation repo.CreditAllocation
+
+	// MerchantParticipation persists revision evaluations and reports.
+	MerchantParticipation repo.MerchantParticipation
+
 	// MerchantProfile stores merchant identities.
 	MerchantProfile repo.MerchantProfile
 
@@ -86,6 +95,8 @@ type Repos struct {
 
 	// PolicyAssignment stores runtime subject-to-policy assignment history.
 	PolicyAssignment repo.PolicyAssignment
+	// TrustedMobile is the raw, immutable phone/national-ID membership table.
+	TrustedMobile repo.TrustedMobile
 
 	// PolicyAssignmentImport stores durable bulk-import execution evidence.
 	PolicyAssignmentImport repo.PolicyAssignmentImport
@@ -124,7 +135,9 @@ func NewRepos() Repos {
 		Contract:                   contractrp.New(),
 		CustomerProfile:            customerprofilerp.New(),
 		CreditAccount:              creditaccountrp.New(),
+		CreditAllocation:           creditallocationrp.New(),
 		MerchantProfile:            merchantprofilerp.New(),
+		MerchantParticipation:      merchantparticipationrp.New(),
 		MerchantBranchProfile:      merchantbranchprofilerp.New(),
 		MerchantTerminal:           merchantterminalrp.New(),
 		Installment:                installmentrp.New(),
@@ -132,6 +145,7 @@ func NewRepos() Repos {
 		PaymentAttempt:             paymentattemptrp.New(),
 		RepaymentBatch:             repaymentbatchrp.New(),
 		PolicyAssignment:           policyassignmentrp.New(),
+		TrustedMobile:              trustedmobilerp.New(),
 		PolicyAssignmentImport:     policyassignmentimportrp.New(),
 		Saga:                       sagarp.New(),
 		Inbox:                      inboxrp.New(),

@@ -1,0 +1,108 @@
+// Central Grafana Alloy — Darkoob app `alloy` in namespace
+// parstis-technology-dpay-dev.
+//
+// Responsibility: receive Loki push from edge collectors, normalize JSON /
+// plain lines, apply low-cardinality labels + structured metadata, then
+// forward to Loki. Not limited to BNPL — any service can push here.
+//
+// Pin: grafana/alloy:v1.22.0 (same as Edge Alloy).
+
+logging {
+	level  = "info"
+	format = "logfmt"
+}
+
+loki.source.api "services" {
+	http {
+		listen_address = "0.0.0.0"
+		listen_port    = 3500
+	}
+
+	forward_to = [loki.process.services.receiver]
+}
+
+loki.process "services" {
+	// Extract known JSON fields when present. Non-JSON / invalid JSON lines
+	// are kept (stages that fail extraction leave extracted map empty).
+	stage.json {
+		expressions = {
+			time           = "time",
+			timestamp      = "timestamp",
+			level          = "level",
+			msg            = "msg",
+			message        = "message",
+			trace_id       = "trace_id",
+			request_id     = "request_id",
+			correlation_id = "correlation_id",
+			span_id        = "span_id",
+		}
+	}
+
+	// Prefer slog `time`, then generic `timestamp`. Non-JSON lines keep ingest time.
+	stage.template {
+		source   = "ts_final"
+		template = `{{ if .time }}{{ .time }}{{ else if .timestamp }}{{ .timestamp }}{{ end }}`
+	}
+
+	stage.timestamp {
+		source = "ts_final"
+		format = "RFC3339Nano"
+		fallback_formats = [
+			"RFC3339",
+			"2006-01-02T15:04:05.000Z07:00",
+			"2006-01-02T15:04:05Z07:00",
+			"2006-01-02T15:04:05.000Z",
+			"2006-01-02T15:04:05Z",
+		]
+		action_on_failure = "fudge"
+	}
+
+	// Normalize level to upper-case DEBUG|INFO|WARN|ERROR when present.
+	stage.template {
+		source   = "level"
+		template = `{{ if .level }}{{ ToUpper .level }}{{ end }}`
+	}
+
+	stage.labels {
+		values = {
+			level = "",
+		}
+	}
+
+	// Ensure a low-cardinality namespace label when edges omit it.
+	stage.static_labels {
+		values = {
+			namespace = "parstis-technology-dpay-dev",
+		}
+	}
+
+	stage.structured_metadata {
+		values = {
+			trace_id       = "",
+			request_id     = "",
+			correlation_id = "",
+			span_id        = "",
+		}
+	}
+
+	// Drop noisy / high-cardinality labels that may arrive from edges.
+	stage.label_drop {
+		values = ["filename"]
+	}
+
+	forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+	endpoint {
+		url = sys.env("LOKI_PUSH_URL")
+
+		batch_wait          = "1s"
+		batch_size          = "1MiB"
+		remote_timeout      = "10s"
+		min_backoff_period  = "500ms"
+		max_backoff_period  = "5m"
+		max_backoff_retries = 10
+		retry_on_http_429   = true
+	}
+}

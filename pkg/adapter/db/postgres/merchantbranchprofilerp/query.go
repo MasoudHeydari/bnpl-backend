@@ -277,17 +277,28 @@ func ListByMerchantIDKeyset[Q postgres.Queryer](
 	ctx context.Context,
 	q Q,
 	merchantID model.ExternalMerchantID,
+	scope model.MerchantOutletScope,
 	page pagination.KeysetRequest,
 ) ([]model.MerchantBranchProfile, error) {
+	if !scope.IsValid() {
+		return nil, cerr.Forbidden(nil)
+	}
+
+	outletIDs := make([]string, 0, len(scope.OutletIDs))
+	for _, id := range scope.OutletIDs {
+		outletIDs = append(outletIDs, id.String())
+	}
+
 	page.Order = pagination.OrderDesc
 	page.Normalize()
 	if err := page.Validate(); err != nil {
 		return nil, cerr.InvalidArgument(err)
 	}
 
-	args := []any{merchantID}
+	args := []any{merchantID, scope.IsAllOutlets(), outletIDs}
 	var conditions []string
 	conditions = append(conditions, "external_merchant_id = $1")
+	conditions = append(conditions, `($2 OR external_branch_id = ANY($3::text[]::uuid[]))`)
 
 	keysetWhere, keysetArgs, err := postgres.KeysetWhere("created_at", "id", page, len(args)+1)
 	if err != nil {
@@ -324,19 +335,30 @@ func ListByMerchantIDOffset[Q postgres.Queryer](
 	ctx context.Context,
 	q Q,
 	merchantID model.ExternalMerchantID,
+	scope model.MerchantOutletScope,
 	page pagination.OffsetRequest,
 ) ([]model.MerchantBranchProfile, error) {
+	if !scope.IsValid() {
+		return nil, cerr.Forbidden(nil)
+	}
+
+	outletIDs := make([]string, 0, len(scope.OutletIDs))
+	for _, id := range scope.OutletIDs {
+		outletIDs = append(outletIDs, id.String())
+	}
+
 	page.Order = pagination.OrderDesc
 	page.Sort = pagination.DefaultSort
 	page.Normalize()
 
-	args := []any{merchantID}
+	args := []any{merchantID, scope.IsAllOutlets(), outletIDs}
 	limitOffsetSQL, limitOffsetArgs := postgres.LimitOffset(page, len(args)+1)
 	args = append(args, limitOffsetArgs...)
 
 	query := `SELECT` + merchantBranchProfileColumns + `
 FROM merchant_branch_profiles
 WHERE external_merchant_id = $1
+  AND ($2 OR external_branch_id = ANY($3::text[]::uuid[]))
 ORDER BY created_at DESC, id DESC
 ` + limitOffsetSQL
 
@@ -354,11 +376,22 @@ func CountByMerchantID[Q postgres.Queryer](
 	ctx context.Context,
 	q Q,
 	merchantID model.ExternalMerchantID,
+	scope model.MerchantOutletScope,
 ) (int64, error) {
+	if !scope.IsValid() {
+		return 0, cerr.Forbidden(nil)
+	}
+
+	outletIDs := make([]string, 0, len(scope.OutletIDs))
+	for _, id := range scope.OutletIDs {
+		outletIDs = append(outletIDs, id.String())
+	}
+
 	const query = `
 SELECT COUNT(*) AS count
 FROM merchant_branch_profiles
 WHERE external_merchant_id = $1
+  AND ($2 OR external_branch_id = ANY($3::text[]::uuid[]))
 `
 
 	type countRow struct {
@@ -371,6 +404,8 @@ WHERE external_merchant_id = $1
 		"count merchant branch profiles by merchant id",
 		query,
 		merchantID,
+		scope.IsAllOutlets(),
+		outletIDs,
 	)
 	if err != nil {
 		return 0, err

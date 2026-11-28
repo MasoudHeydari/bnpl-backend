@@ -188,8 +188,9 @@ func (uc *UseCase) AssessCustomer(
 // outbox records. Collections state transitions remain the AssessCustomer /
 // AssessBatch command path.
 //
-// Call only after the customer profile row is locked so restriction application
-// and checkout commitment serialize on the same customer lock order.
+// Contract creation must acquire the legal-person lock before profile locks.
+// The caller holds it through the eligibility read and new credit commitment.
+// AssessCustomer acquires the same lock before writing restrictions.
 func (uc *UseCase) AssertNewCreditAllowed(
 	ctx context.Context,
 	tx repo.Tx,
@@ -205,7 +206,7 @@ func (uc *UseCase) AssertNewCreditAllowed(
 	now = now.UTC()
 
 	restrictionQ := uc.customerRestriction.Tx(tx)
-	activeRestrictions, err := restrictionQ.ListActiveByCustomerID(ctx, customerID)
+	activeRestrictions, err := restrictionQ.ListActiveForCreditOwner(ctx, customerID)
 	if err != nil {
 		return fmt.Errorf("%s: list active restrictions: %w", op, err)
 	}
@@ -217,6 +218,15 @@ func (uc *UseCase) AssertNewCreditAllowed(
 	}
 
 	episodeQ := uc.defaultEpisode.Tx(tx)
+	anyDefault, err := episodeQ.HasActiveForCreditOwner(ctx, customerID)
+	if err != nil {
+		return fmt.Errorf("%s: check legal person defaults: %w", op, err)
+	}
+
+	if anyDefault {
+		return newCreditUsageRestrictedError()
+	}
+
 	_, episodeErr := episodeQ.GetActiveByCustomerID(ctx, customerID)
 	if episodeErr == nil {
 		return newCreditUsageRestrictedError()
@@ -240,6 +250,57 @@ func (uc *UseCase) AssertNewCreditAllowed(
 		return cerr.Conflict(fmt.Errorf("%s: unresolved contract cancellation blocks new credit", op))
 	}
 
+	obligations, err := installmentQ.ListCollectionsObligationsForCreditOwner(ctx, customerID)
+	if err != nil {
+		return fmt.Errorf("%s: check legal person obligations: %w", op, err)
+	}
+
+	facts := make([]collections.ObligationFact, 0, len(obligations))
+	for _, obligation := range obligations {
+		fact := collections.FactFromUnpaidInstallment(obligation.Installment, obligation.HasUnresolvedPayment)
+		fact.HasUnresolvedAdjustment = obligation.HasUnresolvedAdjustment
+		fact.HasUnresolvedCancellation = obligation.HasUnresolvedCancellation
+		facts = append(facts, fact)
+	}
+
+	personEvaluation := uc.policies.Current.Evaluate(facts, now, false)
+	if personEvaluation.BlocksNewCredit || personEvaluation.IsDefaultEligible {
+		return newCreditUsageRestrictedError()
+	}
+
+	if personEvaluation.HasUnresolvedCancellation || personEvaluation.HasUnresolvedAdjustment {
+		return cerr.Conflict(fmt.Errorf("%s: unresolved legal person obligation", op))
+	}
+
+	return nil
+}
+
+// LockCreditOwnerForCheckout holds the immutable person's row before any
+// caller takes CustomerProfile, Decision, or Contract locks. The pre-lock
+// lookup uses immutable identifiers and never calls an external service.
+func (uc *UseCase) LockCreditOwnerForCheckout(
+	ctx context.Context,
+	tx repo.Tx,
+	subjectID model.ExternalSubjectID,
+) error {
+	const op = "collectionsuc.UseCase.LockCreditOwnerForCheckout"
+
+	customerProfileQ := uc.customerProfile.Tx(tx)
+	profile, err := customerProfileQ.GetByExternalSubjectID(ctx, subjectID)
+	if err != nil {
+		return fmt.Errorf("%s: resolve identity subject: %w", op, err)
+	}
+
+	sharedCreditQ := uc.sharedCredit.Tx(tx)
+	ownerID, err := sharedCreditQ.LockOwnerByCustomer(ctx, profile.ID)
+	if err != nil {
+		return fmt.Errorf("%s: lock credit owner: %w", op, err)
+	}
+
+	if ownerID.IsZero() || profile.CreditOwnerID.IsZero() || ownerID != profile.CreditOwnerID {
+		return cerr.Conflict(fmt.Errorf("%s: immutable credit ownership mismatch", op))
+	}
+
 	return nil
 }
 
@@ -258,10 +319,22 @@ func (uc *UseCase) assessCustomerTx(
 	restrictionQ := uc.customerRestriction.Tx(tx)
 	caseQ := uc.collectionsCase.Tx(tx)
 	outboxQ := uc.outbox.Tx(tx)
+	sharedCreditQ := uc.sharedCredit.Tx(tx)
+
+	// Canonical order: credit owner -> customer -> default episode and
+	// restriction. All accounts of one national code use the same first lock.
+	ownerID, err := sharedCreditQ.LockOwnerByCustomer(ctx, customerID)
+	if err != nil {
+		return AssessCustomerOutput{}, fmt.Errorf("%s: lock credit owner: %w", op, err)
+	}
 
 	profile, err := customerProfileQ.LockByID(ctx, customerID)
 	if err != nil {
 		return AssessCustomerOutput{}, fmt.Errorf("%s: lock customer profile: %w", op, err)
+	}
+
+	if ownerID.IsZero() || profile.CreditOwnerID.IsZero() || ownerID != profile.CreditOwnerID {
+		return AssessCustomerOutput{}, cerr.Conflict(fmt.Errorf("%s: legal-person ownership mismatch", op))
 	}
 
 	activeEpisode, episodeErr := episodeQ.LockActiveByCustomerID(ctx, customerID)

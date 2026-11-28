@@ -4,6 +4,9 @@ package customercredituc
 type AssignInitialLimitResult string
 
 const (
+	// AssignInitialLimitResultPending indicates a durable request awaiting evaluation.
+	AssignInitialLimitResultPending AssignInitialLimitResult = "pending"
+
 	// AssignInitialLimitResultCreated indicates a new customer credit limit was persisted.
 	AssignInitialLimitResultCreated AssignInitialLimitResult = "created"
 

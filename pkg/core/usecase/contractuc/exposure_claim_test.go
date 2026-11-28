@@ -35,7 +35,7 @@ func TestActivationExposureRecording_IncreasesExposureAndAppendsTransaction(t *t
 	remainingPrincipal := uint64(70_000)
 	paidAt := now.Add(-time.Minute)
 
-	creditAccountQ := mock.NewCreditAccountTxQueryer(t)
+	creditAccountQ := mock.NewCreditAccountProductTxQueryer(t)
 	updatedAccount := model.CreditAccount{
 		ID:                  accountID,
 		Currency:            currency,

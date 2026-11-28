@@ -56,7 +56,7 @@ Entry: `cmd/bnpl/command/root.go` → `bootstrap.Boot`.
 | `/api/v1/merchant/terminal/credentials/rotate` | `POST` | `merchantterminaluc.Rotate` | Issues a new partner API key (plaintext shown once — store it immediately); requires `bnpl:merchant-terminals:manage:merchant` and `Idempotency-Key`; previous key stays valid for the grace period |
 | `/api/v1/merchant/terminal/credentials/:credential_id/retire` | `POST` | `merchantterminaluc.Retire` | Ends the grace period of a retiring credential at once; requires `bnpl:merchant-terminals:manage:merchant` |
 | `/api/v1/checkout-decisions` | `POST` | `decisionuc.Create` | Unified POS/online checkout; requires `Idempotency-Key`; approved/partial outcomes atomically persist and return the installment offer and next checkout action |
-| `/api/v1/customer-credit/initiate` | `POST` | `customercreditlimituc.AssignInitial` | Initial credit limit assignment |
+| `/api/v1/customer-credit/initiate` | `POST` | `customercredituc.AssignInitialLimit` | Submit or resume a durable credit request |
 | `/api/v1/customer-credit` | `GET` | `customercredituc.Get` | Current authenticated customer's credit summary |
 | `/api/v1/checkout-decisions/:decision_id/contracts` | `POST` | `contractuc.CreateContract` | Create contract for a checkout decision; authenticated |
 | `/api/v1/contracts/:contract_id/cancel` | `POST` | `contractuc.Cancel` | Cancel eligible contract; authenticated |
@@ -378,3 +378,7 @@ Handlers depend on use cases, not `pgx` or raw SQL.
 - [operations.md](operations.md) — health probes and graceful shutdown
 - [security.md](security.md) — implemented authentication surfaces and the required trusted-Gateway deployment boundary
 - [collections/apis.http](collections/apis.http) — HTTP client examples
+
+### Credit allocation administration
+
+See [Credit allocation and requests](credit-allocation.md) for all admin routes, permissions, CSV format, strategy resolution and request lifecycle.

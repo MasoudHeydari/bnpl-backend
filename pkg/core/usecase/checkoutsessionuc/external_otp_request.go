@@ -71,6 +71,14 @@ func (uc *UseCase) RequestExternalOTP(
 		return RequestExternalOTPOutput{}, err
 	}
 
+	// The merchant-supplied mobile may have been changed or reassigned since
+	// Partner Create. Revalidate with authoritative CRS OUTSIDE any DB tx,
+	// including when a checkout is already bound to a local CustomerProfile.
+	boundCustomerID, expectedPhone, err := uc.preflightExternalOTPPhone(ctx, session)
+	if err != nil {
+		return RequestExternalOTPOutput{}, err
+	}
+
 	merchantName, err := uc.merchantDisplayName(ctx, session.MerchantProfileID)
 	if err != nil {
 		return RequestExternalOTPOutput{}, err
@@ -86,6 +94,8 @@ func (uc *UseCase) RequestExternalOTP(
 			expectedGeneration: input.EvaluationGeneration,
 			merchantName:       merchantName,
 			templateID:         uc.otpTemplateID,
+			expectedCustomerID: boundCustomerID,
+			expectedPhone:      expectedPhone,
 		},
 	})
 	if err != nil {
@@ -148,4 +158,19 @@ func (uc *UseCase) loadExternalSessionForOTPRequest(
 	}
 
 	return session, nil
+}
+
+// preflightExternalOTPPhone rejects stale or reassigned merchant phone numbers.
+// Mobile ownership is checked with CRS before invoking otp.Request, never inside
+// the OTP transaction. The authorizer later compares the locked local session
+// to this preflight to prevent issuing for a different persisted binding.
+func (uc *UseCase) preflightExternalOTPPhone(
+	ctx context.Context, session model.CheckoutSession,
+) (model.CustomerID, string, error) {
+	ownership, err := uc.revalidateBoundExternalMobileOwnershipForCommand(ctx, session)
+	if err != nil {
+		return model.CustomerID{}, "", err
+	}
+
+	return ownership.CustomerID, ownership.Phone, nil
 }

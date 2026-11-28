@@ -3,6 +3,8 @@ package jobs
 import (
 	"context"
 	"fmt"
+	"github.com/parstis/bnpl-backend/pkg/core/trace"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/customercredituc"
 
 	checkoutsessionjob "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task/jobs/checkoutsession"
 	collectionsjob "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/task/jobs/collections"
@@ -20,6 +22,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/collectionsuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/contractuc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/installmentlifecycleuc"
+	"github.com/parstis/bnpl-backend/pkg/core/usecase/merchantprovisioninguc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/merchantterminaluc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/outboxpublisheruc"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/paymentattemptexpirationuc"
@@ -40,9 +43,12 @@ type Registry struct {
 	paymentattemptexpirationuc     *paymentattemptexpirationuc.UseCase
 	sagaexecutoruc                 *sagaexecutoruc.UseCase
 	merchantterminaluc             *merchantterminaluc.UseCase
+	merchantProvisioning           *merchantprovisioninguc.UseCase
 	repaymentreminderuc            *repaymentreminderuc.UseCase
 	collectionsuc                  *collectionsuc.UseCase
 	repaymentBatchUC               *repaymentbatchuc.UseCase
+	creditRequests                 *customercredituc.UseCase
+	traceProvider                  trace.Provider
 }
 
 // NewRegistry creates a task job registry.
@@ -78,6 +84,19 @@ func NewRegistry(
 // preserving the original registry constructor used by legacy tests.
 func (r Registry) WithRepaymentBatch(uc *repaymentbatchuc.UseCase) Registry {
 	r.repaymentBatchUC = uc
+	return r
+}
+
+// WithCreditRequests installs durable credit request processing.
+func (r Registry) WithCreditRequests(uc *customercredituc.UseCase, provider trace.Provider) Registry {
+	r.creditRequests = uc
+	r.traceProvider = provider
+	return r
+}
+
+// WithMerchantProvisioning installs the durable participation delivery handler.
+func (r Registry) WithMerchantProvisioning(uc *merchantprovisioninguc.UseCase) Registry {
+	r.merchantProvisioning = uc
 	return r
 }
 
@@ -122,6 +141,13 @@ func (r Registry) Resolve(handler string) (coretask.Job, error) {
 	case "payment_attempt_reconciliation":
 		return paymentattemptjob.Reconciliation(r.paymentattemptreconciliationuc), nil
 
+	case "credit_request_processing":
+		if r.creditRequests == nil || r.traceProvider == nil {
+			return nil, fmt.Errorf("%s: credit request processing is not configured", op)
+		}
+		return func(ctx context.Context) error {
+			return r.creditRequests.ProcessDueCreditRequests(trace.EnsureIdentifiers(ctx, r.traceProvider), 100)
+		}, nil
 	case "repayment_batch_reconciliation":
 		if r.repaymentBatchUC == nil {
 			return nil, fmt.Errorf("%s: repayment batch reconciliation is not configured", op)
@@ -135,6 +161,13 @@ func (r Registry) Resolve(handler string) (coretask.Job, error) {
 		}
 
 		return paymentattemptjob.Expiration(r.paymentattemptexpirationuc), nil
+
+	case "merchant_progress_delivery":
+		if r.merchantProvisioning == nil {
+			return nil, fmt.Errorf("%s: merchant provisioning use case is not configured", op)
+		}
+
+		return r.merchantProvisioning.DeliverDue, nil
 
 	case "merchant_terminal_issuance_scrub":
 		return merchantterminaljob.IssuanceDeliveryCleanup(r.logger, r.merchantterminaluc), nil

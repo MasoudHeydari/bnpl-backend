@@ -44,7 +44,7 @@ type createDeps struct {
 	customerProfile         *mock.CustomerProfile
 	customerProfileTx       *mock.CustomerProfileTxQueryer
 	creditAccount           *mock.CreditAccount
-	creditAccountTx         *mock.CreditAccountTxQueryer
+	creditAccountTx         *mock.CreditAccountProductTxQueryer
 	merchantProfile         *mock.MerchantProfile
 	merchantProfileTx       *mock.MerchantProfileTxQueryer
 	merchantBranchProfile   *mock.MerchantBranchProfile
@@ -76,7 +76,7 @@ func newCreateDeps(t *testing.T, now time.Time) createDeps {
 		customerProfile:         mock.NewCustomerProfile(t),
 		customerProfileTx:       mock.NewCustomerProfileTxQueryer(t),
 		creditAccount:           mock.NewCreditAccount(t),
-		creditAccountTx:         mock.NewCreditAccountTxQueryer(t),
+		creditAccountTx:         mock.NewCreditAccountProductTxQueryer(t),
 		merchantProfile:         mock.NewMerchantProfile(t),
 		merchantProfileTx:       mock.NewMerchantProfileTxQueryer(t),
 		merchantBranchProfile:   mock.NewMerchantBranchProfile(t),
@@ -140,9 +140,8 @@ func (d createDeps) newUseCase(t *testing.T) *decisionuc.UseCase {
 }
 
 func (d createDeps) expectDefaultCheckoutPolicyAssignment(ctx context.Context) {
-	d.policyAssignmentTx.EXPECT().GetActive(
+	d.policyAssignmentTx.EXPECT().GetActiveForCustomerOrOwner(
 		ctx,
-		model.CustomerPolicySubjectType,
 		testifymock.Anything,
 		model.CheckoutPolicyFamily,
 		testifymock.Anything,

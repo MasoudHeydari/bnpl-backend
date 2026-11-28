@@ -282,8 +282,24 @@ func TestLogger_newSlogLoggerInfrastructure(t *testing.T) {
 	logger, err := (Logger{
 		Provider: adapterlog.SlogProvider,
 		Slog: Slog{
-			Level:  log.InfoLevel,
-			Format: log.JSONFormat,
+			Level:       log.InfoLevel,
+			Format:      log.JSONFormat,
+			PrettyPrint: false,
+		},
+	}).newLoggerInfrastructure()
+	require.NoError(t, err)
+	require.NotNil(t, logger)
+}
+
+func TestLogger_newSlogLoggerInfrastructure_PrettyPrintDoesNotRequireDebug(t *testing.T) {
+	t.Parallel()
+
+	logger, err := (Logger{
+		Provider: adapterlog.SlogProvider,
+		Slog: Slog{
+			Level:       log.InfoLevel,
+			Format:      log.JSONFormat,
+			PrettyPrint: true,
 		},
 	}).newLoggerInfrastructure()
 	require.NoError(t, err)

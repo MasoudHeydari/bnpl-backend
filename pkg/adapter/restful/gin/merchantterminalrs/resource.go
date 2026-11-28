@@ -18,8 +18,8 @@ type RegisterOptions struct{}
 // RegisterMerchant attaches merchant terminal lifecycle routes to router.
 //
 // router must be a /api/v1 group already guarded by
-// middleware.AuthContext.Attach. The merchant is taken from x-auth-subject-id
-// (merchant_profiles.external_merchant_id). These routes manage the partner terminal and
+// middleware.AuthContext.Attach. Merchant identity and merchant-wide scope are
+// resolved by the Gateway; the human subject is not the merchant identity. These routes manage the partner terminal and
 // API keys of that merchant; they do not accept a path external_merchant_id or
 // partner API-key headers.
 func RegisterMerchant(
@@ -34,13 +34,35 @@ func RegisterMerchant(
 	rs := &resource{merchantTerminal: merchantTerminal}
 	authMW := middleware.AuthContext()
 	requireManage := authMW.RequireAny(permission.MerchantTerminalsManageMerchant)
+	workspace := authMW.RequireMerchantWorkspace()
+	allOutlets := authMW.RequireAllMerchantOutlets()
 
-	router.GET("/merchant/terminal", requireManage, rs.Get)
-	router.POST("/merchant/terminal", requireManage, rs.Provision)
-	router.POST("/merchant/terminal/credentials/rotate", requireManage, rs.Rotate)
+	router.GET(
+		"/merchant/terminal",
+		requireManage,
+		workspace,
+		allOutlets,
+		rs.Get,
+	)
+	router.POST(
+		"/merchant/terminal",
+		requireManage,
+		workspace,
+		allOutlets,
+		rs.Provision,
+	)
+	router.POST(
+		"/merchant/terminal/credentials/rotate",
+		requireManage,
+		workspace,
+		allOutlets,
+		rs.Rotate,
+	)
 	router.POST(
 		"/merchant/terminal/credentials/:credential_id/retire",
 		requireManage,
+		workspace,
+		allOutlets,
 		rs.Retire,
 	)
 }

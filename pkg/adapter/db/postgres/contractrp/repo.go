@@ -71,24 +71,39 @@ func (q connQueryer) ListActiveByCustomerID(
 func (q connQueryer) ListActiveByMerchantProfileID(
 	ctx context.Context,
 	merchantProfileID model.MerchantProfileID,
+	scope model.MerchantOutletScope,
 	page pagination.KeysetRequest,
 ) ([]model.Contract, error) {
-	return ListActiveByMerchantProfileID(ctx, q.Conn, merchantProfileID, page)
+	return ListActiveByMerchantProfileID(
+		ctx,
+		q.Conn,
+		merchantProfileID,
+		scope,
+		page,
+	)
 }
 
 func (q connQueryer) ListActiveByMerchantProfileIDOffset(
 	ctx context.Context,
 	merchantProfileID model.MerchantProfileID,
+	scope model.MerchantOutletScope,
 	page pagination.OffsetRequest,
 ) ([]model.Contract, error) {
-	return ListActiveByMerchantProfileIDOffset(ctx, q.Conn, merchantProfileID, page)
+	return ListActiveByMerchantProfileIDOffset(
+		ctx,
+		q.Conn,
+		merchantProfileID,
+		scope,
+		page,
+	)
 }
 
 func (q connQueryer) CountActiveByMerchantProfileID(
 	ctx context.Context,
 	merchantProfileID model.MerchantProfileID,
+	scope model.MerchantOutletScope,
 ) (int64, error) {
-	return CountActiveByMerchantProfileID(ctx, q.Conn, merchantProfileID)
+	return CountActiveByMerchantProfileID(ctx, q.Conn, merchantProfileID, scope)
 }
 
 type txQueryer struct {
@@ -132,24 +147,39 @@ func (q txQueryer) ListActiveByCustomerID(
 func (q txQueryer) ListActiveByMerchantProfileID(
 	ctx context.Context,
 	merchantProfileID model.MerchantProfileID,
+	scope model.MerchantOutletScope,
 	page pagination.KeysetRequest,
 ) ([]model.Contract, error) {
-	return ListActiveByMerchantProfileID(ctx, q.Tx, merchantProfileID, page)
+	return ListActiveByMerchantProfileID(
+		ctx,
+		q.Tx,
+		merchantProfileID,
+		scope,
+		page,
+	)
 }
 
 func (q txQueryer) ListActiveByMerchantProfileIDOffset(
 	ctx context.Context,
 	merchantProfileID model.MerchantProfileID,
+	scope model.MerchantOutletScope,
 	page pagination.OffsetRequest,
 ) ([]model.Contract, error) {
-	return ListActiveByMerchantProfileIDOffset(ctx, q.Tx, merchantProfileID, page)
+	return ListActiveByMerchantProfileIDOffset(
+		ctx,
+		q.Tx,
+		merchantProfileID,
+		scope,
+		page,
+	)
 }
 
 func (q txQueryer) CountActiveByMerchantProfileID(
 	ctx context.Context,
 	merchantProfileID model.MerchantProfileID,
+	scope model.MerchantOutletScope,
 ) (int64, error) {
-	return CountActiveByMerchantProfileID(ctx, q.Tx, merchantProfileID)
+	return CountActiveByMerchantProfileID(ctx, q.Tx, merchantProfileID, scope)
 }
 
 func (q txQueryer) LockByID(ctx context.Context, id model.ContractID) (model.Contract, error) {

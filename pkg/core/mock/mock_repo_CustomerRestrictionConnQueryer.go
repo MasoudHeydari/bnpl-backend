@@ -177,3 +177,71 @@ func (_c *CustomerRestrictionConnQueryer_ListActiveByCustomerID_Call) RunAndRetu
 	_c.Call.Return(run)
 	return _c
 }
+
+// ListActiveForCreditOwner provides a mock function for the type CustomerRestrictionConnQueryer
+func (_mock *CustomerRestrictionConnQueryer) ListActiveForCreditOwner(ctx context.Context, requestingCustomer model.CustomerID) ([]model.CustomerRestriction, error) {
+	ret := _mock.Called(ctx, requestingCustomer)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListActiveForCreditOwner")
+	}
+
+	var r0 []model.CustomerRestriction
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CustomerID) ([]model.CustomerRestriction, error)); ok {
+		return returnFunc(ctx, requestingCustomer)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CustomerID) []model.CustomerRestriction); ok {
+		r0 = returnFunc(ctx, requestingCustomer)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]model.CustomerRestriction)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.CustomerID) error); ok {
+		r1 = returnFunc(ctx, requestingCustomer)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// CustomerRestrictionConnQueryer_ListActiveForCreditOwner_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListActiveForCreditOwner'
+type CustomerRestrictionConnQueryer_ListActiveForCreditOwner_Call struct {
+	*mock.Call
+}
+
+// ListActiveForCreditOwner is a helper method to define mock.On call
+//   - ctx context.Context
+//   - requestingCustomer model.CustomerID
+func (_e *CustomerRestrictionConnQueryer_Expecter) ListActiveForCreditOwner(ctx any, requestingCustomer any) *CustomerRestrictionConnQueryer_ListActiveForCreditOwner_Call {
+	return &CustomerRestrictionConnQueryer_ListActiveForCreditOwner_Call{Call: _e.mock.On("ListActiveForCreditOwner", ctx, requestingCustomer)}
+}
+
+func (_c *CustomerRestrictionConnQueryer_ListActiveForCreditOwner_Call) Run(run func(ctx context.Context, requestingCustomer model.CustomerID)) *CustomerRestrictionConnQueryer_ListActiveForCreditOwner_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.CustomerID
+		if args[1] != nil {
+			arg1 = args[1].(model.CustomerID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *CustomerRestrictionConnQueryer_ListActiveForCreditOwner_Call) Return(customerRestrictions []model.CustomerRestriction, err error) *CustomerRestrictionConnQueryer_ListActiveForCreditOwner_Call {
+	_c.Call.Return(customerRestrictions, err)
+	return _c
+}
+
+func (_c *CustomerRestrictionConnQueryer_ListActiveForCreditOwner_Call) RunAndReturn(run func(ctx context.Context, requestingCustomer model.CustomerID) ([]model.CustomerRestriction, error)) *CustomerRestrictionConnQueryer_ListActiveForCreditOwner_Call {
+	_c.Call.Return(run)
+	return _c
+}

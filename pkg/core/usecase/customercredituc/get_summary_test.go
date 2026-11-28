@@ -18,6 +18,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/mock"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/policy/initialcreditlimit"
+	initialcreditcatalog "github.com/parstis/bnpl-backend/pkg/core/policy/initialcreditlimit/catalog"
 	initialcreditlimitv1 "github.com/parstis/bnpl-backend/pkg/core/policy/initialcreditlimit/v1"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/customercredituc"
@@ -84,6 +85,11 @@ func newSummaryUseCase(
 		mock.NewIdentifierGenerator(t),
 		collectionsv2.New(time.UTC),
 		newTestObserver(t),
+		absentTrustedMobile{},
+		noExistingSharedCredit{},
+		disabledCreditAllocation{},
+		initialcreditcatalog.MonthlyRef(),
+		mock.NewLogger(t),
 	)
 	require.NoError(t, err)
 
@@ -103,6 +109,7 @@ func expectSummaryResolveActive(
 	).Return(extcustomer.ResolveByMobileOutput{
 		ExternalCustomerID: externalCustomerID,
 		Status:             extcustomer.ActiveStatus,
+		NationalCode:       "0012345678",
 	}, nil).Once()
 }
 
@@ -115,9 +122,8 @@ func expectSummaryPolicyAssignmentDefault(
 
 	txQ := mock.NewPolicyAssignmentTxQueryer(t)
 	policyAssignment.EXPECT().Tx(tx).Return(txQ).Once()
-	txQ.EXPECT().GetActive(
+	txQ.EXPECT().GetActiveForCustomerOrOwner(
 		testifymock.Anything,
-		model.CustomerPolicySubjectType,
 		testifymock.Anything,
 		model.InitialCreditLimitPolicyFamily,
 		testifymock.Anything,
@@ -135,7 +141,7 @@ func TestGetSummary_ExpiredLimit_ReturnsExpiredNotZeroAssigned(t *testing.T) {
 	customerProfile := mock.NewCustomerProfile(t)
 	customerProfileTx := mock.NewCustomerProfileTxQueryer(t)
 	creditAccount := mock.NewCreditAccount(t)
-	creditAccountTx := mock.NewCreditAccountTxQueryer(t)
+	creditAccountTx := mock.NewCreditAccountProductTxQueryer(t)
 	policyAssignment := mock.NewPolicyAssignment(t)
 
 	externalCustomerID := model.ExternalCustomerID(uuid.New())
@@ -176,6 +182,8 @@ func TestGetSummary_ExpiredLimit_ReturnsExpiredNotZeroAssigned(t *testing.T) {
 			model.ActiveCustomerStatus,
 			now,
 			now,
+
+			"0012345678",
 		).
 		Return(model.CustomerProfile{
 			ID:                 profileID,
@@ -216,13 +224,17 @@ func TestGetSummary_ExpiredLimit_ReturnsExpiredNotZeroAssigned(t *testing.T) {
 	customerRestrictionTx := mock.NewCustomerRestrictionTxQueryer(t)
 	customerRestriction.EXPECT().Tx(tx).Return(customerRestrictionTx).Once()
 	customerRestrictionTx.EXPECT().
-		ListActiveByCustomerID(testifymock.Anything, profileID).
+		ListActiveForCreditOwner(testifymock.Anything, profileID).
 		Return(nil, nil).
 		Once()
 
 	defaultEpisode := mock.NewDefaultEpisode(t)
 	defaultEpisodeTx := mock.NewDefaultEpisodeTxQueryer(t)
 	defaultEpisode.EXPECT().Tx(tx).Return(defaultEpisodeTx).Once()
+	defaultEpisodeTx.EXPECT().
+		HasActiveForCreditOwner(testifymock.Anything, profileID).
+		Return(false, nil).
+		Once()
 	defaultEpisodeTx.EXPECT().
 		GetActiveByCustomerID(testifymock.Anything, profileID).
 		Return(model.DefaultEpisode{}, cerr.ResourceNotFound(errors.New("none"))).
@@ -232,7 +244,7 @@ func TestGetSummary_ExpiredLimit_ReturnsExpiredNotZeroAssigned(t *testing.T) {
 	installmentTx := mock.NewInstallmentTxQueryer(t)
 	installment.EXPECT().Tx(tx).Return(installmentTx).Once()
 	installmentTx.EXPECT().
-		ListCollectionsObligationsByCustomerID(testifymock.Anything, profileID).
+		ListCollectionsObligationsForCreditOwner(testifymock.Anything, profileID).
 		Return(nil, nil).
 		Once()
 
@@ -276,7 +288,7 @@ func TestGetSummary_ActiveLimit_UsesInternalCustomerIDNotExternal(t *testing.T) 
 	customerProfile := mock.NewCustomerProfile(t)
 	customerProfileTx := mock.NewCustomerProfileTxQueryer(t)
 	creditAccount := mock.NewCreditAccount(t)
-	creditAccountTx := mock.NewCreditAccountTxQueryer(t)
+	creditAccountTx := mock.NewCreditAccountProductTxQueryer(t)
 	policyAssignment := mock.NewPolicyAssignment(t)
 
 	externalCustomerID := model.ExternalCustomerID(uuid.MustParse("11111111-1111-4111-8111-111111111111"))
@@ -306,6 +318,8 @@ func TestGetSummary_ActiveLimit_UsesInternalCustomerIDNotExternal(t *testing.T) 
 			model.ActiveCustomerStatus,
 			now,
 			now,
+
+			"0012345678",
 		).
 		Return(model.CustomerProfile{
 			ID:                 profileID,
@@ -342,13 +356,17 @@ func TestGetSummary_ActiveLimit_UsesInternalCustomerIDNotExternal(t *testing.T) 
 	customerRestrictionTx := mock.NewCustomerRestrictionTxQueryer(t)
 	customerRestriction.EXPECT().Tx(tx).Return(customerRestrictionTx).Once()
 	customerRestrictionTx.EXPECT().
-		ListActiveByCustomerID(testifymock.Anything, profileID).
+		ListActiveForCreditOwner(testifymock.Anything, profileID).
 		Return(nil, nil).
 		Once()
 
 	defaultEpisode := mock.NewDefaultEpisode(t)
 	defaultEpisodeTx := mock.NewDefaultEpisodeTxQueryer(t)
 	defaultEpisode.EXPECT().Tx(tx).Return(defaultEpisodeTx).Once()
+	defaultEpisodeTx.EXPECT().
+		HasActiveForCreditOwner(testifymock.Anything, profileID).
+		Return(false, nil).
+		Once()
 	defaultEpisodeTx.EXPECT().
 		GetActiveByCustomerID(testifymock.Anything, profileID).
 		Return(model.DefaultEpisode{}, cerr.ResourceNotFound(errors.New("none"))).
@@ -358,7 +376,7 @@ func TestGetSummary_ActiveLimit_UsesInternalCustomerIDNotExternal(t *testing.T) 
 	installmentTx := mock.NewInstallmentTxQueryer(t)
 	installment.EXPECT().Tx(tx).Return(installmentTx).Once()
 	installmentTx.EXPECT().
-		ListCollectionsObligationsByCustomerID(testifymock.Anything, profileID).
+		ListCollectionsObligationsForCreditOwner(testifymock.Anything, profileID).
 		Return(nil, nil).
 		Once()
 
@@ -403,7 +421,7 @@ func TestGetSummary_NoLimit_ReturnsNotAssigned(t *testing.T) {
 	customerProfile := mock.NewCustomerProfile(t)
 	customerProfileTx := mock.NewCustomerProfileTxQueryer(t)
 	creditAccount := mock.NewCreditAccount(t)
-	creditAccountTx := mock.NewCreditAccountTxQueryer(t)
+	creditAccountTx := mock.NewCreditAccountProductTxQueryer(t)
 	policyAssignment := mock.NewPolicyAssignment(t)
 
 	externalCustomerID := model.ExternalCustomerID(uuid.New())
@@ -439,6 +457,8 @@ func TestGetSummary_NoLimit_ReturnsNotAssigned(t *testing.T) {
 			model.ActiveCustomerStatus,
 			now,
 			now,
+
+			"0012345678",
 		).
 		Return(model.CustomerProfile{
 			ID:                 profileID,

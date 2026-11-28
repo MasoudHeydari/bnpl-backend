@@ -11,8 +11,8 @@
 # JWT issuer/audiences must match Identity ENV (IDENTITY_ACCESS_JWT_*). Rebuild the
 # image when envoy.yaml or certs change.
 #
-# Merchant upstream (merchant.parstis-technology-dpay-dev.svc:8085) is declared for route parity; that service is
-# not in docker-compose.dev.yml yet — those routes stay dark until it joins the net.
+# Merchant API is private on merchant.parstis-technology-dpay-dev.svc:8085.
+# Document gRPC, ClamAV and RustFS management are not routed through this gateway.
 #
 # Authoritative renderer remains platform-infra scripts/render-envoy.py; keep this
 # snapshot aligned when gateway fragments change.
@@ -425,6 +425,12 @@ static_resources:
                         # /internal/v1/business-lines is intentionally not routed.
                         - match:
                             safe_regex:
+                              regex: "^/api/v[0-9]+/merchant-onboarding/internal(/.*)?$"
+                          direct_response:
+                            status: 404
+
+                        - match:
+                            safe_regex:
                               regex: "^/api/v[0-9]+/merchant-onboarding(/.*)?$"
                           route:
                             cluster: "merchant_service"
@@ -520,6 +526,24 @@ static_resources:
                           issuer: "__DPAY_JWT_ISSUER__"
                           audiences:
                             - "__DPAY_JWT_AUDIENCE__"
+                          from_headers:
+                            - name: Authorization
+                              value_prefix: 'Bearer '
+                          forward: false
+                          remote_jwks:
+                            http_uri:
+                              uri: http://identity.parstis-technology-dpay-dev.svc:8080/.well-known/jwks.json
+                              cluster: identity_jwks
+                              timeout: 5s
+                            cache_duration:
+                              seconds: 300
+                          payload_in_metadata: verified_jwt
+                          require_expiration: true
+                        merchant_scoped_identity_access_token:
+                          issuer: "__DPAY_JWT_ISSUER__"
+                          audiences:
+                            - "merchant-services"
+                            - "identity-admin-services"
                           from_headers:
                             - name: Authorization
                               value_prefix: 'Bearer '
@@ -706,6 +730,16 @@ static_resources:
                               - name: ":method"
                                 string_match:
                                   exact: POST
+                        # Preserve the existing audience, and allow panel/reviewer tokens only
+                        # for Merchant APIs. The backend still enforces the concrete permissions.
+                        - match:
+                            safe_regex:
+                              regex: '^/api/v[0-9]+/(merchant-onboarding|merchants)(/.*)?$'
+                          requires:
+                            requires_any:
+                              requirements:
+                                - provider_name: identity_access_token
+                                - provider_name: merchant_scoped_identity_access_token
                         - match:
                             prefix: /api/
                           requires:
@@ -727,6 +761,9 @@ static_resources:
                             headers:remove("x-auth-roles")
                             headers:remove("x-auth-permissions")
                             headers:remove("x-auth-mobile-number")
+                            headers:remove("x-auth-merchant-id")
+                            headers:remove("x-auth-outlet-scope")
+                            headers:remove("x-auth-outlet-ids")
                             headers:remove("x-internal-auth-gateway-proof")
                             headers:remove("x-internal-signup-client-ip")
                             headers:remove("x-internal-signup-proxy-proof")
@@ -1252,7 +1289,7 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      # Not in docker-compose.dev.yml yet — placeholder for when Merchant joins.
+                      # Private Merchant API deployed by merchant.compose.yaml.
                       address: merchant.parstis-technology-dpay-dev.svc
                       port_value: 8085
 

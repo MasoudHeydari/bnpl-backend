@@ -17,12 +17,15 @@ import (
 // journal explains how that state changed; it is not recomputed as a financial
 // ledger.
 func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) {
+	const op = "customercredituc.UseCase.GetSummary"
+
 	kind := model.EffectiveCreditKind(input.CreditKind)
 	if !kind.IsValid() {
 		return Output{}, cerr.InvalidArgument(fmt.Errorf("unsupported credit_kind %q", input.CreditKind))
 	}
 
-	externalCustomerID, err := uc.resolveActiveExternalCustomerID(ctx, input.MobileE164)
+	identity, err := uc.resolveActiveExternalCustomerIdentity(ctx, input.MobileE164)
+	externalCustomerID := identity.ExternalCustomerID
 	if err != nil {
 		return Output{}, err
 	}
@@ -38,6 +41,7 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 				customerProfileQ,
 				input.SubjectID.AsExternalSubjectID(),
 				externalCustomerID,
+				identity.NationalCode,
 				now,
 			)
 			if err != nil {
@@ -52,6 +56,10 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 			}
 
 			currency := selectedPolicy.Terms().Currency
+			request, err := uc.latestCreditRequest(ctx, tx, profile.ID, kind)
+			if err != nil {
+				return err
+			}
 			var account model.CreditAccount
 			if kind == model.PayInInstallmentsCreditKind {
 				if err = accountQ.ExpireDueByCustomerIDAndCurrency(ctx, profile.ID, currency, now); err != nil {
@@ -60,22 +68,18 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 
 				account, err = accountQ.GetByCustomerIDAndCurrency(ctx, profile.ID, currency)
 			} else {
-				products, ok := accountQ.(repo.CreditAccountProductTxQueryer)
-				if !ok {
-					return cerr.InternalError(fmt.Errorf("credit account product repository is unavailable"))
-				}
-
-				if err = products.ExpireDueByCustomerIDCurrencyAndKind(ctx, profile.ID, currency, kind, now); err != nil {
+				if err = accountQ.ExpireDueByCustomerIDCurrencyAndKind(ctx, profile.ID, currency, kind, now); err != nil {
 					return err
 				}
 
-				account, err = products.GetByCustomerIDCurrencyAndKind(ctx, profile.ID, currency, kind)
+				account, err = accountQ.GetByCustomerIDCurrencyAndKind(ctx, profile.ID, currency, kind)
 			}
 
 			if err != nil {
 				if cerr.IsCode(err, cerr.CodeResourceNotFound) {
 					output = zeroSummary(profile.ID, currency)
 					output.CreditKind = kind
+					output.CreditRequest = request
 					return nil
 				}
 
@@ -101,9 +105,8 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 			// the next Jalali month, even before the due date on day 5.
 			monthlyBlocked := false
 			if kind == model.PayNextMonthCreditKind {
-				products := accountQ.(repo.CreditAccountProductTxQueryer)
 				monthlyBlocked, err = monthlyPreviousCycleBlocked(
-					ctx, products, profile.ID, currency, now,
+					ctx, accountQ, profile.ID, currency, now,
 				)
 				if err != nil {
 					return err
@@ -111,6 +114,8 @@ func (uc *UseCase) GetSummary(ctx context.Context, input Input) (Output, error) 
 			}
 
 			output = summaryFromAccount(account, newCreditBlocked || monthlyBlocked)
+			output.CustomerID = profile.ID
+			output.CreditRequest = request
 			output.CreditKind = kind
 			if newCreditBlocked {
 				output.CreditUsage.Reason = publicReason
@@ -191,6 +196,7 @@ func (uc *UseCase) ensureActiveCustomerProfile(
 	profileQ repo.CustomerProfileTxQueryer,
 	externalSubjectID model.ExternalSubjectID,
 	externalCustomerID model.ExternalCustomerID,
+	nationalCode string,
 	now time.Time,
 ) (model.CustomerProfile, error) {
 	profile, _, err := profileQ.EnsureExists(
@@ -201,6 +207,7 @@ func (uc *UseCase) ensureActiveCustomerProfile(
 		model.ActiveCustomerStatus,
 		now,
 		now,
+		nationalCode,
 	)
 	if err != nil {
 		return model.CustomerProfile{}, err

@@ -43,6 +43,17 @@ func (uc *UseCase) createPaymentPending(
 					paymentAttemptQ := uc.paymentAttempt.Tx(tx)
 					auditOutboxQ := uc.outbox.Tx(tx)
 
+					// Canonical lock order for new commitments: legal person before
+					// CustomerProfile, Decision, Contract, or CreditAccount.
+					// Collections default/recovery uses this same first lock.
+					if err := uc.newCreditUsageGuard.LockCreditOwnerForCheckout(
+						ctx,
+						tx,
+						input.ExternalSubjectID,
+					); err != nil {
+						return fmt.Errorf("%s: lock legal person: %w", op, err)
+					}
+
 					profile, profileErr := customerProfileQ.LockByExternalSubjectID(ctx, input.ExternalSubjectID)
 					if profileErr != nil {
 						if cerr.IsCode(profileErr, cerr.CodeResourceNotFound) {
@@ -81,7 +92,6 @@ func (uc *UseCase) createPaymentPending(
 						return cerr.InternalError(fmt.Errorf("%s: first installment is missing", op))
 					}
 
-					payableNow := first.TotalAmountMinor
 					remainingPrincipal := allocation.ApprovedFinancedAmountMinor - first.PrincipalAmountMinor
 
 					// Resolve an idempotent replay before offer-expiry and credit
@@ -154,7 +164,7 @@ func (uc *UseCase) createPaymentPending(
 						return cashErr
 					}
 
-					payableNow = cashAmounts[first.ID]
+					payableNow := cashAmounts[first.ID]
 
 					if err = validateInstallmentSchedule(
 						installments,
@@ -243,6 +253,19 @@ func (uc *UseCase) createPaymentPending(
 
 						if !cerr.IsCode(pendingErr, cerr.CodeResourceNotFound) {
 							return pendingErr
+						}
+
+						// Two different products have distinct CreditAccounts but must
+						// still obey one pending Contract per legal person.
+						if !profile.CreditOwnerID.IsZero() {
+							pending, pendingErr := contractQ.GetPaymentPendingByCreditOwnerID(ctx, profile.CreditOwnerID)
+							if pendingErr == nil {
+								return personCreditPurchaseInProgressError(pending.ID)
+							}
+
+							if !cerr.IsCode(pendingErr, cerr.CodeResourceNotFound) {
+								return pendingErr
+							}
 						}
 
 						return cerr.Conflict(fmt.Errorf("%s: contract create conflict could not be resolved", op))
@@ -460,12 +483,4 @@ func (uc *UseCase) ensureCheckoutPaymentAttemptForFirstInstallment(
 		firstCharges,
 		now,
 	)
-}
-
-func isPlausibleContractCreateConflict(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	return cerr.IsCode(err, cerr.CodeValidationFailed) || cerr.IsCode(err, cerr.CodeConflict)
 }

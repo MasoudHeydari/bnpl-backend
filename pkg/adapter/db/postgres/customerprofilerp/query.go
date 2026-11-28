@@ -4,11 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/parstis/bnpl-backend/pkg/adapter/db/postgres"
+	"github.com/parstis/bnpl-backend/pkg/core/cerr"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 )
+
+var nationalCodePattern = regexp.MustCompile(`^[0-9]{10}$`)
+
+func validNationalCode(s string) bool { return nationalCodePattern.MatchString(s) }
 
 var (
 	// ErrCustomerProfileNotFound indicates that the customer profile does not exist.
@@ -18,6 +24,7 @@ var (
 	id,
 	external_subject_id,
 	external_customer_id,
+	credit_owner_id,
 	jurisdiction,
 	status,
 	created_at,
@@ -27,54 +34,23 @@ var (
 
 // Create inserts a new customer profile and returns the persisted row.
 func Create[Q postgres.Queryer](
-	ctx context.Context,
-	q Q,
+	ctx context.Context, q Q,
 	externalSubjectID model.ExternalSubjectID,
 	externalCustomerID model.ExternalCustomerID,
 	jurisdiction model.Jurisdiction,
 	status model.CustomerStatus,
 	createdAt time.Time,
 	updatedAt time.Time,
+	nationalCode string,
 ) (model.CustomerProfile, error) {
-	if err := postgres.RequiredTimes(map[string]time.Time{
-		"created_at": createdAt,
-		"updated_at": updatedAt,
-	}); err != nil {
+	profile, created, err := EnsureExists(ctx, q, externalSubjectID, externalCustomerID, jurisdiction, status, createdAt, updatedAt, nationalCode)
+	if err != nil {
 		return model.CustomerProfile{}, err
 	}
-
-	const query = `
-INSERT INTO customer_profiles (
-	external_subject_id,
-	external_customer_id,
-	jurisdiction,
-	status,
-	created_at,
-	updated_at
-)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING
-	id,
-	external_subject_id,
-	external_customer_id,
-	jurisdiction,
-	status,
-	created_at,
-	updated_at
-`
-
-	return postgres.QueryOne[model.CustomerProfile](
-		ctx,
-		q,
-		"create customer profile",
-		query,
-		externalSubjectID,
-		externalCustomerID,
-		jurisdiction,
-		status,
-		createdAt,
-		updatedAt,
-	)
+	if !created {
+		return model.CustomerProfile{}, cerr.Conflict(fmt.Errorf("customer profile already exists for external customer id"))
+	}
+	return profile, nil
 }
 
 // EnsureExists inserts a customer profile when missing and locks the resulting row.
@@ -91,6 +67,7 @@ func EnsureExists[Q postgres.Queryer](
 	status model.CustomerStatus,
 	createdAt time.Time,
 	updatedAt time.Time,
+	nationalCode string,
 ) (model.CustomerProfile, bool, error) {
 	const op = "customerprofilerp.EnsureExists"
 
@@ -100,6 +77,10 @@ func EnsureExists[Q postgres.Queryer](
 
 	if externalCustomerID.IsZero() {
 		return model.CustomerProfile{}, false, errors.New("external customer id is required")
+	}
+
+	if !validNationalCode(nationalCode) {
+		return model.CustomerProfile{}, false, cerr.InvalidArgument(fmt.Errorf("national code must contain exactly ten ASCII digits"))
 	}
 
 	if !jurisdiction.IsValid() {
@@ -117,16 +98,32 @@ func EnsureExists[Q postgres.Queryer](
 		return model.CustomerProfile{}, false, err
 	}
 
+	// Upsert the legal person and lock the same owner row for all concurrent
+	// accounts of this national code. All callers execute within one local TX.
+	const ownerInsert = `INSERT INTO credit_owners (national_code, created_at)
+VALUES ($1,$2) ON CONFLICT (national_code) DO NOTHING`
+	if _, err := q.Exec(ctx, ownerInsert, nationalCode, createdAt); err != nil {
+		return model.CustomerProfile{}, false, fmt.Errorf("%s: create legal person: %w", op, postgres.MapError(err))
+	}
+	type ownerIDRow struct {
+		ID model.CreditOwnerID `db:"id"`
+	}
+	owner, err := postgres.QueryOne[ownerIDRow](ctx, q, "lock legal person", `SELECT id FROM credit_owners WHERE national_code=$1 FOR UPDATE`, nationalCode)
+	if err != nil {
+		return model.CustomerProfile{}, false, fmt.Errorf("%s: lock legal person: %w", op, err)
+	}
+
 	const insertQuery = `
 INSERT INTO customer_profiles (
 	external_subject_id,
 	external_customer_id,
+	credit_owner_id,
 	jurisdiction,
 	status,
 	created_at,
 	updated_at
 )
-VALUES ($1, $2, $3, $4, $5, $6)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (external_customer_id) DO NOTHING
 `
 
@@ -135,12 +132,19 @@ ON CONFLICT (external_customer_id) DO NOTHING
 		insertQuery,
 		externalSubjectID,
 		externalCustomerID,
+		owner.ID,
 		jurisdiction,
 		status,
 		createdAt,
 		updatedAt,
 	)
 	if err != nil {
+		// The stable Identity subject is already bound to another CRS account.
+		// This is an immutable identity conflict, not an invitation to re-key
+		// either profile or silently adopt a different legal-person owner.
+		if postgres.IsUniqueViolation(err, "customer_profiles_external_subject_id_key") {
+			return model.CustomerProfile{}, false, cerr.Conflict(fmt.Errorf("%s: identity subject already belongs to another customer account", op))
+		}
 		return model.CustomerProfile{}, false, fmt.Errorf(
 			"%s: ensure customer profile: %w", op, postgres.MapError(err),
 		)
@@ -151,6 +155,11 @@ ON CONFLICT (external_customer_id) DO NOTHING
 		return model.CustomerProfile{}, false, err
 	}
 
+	// Neither a reused CRS customer_id nor a reused Identity subject may be
+	// reattached to another national code. Never silently rewrite identity.
+	if profile.ExternalSubjectID != externalSubjectID || profile.CreditOwnerID != owner.ID || profile.Jurisdiction != jurisdiction {
+		return model.CustomerProfile{}, false, cerr.Conflict(fmt.Errorf("%s: immutable customer identity does not match CRS", op))
+	}
 	return profile, affected > 0, nil
 }
 
@@ -161,6 +170,7 @@ func GetByID[Q postgres.Queryer](ctx context.Context, q Q, id model.CustomerID) 
 			id,
 			external_subject_id,
 			external_customer_id,
+			credit_owner_id,
 			jurisdiction,
 			status,
 			created_at,
@@ -185,6 +195,7 @@ func GetByExternalSubjectID[Q postgres.Queryer](ctx context.Context, q Q, extern
 			id,
 			external_subject_id,
 			external_customer_id,
+			credit_owner_id,
 			jurisdiction,
 			status,
 			created_at,
@@ -209,6 +220,7 @@ func GetByExternalCustomerID[Q postgres.Queryer](ctx context.Context, q Q, exter
 			id,
 			external_subject_id,
 			external_customer_id,
+			credit_owner_id,
 			jurisdiction,
 			status,
 			created_at,
@@ -261,6 +273,7 @@ SELECT
 	id,
 	external_subject_id,
 	external_customer_id,
+	credit_owner_id,
 	jurisdiction,
 	status,
 	created_at,
@@ -286,6 +299,7 @@ SELECT
 	id,
 	external_subject_id,
 	external_customer_id,
+	credit_owner_id,
 	jurisdiction,
 	status,
 	created_at,
@@ -311,6 +325,7 @@ SELECT
 	id,
 	external_subject_id,
 	external_customer_id,
+	credit_owner_id,
 	jurisdiction,
 	status,
 	created_at,
@@ -343,12 +358,10 @@ func Update[Q postgres.Queryer](
 	query := `
 UPDATE customer_profiles
 SET
-	external_subject_id = $2,
-	external_customer_id = $3,
-	jurisdiction = $4,
 	status = $5,
 	updated_at = $6
-WHERE id = $1
+WHERE id = $1 AND external_subject_id = $2
+    AND external_customer_id = $3 AND jurisdiction = $4
 RETURNING
 ` + customerProfileReturningColumns
 

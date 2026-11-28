@@ -2,6 +2,7 @@ package routes
 
 import (
 	"fmt"
+	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/creditallocationrs"
 
 	"github.com/gin-gonic/gin"
 
@@ -101,6 +102,7 @@ func Register(
 
 	customerrs.Register(v1, customerAccountUseCase, opts.Customer)
 	customercreditrs.Register(v1, customerCreditUseCase, opts.CustomerCredit)
+	creditallocationrs.Register(v1, opts.CreditAllocation, opts.CreditAllocationOptions)
 
 	return nil
 }

@@ -83,6 +83,9 @@ const (
 	// transport safety limit configured by the serving application.
 	CodePayloadTooLarge Code = "PAYLOAD_TOO_LARGE"
 
+	// CodeUnsupportedMediaType indicates that the request representation is not supported.
+	CodeUnsupportedMediaType Code = "UNSUPPORTED_MEDIA_TYPE"
+
 	// CodeTooManyRequests indicates that the caller exceeded a rate or attempt
 	// budget for the requested operation.
 	CodeTooManyRequests Code = "TOO_MANY_REQUESTS"
@@ -294,6 +297,8 @@ func DefaultMessageKey(code Code) MessageKey {
 
 	case CodePayloadTooLarge:
 		return "error.default.payload_too_large"
+	case CodeUnsupportedMediaType:
+		return "error.default.unsupported_media_type"
 
 	case CodeTooManyRequests:
 		return "error.default.too_many_requests"

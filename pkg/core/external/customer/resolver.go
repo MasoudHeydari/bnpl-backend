@@ -41,4 +41,7 @@ type ResolveByMobileOutput struct {
 
 	// Status is the Customer Reference Service wire status.
 	Status Status
+
+	// NationalCode identifies the immutable legal person associated with this account.
+	NationalCode string
 }

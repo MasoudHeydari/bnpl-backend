@@ -32,6 +32,13 @@ func PrivilegeRegistry() []TablePrivilegePolicy {
 const PrivilegeMigration = "000_schema.sql"
 
 var privileges = []TablePrivilegePolicy{
+	{Schema: "bnpl", Table: "credit_allocation_control", Migration: PrivilegeMigration, Description: "Credit allocation configuration and durable request processing; immutable identity and history are not writable.", Operations: []Operation{SelectOperation}, UpdateColumns: []string{"revision"}},
+	{Schema: "bnpl", Table: "credit_groups", Migration: PrivilegeMigration, Description: "Credit allocation configuration and durable request processing; immutable identity and history are not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"enabled", "name", "updated_at", "updated_by"}},
+	{Schema: "bnpl", Table: "credit_eligibility_entries", Migration: PrivilegeMigration, Description: "Credit allocation configuration and durable request processing; immutable identity and history are not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"credit_owner_id"}},
+	{Schema: "bnpl", Table: "credit_eligibility_mobiles", Migration: PrivilegeMigration, Description: "Credit allocation configuration and durable request processing; immutable identity and history are not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{}},
+	{Schema: "bnpl", Table: "credit_group_memberships", Migration: PrivilegeMigration, Description: "Credit allocation configuration and durable request processing; immutable identity and history are not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{}},
+	{Schema: "bnpl", Table: "credit_allocation_rules", Migration: PrivilegeMigration, Description: "Credit allocation configuration and durable request processing; immutable identity and history are not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{}},
+	{Schema: "bnpl", Table: "credit_requests", Migration: PrivilegeMigration, Description: "Credit allocation configuration and durable request processing; immutable identity and history are not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"allocation_rule_id", "completed_at", "decision_id", "lease_token", "lease_until", "next_attempt_at", "queue_source", "reason_code", "status", "updated_at"}},
 	{Schema: "bnpl", Table: "migrations", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation}, UpdateColumns: []string{}},
 	{Schema: "bnpl", Table: "integration_outbox", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"attempt_count", "last_error", "lock_version", "locked_at", "locked_by", "next_attempt_at", "published_at", "status"}},
 	{Schema: "bnpl", Table: "integration_inbox", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"failed_at", "failure_code", "failure_message", "processed_at", "status", "updated_at"}},
@@ -39,14 +46,42 @@ var privileges = []TablePrivilegePolicy{
 	{Schema: "bnpl", Table: "saga_instances", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"current_step", "finished_at", "last_error", "lease_until", "locked_by", "next_attempt_at", "phase", "status", "step_attempt_count", "updated_at", "version"}},
 	{Schema: "bnpl", Table: "saga_forward_step_completions", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"compensation_resolved_at", "compensation_state"}},
 	{Schema: "bnpl", Table: "decisions", Migration: PrivilegeMigration, Description: "Temporary table UPDATE exception for LockLiveCheckoutDecisionByID; Decisions remain immutable by business convention, not by this ACL.", Operations: []Operation{SelectOperation, InsertOperation, UpdateOperation}, UpdateColumns: []string{}},
-	{Schema: "bnpl", Table: "customer_profiles", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"external_subject_id", "external_customer_id", "jurisdiction", "status", "updated_at"}},
+	{Schema: "bnpl", Table: "credit_owners", Migration: PrivilegeMigration, Description: "Immutable legal-person national-code registry; UPDATE(id) is necessary for SELECT FOR UPDATE but the trigger rejects any key change.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"id"}},
+	{Schema: "bnpl", Table: "customer_profiles", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"status", "updated_at"}},
 	{Schema: "bnpl", Table: "policy_assignments", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"updated_at", "valid_until"}},
 	{Schema: "bnpl", Table: "policy_assignment_imports", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"completed_at", "failure_count", "status", "success_count"}},
+	{Schema: "bnpl", Table: "trusted_mobile_numbers", Migration: PrivilegeMigration, Description: "Immutable raw trusted mobile and national ID registry; runtime can only select and insert.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{}},
 	{Schema: "bnpl", Table: "policy_assignment_import_items", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"error_code", "error_message", "status", "updated_at"}},
+	{
+		Schema:        "bnpl",
+		Table:         "merchant_participation_requests",
+		Migration:     PrivilegeMigration,
+		Description:   "Immutable Merchant participation identity.",
+		Operations:    []Operation{SelectOperation, InsertOperation},
+		UpdateColumns: []string{},
+	},
+	{
+		Schema:        "bnpl",
+		Table:         "merchant_participation_evaluations",
+		Migration:     PrivilegeMigration,
+		Description:   "Immutable policy evaluation for a declaration revision.",
+		Operations:    []Operation{SelectOperation, InsertOperation},
+		UpdateColumns: []string{},
+	},
+	{
+		Schema:        "bnpl",
+		Table:         "merchant_participation_progress_deliveries",
+		Migration:     PrivilegeMigration,
+		Description:   "Immutable progress identity and leased callback delivery.",
+		Operations:    []Operation{SelectOperation, InsertOperation},
+		UpdateColumns: []string{"attempt_count", "delivery_status", "last_error", "next_attempt_at", "updated_at"},
+	},
 	{Schema: "bnpl", Table: "merchant_profiles", Migration: PrivilegeMigration, Description: "Minimal UPDATE(id) compatibility exception for existing SELECT FOR UPDATE; no repository key mutation.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"id"}},
 	{Schema: "bnpl", Table: "merchant_branch_profiles", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"offer_preparation_mode", "updated_at"}},
 	{Schema: "bnpl", Table: "merchant_pos_terminals", Migration: PrivilegeMigration, Description: "Minimal UPDATE(id) compatibility exception for existing SELECT FOR UPDATE; no repository key mutation.", Operations: []Operation{SelectOperation}, UpdateColumns: []string{"id"}},
 	{Schema: "bnpl", Table: "merchant_online_stores", Migration: PrivilegeMigration, Description: "Minimal UPDATE(id) compatibility exception for existing SELECT FOR UPDATE; no repository key mutation.", Operations: []Operation{SelectOperation}, UpdateColumns: []string{"id"}},
+	{Schema: "bnpl", Table: "customer_credit_enrollments", Migration: PrivilegeMigration, Description: "Immutable customer permission to use shared legal-person credit.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{}},
+	{Schema: "bnpl", Table: "credit_owner_checkout_claims", Migration: PrivilegeMigration, Description: "Append-only person Checkout claim history; SQL triggers validate terminal release.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"released_at"}},
 	{Schema: "bnpl", Table: "credit_accounts", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"effective_from", "expires_at", "exposure_amount_minor", "last_limit_decision_id", "limit_amount_minor", "revoked_at", "status", "updated_at", "version"}},
 	{Schema: "bnpl", Table: "credit_transactions", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{}},
 	{Schema: "bnpl", Table: "contracts", Migration: PrivilegeMigration, Description: "Reviewed business SQL; immutable financial identity is not writable.", Operations: []Operation{SelectOperation, InsertOperation}, UpdateColumns: []string{"activated_at", "canceled_at", "cancellation_context_id", "cancellation_financial_core_accepted_at", "cancellation_financial_core_idempotency_key", "cancellation_idempotency_key", "cancellation_reason", "cancellation_request_fingerprint", "cancellation_requested_at", "cancellation_tenant_id", "completed_at", "financial_invoice_id", "financial_merchant_entitlement_id", "financial_payment_attempt_id", "financial_payment_expires_at", "financial_payment_intent_id", "financial_payment_link", "financial_payment_reused_idempotent_result", "financial_payment_session_id", "financial_receivable_id", "payment_id", "payment_reference", "remaining_principal_amount_minor", "status", "successful_financial_payment_attempt_id", "updated_at"}},
@@ -107,7 +142,7 @@ var privileges = []TablePrivilegePolicy{
 }
 
 // PrivilegeMigrationSHA256 fingerprints the reviewed baseline privilege grants.
-const PrivilegeMigrationSHA256 = "sha256:be67a59c41d477d472f350bfb8510be609bb5fbbe6b94746612936476accafc3"
+const PrivilegeMigrationSHA256 = "sha256:515101dd77b89e6fd2b796516298f4bd979b068336c885dd80ac96b640b5b2ab"
 
 const PermissionHistoryMigration = "000_schema.sql"
-const PermissionHistoryMigrationSHA256 = "sha256:be67a59c41d477d472f350bfb8510be609bb5fbbe6b94746612936476accafc3"
+const PermissionHistoryMigrationSHA256 = "sha256:515101dd77b89e6fd2b796516298f4bd979b068336c885dd80ac96b640b5b2ab"

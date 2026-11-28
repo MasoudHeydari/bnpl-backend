@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/parstis/bnpl-backend/pkg/adapter/restful/gin/serdser"
+	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/customercredituc"
 )
 
@@ -34,9 +35,12 @@ type GetSingleSuccessSchema struct {
 //	@Description	Active financed exposure is persisted on the customer CreditAccount as outstanding principal from activated contracts.
 //	@Description	Checkout decisions, installment offers, and pre-activation contracts (payment_pending) do not reduce available credit.
 //	@Description	Credit is consumed only when a contract becomes active under its persisted checkout policy.
-//	@Description	When no credit limit has been assigned (customer never assessed), data contains only status not_assigned and meta.code is CUSTOMER_CREDIT_NOT_ASSIGNED — clients must initiate credit assessment, not treat this as a zero balance.
-//	@Description	When a historical limit exists but is not currently usable (including time-expired), data contains only status expired and expires_at; meta.code is CUSTOMER_CREDIT_EXPIRED — clients must trigger reassessment.
+//	@Description	When no credit limit is assigned, account status is not_assigned; credit_request describes the persisted request if present. Pending requests are not rejected.
+//	@Description	When a historical limit is expired, account status is expired; credit_request remains independent.
 //	@Description	For an active limit, limit_amount_minor is the governed total capacity and available_amount_minor is remaining usable credit; both are integer minor-unit amounts in the response currency.
+//
+// @Param credit_kind query string false "Optional single product" Enums(pay_in_installments,pay_next_month)
+//
 //	@Tags			Credit Limits
 //	@Produce		json
 //	@Param			x-auth-subject-id		header		string				true	"Authenticated Identity Service subject UUID"															format(uuid)
@@ -89,6 +93,16 @@ func (rs *resource) Get(c *gin.Context) {
 			message = serdser.SuccessMessageCustomerCreditNotAssigned
 		}
 
+		if code == serdser.SuccessCodeCustomerCreditNotAssigned {
+			for _, item := range output.Credits {
+				if item.CreditRequest != nil {
+					code, message = requestMetadata(item.CreditRequest, code, message)
+					if code == serdser.SuccessCodeCreditRequestReceived {
+						break
+					}
+				}
+			}
+		}
 		serdser.Ser(c, http.StatusOK, code, message, toAllCreditSummariesResponse(output))
 		return
 	}
@@ -112,6 +126,9 @@ func (rs *resource) Get(c *gin.Context) {
 		message = serdser.SuccessMessageCustomerCreditNotAssigned
 	}
 
+	if output.Status != customercredituc.SummaryStatusActive {
+		code, message = requestMetadata(output.CreditRequest, code, message)
+	}
 	serdser.Ser(
 		c,
 		http.StatusOK,
@@ -119,4 +136,19 @@ func (rs *resource) Get(c *gin.Context) {
 		message,
 		toCreditSummaryResponse(output),
 	)
+}
+
+func requestMetadata(r *model.CreditRequestSummary, code serdser.SuccessCode, message serdser.SuccessMessageKey) (serdser.SuccessCode, serdser.SuccessMessageKey) {
+	if r != nil {
+		switch r.Status {
+		case model.PendingCreditRequestStatus, model.ProcessingCreditRequestStatus:
+			return serdser.SuccessCodeCreditRequestReceived, serdser.SuccessMessageCreditRequestReceived
+		case model.RejectedCreditRequestStatus:
+			if r.ReasonCode == model.CreditRequestIdentityMismatchReason {
+				return serdser.SuccessCodeCreditRequestRejected, serdser.SuccessMessageCreditRequestIdentityMismatch
+			}
+			return serdser.SuccessCodeCreditRequestRejected, serdser.SuccessMessageCreditRequestRejected
+		}
+	}
+	return code, message
 }

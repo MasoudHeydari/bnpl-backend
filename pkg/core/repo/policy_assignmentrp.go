@@ -17,6 +17,17 @@ type PolicyAssignmentQueryer interface {
 		family model.PolicyFamily,
 		now time.Time,
 	) (model.PolicyAssignment, error)
+
+	// GetActiveForCustomerOrOwner prefers the legal-person assignment for the
+	// authenticated CRS customer when one exists, then falls back to a legacy
+	// explicit customer assignment. Owner grants are shared across enrolled
+	// accounts; writes still go through Tx Create.
+	GetActiveForCustomerOrOwner(
+		ctx context.Context,
+		externalCustomerID model.ExternalCustomerID,
+		family model.PolicyFamily,
+		now time.Time,
+	) (model.PolicyAssignment, error)
 }
 
 // PolicyAssignmentConnQueryer exposes read operations on a connection.

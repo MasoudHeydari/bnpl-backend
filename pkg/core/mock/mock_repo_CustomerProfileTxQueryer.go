@@ -40,8 +40,8 @@ func (_m *CustomerProfileTxQueryer) EXPECT() *CustomerProfileTxQueryer_Expecter 
 }
 
 // Create provides a mock function for the type CustomerProfileTxQueryer
-func (_mock *CustomerProfileTxQueryer) Create(ctx context.Context, externalSubjectID model.ExternalSubjectID, externalCustomerID model.ExternalCustomerID, jurisdiction model.Jurisdiction, status model.CustomerStatus, createdAt time.Time, updatedAt time.Time) (model.CustomerProfile, error) {
-	ret := _mock.Called(ctx, externalSubjectID, externalCustomerID, jurisdiction, status, createdAt, updatedAt)
+func (_mock *CustomerProfileTxQueryer) Create(ctx context.Context, externalSubjectID model.ExternalSubjectID, externalCustomerID model.ExternalCustomerID, jurisdiction model.Jurisdiction, status model.CustomerStatus, createdAt time.Time, updatedAt time.Time, nationalCode string) (model.CustomerProfile, error) {
+	ret := _mock.Called(ctx, externalSubjectID, externalCustomerID, jurisdiction, status, createdAt, updatedAt, nationalCode)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Create")
@@ -49,16 +49,16 @@ func (_mock *CustomerProfileTxQueryer) Create(ctx context.Context, externalSubje
 
 	var r0 model.CustomerProfile
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.ExternalSubjectID, model.ExternalCustomerID, model.Jurisdiction, model.CustomerStatus, time.Time, time.Time) (model.CustomerProfile, error)); ok {
-		return returnFunc(ctx, externalSubjectID, externalCustomerID, jurisdiction, status, createdAt, updatedAt)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.ExternalSubjectID, model.ExternalCustomerID, model.Jurisdiction, model.CustomerStatus, time.Time, time.Time, string) (model.CustomerProfile, error)); ok {
+		return returnFunc(ctx, externalSubjectID, externalCustomerID, jurisdiction, status, createdAt, updatedAt, nationalCode)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.ExternalSubjectID, model.ExternalCustomerID, model.Jurisdiction, model.CustomerStatus, time.Time, time.Time) model.CustomerProfile); ok {
-		r0 = returnFunc(ctx, externalSubjectID, externalCustomerID, jurisdiction, status, createdAt, updatedAt)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.ExternalSubjectID, model.ExternalCustomerID, model.Jurisdiction, model.CustomerStatus, time.Time, time.Time, string) model.CustomerProfile); ok {
+		r0 = returnFunc(ctx, externalSubjectID, externalCustomerID, jurisdiction, status, createdAt, updatedAt, nationalCode)
 	} else {
 		r0 = ret.Get(0).(model.CustomerProfile)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, model.ExternalSubjectID, model.ExternalCustomerID, model.Jurisdiction, model.CustomerStatus, time.Time, time.Time) error); ok {
-		r1 = returnFunc(ctx, externalSubjectID, externalCustomerID, jurisdiction, status, createdAt, updatedAt)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.ExternalSubjectID, model.ExternalCustomerID, model.Jurisdiction, model.CustomerStatus, time.Time, time.Time, string) error); ok {
+		r1 = returnFunc(ctx, externalSubjectID, externalCustomerID, jurisdiction, status, createdAt, updatedAt, nationalCode)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -78,11 +78,12 @@ type CustomerProfileTxQueryer_Create_Call struct {
 //   - status model.CustomerStatus
 //   - createdAt time.Time
 //   - updatedAt time.Time
-func (_e *CustomerProfileTxQueryer_Expecter) Create(ctx any, externalSubjectID any, externalCustomerID any, jurisdiction any, status any, createdAt any, updatedAt any) *CustomerProfileTxQueryer_Create_Call {
-	return &CustomerProfileTxQueryer_Create_Call{Call: _e.mock.On("Create", ctx, externalSubjectID, externalCustomerID, jurisdiction, status, createdAt, updatedAt)}
+//   - nationalCode string
+func (_e *CustomerProfileTxQueryer_Expecter) Create(ctx any, externalSubjectID any, externalCustomerID any, jurisdiction any, status any, createdAt any, updatedAt any, nationalCode any) *CustomerProfileTxQueryer_Create_Call {
+	return &CustomerProfileTxQueryer_Create_Call{Call: _e.mock.On("Create", ctx, externalSubjectID, externalCustomerID, jurisdiction, status, createdAt, updatedAt, nationalCode)}
 }
 
-func (_c *CustomerProfileTxQueryer_Create_Call) Run(run func(ctx context.Context, externalSubjectID model.ExternalSubjectID, externalCustomerID model.ExternalCustomerID, jurisdiction model.Jurisdiction, status model.CustomerStatus, createdAt time.Time, updatedAt time.Time)) *CustomerProfileTxQueryer_Create_Call {
+func (_c *CustomerProfileTxQueryer_Create_Call) Run(run func(ctx context.Context, externalSubjectID model.ExternalSubjectID, externalCustomerID model.ExternalCustomerID, jurisdiction model.Jurisdiction, status model.CustomerStatus, createdAt time.Time, updatedAt time.Time, nationalCode string)) *CustomerProfileTxQueryer_Create_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -112,6 +113,10 @@ func (_c *CustomerProfileTxQueryer_Create_Call) Run(run func(ctx context.Context
 		if args[6] != nil {
 			arg6 = args[6].(time.Time)
 		}
+		var arg7 string
+		if args[7] != nil {
+			arg7 = args[7].(string)
+		}
 		run(
 			arg0,
 			arg1,
@@ -120,6 +125,7 @@ func (_c *CustomerProfileTxQueryer_Create_Call) Run(run func(ctx context.Context
 			arg4,
 			arg5,
 			arg6,
+			arg7,
 		)
 	})
 	return _c
@@ -130,14 +136,14 @@ func (_c *CustomerProfileTxQueryer_Create_Call) Return(customerProfile model.Cus
 	return _c
 }
 
-func (_c *CustomerProfileTxQueryer_Create_Call) RunAndReturn(run func(ctx context.Context, externalSubjectID model.ExternalSubjectID, externalCustomerID model.ExternalCustomerID, jurisdiction model.Jurisdiction, status model.CustomerStatus, createdAt time.Time, updatedAt time.Time) (model.CustomerProfile, error)) *CustomerProfileTxQueryer_Create_Call {
+func (_c *CustomerProfileTxQueryer_Create_Call) RunAndReturn(run func(ctx context.Context, externalSubjectID model.ExternalSubjectID, externalCustomerID model.ExternalCustomerID, jurisdiction model.Jurisdiction, status model.CustomerStatus, createdAt time.Time, updatedAt time.Time, nationalCode string) (model.CustomerProfile, error)) *CustomerProfileTxQueryer_Create_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // EnsureExists provides a mock function for the type CustomerProfileTxQueryer
-func (_mock *CustomerProfileTxQueryer) EnsureExists(ctx context.Context, externalSubjectID model.ExternalSubjectID, externalCustomerID model.ExternalCustomerID, jurisdiction model.Jurisdiction, status model.CustomerStatus, createdAt time.Time, updatedAt time.Time) (model.CustomerProfile, bool, error) {
-	ret := _mock.Called(ctx, externalSubjectID, externalCustomerID, jurisdiction, status, createdAt, updatedAt)
+func (_mock *CustomerProfileTxQueryer) EnsureExists(ctx context.Context, externalSubjectID model.ExternalSubjectID, externalCustomerID model.ExternalCustomerID, jurisdiction model.Jurisdiction, status model.CustomerStatus, createdAt time.Time, updatedAt time.Time, nationalCode string) (model.CustomerProfile, bool, error) {
+	ret := _mock.Called(ctx, externalSubjectID, externalCustomerID, jurisdiction, status, createdAt, updatedAt, nationalCode)
 
 	if len(ret) == 0 {
 		panic("no return value specified for EnsureExists")
@@ -146,21 +152,21 @@ func (_mock *CustomerProfileTxQueryer) EnsureExists(ctx context.Context, externa
 	var r0 model.CustomerProfile
 	var r1 bool
 	var r2 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.ExternalSubjectID, model.ExternalCustomerID, model.Jurisdiction, model.CustomerStatus, time.Time, time.Time) (model.CustomerProfile, bool, error)); ok {
-		return returnFunc(ctx, externalSubjectID, externalCustomerID, jurisdiction, status, createdAt, updatedAt)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.ExternalSubjectID, model.ExternalCustomerID, model.Jurisdiction, model.CustomerStatus, time.Time, time.Time, string) (model.CustomerProfile, bool, error)); ok {
+		return returnFunc(ctx, externalSubjectID, externalCustomerID, jurisdiction, status, createdAt, updatedAt, nationalCode)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.ExternalSubjectID, model.ExternalCustomerID, model.Jurisdiction, model.CustomerStatus, time.Time, time.Time) model.CustomerProfile); ok {
-		r0 = returnFunc(ctx, externalSubjectID, externalCustomerID, jurisdiction, status, createdAt, updatedAt)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.ExternalSubjectID, model.ExternalCustomerID, model.Jurisdiction, model.CustomerStatus, time.Time, time.Time, string) model.CustomerProfile); ok {
+		r0 = returnFunc(ctx, externalSubjectID, externalCustomerID, jurisdiction, status, createdAt, updatedAt, nationalCode)
 	} else {
 		r0 = ret.Get(0).(model.CustomerProfile)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, model.ExternalSubjectID, model.ExternalCustomerID, model.Jurisdiction, model.CustomerStatus, time.Time, time.Time) bool); ok {
-		r1 = returnFunc(ctx, externalSubjectID, externalCustomerID, jurisdiction, status, createdAt, updatedAt)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.ExternalSubjectID, model.ExternalCustomerID, model.Jurisdiction, model.CustomerStatus, time.Time, time.Time, string) bool); ok {
+		r1 = returnFunc(ctx, externalSubjectID, externalCustomerID, jurisdiction, status, createdAt, updatedAt, nationalCode)
 	} else {
 		r1 = ret.Get(1).(bool)
 	}
-	if returnFunc, ok := ret.Get(2).(func(context.Context, model.ExternalSubjectID, model.ExternalCustomerID, model.Jurisdiction, model.CustomerStatus, time.Time, time.Time) error); ok {
-		r2 = returnFunc(ctx, externalSubjectID, externalCustomerID, jurisdiction, status, createdAt, updatedAt)
+	if returnFunc, ok := ret.Get(2).(func(context.Context, model.ExternalSubjectID, model.ExternalCustomerID, model.Jurisdiction, model.CustomerStatus, time.Time, time.Time, string) error); ok {
+		r2 = returnFunc(ctx, externalSubjectID, externalCustomerID, jurisdiction, status, createdAt, updatedAt, nationalCode)
 	} else {
 		r2 = ret.Error(2)
 	}
@@ -180,11 +186,12 @@ type CustomerProfileTxQueryer_EnsureExists_Call struct {
 //   - status model.CustomerStatus
 //   - createdAt time.Time
 //   - updatedAt time.Time
-func (_e *CustomerProfileTxQueryer_Expecter) EnsureExists(ctx any, externalSubjectID any, externalCustomerID any, jurisdiction any, status any, createdAt any, updatedAt any) *CustomerProfileTxQueryer_EnsureExists_Call {
-	return &CustomerProfileTxQueryer_EnsureExists_Call{Call: _e.mock.On("EnsureExists", ctx, externalSubjectID, externalCustomerID, jurisdiction, status, createdAt, updatedAt)}
+//   - nationalCode string
+func (_e *CustomerProfileTxQueryer_Expecter) EnsureExists(ctx any, externalSubjectID any, externalCustomerID any, jurisdiction any, status any, createdAt any, updatedAt any, nationalCode any) *CustomerProfileTxQueryer_EnsureExists_Call {
+	return &CustomerProfileTxQueryer_EnsureExists_Call{Call: _e.mock.On("EnsureExists", ctx, externalSubjectID, externalCustomerID, jurisdiction, status, createdAt, updatedAt, nationalCode)}
 }
 
-func (_c *CustomerProfileTxQueryer_EnsureExists_Call) Run(run func(ctx context.Context, externalSubjectID model.ExternalSubjectID, externalCustomerID model.ExternalCustomerID, jurisdiction model.Jurisdiction, status model.CustomerStatus, createdAt time.Time, updatedAt time.Time)) *CustomerProfileTxQueryer_EnsureExists_Call {
+func (_c *CustomerProfileTxQueryer_EnsureExists_Call) Run(run func(ctx context.Context, externalSubjectID model.ExternalSubjectID, externalCustomerID model.ExternalCustomerID, jurisdiction model.Jurisdiction, status model.CustomerStatus, createdAt time.Time, updatedAt time.Time, nationalCode string)) *CustomerProfileTxQueryer_EnsureExists_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -214,6 +221,10 @@ func (_c *CustomerProfileTxQueryer_EnsureExists_Call) Run(run func(ctx context.C
 		if args[6] != nil {
 			arg6 = args[6].(time.Time)
 		}
+		var arg7 string
+		if args[7] != nil {
+			arg7 = args[7].(string)
+		}
 		run(
 			arg0,
 			arg1,
@@ -222,6 +233,7 @@ func (_c *CustomerProfileTxQueryer_EnsureExists_Call) Run(run func(ctx context.C
 			arg4,
 			arg5,
 			arg6,
+			arg7,
 		)
 	})
 	return _c
@@ -232,7 +244,7 @@ func (_c *CustomerProfileTxQueryer_EnsureExists_Call) Return(customerProfile mod
 	return _c
 }
 
-func (_c *CustomerProfileTxQueryer_EnsureExists_Call) RunAndReturn(run func(ctx context.Context, externalSubjectID model.ExternalSubjectID, externalCustomerID model.ExternalCustomerID, jurisdiction model.Jurisdiction, status model.CustomerStatus, createdAt time.Time, updatedAt time.Time) (model.CustomerProfile, bool, error)) *CustomerProfileTxQueryer_EnsureExists_Call {
+func (_c *CustomerProfileTxQueryer_EnsureExists_Call) RunAndReturn(run func(ctx context.Context, externalSubjectID model.ExternalSubjectID, externalCustomerID model.ExternalCustomerID, jurisdiction model.Jurisdiction, status model.CustomerStatus, createdAt time.Time, updatedAt time.Time, nationalCode string) (model.CustomerProfile, bool, error)) *CustomerProfileTxQueryer_EnsureExists_Call {
 	_c.Call.Return(run)
 	return _c
 }

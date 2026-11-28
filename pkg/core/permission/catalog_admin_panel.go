@@ -43,6 +43,21 @@ var (
 		"Update any BNPL credit limit",
 		"Allows an administrator to update BNPL credit limits.",
 	)
+	CreditAllocationsReadAny = permission(
+		"bnpl:credit:allocations:read:any",
+		"Read any BNPL credit allocation",
+		"Allows an administrator to read BNPL credit eligibility and allocation configuration.",
+	)
+	CreditAllocationsManageAny = permission(
+		"bnpl:credit:allocations:manage:any",
+		"Manage any BNPL credit allocation",
+		"Allows an administrator to configure BNPL credit groups, eligibility, and allocation rules.",
+	)
+	CreditRequestsReadAny = permission(
+		"bnpl:credit:requests:read:any",
+		"Read any BNPL credit request",
+		"Allows an administrator to read pending BNPL credit requests.",
+	)
 	ContractsCreateOnBehalf = permission(
 		"bnpl:contracts:create:on-behalf",
 		"Create BNPL contracts on behalf",
@@ -149,6 +164,9 @@ var adminPanel = []Permission{
 	DecisionsOverrideAny,
 	CreditLimitsReadAny,
 	CreditLimitsUpdateAny,
+	CreditAllocationsReadAny,
+	CreditAllocationsManageAny,
+	CreditRequestsReadAny,
 	ContractsCreateOnBehalf,
 	ContractsReadAny,
 	ContractsSubmitOnBehalf,

@@ -99,39 +99,20 @@ func idempotencyKey(c *gin.Context) (string, bool) {
 func authenticatedMerchantID(c *gin.Context) (model.ExternalMerchantID, bool) {
 	const op = "merchantterminalrs.authenticatedMerchantID"
 
-	authCtx, ok := permission.FromContext(c.Request.Context())
+	workspace, ok := permission.MerchantWorkspaceFromContext(c.Request.Context())
 	if !ok {
-		serdser.SerErr(
-			c,
-			cerr.NewPublic(
-				cerr.CodeUnauthorized,
-				"error.authentication_context_missing",
-				fmt.Errorf("%s: authentication context is missing", op),
-				cerr.Details{
-					Fields: []string{
-						header.AuthSubjectID,
-						header.AuthTenantID,
-						header.AuthContextID,
-					},
-					Violations: []cerr.Violation{
-						{
-							Code:       "REQUIRED",
-							MessageKey: "error.trusted_authentication_headers_are_required",
-							Fields: []string{
-								header.AuthSubjectID,
-								header.AuthTenantID,
-								header.AuthContextID,
-							},
-						},
-					},
-				},
-			),
-		)
+		serdser.SerErr(c, cerr.Unauthorized(fmt.Errorf("%s: merchant workspace is missing", op)))
 
 		return model.ExternalMerchantID{}, false
 	}
 
-	return authCtx.SubjectID.AsExternalMerchantID(), true
+	if !workspace.Scope.IsAllOutlets() {
+		serdser.SerErr(c, cerr.Forbidden(fmt.Errorf("%s: merchant-wide scope required", op)))
+
+		return model.ExternalMerchantID{}, false
+	}
+
+	return workspace.MerchantID, true
 }
 
 func toProvisionInput(c *gin.Context) (merchantterminaluc.ProvisionInput, bool) {

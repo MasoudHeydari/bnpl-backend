@@ -343,3 +343,19 @@ success.repayment_batch_started: "Repayment payment session started."
 validation.repayment_batch_id_invalid: "repayment batch id is invalid"
 
 success.repayment_batch_created: "Repayment batch accepted for preparation."
+
+error.credit_purchase_in_progress: "Another credit purchase is in progress. Please complete it before starting another."
+error.trusted_mobile_national_id_conflict: "This trusted mobile number does not match the verified national ID."
+
+success.credit_request_received: "Your request has been received. Credit will be granted if you meet the eligibility requirements."
+success.credit_request_rejected: "Your credit request was not approved."
+success.credit_request_identity_mismatch: "Your identity information has changed since submission. Please submit a new credit request."
+success.credit_allocation_configured: "Credit allocation configuration saved."
+success.credit_allocation_retrieved: "Credit allocation information returned."
+error.credit_allocation_input_invalid: "Invalid credit allocation input."
+error.credit_eligibility_identity_conflict: "The mobile and national code do not match."
+error.credit_allocation_strategy_unavailable: "This allocation strategy is not available."
+error.credit_request_identity_mismatch: "Your identity information has changed. Please submit a new request."
+
+error.credit_allocation_currency_not_supported: "This currency is not supported for credit allocation."
+error.default.unsupported_media_type: "Unsupported request content type."

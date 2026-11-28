@@ -65,7 +65,8 @@ func AggregateCreditStatus(credits []Output) AllCreditStatus {
 // inherits exposure, policy, or availability from the other.
 func (uc *UseCase) GetAllSummaries(ctx context.Context, input Input) (AllSummariesOutput, error) {
 	const op = "customercredituc.UseCase.GetAllSummaries"
-	externalCustomerID, err := uc.resolveActiveExternalCustomerID(ctx, input.MobileE164)
+	identity, err := uc.resolveActiveExternalCustomerIdentity(ctx, input.MobileE164)
+	externalCustomerID := identity.ExternalCustomerID
 	if err != nil {
 		return AllSummariesOutput{}, err
 	}
@@ -84,7 +85,7 @@ func (uc *UseCase) GetAllSummaries(ctx context.Context, input Input) (AllSummari
 
 			profile, err := uc.ensureActiveCustomerProfile(
 				ctx, customerProfileQ, input.SubjectID.AsExternalSubjectID(),
-				externalCustomerID, now,
+				externalCustomerID, identity.NationalCode, now,
 			)
 			if err != nil {
 				return err
@@ -106,10 +107,6 @@ func (uc *UseCase) GetAllSummaries(ctx context.Context, input Input) (AllSummari
 			}
 
 			currency := selectedPolicy.Terms().Currency
-			products, ok := creditAccountQ.(repo.CreditAccountProductTxQueryer)
-			if !ok {
-				return cerr.InternalError(fmt.Errorf("%s: product-aware account repository unavailable", op))
-			}
 
 			// Read restrictions once for one consistent response. Restriction
 			// truth is independent of assignment state.
@@ -125,26 +122,27 @@ func (uc *UseCase) GetAllSummaries(ctx context.Context, input Input) (AllSummari
 				monthlyBlocked := false
 				if kind == model.PayNextMonthCreditKind {
 					monthlyBlocked, err = monthlyPreviousCycleBlocked(
-						ctx, products, profile.ID, currency, now,
+						ctx, creditAccountQ, profile.ID, currency, now,
 					)
 					if err != nil {
 						return err
 					}
 				}
 
-				if err := products.ExpireDueByCustomerIDCurrencyAndKind(
+				if err := creditAccountQ.ExpireDueByCustomerIDCurrencyAndKind(
 					ctx, profile.ID, currency, kind, now,
 				); err != nil {
 					return err
 				}
 
-				account, err := products.GetByCustomerIDCurrencyAndKind(
+				account, err := creditAccountQ.GetByCustomerIDCurrencyAndKind(
 					ctx, profile.ID, currency, kind,
 				)
 				var item Output
 				switch {
 				case err == nil:
 					item = summaryFromAccount(account, blocked || monthlyBlocked)
+					item.CustomerID = profile.ID
 					if blocked {
 						item.CreditUsage.Reason = reason
 					} else if monthlyBlocked {
@@ -157,6 +155,10 @@ func (uc *UseCase) GetAllSummaries(ctx context.Context, input Input) (AllSummari
 					return err
 				}
 				item.CreditKind = kind
+				item.CreditRequest, err = uc.latestCreditRequest(ctx, tx, profile.ID, kind)
+				if err != nil {
+					return err
+				}
 				output.Credits = append(output.Credits, item)
 			}
 			output.Status = AggregateCreditStatus(output.Credits)

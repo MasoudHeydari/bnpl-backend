@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/parstis/bnpl-backend/pkg/core/cerr"
+
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
@@ -72,12 +74,20 @@ func (uc *UseCase) SelectCreditKind(
 		return SelectCreditKindOutput{}, err
 	}
 
+	// Check CRS ownership before a selection can affect the person-wide
+	// checkout claim. External I/O must stay outside the transaction.
+	ownership, err := uc.preflightPartnerCreditKind(ctx, input.Token, input.ExternalMerchantID)
+	if err != nil {
+		return SelectCreditKindOutput{}, err
+	}
+
 	session, err := uc.selectPartnerCreditKind(
 		ctx,
 		input.Token,
 		input.ExternalMerchantID,
 		input.CreditKind,
 		input.ExpectedEvaluationGeneration,
+		ownership,
 	)
 	if err != nil {
 		return SelectCreditKindOutput{}, err
@@ -118,6 +128,7 @@ func (uc *UseCase) selectPartnerCreditKind(
 	externalMerchantID model.ExternalMerchantID,
 	kind model.CreditKind,
 	expectedGeneration int,
+	ownership boundExternalMobileOwnership,
 ) (session model.CheckoutSession, err error) {
 	const op = "checkoutsessionuc.UseCase.selectPartnerCreditKind"
 
@@ -162,6 +173,12 @@ func (uc *UseCase) selectPartnerCreditKind(
 			now := uc.clock.Now().UTC()
 			if locked.IsExpiredAt(now) {
 				return checkoutSessionExpiredError()
+			}
+
+			// Fence a concurrent change after the out-of-transaction CRS preflight.
+			// A previously confirming session can reopen while we acquire the lock.
+			if err := uc.assertSelectedPartnerOwnership(locked, ownership); err != nil {
+				return err
 			}
 
 			// Same-kind idempotent replay: return durable state without mutating
@@ -209,4 +226,110 @@ func (uc *UseCase) selectPartnerCreditKind(
 	})
 
 	return session, err
+}
+
+// preflightPartnerCreditKind checks merchant ownership before resolving the
+// previously bound phone in CRS. Read-only database work and the external RPC
+// complete before the mutation transaction and its row locks begin.
+func (uc *UseCase) preflightPartnerCreditKind(
+	ctx context.Context,
+	token model.CheckoutSessionToken,
+	merchantID model.ExternalMerchantID,
+) (boundExternalMobileOwnership, error) {
+	const op = "checkoutsessionuc.UseCase.preflightPartnerCreditKind"
+
+	var session model.CheckoutSession
+	err := uc.pool.Conn(ctx, func(ctx context.Context, conn repo.Conn) error {
+		sessionQ := uc.checkoutSession.Conn(conn)
+		found, err := sessionQ.GetByPublicToken(ctx, token)
+		if err != nil {
+			if cerr.IsCode(err, cerr.CodeResourceNotFound) {
+				return checkoutSessionNotFoundError(err)
+			}
+
+			return fmt.Errorf("%s: load checkout: %w", op, err)
+		}
+
+		if found.Origin != model.ExternalPartnerCheckoutSessionOrigin {
+			return checkoutSessionNotFoundError(fmt.Errorf("%s: checkout origin is not external", op))
+		}
+
+		merchantQ := uc.merchantProfile.Conn(conn)
+		merchant, err := merchantQ.GetByID(ctx, found.MerchantProfileID)
+		if err != nil {
+			return fmt.Errorf("%s: load merchant: %w", op, err)
+		}
+
+		if merchant.ExternalMerchantID != merchantID {
+			return checkoutSessionNotFoundError(fmt.Errorf("%s: checkout belongs to a different merchant", op))
+		}
+
+		session = found
+		return nil
+	})
+	if err != nil {
+		return boundExternalMobileOwnership{}, err
+	}
+
+	// The existing transaction reports terminal, expired, and confirming
+	// errors. No mobile revalidation is necessary in these states.
+	if session.Status != model.OpenCheckoutSessionStatus || session.ContractID != nil ||
+		session.ConfirmationAttemptID != nil || session.IsExpiredAt(uc.clock.Now().UTC()) {
+		return boundExternalMobileOwnership{}, nil
+	}
+
+	if session.CustomerID == nil || session.CustomerID.IsZero() {
+		return boundExternalMobileOwnership{}, checkoutCreditPurchaseUnavailableForPhoneError(
+			fmt.Errorf("%s: checkout account binding is missing", op),
+		)
+	}
+
+	ownership, err := uc.revalidateBoundExternalMobileOwnership(ctx, session)
+	if err != nil {
+		// Only a definitive mobile reassignment may close the old session.
+		// The shared safe-termination gate prevents releasing claims while
+		// financial effects or confirmation sagas remain uncertain.
+		if terminateErr := uc.terminateReassignedCheckoutIfSafe(ctx, session, err); terminateErr != nil {
+			return boundExternalMobileOwnership{}, terminateErr
+		}
+
+		// Do not disclose CRS reassignment, missing account, or dependency
+		// details to a merchant.
+		return boundExternalMobileOwnership{}, checkoutCreditPurchaseUnavailableForPhoneError(
+			fmt.Errorf("%s: CRS mobile ownership preflight failed: %w", op, err),
+		)
+	}
+
+	return ownership, nil
+}
+
+// assertSelectedPartnerOwnership fences a change of binding while CRS was
+// resolving. It touches only the locked local row and decrypts the stored
+// phone; it never calls CRS inside a transaction. The local customer ID
+// identifies the same external customer ID by the immutable profile identity
+// constraint, so the local binding is sufficient to fence that identity.
+func (uc *UseCase) assertSelectedPartnerOwnership(
+	locked model.CheckoutSession,
+	expected boundExternalMobileOwnership,
+) error {
+	const op = "checkoutsessionuc.UseCase.assertSelectedPartnerOwnership"
+
+	if expected.CustomerID.IsZero() || expected.ExternalCustomerID.IsZero() || expected.Phone == "" {
+		return checkoutCustomerIdentityConflictError(fmt.Errorf("%s: current CRS ownership preflight is required", op))
+	}
+
+	if locked.CustomerID == nil || *locked.CustomerID != expected.CustomerID {
+		return checkoutCustomerIdentityConflictError(fmt.Errorf("%s: customer binding changed during preflight", op))
+	}
+
+	phone, err := uc.decryptCustomerPhone(locked)
+	if err != nil {
+		return fmt.Errorf("%s: decrypt locked phone: %w", op, err)
+	}
+
+	if phone != expected.Phone {
+		return checkoutCustomerIdentityConflictError(fmt.Errorf("%s: mobile binding changed during preflight", op))
+	}
+
+	return nil
 }

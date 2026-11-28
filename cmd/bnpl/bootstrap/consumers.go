@@ -8,6 +8,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/adapter/config"
 	adaptermessaging "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/messaging"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/messaging/consumers"
+	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/messaging/consumers/merchantparticipation"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/messaging/consumers/paymentreconciliation"
 	"github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/messaging/consumers/paymentresult"
 )
@@ -31,6 +32,21 @@ func (a *App) RegisterConsumers() (*consumers.Registry, error) {
 	registry, err := consumers.NewRegistry(a.Infrastructure.Logger, a.Infrastructure.ErrorReporter)
 	if err != nil {
 		return nil, fmt.Errorf("%s: create consumer registry: %w", op, err)
+	}
+
+	if a.Config.External.Merchant.Provider == "grpc" {
+		handler, err := merchantparticipation.New(
+			a.UseCases.MerchantProvisioning,
+			a.Infrastructure.FingerprintHasher,
+			a.Config.External.Merchant.GRPC.Environment,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("%s: create merchant participation handler: %w", op, err)
+		}
+
+		if err := registry.Register(a.Config.Infrastructure.Messaging.Kafka.Topics.MerchantParticipationRequests, handler.Handle); err != nil {
+			return nil, fmt.Errorf("%s: register merchant participation handler: %w", op, err)
+		}
 	}
 
 	paymentResultHandler := paymentresult.New(
@@ -101,6 +117,15 @@ func validateConsumerSubscriptions(cfg *config.Config) error {
 		},
 	}
 
+	if cfg.External.Merchant.Provider == "grpc" {
+		bindings = append(bindings, consumerTopicBinding{
+			name:         "merchant_participation_requests",
+			handlerEnv:   "KAFKA_TOPIC_MERCHANT_PARTICIPATION_REQUESTS",
+			consumerEnv:  "KAFKA_CONSUMER_TOPIC_MERCHANT_PARTICIPATION_REQUESTS",
+			handlerTopic: strings.TrimSpace(m.Kafka.Topics.MerchantParticipationRequests),
+		})
+	}
+
 	for _, b := range bindings {
 		if b.handlerTopic == "" {
 			return fmt.Errorf(
@@ -112,20 +137,19 @@ func validateConsumerSubscriptions(cfg *config.Config) error {
 		}
 	}
 
-	if bindings[0].handlerTopic == bindings[1].handlerTopic {
-		return fmt.Errorf(
-			"%s: handler topics must be distinct: %s and %s both resolve to %q",
-			op,
-			bindings[0].handlerEnv,
-			bindings[1].handlerEnv,
-			bindings[0].handlerTopic,
-		)
+	configured := make(map[string]consumerTopicBinding, len(bindings))
+	for _, b := range bindings {
+		if previous, exists := configured[b.handlerTopic]; exists {
+			return fmt.Errorf("%s: handler topics must be distinct: %s and %s both resolve to %q", op, previous.handlerEnv, b.handlerEnv, b.handlerTopic)
+		}
+
+		configured[b.handlerTopic] = b
 	}
 
-	subscribed := make([]string, 0, len(m.Kafka.Consumer.Topics))
-	seenSubscribed := make(map[string]struct{}, len(m.Kafka.Consumer.Topics))
+	subscribed := make([]string, 0, len(m.Kafka.Consumer.SubscriptionTopics()))
+	seenSubscribed := make(map[string]struct{}, len(m.Kafka.Consumer.SubscriptionTopics()))
 
-	for _, raw := range m.Kafka.Consumer.Topics {
+	for _, raw := range m.Kafka.Consumer.SubscriptionTopics() {
 		topic := strings.TrimSpace(raw)
 		if topic == "" {
 			return fmt.Errorf(

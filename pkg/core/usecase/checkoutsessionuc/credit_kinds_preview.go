@@ -85,14 +85,18 @@ func (uc *UseCase) buildCreditKindsPreview(
 		// Customer-wide due/overdue obligations block every credit kind, matching
 		// Decision's AssertNewCreditAllowed due predicate (now >= DueAt).
 		if hasCustomer && customerBlocked == nil {
-			dueUnpaid, dueErr := installmentQ.ListDueUnpaidByCustomerID(
-				ctx, *session.CustomerID, now,
-			)
+			dueUnpaid, dueErr := installmentQ.ListDueUnpaidByCustomerID(ctx, *session.CustomerID, now)
 			if dueErr != nil {
 				return fmt.Errorf("%s: list due unpaid installments: %w", op, dueErr)
 			}
 
-			if len(dueUnpaid) > 0 {
+			personBlocked, err := installmentQ.HasDueUnpaidForCreditOwner(ctx, *session.CustomerID, now)
+			if err != nil {
+				return fmt.Errorf("%s: check due installments for legal person: %w", op, err)
+			}
+
+			blocked := len(dueUnpaid) > 0 || personBlocked
+			if blocked {
 				customerBlocked = &CreditKindPreviewReason{
 					Code:       "NEW_CREDIT_USAGE_RESTRICTED",
 					MessageKey: "error.collections_new_credit_usage_restricted",
@@ -193,20 +197,14 @@ func (uc *UseCase) buildCreditKindsPreview(
 				continue
 			}
 
-			products, ok := uc.creditAccount.Conn(conn).(repo.CreditAccountProductQueryer)
-			if !ok {
-				return cerr.InternalError(fmt.Errorf(
-					"%s: product-aware credit account repository unavailable", op,
-				))
-			}
-
+			creditAccountQ := uc.creditAccount.Conn(conn)
 			if model.EffectiveCreditKind(kind) == model.PayNextMonthCreditKind {
 				cutoff, cutoffErr := jalali.StartOfFollowingTehranMonth(now)
 				if cutoffErr != nil {
 					return fmt.Errorf("%s: monthly cycle cutoff: %w", op, cutoffErr)
 				}
 
-				blocked, cycleErr := products.HasUnpaidMonthlyCycleBefore(
+				blocked, cycleErr := creditAccountQ.HasUnpaidMonthlyCycleBefore(
 					ctx, *session.CustomerID, session.Currency, cutoff,
 				)
 				if cycleErr != nil {
@@ -224,7 +222,7 @@ func (uc *UseCase) buildCreditKindsPreview(
 				}
 			}
 
-			account, err := products.GetByCustomerIDCurrencyAndKind(
+			account, err := creditAccountQ.GetByCustomerIDCurrencyAndKind(
 				ctx, *session.CustomerID, session.Currency, kind,
 			)
 			if err != nil {
@@ -293,10 +291,9 @@ func (uc *UseCase) resolvePreviewCheckoutPolicy(
 	}
 
 	ref := checkoutcatalog.DefaultRef()
-	assignment, err := assignmentQ.GetActive(
+	assignment, err := assignmentQ.GetActiveForCustomerOrOwner(
 		ctx,
-		model.CustomerPolicySubjectType,
-		externalCustomerID.String(),
+		externalCustomerID,
 		model.CheckoutPolicyFamily,
 		now,
 	)

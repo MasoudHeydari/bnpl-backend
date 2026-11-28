@@ -9,8 +9,9 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 )
 
-// AssessInitialLimit evaluates whether a customer should receive an initial
-// credit limit using the policy currently assigned to the Identity subject.
+// AssessInitialLimit is a legacy policy preview, not a grant or a risk-based
+// assessment. CreditRequest processing never calls it; actual risk scoring
+// must consume and validate provider signals before it can be enabled.
 func (uc *UseCase) AssessInitialLimit(
 	ctx context.Context,
 	input InitialLimitAssessmentInput,

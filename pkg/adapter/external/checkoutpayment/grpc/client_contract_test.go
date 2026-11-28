@@ -15,8 +15,8 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	paymentv1 "github.com/parstis/bnpl-backend/gen/proto/financial/payment/v1"
 	financialcommonv1 "github.com/parstis/bnpl-backend/gen/proto/financial/common/v1"
+	paymentv1 "github.com/parstis/bnpl-backend/gen/proto/financial/payment/v1"
 	cbnoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/circuitbreaker/noop"
 	lognoop "github.com/parstis/bnpl-backend/pkg/adapter/infrastructure/log/noop"
 	"github.com/parstis/bnpl-backend/pkg/core/cerr"

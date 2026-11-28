@@ -350,6 +350,10 @@ func newHarness(t *testing.T) *harness {
 		ListDueUnpaidByCustomerID(testifymock.Anything, testifymock.Anything, testifymock.Anything).
 		Return(nil, nil).
 		Maybe()
+	h.installCQ.EXPECT().
+		HasDueUnpaidForCreditOwner(testifymock.Anything, testifymock.Anything, testifymock.Anything).
+		Return(false, nil).
+		Maybe()
 	decisionRepo.EXPECT().Conn(h.conn).Return(h.decisionCQ).Maybe()
 	decisionRepo.EXPECT().Tx(h.tx).Return(h.decisionTx).Maybe()
 	outboxRepo.EXPECT().Tx(h.tx).Return(h.outboxTx).Maybe()
@@ -420,9 +424,8 @@ func newHarness(t *testing.T) *harness {
 	policyAssignmentRepo.EXPECT().Conn(h.conn).Return(h.policyAssignmentCQ).Maybe()
 	// Ordinary customers have no trusted assignment; preview falls back to catalog default (v1).
 	h.policyAssignmentCQ.EXPECT().
-		GetActive(
+		GetActiveForCustomerOrOwner(
 			testifymock.Anything,
-			model.CustomerPolicySubjectType,
 			testifymock.Anything,
 			model.CheckoutPolicyFamily,
 			testifymock.Anything,
@@ -553,6 +556,19 @@ func (h *harness) installDefaultCoreCollaborators() {
 			return strings.TrimPrefix(ciphertext, "sb1."), nil
 		}).
 		Maybe()
+}
+
+// expectExternalConfirmPreflight expects the session read preceding OTP
+// consumption. The harness already provides a read-only customer-profile
+// lookup; security regression tests can override the CRS response explicitly.
+func (h *harness) expectExternalConfirmPreflight(session model.CheckoutSession) {
+	h.t.Helper()
+
+	h.sessionCQ.EXPECT().
+		GetByPublicToken(h.ctx, h.publicToken).
+		Return(session, nil).
+		Once()
+
 }
 
 // expectPool registers connCalls Pool.Conn invocations that never open a

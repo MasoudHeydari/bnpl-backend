@@ -20,7 +20,9 @@ func New() *Repo { return &Repo{} }
 func (r *Repo) Conn(c repo.Conn) repo.CreditAccountConnQueryer {
 	return connQueryer{Conn: postgres.MustConn(c)}
 }
-func (r *Repo) Tx(tx repo.Tx) repo.CreditAccountTxQueryer { return txQueryer{Tx: postgres.MustTx(tx)} }
+func (r *Repo) Tx(tx repo.Tx) repo.CreditAccountProductTxQueryer {
+	return txQueryer{Tx: postgres.MustTx(tx)}
+}
 
 type connQueryer struct{ *postgres.Conn }
 

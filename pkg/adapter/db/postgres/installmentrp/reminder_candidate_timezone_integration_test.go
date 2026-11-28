@@ -81,7 +81,11 @@ func (f *reminderCandidateFixture) seedInstallment(
 	t.Helper()
 
 	customer, merchant, account, decision, contract, installment := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
-	f.exec(t, `INSERT INTO customer_profiles(id,external_subject_id,external_customer_id,jurisdiction,status) VALUES($1,$2,$3,'IR','active')`, customer, uuid.New(), uuid.New())
+	f.exec(t, `WITH created_credit_owner AS (
+  INSERT INTO credit_owners(national_code) VALUES (lpad((floor(random()*10000000000)::bigint)::text,10,'0'))
+  RETURNING id
+) INSERT INTO customer_profiles(id,external_subject_id,external_customer_id,credit_owner_id,jurisdiction,status)
+SELECT $1,$2,$3,id,'IR','active' FROM created_credit_owner`, customer, uuid.New(), uuid.New())
 	f.exec(t, `INSERT INTO merchant_profiles(id,external_merchant_id,display_name,status,risk_tier,max_tenure_months,jurisdiction) VALUES($1,$2,'test','active','low',12,'IR')`, merchant, uuid.New())
 	f.exec(t, `INSERT INTO decisions(id,type,target_type,target_id,outcome,reason_codes,policy_id,policy_version,jurisdiction,actor_type,decided_at,idempotency_key,idempotency_fingerprint) VALUES($1,'credit_limit','customer_profile',$2,'approved',ARRAY['CHECKOUT_APPROVED'],'checkout_contract_approval','v1','IR','system',$3,$4,$5)`, decision, customer, f.now, uuid.NewString(), "sha256:"+fmt.Sprintf("%064x", 1))
 	f.exec(t, `INSERT INTO credit_accounts(id,customer_id,currency,status,effective_from) VALUES($1,$2,'IRR','active',$3)`, account, customer, f.now)
@@ -445,6 +449,9 @@ FROM installments WHERE id=$1`, installmentA1).Scan(&decisionID, &contractID, &m
 func rewriteReminderFixtureSchemaSQL(sql, schema string) string {
 	out := strings.ReplaceAll(sql, "SET search_path TO bnpl;", "SET search_path TO "+schema+";")
 	out = strings.ReplaceAll(out, "bnpl.", schema+".")
+	// Preserve the fixture-specific search_path of functions created inside a
+	// temporary schema; production functions remain pinned to bnpl.
+	out = strings.ReplaceAll(out, "SET search_path = bnpl, pg_temp", "SET search_path = "+schema+", pg_temp")
 	out = strings.ReplaceAll(out, "pg_catalog, bnpl", "pg_catalog, "+schema)
 	return out
 }

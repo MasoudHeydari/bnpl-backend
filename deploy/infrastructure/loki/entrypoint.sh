@@ -9,4 +9,7 @@ mkdir -p \
 	/loki/tsdb-index \
 	/loki/tsdb-cache
 
-exec /usr/bin/loki -config.file=/etc/loki/config.yaml "$@"
+exec /usr/bin/loki \
+	-config.file=/etc/loki/config.yaml \
+	-config.expand-env=true \
+	"$@"

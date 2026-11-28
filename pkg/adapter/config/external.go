@@ -43,6 +43,9 @@ type External struct {
 	// Partner checkout for mobile → external customer_id resolution.
 	Customer ExternalCustomer `yaml:"customer"`
 
+	// Merchant configures private Merchant participation RPCs.
+	Merchant ExternalMerchant `yaml:"merchant"`
+
 	// Notification configures the Notification Service integration used by
 	// hosted external checkout OTP submission.
 	Notification ExternalNotification `yaml:"notification"`

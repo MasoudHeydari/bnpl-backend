@@ -6,7 +6,7 @@
 #
 # image and push are separate: push never rebuilds.
 
-TAG ?= v0.1.
+TAG ?= v0.1.2
 IMAGE_NAME ?= dpay-envoy
 REGISTRY ?= registry.hamdocker.ir
 REGISTRY_NAMESPACE ?= parstis-technology

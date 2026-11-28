@@ -63,7 +63,11 @@ func newFixture(t *testing.T, install bool) *fixture {
 		}
 	}
 	merchant, account, decision := uuid.New(), uuid.New(), uuid.New()
-	f.exec(t, `INSERT INTO customer_profiles(id,external_subject_id,external_customer_id,jurisdiction,status) VALUES($1,$2,$3,'IR','active')`, f.customer, uuid.New(), uuid.New())
+	f.exec(t, `WITH created_credit_owner AS (
+  INSERT INTO credit_owners(national_code) VALUES (lpad((floor(random()*10000000000)::bigint)::text,10,'0'))
+  RETURNING id
+) INSERT INTO customer_profiles(id,external_subject_id,external_customer_id,credit_owner_id,jurisdiction,status)
+SELECT $1,$2,$3,id,'IR','active' FROM created_credit_owner`, f.customer, uuid.New(), uuid.New())
 	f.exec(t, `INSERT INTO merchant_profiles(id,external_merchant_id,display_name,status,risk_tier,max_tenure_months,jurisdiction) VALUES($1,$2,'test','active','low',12,'IR')`, merchant, uuid.New())
 	f.exec(t, `INSERT INTO decisions(id,type,target_type,target_id,outcome,reason_codes,policy_id,policy_version,jurisdiction,actor_type,decided_at,idempotency_key,idempotency_fingerprint) VALUES($1,'restriction','customer_profile',$2,'restricted',ARRAY['COLLECTIONS_GRACE_PERIOD_EXCEEDED'],'collections_default','v2','IR','system',now(),$3,$4)`, decision, f.customer, uuid.NewString(), "sha256:"+strings.Repeat("0", 64))
 	f.exec(t, `INSERT INTO credit_accounts(id,customer_id,currency,status,effective_from) VALUES($1,$2,'IRR','active',now())`, account, f.customer)
@@ -308,6 +312,73 @@ func (f *fixture) settleFixture(t *testing.T) {
 func rewriteInvariantFixtureSchemaSQL(sql, schema string) string {
 	out := strings.ReplaceAll(sql, "SET search_path TO bnpl;", "SET search_path TO "+schema+";")
 	out = strings.ReplaceAll(out, "bnpl.", schema+".")
+	// Preserve the fixture-specific search_path of functions created inside a
+	// temporary schema; production functions remain pinned to bnpl.
+	out = strings.ReplaceAll(out, "SET search_path = bnpl, pg_temp", "SET search_path = "+schema+", pg_temp")
 	out = strings.ReplaceAll(out, "pg_catalog, bnpl", "pg_catalog, "+schema)
 	return out
+}
+
+// TestLegalPersonCreditInvariants verifies the immutable account/person boundary
+// directly against PostgreSQL, including the new enrollment contract FK.
+//
+//go:generate echo "run with -tags 'development integration' and a disposable DB"
+func TestLegalPersonCreditInvariants(t *testing.T) {
+	f := newFixture(t, true)
+	var owner uuid.UUID
+	err := f.pool.Pool.QueryRow(f.ctx, `SELECT credit_owner_id FROM customer_profiles WHERE id=$1`, f.customer).Scan(&owner)
+	require.NoError(t, err)
+
+	// The legal-person national code can never be rewritten (even by the owner
+	// role used by these isolated integration fixtures).
+	_, err = f.pool.Pool.Exec(f.ctx, `UPDATE credit_owners SET national_code='1234567890' WHERE id=$1`, owner)
+	assertViolation(t, err, "23514")
+
+	// A distinct CRS account with the same national code has no spending
+	// permission until its authenticated credit-assignment request enrolls it.
+	second := uuid.New()
+	f.exec(t, `INSERT INTO customer_profiles(id,external_subject_id,external_customer_id,credit_owner_id,jurisdiction,status)
+ VALUES($1,$2,$3,$4,'IR','active')`, second, uuid.New(), uuid.New(), owner)
+	var accountID uuid.UUID
+	require.NoError(t, f.pool.Pool.QueryRow(f.ctx, `SELECT credit_account_id FROM contracts WHERE id=$1`, f.contract).Scan(&accountID))
+	var before int
+	require.NoError(t, f.pool.Pool.QueryRow(f.ctx, `SELECT count(*) FROM customer_credit_enrollments WHERE customer_id=$1`, second).Scan(&before))
+	require.Equal(t, 0, before)
+
+	// Attempt to create a contract for the second account before enrollment.
+	// A fresh Decision avoids violating the unrelated unique decision_id index
+	// before PostgreSQL can check the intended enrollment composite FK.
+	secondDecision := uuid.New()
+	f.exec(t, `INSERT INTO decisions(id,type,target_type,target_id,outcome,reason_codes,policy_id,policy_version,jurisdiction,actor_type,decided_at,idempotency_key,idempotency_fingerprint)
+ VALUES($1,'restriction','customer_profile',$2,'restricted',ARRAY['COLLECTIONS_GRACE_PERIOD_EXCEEDED'],'collections_default','v2','IR','system',now(),$3,$4)`,
+		secondDecision, second, uuid.NewString(), "sha256:"+strings.Repeat("0", 64))
+	_, err = f.pool.Pool.Exec(f.ctx, `INSERT INTO contracts (
+  decision_id,checkout_key,customer_id,credit_account_id,merchant_profile_id,
+  currency,requested_amount_minor,approved_financed_amount_minor,
+  installment_count,payable_now_amount_minor,remaining_principal_amount_minor,status,expires_at,activated_at
+ ) SELECT $1,$2,$3,c.credit_account_id,c.merchant_profile_id,
+          c.currency,c.requested_amount_minor,c.approved_financed_amount_minor,
+          c.installment_count,c.payable_now_amount_minor,c.remaining_principal_amount_minor,c.status,c.expires_at,c.activated_at
+ FROM contracts c WHERE c.id=$4`, secondDecision, uuid.NewString(), second, f.contract)
+	assertViolation(t, err, "23503")
+
+	// Enrollment is allowed only when customer and credit account have the same
+	// immutable credit owner. This row grants no second limit or exposure.
+	f.exec(t, `INSERT INTO customer_credit_enrollments(customer_id,credit_account_id,credit_owner_id)
+ VALUES($1,$2,$3)`, second, accountID, owner)
+	_, err = f.pool.Pool.Exec(f.ctx, `UPDATE customer_credit_enrollments SET credit_owner_id=$2 WHERE customer_id=$1`, second, uuid.New())
+	assertViolation(t, err, "23514")
+
+	// A third customer belonging to another legal person cannot enroll the
+	// first person's credit, even if buggy application code attempts it.
+	other := uuid.New()
+	otherOwner := uuid.New()
+	f.exec(t, `INSERT INTO credit_owners(id,national_code) VALUES($1,'9876543210')`, otherOwner)
+	f.exec(t, `INSERT INTO customer_profiles(id,external_subject_id,external_customer_id,credit_owner_id,jurisdiction,status)
+ VALUES($1,$2,$3,$4,'IR','active')`, other, uuid.New(), uuid.New(), otherOwner)
+	_, err = f.pool.Pool.Exec(f.ctx, `INSERT INTO customer_credit_enrollments(customer_id,credit_account_id,credit_owner_id)
+ VALUES($1,$2,$3)`, other, accountID, otherOwner)
+	assertViolation(t, err, "23503")
+	_, err = f.pool.Pool.Exec(f.ctx, `UPDATE customer_profiles SET credit_owner_id=$2 WHERE id=$1`, second, otherOwner)
+	assertViolation(t, err, "23514")
 }

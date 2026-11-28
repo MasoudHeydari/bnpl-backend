@@ -80,7 +80,11 @@ func newExpirationFixture(t *testing.T) *expirationFixture {
 		require.NoError(t, execErr)
 	}
 
-	exec(`INSERT INTO customer_profiles(id,external_subject_id,external_customer_id,jurisdiction,status) VALUES($1,$2,$3,'IR','active')`, f.customer, uuid.New(), uuid.New())
+	exec(`WITH created_credit_owner AS (
+  INSERT INTO credit_owners(national_code) VALUES (lpad((floor(random()*10000000000)::bigint)::text,10,'0'))
+  RETURNING id
+) INSERT INTO customer_profiles(id,external_subject_id,external_customer_id,credit_owner_id,jurisdiction,status)
+SELECT $1,$2,$3,id,'IR','active' FROM created_credit_owner`, f.customer, uuid.New(), uuid.New())
 	exec(`INSERT INTO merchant_profiles(id,external_merchant_id,display_name,status,risk_tier,max_tenure_months,jurisdiction) VALUES($1,$2,'expire-it','active','low',12,'IR')`, merchant, uuid.New())
 	exec(`INSERT INTO decisions(id,type,target_type,target_id,outcome,reason_codes,policy_id,policy_version,jurisdiction,actor_type,decided_at,idempotency_key,idempotency_fingerprint) VALUES($1,'restriction','customer_profile',$2,'restricted',ARRAY['COLLECTIONS_GRACE_PERIOD_EXCEEDED'],'collections_default','v2','IR','system',now(),$3,$4)`, decision, f.customer, uuid.NewString(), fingerprint)
 	exec(`INSERT INTO credit_accounts(id,customer_id,currency,status,effective_from) VALUES($1,$2,'IRR','active',now())`, account, f.customer)
@@ -297,6 +301,7 @@ func TestMarkSubmittedFromExpired_PreservesFinancialIdentity(t *testing.T) {
 func rewriteIntegrationSchemaSQL(sql, schema string) string {
 	out := strings.ReplaceAll(sql, "SET search_path TO bnpl;", "SET search_path TO "+schema+";")
 	out = strings.ReplaceAll(out, "bnpl.", schema+".")
+	out = strings.ReplaceAll(out, "SET search_path = bnpl, pg_temp", "SET search_path = "+schema+", pg_temp")
 	out = strings.ReplaceAll(out, "pg_catalog, bnpl", "pg_catalog, "+schema)
 	return out
 }

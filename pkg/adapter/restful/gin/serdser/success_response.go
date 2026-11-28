@@ -19,6 +19,10 @@ import (
 type SuccessCode string
 
 const (
+	SuccessCodeCreditRequestReceived      SuccessCode = "CREDIT_REQUEST_RECEIVED"
+	SuccessCodeCreditRequestRejected      SuccessCode = "CREDIT_REQUEST_REJECTED"
+	SuccessCodeCreditAllocationConfigured SuccessCode = "CREDIT_ALLOCATION_CONFIGURED"
+	SuccessCodeCreditAllocationRetrieved  SuccessCode = "CREDIT_ALLOCATION_RETRIEVED"
 	// SuccessCodeDecisionCreated indicates that a decision was created.
 	SuccessCodeDecisionCreated SuccessCode = "DECISION_CREATED"
 
@@ -511,3 +515,12 @@ func SerKeysetData(
 		),
 	})
 }
+
+// Credit request messages remain localizable through the embedded catalog.
+var (
+	SuccessMessageCreditRequestReceived         = SuccessMessageKey{value: "success.credit_request_received"}
+	SuccessMessageCreditRequestRejected         = SuccessMessageKey{value: "success.credit_request_rejected"}
+	SuccessMessageCreditRequestIdentityMismatch = SuccessMessageKey{value: "success.credit_request_identity_mismatch"}
+	SuccessMessageCreditAllocationConfigured    = SuccessMessageKey{value: "success.credit_allocation_configured"}
+	SuccessMessageCreditAllocationRetrieved     = SuccessMessageKey{value: "success.credit_allocation_retrieved"}
+)

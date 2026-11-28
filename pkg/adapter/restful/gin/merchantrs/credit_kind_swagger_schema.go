@@ -12,7 +12,7 @@ type ListCreditKindsSchema listCreditKindsResponse
 
 // ListCreditKindsSuccessSchema is a schema-only success envelope for credit kind eligibility.
 type ListCreditKindsSuccessSchema struct {
-	Data ListCreditKindsSchema        `json:"data"`
+	Data ListCreditKindsSchema           `json:"data"`
 	Meta serdser.SuccessMetaNoPagination `json:"meta"`
 }
 
@@ -21,6 +21,6 @@ type SetCreditKindSchema setCreditKindResponse
 
 // SetCreditKindSuccessSchema is a schema-only success envelope for a credit kind eligibility change.
 type SetCreditKindSuccessSchema struct {
-	Data SetCreditKindSchema          `json:"data"`
+	Data SetCreditKindSchema             `json:"data"`
 	Meta serdser.SuccessMetaNoPagination `json:"meta"`
 }

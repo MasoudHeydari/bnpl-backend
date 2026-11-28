@@ -20,6 +20,7 @@ import (
 //   - not_assigned: status only (assessment has not occurred)
 //   - expired: status and expires_at only (reassessment required)
 type creditSummaryResponse struct {
+	CreditRequest        *model.CreditRequestSummary  `json:"credit_request,omitempty"`
 	CreditUsage          customercredituc.CreditUsage `json:"credit_usage"`
 	LimitAmountMinor     *uint64                      `json:"limit_amount_minor,omitempty" example:"90000000"`
 	AvailableAmountMinor *uint64                      `json:"available_amount_minor,omitempty" example:"4000000"`
@@ -32,8 +33,9 @@ type creditSummaryResponse struct {
 
 func toCreditSummaryResponse(output customercredituc.Output) creditSummaryResponse {
 	resp := creditSummaryResponse{
-		Status:      output.Status,
-		CreditUsage: output.CreditUsage,
+		Status:        output.Status,
+		CreditRequest: output.CreditRequest,
+		CreditUsage:   output.CreditUsage,
 	}
 	if output.CreditKind == model.PayNextMonthCreditKind {
 		resp.CreditKind = output.CreditKind
@@ -65,15 +67,8 @@ func toCreditSummaryResponse(output customercredituc.Output) creditSummaryRespon
 	}
 }
 
-// creditApplicationResponse describes the observed assignment lifecycle, not
-// a second untracked application state or an FC financial obligation.
-type creditApplicationResponse struct {
-	Status string `json:"status" enums:"assigned,not_assigned,reassessment_required"`
-}
-
 type creditProductResponse struct {
 	creditSummaryResponse
-	Application creditApplicationResponse `json:"application"`
 }
 
 type allCreditSummariesResponse struct {
@@ -91,18 +86,7 @@ func toAllCreditSummariesResponse(output customercredituc.AllSummariesOutput) al
 		summary := toCreditSummaryResponse(item)
 		// A uniform product array must identify pay-in-four as well as monthly.
 		summary.CreditKind = item.CreditKind
-		application := creditApplicationResponse{Status: "not_assigned"}
-		switch item.Status {
-		case customercredituc.SummaryStatusActive:
-			application.Status = "assigned"
-
-		case customercredituc.SummaryStatusExpired:
-			application.Status = "reassessment_required"
-		}
-		response.Credits = append(response.Credits, creditProductResponse{
-			creditSummaryResponse: summary,
-			Application:           application,
-		})
+		response.Credits = append(response.Credits, creditProductResponse{creditSummaryResponse: summary})
 	}
 	return response
 }

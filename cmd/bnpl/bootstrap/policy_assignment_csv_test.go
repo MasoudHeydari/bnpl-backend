@@ -11,7 +11,7 @@ func TestReadTrustedCustomersCSV(t *testing.T) {
 	t.Parallel()
 
 	file := filepath.Join(t.TempDir(), "trusted-customers.csv")
-	const body = "mobile_e164\n+989121234567\n09191234567\n"
+	const body = "mobile_e164,national_id\n+989121234567,0012345678\n09191234567,1234567891\n"
 	if err := os.WriteFile(file, []byte(body), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -36,6 +36,9 @@ func TestReadTrustedCustomersCSV(t *testing.T) {
 	if rows[1].MobileE164 != "09191234567" {
 		t.Fatalf("mobile=%q; want 09191234567", rows[1].MobileE164)
 	}
+	if rows[0].NationalID != "0012345678" || rows[1].NationalID != "1234567891" {
+		t.Fatalf("unexpected national IDs: %+v", rows)
+	}
 }
 
 func TestReadTrustedCustomersCSVRejectsInvalidHeader(t *testing.T) {
@@ -46,10 +49,10 @@ func TestReadTrustedCustomersCSVRejectsInvalidHeader(t *testing.T) {
 		content string
 		wantErr string
 	}{
-		{"legacy_external_customer_id", "external_customer_id\n550e8400-e29b-41d4-a716-446655440000\n", "header must be exactly: mobile_e164"},
-		{"subject_id", "subject_id\n+989121234567\n", "header must be exactly: mobile_e164"},
-		{"missing_row", "mobile_e164\n", "contains no data rows"},
-		{"extra_header_column", "mobile_e164,other\n+989121234567,extra\n", "header must be exactly: mobile_e164"},
+		{"legacy_external_customer_id", "external_customer_id\n550e8400-e29b-41d4-a716-446655440000\n", "header must be exactly: mobile_e164,national_id"},
+		{"subject_id", "subject_id\n+989121234567\n", "header must be exactly: mobile_e164,national_id"},
+		{"missing_row", "mobile_e164,national_id\n", "contains no data rows"},
+		{"extra_header_column", "mobile_e164,other\n+989121234567,extra\n", "header must be exactly: mobile_e164,national_id"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -72,7 +75,7 @@ func TestReadTrustedCustomersCSVKeepsMalformedRows(t *testing.T) {
 
 	file := filepath.Join(t.TempDir(), "trusted-customers.csv")
 	// encoding/csv ignores blank lines; keep an explicit empty field instead.
-	const body = "mobile_e164\nnot-a-phone\n\"\"\n+989121234567\n"
+	const body = "mobile_e164,national_id\nnot-a-phone,0012345678\n\"\",0012345678\n+989121234567,1234567891\n"
 	if err := os.WriteFile(file, []byte(body), 0600); err != nil {
 		t.Fatal(err)
 	}

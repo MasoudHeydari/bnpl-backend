@@ -121,7 +121,24 @@ func newCollectionsFixture(t *testing.T, locations ...*time.Location) *collectio
 
 	now := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
 	clk := adapterclock.NewFixed(now, location)
-	uc, err := New(pool, customerprofilerp.New(), installmentrp.New(), decisionrp.New(), defaultepisoderp.New(), customerrestrictionrp.New(), collectionscaserp.New(), outboxrp.New(), clk, uuidgen.New(), sha256fingerprint.New(), metricsnoop.New(), "bnpl.audit.events.v1", 10, currentTestPolicies(location))
+	uc, err := New(
+		pool,
+		customerprofilerp.New(),
+		installmentrp.New(),
+		decisionrp.New(),
+		defaultepisoderp.New(),
+		customerrestrictionrp.New(),
+		collectionscaserp.New(),
+		outboxrp.New(),
+		clk,
+		uuidgen.New(),
+		sha256fingerprint.New(),
+		metricsnoop.New(),
+		"bnpl.audit.events.v1",
+		10,
+		currentTestPolicies(location),
+		creditaccountrp.NewSharedCredit(),
+	)
 	require.NoError(t, err)
 	exec := func(t *testing.T, sql string, args ...any) {
 		t.Helper()
@@ -137,7 +154,11 @@ func newCollectionsFixture(t *testing.T, locations ...*time.Location) *collectio
 	seed := func(t *testing.T) (model.CustomerID, uuid.UUID) {
 		t.Helper()
 		customer, merchant, account, decision, contract, installment := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
-		exec(t, `INSERT INTO customer_profiles(id,external_subject_id,external_customer_id,jurisdiction,status) VALUES($1,$2,$3,'IR','active')`, customer, uuid.New(), uuid.New())
+		exec(t, `WITH created_credit_owner AS (
+  INSERT INTO credit_owners(national_code) VALUES (lpad((floor(random()*10000000000)::bigint)::text,10,'0'))
+  RETURNING id
+) INSERT INTO customer_profiles(id,external_subject_id,external_customer_id,credit_owner_id,jurisdiction,status)
+SELECT $1,$2,$3,id,'IR','active' FROM created_credit_owner`, customer, uuid.New(), uuid.New())
 		exec(t, `INSERT INTO merchant_profiles(id,external_merchant_id,display_name,status,risk_tier,max_tenure_months,jurisdiction) VALUES($1,$2,'test','active','low',12,'IR')`, merchant, uuid.New())
 		// Installment/contract lineage must reference a Checkout Policy so
 		// repaymentreminderuc can resolve Reminder.LeadDays. Collections
@@ -241,7 +262,7 @@ func TestPostgreSQLCollections_TransactionRollback(t *testing.T) {
 
 func TestPostgreSQLCollections_RecoveryRollbackAndRestrictionIdentity(t *testing.T) {
 	f := newCollectionsFixture(t)
-	ctx, uc, now, exec, scalar, seed := f.ctx, f.uc, f.now, f.exec, f.scalar, f.seed
+	ctx, uc, now, scalar, seed := f.ctx, f.uc, f.now, f.scalar, f.seed
 
 	customer, installment := seed(t)
 	opened, e := uc.AssessCustomer(ctx, customer)
@@ -255,14 +276,23 @@ func TestPostgreSQLCollections_RecoveryRollbackAndRestrictionIdentity(t *testing
 	require.Equal(t, 1, scalar(t, `SELECT count(*) FROM default_episodes WHERE customer_id=$1 AND closing_decision_id IS NULL`, customer))
 	require.Equal(t, 2, scalar(t, `SELECT count(*) FROM decisions WHERE target_id=$1`, customer))
 	require.Equal(t, 1, scalar(t, `SELECT count(*) FROM collections_case_events e JOIN collections_cases c ON c.id=e.case_id WHERE c.customer_id=$1`, customer))
-	// An unrelated/mismatched active restriction is not released by recovery.
-	exec(t, `UPDATE customer_restrictions SET default_episode_id=NULL WHERE customer_id=$1`, customer)
-	_, e = uc.AssessCustomer(ctx, customer)
+	// Provenance is immutable in PostgreSQL: neither application code nor an
+	// operator may detach a restriction from the default episode that caused
+	// it. The failed update does not change the pending recovery state.
+	_, e = f.pool.Pool.Exec(ctx,
+		`UPDATE customer_restrictions SET default_episode_id=NULL WHERE customer_id=$1`,
+		customer,
+	)
 	require.Error(t, e)
+	require.ErrorContains(t, e, "Restriction origin and legal owner are immutable")
 	require.Equal(t, 1, scalar(t, `SELECT count(*) FROM customer_restrictions WHERE customer_id=$1 AND status='active'`, customer))
-	exec(t, `UPDATE customer_restrictions SET default_episode_id=$2 WHERE customer_id=$1`, customer, opened.EpisodeID)
+	require.Equal(t, 1, scalar(t, `SELECT count(*) FROM customer_restrictions WHERE customer_id=$1 AND default_episode_id=$2`, customer, opened.EpisodeID))
+
+	// Once the independent event can be recorded again, recovery releases
+	// precisely that original restriction without rewriting its provenance.
 	_, e = uc.AssessCustomer(ctx, customer)
 	require.NoError(t, e)
+	require.Zero(t, scalar(t, `SELECT count(*) FROM customer_restrictions WHERE customer_id=$1 AND status='active'`, customer))
 }
 
 func TestPostgreSQLCollections_ReadSnapshot(t *testing.T) {
@@ -1331,6 +1361,93 @@ WHERE i.id=$1`, installment).Scan(&contractID, &externalCustomerID))
 func rewriteFixtureSchemaSQL(sql, schema string) string {
 	out := strings.ReplaceAll(sql, "SET search_path TO bnpl;", "SET search_path TO "+schema+";")
 	out = strings.ReplaceAll(out, "bnpl.", schema+".")
+	out = strings.ReplaceAll(out, "SET search_path = bnpl, pg_temp", "SET search_path = "+schema+", pg_temp")
 	out = strings.ReplaceAll(out, "pg_catalog, bnpl", "pg_catalog, "+schema)
 	return out
+}
+
+// TestCollectionsSharesPersonLockWithOtherAccounts proves that a default
+// assessment for account A cannot commit while account B is creating a
+// contract under their shared legal-person credit-owner lock.
+func TestCollectionsSharesPersonLockWithOtherAccounts(t *testing.T) {
+	f := newCollectionsFixture(t)
+	customerA, _ := f.seed(t)
+
+	var ownerID uuid.UUID
+	err := f.pool.Pool.QueryRow(
+		f.ctx,
+		"SELECT credit_owner_id FROM customer_profiles WHERE id=$1",
+		customerA,
+	).Scan(&ownerID)
+	require.NoError(t, err)
+
+	customerB := uuid.New()
+	externalSubjectB := uuid.New()
+	f.exec(
+		t,
+		`INSERT INTO customer_profiles (
+			id, external_subject_id, external_customer_id,
+			credit_owner_id, jurisdiction, status
+		) VALUES ($1,$2,$3,$4,'IR','active')`,
+		customerB,
+		externalSubjectB,
+		uuid.New(),
+		ownerID,
+	)
+
+	held := make(chan struct{})
+	release := make(chan struct{})
+	done := make(chan error, 1)
+	defer func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	}()
+
+	go func() {
+		done <- f.pool.Conn(f.ctx, func(ctx context.Context, conn repo.Conn) error {
+			return conn.Tx(ctx, func(ctx context.Context, tx repo.Tx) error {
+				err := f.uc.LockCreditOwnerForCheckout(
+					ctx,
+					tx,
+					model.ExternalSubjectID(externalSubjectB),
+				)
+				if err != nil {
+					return err
+				}
+
+				close(held)
+				select {
+				case <-release:
+					return nil
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			})
+		})
+	}()
+
+	select {
+	case <-held:
+	case err := <-done:
+		t.Fatalf("acquire B credit-owner lock: %v", err)
+	case <-f.ctx.Done():
+		t.Fatal("timed out acquiring B credit-owner lock")
+	}
+
+	// The collection transaction must block before reading/writing default
+	// state, even though account A and B have DIFFERENT customer profile IDs.
+	blockedCtx, cancel := context.WithTimeout(f.ctx, 200*time.Millisecond)
+	_, err = f.uc.AssessCustomer(blockedCtx, customerA)
+	cancel()
+	require.Error(t, err, "collections assessment must wait for the same legal-person lock")
+
+	close(release)
+	require.NoError(t, <-done)
+
+	// Once B's contract-side transaction ends, normal assessment recovers.
+	_, err = f.uc.AssessCustomer(f.ctx, customerA)
+	require.NoError(t, err)
 }

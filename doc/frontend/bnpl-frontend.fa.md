@@ -135,7 +135,7 @@ Accept-Language: fa-IR
 | Method | Path | Permission | Status |
 | --- | --- | --- | --- |
 | `GET` | `/api/v1/customer-credit` | `bnpl:credit-limits:read:self` | `200` |
-| `POST` | `/api/v1/customer-credit/initiate` | `bnpl:credit-limits:create:self` | `201` اگر حداقل یک محصول جدید ساخته شود؛ وگرنه `200` |
+| `POST` | `/api/v1/customer-credit/initiate` | `bnpl:credit-limits:create:self` | `201` تخصیص جدید؛ `202` درخواست Pending جدید؛ `200` تکرار یا رد درخواست |
 | `POST` | `/api/v1/checkout-decisions` | `bnpl:decisions:create:self` | `201` جدید؛ `200` replay |
 | `POST` | `/api/v1/checkout-decisions/{decision_id}/contracts` | `bnpl:contracts:create:self` | `201` / `200` |
 | `POST` | `/api/v1/contracts/{contract_id}/cancel` | `bnpl:contracts:cancel:self` | `202` / `200` |
@@ -167,7 +167,7 @@ Accept-Language: fa-IR
         "available_amount_minor": 500000000,
         "currency": "IRR",
         "expires_at": "2027-11-19T10:41:34Z",
-        "application": { "status": "assigned" }
+        "credit_request": { "id": "00000000-0000-4000-8000-000000000001", "status": "approved", "requested_at": "2026-11-19T12:00:00Z" }
       },
       {
         "credit_kind": "pay_next_month",
@@ -177,7 +177,7 @@ Accept-Language: fa-IR
         "available_amount_minor": 30000000,
         "currency": "IRR",
         "expires_at": "2027-11-19T10:41:34Z",
-        "application": { "status": "assigned" }
+        "credit_request": { "id": "00000000-0000-4000-8000-000000000002", "status": "approved", "requested_at": "2026-11-19T12:00:00Z" }
       }
     ]
   },
@@ -189,13 +189,13 @@ Accept-Language: fa-IR
 
 **وضعیت هر محصول (`credits[].status`):** `active` | `not_assigned` | `expired`.
 
-**`application.status`:** `assigned` | `not_assigned` | `reassessment_required`.
+**`credit_request.status`:** `pending` | `processing` | `approved` | `rejected` | `canceled`. پیش از ثبت درخواست این فیلد وجود ندارد و مستقل از وضعیت حساب اعتبار است.
 
 **`credit_usage.status`:** `allowed` | `restricted` | `unavailable`. برای `restricted`، `reason` عمومی می‌تواند شامل `previous_month_unpaid`، `collections_default`، `collections_due`، `credit_usage_restricted` باشد.
 
 **حضور فیلدهای پولی:** فقط در `active`؛ برای `not_assigned`/`expired` صفر جعلی نسازید. همیشه **دو کارت محصول** بسازید و موجودی‌ها را جمع نکنید.
 
-اگر تجمیعی `not_assigned` باشد، `meta.code` برابر `CUSTOMER_CREDIT_NOT_ASSIGNED` است.
+اگر تجمیعی `not_assigned` باشد، ابتدا `credit_request` را بررسی کنید. `CREDIT_REQUEST_RECEIVED` نشان‌دهنده ثبت موفق درخواست در انتظار است، نه رد اعتبار. در `CREDIT_REQUEST_REJECTED` با دلیل `CREDIT_REQUEST_IDENTITY_MISMATCH` درخواست جدید لازم است. متن `meta.message` را نمایش دهید.
 
 #### فقط یکی assign شده / هیچ‌کدام / یکی restricted
 
@@ -217,7 +217,7 @@ Authorization: Bearer <access-token>
 
 بدون body. موبایل از claim هویت (`auth_mobile_number`) و header گیت‌وی `x-auth-mobile-number` می‌آید؛ **کلاینت مرورگر نباید headerهای اعتماد را جعل کند**. CRS فقط `ACTIVE` را می‌پذیرد.
 
-**بدون `credit_kind`:** هر دو محصول را تخصیص می‌دهد (`status` + `credits[]` با `result`/`credit_limit_decision`/`credit_limit?`). `result`: `created` | `already_assigned` | `denied`. Outcome: `limit_set` | `denied`. HTTP `201` اگر هر محصولی `created` باشد؛ وگرنه `200`. موفقیت را فقط از HTTP 200 نتیجه نگیرید.
+**بدون `credit_kind`:** درخواست هر دو محصول را ثبت می‌کند. `result`: `created` | `already_assigned` | `pending` | `denied`. در وضعیت Pending به‌جای تصمیم و حساب اعتباری، `credit_request` بازگردانده می‌شود. پیش‌فرض هر دو محصول غیرفعال است؛ درخواست کاربران عمومی ثبت و نگهداری می‌شود. HTTP `201` برای تخصیص جدید، `202` برای درخواست Pending جدید و `200` برای تکرار یا رد درخواست. حساب دوم شخص ممکن است Pending بدون شناسه درخواست حساب اول دریافت کند.
 
 **با `?credit_kind=`:** پاسخ تک‌محصولی legacy.
 

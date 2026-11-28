@@ -19,6 +19,10 @@ func (uc *UseCase) ListBranches(ctx context.Context, input ListBranchesInput) (L
 		return ListBranchesOutput{}, merchantIDRequiredError()
 	}
 
+	if !input.OutletScope.IsValid() {
+		return ListBranchesOutput{}, cerr.Forbidden(nil)
+	}
+
 	if !input.Mode.IsValid() {
 		return ListBranchesOutput{}, invalidPaginationModeError()
 	}
@@ -52,7 +56,7 @@ func (uc *UseCase) listBranchesKeyset(ctx context.Context, input ListBranchesInp
 		branchQ repo.MerchantBranchProfileConnQueryer,
 		merchantID model.ExternalMerchantID,
 	) ([]model.MerchantBranchProfile, error) {
-		return branchQ.ListByMerchantIDKeyset(ctx, merchantID, fetchPage)
+		return branchQ.ListByMerchantIDKeyset(ctx, merchantID, input.OutletScope, fetchPage)
 	})
 	if err != nil {
 		return ListBranchesOutput{}, err
@@ -111,14 +115,14 @@ func (uc *UseCase) listBranchesPage(ctx context.Context, input ListBranchesInput
 		merchantID := profile.ExternalMerchantID
 
 		branchProfileQ := uc.branchProfile.Conn(conn)
-		count, countErr := branchProfileQ.CountByMerchantID(ctx, merchantID)
+		count, countErr := branchProfileQ.CountByMerchantID(ctx, merchantID, input.OutletScope)
 		if countErr != nil {
 			return countErr
 		}
 
 		total = count
 
-		rows, listErr := branchProfileQ.ListByMerchantIDOffset(ctx, merchantID, page)
+		rows, listErr := branchProfileQ.ListByMerchantIDOffset(ctx, merchantID, input.OutletScope, page)
 		if listErr != nil {
 			return listErr
 		}

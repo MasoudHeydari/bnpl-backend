@@ -176,7 +176,7 @@ Defaults below match `.env.example`. Override per environment as needed.
 
 | Setting | Env var(s) | Provider values | Default | Wired |
 | --- | --- | --- | --- | --- |
-| Logger | `LOG_PROVIDER`, `LOG_LEVEL`, `LOG_FORMAT` | `noop`, `slog` | `slog` / `info` / `json` | **Yes** |
+| Logger | `LOG_PROVIDER`, `LOG_LEVEL`, `LOG_FORMAT`, `LOG_PRETTY_PRINT`, `LOG_FILE` | `noop`, `slog` | `slog` / `info` / `json` / `false` | **Yes** |
 | Outbound HTTP client | `HTTP_CLIENT_*` | `noop`, `standard` | `standard` | **Yes** (shared default profile; noop forbidden in production) |
 | Cache | `CACHE_PROVIDER`, `CACHE_REDIS_*` | `noop`, `redis` | `noop` | **Yes** |
 | Messaging | `MESSAGING_PROVIDER`, `KAFKA_*` | `noop`, `kafka` | `noop` | **Yes** (publisher + subscriber constructed) |
@@ -296,6 +296,8 @@ Readiness dependency checks are configured as a YAML list at `infrastructure.hea
 | `LOG_PROVIDER` | env | Yes | `slog` | Yes | `noop` discards logs |
 | `LOG_LEVEL` | env | When slog | `info` | Yes | `debug`, `info`, `warn`, `error` |
 | `LOG_FORMAT` | env | When slog | `json` | Yes | `json` or `text` |
+| `LOG_PRETTY_PRINT` | env | When slog | `false` | Yes | Independent of level; JSON indent+ANSI on stdout only; ignored for text; `LOG_FILE` stays compact |
+| `LOG_FILE` | env | No | empty | Yes | Optional dual-write path; always compact JSON when format=json |
 
 ### Outbound HTTP/HTTPS client
 
@@ -519,3 +521,11 @@ Fingerprint algorithm selection is **not** configurable. Bootstrap wires the SHA
 - [operations.md](operations.md) — local setup
 - ADR [0003](adr/0003-env-expanded-yaml-config.md)
 - ADR [0009](adr/0009-provider-based-infrastructure-configuration.md)
+
+## Credit allocation
+
+For credit request background processing, copy `TASK_CREDIT_REQUEST_PROCESSING_*` from `.env.example`. In a composite runtime explicitly choose `inprocess` or `temporal` in `TASK_CREDIT_REQUEST_PROCESSING_EXECUTION`; standalone runtimes require an empty execution setting. See [Credit allocation](credit-allocation.md).
+
+### Credit eligibility import
+
+`CREDIT_ELIGIBILITY_IMPORT_MAX_ITEMS` defaults to 1000 and `CREDIT_ELIGIBILITY_IMPORT_MAX_BODY_BYTES` defaults to 2097152. Both bound the JSON import endpoint; missing or zero uses the default, negative values fail configuration validation.

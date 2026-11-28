@@ -31,12 +31,12 @@ type hostedExternalVerificationResponse struct {
 // Continue → START. It carries no customer ids, available_credit_minor,
 // customer_reference, internal UUID, or full phone.
 type hostedExternalGetResponse struct {
-	CheckoutSessionID    string                             `json:"checkout_session_id" example:"cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"`
-	Status               model.CheckoutSessionStatus        `json:"status" enums:"open,confirming,processing,completed,canceled,expired,unavailable"`
-	Merchant             hostedExternalMerchantResponse     `json:"merchant"`
-	AmountMinor          uint64                             `json:"amount_minor" example:"120000000"`
-	Currency             model.Currency                     `json:"currency" example:"IRR"`
-	EvaluationGeneration int                                `json:"evaluation_generation" example:"1"`
+	CheckoutSessionID    string                         `json:"checkout_session_id" example:"cs_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"`
+	Status               model.CheckoutSessionStatus    `json:"status" enums:"open,confirming,processing,completed,canceled,expired,unavailable"`
+	Merchant             hostedExternalMerchantResponse `json:"merchant"`
+	AmountMinor          uint64                         `json:"amount_minor" example:"120000000"`
+	Currency             model.Currency                 `json:"currency" example:"IRR"`
+	EvaluationGeneration int                            `json:"evaluation_generation" example:"1"`
 	// CreditKind is the Partner-selected financing kind when set. Omitted before
 	// Partner SelectCreditKind. Hosted GET is read-only and never accepts a
 	// browser override of this value.

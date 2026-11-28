@@ -20,6 +20,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	corepolicy "github.com/parstis/bnpl-backend/pkg/core/policy"
 	"github.com/parstis/bnpl-backend/pkg/core/policy/initialcreditlimit"
+	initialcreditcatalog "github.com/parstis/bnpl-backend/pkg/core/policy/initialcreditlimit/catalog"
 	initialcreditlimitv1 "github.com/parstis/bnpl-backend/pkg/core/policy/initialcreditlimit/v1"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 	"github.com/parstis/bnpl-backend/pkg/core/usecase/customercredituc"
@@ -64,6 +65,11 @@ func newAssessUseCase(
 		mock.NewIdentifierGenerator(t),
 		collectionsv2.New(time.UTC),
 		newTestObserver(t),
+		absentTrustedMobile{},
+		noExistingSharedCredit{},
+		disabledCreditAllocation{},
+		initialcreditcatalog.MonthlyRef(),
+		mock.NewLogger(t),
 	)
 	require.NoError(t, err)
 
@@ -87,9 +93,8 @@ func expectAssessDefaultPolicyAssignment(
 		},
 	).Times(times)
 	policyAssignment.EXPECT().Conn(conn).Return(cq).Times(times)
-	cq.EXPECT().GetActive(
+	cq.EXPECT().GetActiveForCustomerOrOwner(
 		testifymock.Anything,
-		model.CustomerPolicySubjectType,
 		testifymock.Anything,
 		model.InitialCreditLimitPolicyFamily,
 		testifymock.Anything,

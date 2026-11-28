@@ -106,6 +106,10 @@ func (c *Config) Validate() error {
 		return err
 	}
 
+	if err := c.validateMerchantParticipation(env); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -259,6 +263,9 @@ func (g Gin) validate(environment string) error {
 
 func (u *Usecases) validate(environment string) error {
 	const op = "config.Usecases.validate"
+	if u.CreditAllocation.ImportMaxItems < 0 || u.CreditAllocation.ImportMaxBodyBytes < 0 {
+		return fmt.Errorf("%s: credit allocation import limits must be nonnegative", op)
+	}
 
 	env, err := model.ParseRuntimeEnvironment(environment)
 	if err != nil {
@@ -633,7 +640,7 @@ func (m Messaging) validate(env model.RuntimeEnvironment) error {
 			return fmt.Errorf("%s: invalid infrastructure.messaging.kafka.consumer.quarantine_topic: value or group_id is required", op)
 		}
 
-		for _, topic := range m.Kafka.Consumer.Topics {
+		for _, topic := range m.Kafka.Consumer.SubscriptionTopics() {
 			if strings.TrimSpace(topic) == quarantineTopic {
 				return fmt.Errorf("%s: infrastructure.messaging.kafka.consumer.quarantine_topic must not be consumed by the same consumer group", op)
 			}

@@ -31,6 +31,13 @@ type DefaultEpisodeQueryer interface {
 		ctx context.Context,
 		episodeID model.DefaultEpisodeID,
 	) ([]model.DefaultEpisodeTrigger, error)
+
+	// HasActiveForCreditOwner reports whether any account of the requesting
+	// customer's legal person has an active default episode. Eligibility only.
+	HasActiveForCreditOwner(
+		ctx context.Context,
+		requestingCustomer model.CustomerID,
+	) (bool, error)
 }
 
 // DefaultEpisodeConnQueryer exposes default episode operations on a connection.

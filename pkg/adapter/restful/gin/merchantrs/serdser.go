@@ -20,39 +20,15 @@ import (
 func toGetInput(c *gin.Context) (merchantuc.GetProfileInput, bool) {
 	const op = "merchantrs.toGetInput"
 
-	authCtx, ok := permission.FromContext(c.Request.Context())
+	workspace, ok := permission.MerchantWorkspaceFromContext(c.Request.Context())
 	if !ok {
-		serdser.SerErr(
-			c,
-			cerr.NewPublic(
-				cerr.CodeUnauthorized,
-				"error.authentication_context_missing",
-				fmt.Errorf("%s: authentication context is missing", op),
-				cerr.Details{
-					Fields: []string{
-						"x-auth-subject-id",
-						"x-auth-tenant-id",
-						"x-auth-context-id",
-					},
-					Violations: []cerr.Violation{
-						{
-							Code:       "REQUIRED",
-							MessageKey: "error.trusted_authentication_headers_are_required",
-							Fields: []string{
-								"x-auth-subject-id",
-								"x-auth-tenant-id",
-								"x-auth-context-id",
-							},
-						},
-					},
-				},
-			),
-		)
+		serdser.SerErr(c, cerr.Unauthorized(fmt.Errorf("%s: merchant workspace is missing", op)))
+
 		return merchantuc.GetProfileInput{}, false
 	}
 
 	return merchantuc.GetProfileInput{
-		ExternalMerchantID: authCtx.SubjectID.AsExternalMerchantID(),
+		ExternalMerchantID: workspace.MerchantID,
 	}, true
 }
 
@@ -101,11 +77,10 @@ func toProfileResponse(output merchantuc.GetProfileOutput) profileResponse {
 func toListBranchesInput(c *gin.Context) (merchantuc.ListBranchesInput, bool) {
 	const op = "merchantrs.toListBranchesInput"
 
-	authCtx, ok := permission.FromContext(c.Request.Context())
+	workspace, ok := permission.MerchantWorkspaceFromContext(c.Request.Context())
 	if !ok {
-		serdser.SerErr(c, cerr.Unauthorized(
-			fmt.Errorf("%s: authentication context is missing", op),
-		))
+		serdser.SerErr(c, cerr.Unauthorized(fmt.Errorf("%s: merchant workspace is missing", op)))
+
 		return merchantuc.ListBranchesInput{}, false
 	}
 
@@ -115,7 +90,8 @@ func toListBranchesInput(c *gin.Context) (merchantuc.ListBranchesInput, bool) {
 	}
 
 	input := merchantuc.ListBranchesInput{
-		ExternalMerchantID: authCtx.SubjectID.AsExternalMerchantID(),
+		ExternalMerchantID: workspace.MerchantID,
+		OutletScope:        workspace.Scope,
 		Mode:               mode,
 	}
 
@@ -226,11 +202,10 @@ func toBranchesOffsetPage(output merchantuc.ListBranchesOutput) corepagination.O
 func toListSalesInput(c *gin.Context) (merchantuc.ListSalesInput, bool) {
 	const op = "merchantrs.toListSalesInput"
 
-	authCtx, ok := permission.FromContext(c.Request.Context())
+	workspace, ok := permission.MerchantWorkspaceFromContext(c.Request.Context())
 	if !ok {
-		serdser.SerErr(c, cerr.Unauthorized(
-			fmt.Errorf("%s: authentication context is missing", op),
-		))
+		serdser.SerErr(c, cerr.Unauthorized(fmt.Errorf("%s: merchant workspace is missing", op)))
+
 		return merchantuc.ListSalesInput{}, false
 	}
 
@@ -240,7 +215,8 @@ func toListSalesInput(c *gin.Context) (merchantuc.ListSalesInput, bool) {
 	}
 
 	input := merchantuc.ListSalesInput{
-		ExternalMerchantID: authCtx.SubjectID.AsExternalMerchantID(),
+		ExternalMerchantID: workspace.MerchantID,
+		OutletScope:        workspace.Scope,
 		Mode:               mode,
 	}
 

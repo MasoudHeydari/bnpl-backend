@@ -28,9 +28,11 @@ type CreditAccountQueryer interface {
 	) (int64, error)
 }
 
-// CreditAccountConnQueryer exposes credit account operations on a connection.
+// CreditAccountConnQueryer exposes credit account operations on a connection,
+// including product-scoped reads used by multi-kind credit flows.
 type CreditAccountConnQueryer interface {
 	CreditAccountQueryer
+	CreditAccountProductQueryer
 }
 
 // CreditAccountTxQueryer exposes transaction-scoped credit account operations.
@@ -109,7 +111,9 @@ type CreditAccountTxQueryer interface {
 }
 
 // CreditAccount persists current credit-account state and its immutable journal.
+// Tx returns the product-aware queryer so callers never type-assert for
+// CreditKind-scoped lock/create/expire operations.
 type CreditAccount interface {
 	Conn(Conn) CreditAccountConnQueryer
-	Tx(Tx) CreditAccountTxQueryer
+	Tx(Tx) CreditAccountProductTxQueryer
 }

@@ -163,7 +163,48 @@ func TestCreatePartner_SameIdempotencyKeyReplaysExistingSession(t *testing.T) {
 	require.Equal(t, existing.ID, output.Session.ID)
 	require.Equal(t, "https://bnpl.example/checkout/"+existing.PublicToken.String(), output.CheckoutURL)
 	require.Empty(t, h.notificationCalls)
-	require.Empty(t, h.identityCalls)
+	require.Len(t, h.identityCalls, 1)
+}
+
+// Idempotent merchant checkout replay cannot return an existing account's
+// credit eligibility when the phone currently belongs to another CRS account.
+func TestCreatePartner_ReassignedMobileRejectsBoundReplay(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.expectPool(2, 1)
+	h.expectActiveMerchant()
+
+	existing := h.session(func(s *model.CheckoutSession) {
+		s.IdempotencyKey = testAttemptKey
+	})
+	h.sessionTx.EXPECT().
+		LockByMerchantIdempotencyKey(h.ctx, h.merchantPID, testAttemptKey).
+		Return(existing, nil).
+		Once()
+	h.identityOutput = extcustomer.ResolveByMobileOutput{
+		ExternalCustomerID: model.ExternalCustomerID(uuid.New()),
+		Status:             extcustomer.ActiveStatus,
+	}
+
+	// Definitive CRS reassignment safely closes the old checkout and releases
+	// its person-wide claim. Because this fixture has an existing Decision, we
+	// must first prove there is no Contract for that Decision.
+	h.sessionTx.EXPECT().LockByID(h.ctx, existing.ID).Return(existing, nil).Once()
+	h.contractTx.EXPECT().
+		GetByDecisionID(h.ctx, *existing.DecisionID).
+		Return(model.Contract{}, cerr.ResourceNotFound(errors.New("no contract for decision"))).Once()
+	canceled := existing
+	canceled.Status = model.CanceledCheckoutSessionStatus
+	h.sessionTx.EXPECT().
+		MarkCanceledSafely(h.ctx, existing.ID, model.TechnicalFailureCheckoutReason, h.now).
+		Return(canceled, nil).Once()
+	h.expectLifecycleEvent(canceled, checkoutlifecycle.EventTypeCanceled)
+
+	_, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
+	requireCerr(t, err, cerr.CodeForbidden, "error.checkout_credit_purchase_unavailable_for_phone")
+	require.Len(t, h.identityCalls, 1)
+	require.Empty(t, h.notificationCalls)
 }
 
 func TestCreatePartner_SameIdempotencyKeyDifferentPayloadConflicts(t *testing.T) {
@@ -601,4 +642,21 @@ func TestCreatePartner_BranchOfferPreparationModeIsAuthoritative(t *testing.T) {
 		require.Len(t, h.identityCalls, 1)
 		require.Empty(t, h.decisions.calls)
 	})
+}
+
+// A replay after the original checkout was canceled must not disclose fresh
+// eligibility for the previously bound account to a stale merchant phone.
+func TestCreatePartner_CanceledReplayDoesNotPreviewCredit(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.expectPool(0, 1)
+	h.expectActiveMerchant()
+	existing := h.session(withStatus(model.CanceledCheckoutSessionStatus), func(s *model.CheckoutSession) { s.IdempotencyKey = testAttemptKey })
+	h.sessionTx.EXPECT().LockByMerchantIdempotencyKey(h.ctx, h.merchantPID, testAttemptKey).Return(existing, nil).Once()
+	output, err := h.uc.CreatePartner(h.ctx, h.partnerRequest())
+	require.NoError(t, err)
+	require.Equal(t, CreateResultAlreadyExists, output.Result)
+	require.Equal(t, model.CanceledCheckoutSessionStatus, output.Session.Status)
+	require.Empty(t, output.CreditKinds)
+	require.Empty(t, h.identityCalls)
 }

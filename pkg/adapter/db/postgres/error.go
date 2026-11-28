@@ -77,6 +77,11 @@ func mapPgError(err *pgconn.PgError) error {
 	if managed, ok := keys[err.Code]; ok && err.ConstraintName == managed.constraint {
 		return cerr.NewPublic(cerr.CodeConflict, cerr.MessageKey(managed.key), err, cerr.Details{Violations: []cerr.Violation{{Code: managed.constraint, MessageKey: cerr.MessageKey(managed.key)}}})
 	}
+	if err.Code == pgerrcode.UniqueViolation && err.ConstraintName == "credit_owner_checkout_in_progress" {
+		return cerr.NewPublic(cerr.CodeConflict, "error.credit_purchase_in_progress", err, cerr.Details{
+			Violations: []cerr.Violation{{Code: "CREDIT_PURCHASE_IN_PROGRESS", MessageKey: "error.credit_purchase_in_progress"}},
+		})
+	}
 	switch err.Code {
 
 	// Unique constraint violations typically indicate duplicate business keys

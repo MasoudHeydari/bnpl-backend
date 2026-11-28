@@ -127,6 +127,9 @@ type CustomerRestriction struct {
 	// CustomerID is the BNPL-local customer_profiles.id.
 	CustomerID CustomerID `db:"customer_id" json:"customer_id"`
 
+	// CreditOwnerID identifies the immutable legal person behind this account.
+	CreditOwnerID CreditOwnerID `db:"credit_owner_id" json:"credit_owner_id"`
+
 	// RestrictionType identifies the restricted capability.
 	RestrictionType CustomerRestrictionType `db:"restriction_type" json:"restriction_type"`
 

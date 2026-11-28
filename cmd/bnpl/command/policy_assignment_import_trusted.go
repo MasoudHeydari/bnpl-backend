@@ -15,28 +15,24 @@ var (
 
 var importTrustedPolicyAssignmentsCmd = &cobra.Command{
 	Use:   "import-trusted",
-	Short: "Bulk-assign the trusted customer policy bundle from Customer Reference mobiles",
-	Long: `Bulk-import trusted customer policy assignments from a CSV file.
+	Short: "Import immutable trusted mobile/national-ID pairs without external calls",
+	Long: `Import trusted phone/national-ID memberships from a two-column CSV.
 
-The CSV must contain exactly one column named mobile_e164. Values are Iranian
-mobile numbers in E.164 (+989…) or local (09…) form. Example:
+The CSV header must be exactly: mobile_e164,national_id. Example:
 
-mobile_e164
-+989121234567
-+989351234567
-09191234567
+mobile_e164,national_id
+09121234567,0012345678
++989351234567,1234567891
 
-Each row is validated, resolved through Customer Reference Service
-(ResolveCustomerByMobile), and — only when status is ACTIVE — atomically
-receives the BNPL trusted policy bundle (checkout/v2 and
-initial-credit-limit/v2). Importing does not grant credit or create contracts;
-existing credit/checkout flows apply the trusted policies later.
+Mobile numbers are normalized to Iranian E.164. The raw canonical mobile and
+national ID are stored as an immutable pair. Import never calls Customer
+Reference Service, assigns credit, or changes checkout policy. At first credit
+assignment, the current mobile's national ID must be checked against CRS;
+a mismatch must be rejected as a conflict.
 
-The import is additive and idempotent: customers omitted from the CSV stay
-trusted, and already-trusted customers are reported as already_exists.
-Row-level failures (invalid mobile, not found, non-ACTIVE status, Customer
-Service errors, persistence errors) are logged and recorded without stopping
-the rest of the file.`,
+The import is additive and idempotent: repeating an identical pair leaves it
+unchanged, while importing an existing mobile with a different national ID is
+reported as a conflict rather than silently replacing it.`,
 	Args: cobra.NoArgs,
 	RunE: importTrustedPolicyAssignments,
 }
@@ -53,7 +49,7 @@ func importTrustedPolicyAssignments(cmd *cobra.Command, _ []string) error {
 
 func init() {
 	importTrustedPolicyAssignmentsCmd.Flags().StringVar(
-		&trustedImportFile, "file", "", "CSV file with exactly one column: mobile_e164",
+		&trustedImportFile, "file", "", "CSV file with exactly two columns: mobile_e164,national_id",
 	)
 	importTrustedPolicyAssignmentsCmd.Flags().StringVar(
 		&trustedImportActor, "actor", "", "operator identity recorded in assignment/import audit history",

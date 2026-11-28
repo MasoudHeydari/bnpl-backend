@@ -151,6 +151,8 @@ type PolicySubjectType string
 const (
 	// CustomerPolicySubjectType assigns policy behavior to an Identity Service customer subject.
 	CustomerPolicySubjectType PolicySubjectType = "customer"
+	// CreditOwnerPolicySubjectType defines governing policy shared by every enrolled account.
+	CreditOwnerPolicySubjectType PolicySubjectType = "credit_owner"
 )
 
 // PolicyFamily identifies an independently versioned policy family.

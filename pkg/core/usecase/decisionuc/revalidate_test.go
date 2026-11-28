@@ -91,7 +91,7 @@ type revalidateHarness struct {
 	branch       *mock.MerchantBranchProfile
 	branchTQ     *mock.MerchantBranchProfileTxQueryer
 	credit       *mock.CreditAccount
-	creditTQ     *mock.CreditAccountTxQueryer
+	creditTQ     *mock.CreditAccountProductTxQueryer
 	assignment   *mock.PolicyAssignment
 	decisionID   model.DecisionID
 	customerID   model.CustomerID
@@ -133,7 +133,7 @@ func newRevalidateHarness(t *testing.T) *revalidateHarness {
 		branch:       mock.NewMerchantBranchProfile(t),
 		branchTQ:     mock.NewMerchantBranchProfileTxQueryer(t),
 		credit:       mock.NewCreditAccount(t),
-		creditTQ:     mock.NewCreditAccountTxQueryer(t),
+		creditTQ:     mock.NewCreditAccountProductTxQueryer(t),
 		assignment:   mock.NewPolicyAssignment(t),
 		decisionID:   model.DecisionID(uuid.New()),
 		customerID:   model.CustomerID(uuid.New()),

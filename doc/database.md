@@ -349,3 +349,7 @@ Used for bootstrap phases, per-migration execution, and outbox publish transacti
 - [operations.md](operations.md) — Makefile and Docker commands
 - [security.md](security.md) — credential handling
 - ADR [0012](adr/0012-transactional-outbox-publisher.md)
+
+## Credit allocation
+
+The pre-release baseline schema includes `credit_groups`, `credit_eligibility_entries`, `credit_eligibility_mobiles`, `credit_group_memberships`, `credit_allocation_rules`, `credit_requests` and `credit_allocation_control`. See [Credit allocation](credit-allocation.md) for invariants and reset requirements.

@@ -171,9 +171,15 @@ type Slog struct {
 	// Format controls log output encoding.
 	Format corelog.Format `yaml:"format"`
 
+	// PrettyPrint enables human-oriented formatting on stdout for JSON logs
+	// (indent + ANSI colors). Independent of Level. Ignored for text format.
+	// When File is set, the file always receives compact single-line JSON.
+	PrettyPrint bool `yaml:"pretty_print"`
+
 	// File is an optional append-only path for dual-write with stdout.
-	// Empty keeps stdout-only logging. Used on Hamravesh so Promtail can
-	// scrape a shared volume (LOG_FILE=/var/log/services/bnpl-service/bnpl.jsonl).
+	// Empty keeps stdout-only logging. On Hamravesh Alloy, Edge Alloy tails
+	// this path inside the BNPL container
+	// (LOG_FILE=/var/log/services/bnpl-service/bnpl.jsonl).
 	File string `yaml:"file"`
 }
 
@@ -212,21 +218,21 @@ func (l Logger) newSlogLoggerInfrastructure() (corelog.Logger, error) {
 		return nil, err
 	}
 
-	writer, err := l.slogWriter()
+	machine, err := l.slogFileWriter()
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	return adapterslog.New(writer, level, format), nil
+	return adapterslog.New(os.Stdout, machine, level, format, l.Slog.PrettyPrint), nil
 }
 
-// slogWriter returns stdout, or stdout+file when Slog.File is set.
-func (l Logger) slogWriter() (io.Writer, error) {
-	const op = "config.Logger.slogWriter"
+// slogFileWriter opens Slog.File when set. Empty keeps stdout-only logging.
+func (l Logger) slogFileWriter() (io.Writer, error) {
+	const op = "config.Logger.slogFileWriter"
 
 	path := strings.TrimSpace(l.Slog.File)
 	if path == "" {
-		return os.Stdout, nil
+		return nil, nil
 	}
 
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -238,7 +244,7 @@ func (l Logger) slogWriter() (io.Writer, error) {
 		return nil, fmt.Errorf("%s: open log file: %w", op, err)
 	}
 
-	return io.MultiWriter(os.Stdout, file), nil
+	return file, nil
 }
 
 // slogLevel converts config log level to slog level.
@@ -812,6 +818,9 @@ type Kafka struct {
 // Topic names are centralized here so use cases and adapters do not depend on
 // hard-coded Kafka topic strings.
 type Topics struct {
+	// MerchantParticipationRequests receives Merchant participation commands.
+	MerchantParticipationRequests string `yaml:"merchant_participation_requests"`
+
 	// PaymentResults receives payment gateway or financial-core payment result
 	// events.
 	PaymentResults string `yaml:"payment_results"`
@@ -871,6 +880,9 @@ type Consumer struct {
 	// Topics contains physical Kafka topics consumed by this service.
 	Topics []string `yaml:"topics"`
 
+	// MerchantParticipationTopic is an optional additional subscription.
+	MerchantParticipationTopic string `yaml:"merchant_participation_topic"`
+
 	// InitialOffset is the transport-neutral policy ("oldest" | "newest") used
 	// when a consumer group has no committed offset. Parsed via
 	// messaging.ParseInitialOffset and mapped to broker constants by the Kafka
@@ -890,6 +902,16 @@ type Consumer struct {
 	// QuarantineTopic stores transport/envelope failures that handlers explicitly
 	// classify as non-retryable. It must not be one of the consumed source topics.
 	QuarantineTopic string `yaml:"quarantine_topic"`
+}
+
+// SubscriptionTopics returns the configured topics without mutating configuration.
+func (c Consumer) SubscriptionTopics() []string {
+	topics := append([]string(nil), c.Topics...)
+	if c.MerchantParticipationTopic != "" {
+		topics = append(topics, c.MerchantParticipationTopic)
+	}
+
+	return topics
 }
 
 func (c Consumer) quarantineTopic(groupID string) string {
@@ -924,6 +946,7 @@ func (m Messaging) newPublisherInfrastructure() (coremessaging.Publisher, error)
 			m.Kafka.Producer.ReturnSuccesses,
 			sarama.RequiredAcks(m.Kafka.Producer.RequiredAcks),
 			m.Kafka.Producer.MaxRetries,
+			m.Kafka.ClientID,
 		)
 
 	default:
@@ -1006,9 +1029,10 @@ func (m Messaging) newSubscriberInfrastructureWithConsumer(
 		return saramamessaging.NewConsumer(
 			m.Kafka.Brokers,
 			m.Kafka.GroupID,
-			m.Kafka.Consumer.Topics,
+			m.Kafka.Consumer.SubscriptionTopics(),
 			logger,
 			saramamessaging.ConsumerConfig{
+				ClientID:            m.Kafka.ClientID,
 				InitialOffset:       initialOffset,
 				RetryInitialBackoff: m.Kafka.Consumer.RetryInitialBackoff,
 				RetryMaxBackoff:     m.Kafka.Consumer.RetryMaxBackoff,
@@ -1105,6 +1129,9 @@ type Composite struct{}
 // Runtime-created or user-triggered work should be executed through Dispatch,
 // not registered here.
 type ScheduledTasks struct {
+	// MerchantProgressDelivery delivers durable participation reports.
+	MerchantProgressDelivery TaskDefinition `yaml:"merchant_progress_delivery"`
+
 	// RuntimeGoroutineMetrics periodically records runtime goroutine metrics.
 	RuntimeGoroutineMetrics TaskDefinition `yaml:"runtime_goroutine_metrics"`
 
@@ -1149,6 +1176,8 @@ type ScheduledTasks struct {
 	// RepaymentBatchReconciliation polls authoritative Financial Core (FC target draft)
 	// collection state using durable BNPL snapshots, not shared Kafka topics.
 	RepaymentBatchReconciliation TaskDefinition `yaml:"repayment_batch_reconciliation"`
+	// CreditRequestProcessing resumes queued credit requests.
+	CreditRequestProcessing TaskDefinition `yaml:"credit_request_processing"`
 
 	// PaymentAttemptExpiration expires local CreateCheckoutPayment windows.
 	PaymentAttemptExpiration TaskDefinition `yaml:"payment_attempt_expiration"`
@@ -1398,9 +1427,19 @@ func (t Task) getTaskDefinitions() ([]TaskDefinitionEntry, error) {
 		},
 	}
 
+	if t.Scheduled.MerchantProgressDelivery.Enabled || t.Scheduled.MerchantProgressDelivery.Handler != "" {
+		definitions = append(definitions, TaskDefinitionEntry{
+			Name:           "merchant_progress_delivery",
+			TaskDefinition: t.Scheduled.MerchantProgressDelivery,
+		})
+	}
+
 	// This capability is absent from the legacy baseline task test configuration.
 	// Include it once explicitly configured, even when disabled, so durable
 	// runtimes can remove schedules that an earlier deployment registered.
+	if t.Scheduled.CreditRequestProcessing.Enabled || t.Scheduled.CreditRequestProcessing.Handler != "" {
+		definitions = append(definitions, TaskDefinitionEntry{Name: "credit_request_processing", TaskDefinition: t.Scheduled.CreditRequestProcessing})
+	}
 	if t.Scheduled.RepaymentBatchReconciliation.Enabled ||
 		t.Scheduled.RepaymentBatchReconciliation.Handler != "" {
 		definitions = append(definitions, TaskDefinitionEntry{
@@ -1599,7 +1638,12 @@ func (m Messaging) newHealthInfrastructure() (coremessaging.Health, error) {
 		return noopmessaging.NewHealthChecker(), nil
 
 	case messaging.KafkaProvider:
-		client, err := sarama.NewClient(m.Kafka.Brokers, sarama.NewConfig())
+		cfg := sarama.NewConfig()
+		if m.Kafka.ClientID != "" {
+			cfg.ClientID = m.Kafka.ClientID
+		}
+
+		client, err := sarama.NewClient(m.Kafka.Brokers, cfg)
 		if err != nil {
 			return nil, fmt.Errorf("%s: create kafka health client: %w", op, err)
 		}

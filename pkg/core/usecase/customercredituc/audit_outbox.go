@@ -80,6 +80,9 @@ func buildAssignInitialLimitAuditEvent(
 		"reason_codes": reasonCodes, "currency": assessment.Currency,
 	}
 
+	if output.CreditRequest != nil {
+		metadata["credit_request_id"] = output.CreditRequest.ID.String()
+	}
 	resource := audit.Resource{Type: customerProfileResourceType, ID: profile.ID.String()}
 	outcome := audit.DeniedOutcome
 	changes := []audit.FieldChange{{Field: "decision.outcome", Before: nil, After: output.Decision.Outcome}}

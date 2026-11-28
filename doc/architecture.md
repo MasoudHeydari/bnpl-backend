@@ -293,3 +293,7 @@ missing business implementations.
 | `pkg/core/usecase/outboxpublisheruc/` | Outbox publish orchestration |
 | `pkg/core/usecase/healthcheckuc/` | Health check use case |
 | `pkg/core/mock/` | Mockery-generated test doubles |
+
+## Credit allocation
+
+Credit eligibility is separate from credit authority and account enrollment. See [Credit allocation and requests](credit-allocation.md) for configuration locking, durable requests, and future credit bureau strategy.

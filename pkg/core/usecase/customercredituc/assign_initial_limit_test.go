@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -23,6 +22,7 @@ import (
 	"github.com/parstis/bnpl-backend/pkg/core/mock"
 	"github.com/parstis/bnpl-backend/pkg/core/model"
 	"github.com/parstis/bnpl-backend/pkg/core/policy/initialcreditlimit"
+	initialcreditcatalog "github.com/parstis/bnpl-backend/pkg/core/policy/initialcreditlimit/catalog"
 	initialcreditlimitv1 "github.com/parstis/bnpl-backend/pkg/core/policy/initialcreditlimit/v1"
 	"github.com/parstis/bnpl-backend/pkg/core/repo"
 	"github.com/parstis/bnpl-backend/pkg/core/trace"
@@ -46,7 +46,7 @@ type assignInitialLimitDeps struct {
 	customerProfile    *mock.CustomerProfile
 	customerProfileTx  *mock.CustomerProfileTxQueryer
 	creditAccount      *mock.CreditAccount
-	creditAccountTx    *mock.CreditAccountTxQueryer
+	creditAccountTx    *mock.CreditAccountProductTxQueryer
 	decision           *mock.Decision
 	decisionTx         *mock.DecisionTxQueryer
 	outbox             *mock.Outbox
@@ -78,7 +78,7 @@ func newAssignInitialLimitDeps(t *testing.T, now time.Time) assignInitialLimitDe
 		customerProfile:    mock.NewCustomerProfile(t),
 		customerProfileTx:  mock.NewCustomerProfileTxQueryer(t),
 		creditAccount:      mock.NewCreditAccount(t),
-		creditAccountTx:    mock.NewCreditAccountTxQueryer(t),
+		creditAccountTx:    mock.NewCreditAccountProductTxQueryer(t),
 		decision:           mock.NewDecision(t),
 		decisionTx:         mock.NewDecisionTxQueryer(t),
 		outbox:             mock.NewOutbox(t),
@@ -106,6 +106,7 @@ func (d assignInitialLimitDeps) expectResolveActive(
 	).Return(extcustomer.ResolveByMobileOutput{
 		ExternalCustomerID: externalCustomerID,
 		Status:             extcustomer.ActiveStatus,
+		NationalCode:       "0012345678",
 	}, nil).Once()
 }
 
@@ -130,6 +131,11 @@ func (d assignInitialLimitDeps) newUseCase() *customercredituc.UseCase {
 		d.idGenerator,
 		collectionsv2.New(time.UTC),
 		newTestObserver(d.t),
+		absentTrustedMobile{},
+		noExistingSharedCredit{},
+		disabledCreditAllocation{},
+		initialcreditcatalog.MonthlyRef(),
+		mock.NewLogger(d.t),
 	)
 	if err != nil {
 		panic(err)
@@ -140,9 +146,8 @@ func (d assignInitialLimitDeps) newUseCase() *customercredituc.UseCase {
 
 func (d assignInitialLimitDeps) expectPolicyAssignmentDefault(ctx context.Context) {
 	d.policyAssignment.EXPECT().Tx(d.tx).Return(d.policyAssignmentTx).Once()
-	d.policyAssignmentTx.EXPECT().GetActive(
+	d.policyAssignmentTx.EXPECT().GetActiveForCustomerOrOwner(
 		ctx,
-		model.CustomerPolicySubjectType,
 		testifymock.Anything,
 		model.InitialCreditLimitPolicyFamily,
 		testifymock.Anything,
@@ -221,6 +226,7 @@ func (d assignInitialLimitDeps) expectAuditOutbox(
 func sampleActiveProfile(profileID model.CustomerID, externalCustomerID model.ExternalCustomerID, now time.Time) model.CustomerProfile {
 	return model.CustomerProfile{
 		ID:                 profileID,
+		CreditOwnerID:      fixtureCreditOwnerID,
 		ExternalCustomerID: externalCustomerID,
 		Jurisdiction:       model.IRJurisdiction,
 		Status:             model.ActiveCustomerStatus,
@@ -229,38 +235,18 @@ func sampleActiveProfile(profileID model.CustomerID, externalCustomerID model.Ex
 	}
 }
 
-func TestAssignInitialLimit_MissingProfile_CreatesActiveProfileAndAssigns(t *testing.T) {
+func TestAssignInitialLimit_MissingProfile_CreatesPendingDurableRequest(t *testing.T) {
 	t.Parallel()
 
 	ctx := testRequestContext()
-	now := time.Date(
-		2026,
-		7,
-		22,
-		12,
-		0,
-		0,
-		0,
-		time.UTC,
-	)
+	now := time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC)
 	deps := newAssignInitialLimitDeps(t, now)
 	externalCustomerID := model.ExternalCustomerID(uuid.New())
 	customerID := model.CustomerID(uuid.New())
-	require.NotEqual(t, externalCustomerID.UUID(), customerID.UUID())
-
 	profile := sampleActiveProfile(customerID, externalCustomerID, now)
-	policy := initialcreditlimitv1.New()
-	terms := policy.Terms()
-	currency := terms.Currency
-	decisionID := model.DecisionID(uuid.New())
-	accountID := model.CreditAccountID(uuid.New())
-	expiresAt := now.Add(terms.ValidFor)
 
-	// prepare
 	deps.expectConnTx(ctx)
-	deps.expectPolicyAssignmentDefault(ctx)
 	deps.customerProfile.EXPECT().Tx(deps.tx).Return(deps.customerProfileTx).Once()
-	deps.creditAccount.EXPECT().Tx(deps.tx).Return(deps.creditAccountTx).Once()
 	deps.customerProfileTx.EXPECT().EnsureExists(
 		ctx,
 		testifymock.Anything,
@@ -269,174 +255,37 @@ func TestAssignInitialLimit_MissingProfile_CreatesActiveProfileAndAssigns(t *tes
 		model.ActiveCustomerStatus,
 		now,
 		now,
+		"0012345678",
 	).Return(profile, true, nil).Once()
-	deps.creditAccountTx.EXPECT().ExpireDueByCustomerIDAndCurrency(
-		ctx, customerID, currency, now,
-	).Return(nil).Once()
-	deps.creditAccountTx.EXPECT().LockByCustomerIDAndCurrency(
-		ctx, customerID, currency,
-	).Return(model.CreditAccount{}, cerr.ResourceNotFound(errors.New("missing"))).Once()
-
-	// tryResolveIdempotentAssignment
-	deps.expectConnTx(ctx)
-	deps.decision.EXPECT().Tx(deps.tx).Return(deps.decisionTx).Once()
-	deps.creditAccount.EXPECT().Tx(deps.tx).Return(deps.creditAccountTx).Once()
-	deps.creditAccountTx.EXPECT().CountLimitSetTransactions(
-		ctx, customerID, currency,
-	).Return(int64(0), nil).Once()
-	deps.decisionTx.EXPECT().GetByIdempotencyKey(ctx, testifymock.Anything).
-		Return(model.Decision{}, cerr.ResourceNotFound(errors.New("missing"))).Once()
-
-	// persist
-	deps.expectConnTx(ctx)
-	deps.customerProfile.EXPECT().Tx(deps.tx).Return(deps.customerProfileTx).Once()
-	deps.creditAccount.EXPECT().Tx(deps.tx).Return(deps.creditAccountTx).Once()
-	deps.decision.EXPECT().Tx(deps.tx).Return(deps.decisionTx).Once()
-	deps.customerProfileTx.EXPECT().LockByID(ctx, customerID).Return(profile, nil).Once()
-	deps.creditAccountTx.EXPECT().ExpireDueByCustomerIDAndCurrency(
-		ctx, customerID, currency, now,
-	).Return(nil).Once()
-	deps.creditAccountTx.EXPECT().LockByCustomerIDAndCurrency(
-		ctx, customerID, currency,
-	).Return(model.CreditAccount{}, cerr.ResourceNotFound(errors.New("missing"))).Once()
-	deps.creditAccountTx.EXPECT().CountLimitSetTransactions(
-		ctx, customerID, currency,
-	).Return(int64(0), nil).Once()
-	deps.decisionTx.EXPECT().GetByIdempotencyKey(ctx, testifymock.Anything).
-		Return(model.Decision{}, cerr.ResourceNotFound(errors.New("missing"))).Once()
-	deps.decisionTx.EXPECT().Create(
-		ctx,
-		model.CreditLimitDecisionType,
-		model.CustomerProfileDecisionTargetType,
-		customerID.UUID(),
-		model.LimitSetDecisionOutcome,
-		testifymock.Anything,
-		policy.Ref().ID,
-		policy.Ref().Version,
-		model.IRJurisdiction,
-		model.SystemDecisionActorType,
-		(*uuid.UUID)(nil),
-		(*model.DecisionID)(nil),
-		(*time.Time)(nil),
-		(*time.Time)(nil),
-		now,
-		now,
-		testifymock.AnythingOfType("string"),
-		testifymock.AnythingOfType("string"),
-	).Return(model.Decision{
-		ID:            decisionID,
-		Outcome:       model.LimitSetDecisionOutcome,
-		ReasonCodes:   []string{terms.ApprovalReasonCode},
-		PolicyID:      policy.Ref().ID,
-		PolicyVersion: policy.Ref().Version,
-	}, nil).Once()
-	deps.creditAccountTx.EXPECT().CreateWithLimit(
-		ctx,
-		customerID,
-		currency,
-		terms.DefaultAmountMinor,
-		decisionID,
-		now,
-		&expiresAt,
-		now,
-		now,
-	).Return(model.CreditAccount{
-		ID:               accountID,
-		CustomerID:       customerID,
-		LimitAmountMinor: terms.DefaultAmountMinor,
-		Currency:         currency,
-		Status:           model.ActiveCreditAccountStatus,
-		EffectiveFrom:    now,
-		ExpiresAt:        &expiresAt,
-	}, nil).Once()
-	deps.creditAccountTx.EXPECT().AppendTransaction(
-		ctx,
-		accountID,
-		model.LimitSetCreditTransactionType,
-		terms.DefaultAmountMinor,
-		currency,
-		model.CreditAssessmentCreditTransactionReason,
-		model.DecisionCreditTransactionReferenceType,
-		decisionID.UUID(),
-		now,
-		now,
-	).Return(model.CreditTransaction{}, nil).Once()
-	auditEvent := deps.expectAuditOutbox(
-		t,
-		ctx,
-		"audit-event-created",
-		"credit_account",
-		accountID.UUID(),
-		audit.SucceededOutcome,
-	)
-
-	deps.expectFetchSignals(ctx)
 	deps.expectResolveActive(ctx, externalCustomerID)
-	uc := deps.newUseCase()
-	output, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{SubjectID: model.SubjectID(uuid.New()), MobileE164: assignTestMobileE164})
-	require.NoError(t, err)
-	require.Equal(t, customercredituc.AssignInitialLimitResultCreated, output.Result)
-	require.NotNil(t, output.CreditLimit)
-	require.Equal(t, accountID, output.CreditLimit.ID)
-	require.Equal(t, customerID, output.CreditLimit.CustomerID)
-	require.NotEqual(t, externalCustomerID.UUID(), output.CreditLimit.CustomerID.UUID())
-	require.Equal(t, model.IRJurisdiction, profile.Jurisdiction)
-	require.Equal(t, model.ActiveCustomerStatus, profile.Status)
 
-	require.NotNil(t, auditEvent.Data.ReasonCode)
-	require.Equal(t, terms.ApprovalReasonCode, *auditEvent.Data.ReasonCode)
-	require.Equal(t, []any{terms.ApprovalReasonCode}, auditEvent.Data.Metadata["reason_codes"])
-	require.Equal(t, customerID.String(), auditEvent.Data.Metadata["customer_id"])
-	require.Equal(t, externalCustomerID.String(), auditEvent.Data.Metadata["identity_subject_id"])
-	require.Equal(t, decisionID.String(), auditEvent.Data.Metadata["decision_id"])
-	require.Equal(t, accountID.String(), auditEvent.Data.Metadata["credit_account_id"])
-	require.Equal(t, policy.Ref().ID, auditEvent.Data.Metadata["policy_id"])
-	require.Equal(t, policy.Ref().Version, auditEvent.Data.Metadata["policy_version"])
-	require.Equal(t, string(model.LimitSetDecisionOutcome), fmt.Sprint(auditEvent.Data.Metadata["decision_outcome"]))
-	require.EqualValues(t, terms.DefaultAmountMinor, auditEvent.Data.Metadata["limit_amount_minor"])
-	require.Equal(t, string(currency), fmt.Sprint(auditEvent.Data.Metadata["currency"]))
-	require.Equal(t, string(model.ActiveCreditAccountStatus), fmt.Sprint(auditEvent.Data.Metadata["status"]))
-	_, hasVerification := auditEvent.Data.Metadata["identity_verification_id"]
-	require.False(t, hasVerification)
-	_, hasAssessmentSource := auditEvent.Data.Metadata["assessment_source"]
-	require.False(t, hasAssessmentSource)
-	require.Len(t, auditEvent.Data.Changes, 3)
-	require.Equal(t, "decision.outcome", auditEvent.Data.Changes[0].Field)
-	require.Equal(t, string(model.LimitSetDecisionOutcome), fmt.Sprint(auditEvent.Data.Changes[0].After))
-	require.Equal(t, "credit_account.status", auditEvent.Data.Changes[1].Field)
-	require.Nil(t, auditEvent.Data.Changes[1].Before)
-	require.Equal(t, string(model.ActiveCreditAccountStatus), fmt.Sprint(auditEvent.Data.Changes[1].After))
-	require.Equal(t, "credit_account.limit_amount_minor", auditEvent.Data.Changes[2].Field)
-	require.EqualValues(t, terms.DefaultAmountMinor, auditEvent.Data.Changes[2].After)
+	uc := deps.newUseCase()
+	output, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{
+		SubjectID:  model.SubjectID(uuid.New()),
+		MobileE164: assignTestMobileE164,
+	})
+	require.NoError(t, err)
+	require.Equal(t, customercredituc.AssignInitialLimitResultPending, output.Result)
+	require.True(t, output.RequestCreated)
+	require.NotNil(t, output.CreditRequest)
+	require.Equal(t, model.PendingCreditRequestStatus, output.CreditRequest.Status)
+	require.Nil(t, output.CreditLimit)
+	require.True(t, output.Decision.ID.IsZero())
 }
 
-func TestAssignInitialLimit_ExistingNonActiveProfile_IsDeniedWithoutReactivation(t *testing.T) {
+func TestAssignInitialLimit_ExistingNonActiveProfile_IsConflictWithoutRequest(t *testing.T) {
 	t.Parallel()
 
 	ctx := testRequestContext()
-	now := time.Date(
-		2026,
-		7,
-		22,
-		12,
-		0,
-		0,
-		0,
-		time.UTC,
-	)
+	now := time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC)
 	deps := newAssignInitialLimitDeps(t, now)
 	externalCustomerID := model.ExternalCustomerID(uuid.New())
 	customerID := model.CustomerID(uuid.New())
-	require.NotEqual(t, externalCustomerID.UUID(), customerID.UUID())
-
 	profile := sampleActiveProfile(customerID, externalCustomerID, now)
 	profile.Status = model.TerminatedCustomerStatus
-	decisionID := model.DecisionID(uuid.New())
 
 	deps.expectConnTx(ctx)
-	deps.expectPolicyAssignmentDefault(ctx)
 	deps.customerProfile.EXPECT().Tx(deps.tx).Return(deps.customerProfileTx).Once()
-	deps.creditAccount.EXPECT().Tx(deps.tx).Return(deps.creditAccountTx).Once()
 	deps.customerProfileTx.EXPECT().EnsureExists(
 		ctx,
 		testifymock.Anything,
@@ -445,97 +294,31 @@ func TestAssignInitialLimit_ExistingNonActiveProfile_IsDeniedWithoutReactivation
 		model.ActiveCustomerStatus,
 		now,
 		now,
+		"0012345678",
 	).Return(profile, false, nil).Once()
-
-	deps.expectConnTx(ctx)
-	deps.decision.EXPECT().Tx(deps.tx).Return(deps.decisionTx).Once()
-	deps.creditAccount.EXPECT().Tx(deps.tx).Return(deps.creditAccountTx).Once()
-	deps.decisionTx.EXPECT().GetByIdempotencyKey(ctx, testifymock.Anything).
-		Return(model.Decision{}, cerr.ResourceNotFound(errors.New("missing"))).Once()
-
-	deps.expectConnTx(ctx)
-	deps.customerProfile.EXPECT().Tx(deps.tx).Return(deps.customerProfileTx).Once()
-	deps.creditAccount.EXPECT().Tx(deps.tx).Return(deps.creditAccountTx).Once()
-	deps.decision.EXPECT().Tx(deps.tx).Return(deps.decisionTx).Once()
-	deps.customerProfileTx.EXPECT().LockByID(ctx, customerID).Return(profile, nil).Once()
-	deps.decisionTx.EXPECT().Create(
-		ctx,
-		model.CreditLimitDecisionType,
-		model.CustomerProfileDecisionTargetType,
-		customerID.UUID(),
-		model.DeniedDecisionOutcome,
-		[]string{model.CustomerProfileNotActiveDecisionReason},
-		testifymock.AnythingOfType("string"),
-		testifymock.AnythingOfType("string"),
-		model.IRJurisdiction,
-		model.SystemDecisionActorType,
-		(*uuid.UUID)(nil),
-		(*model.DecisionID)(nil),
-		(*time.Time)(nil),
-		(*time.Time)(nil),
-		now,
-		now,
-		testifymock.AnythingOfType("string"),
-		testifymock.AnythingOfType("string"),
-	).Return(model.Decision{
-		ID:          decisionID,
-		Outcome:     model.DeniedDecisionOutcome,
-		ReasonCodes: []string{model.CustomerProfileNotActiveDecisionReason},
-	}, nil).Once()
-	auditEvent := deps.expectAuditOutbox(
-		t,
-		ctx,
-		"audit-event-denied",
-		"customer_profile",
-		customerID.UUID(),
-		audit.DeniedOutcome,
-	)
-
 	deps.expectResolveActive(ctx, externalCustomerID)
-	uc := deps.newUseCase()
-	output, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{SubjectID: model.SubjectID(uuid.New()), MobileE164: assignTestMobileE164})
-	require.NoError(t, err)
-	require.Equal(t, customercredituc.AssignInitialLimitResultDenied, output.Result)
-	require.Nil(t, output.CreditLimit)
-	require.Equal(t, model.TerminatedCustomerStatus, profile.Status)
 
-	require.NotNil(t, auditEvent.Data.ReasonCode)
-	require.Equal(t, model.CustomerProfileNotActiveDecisionReason, *auditEvent.Data.ReasonCode)
-	require.Equal(t, []any{model.CustomerProfileNotActiveDecisionReason}, auditEvent.Data.Metadata["reason_codes"])
-	require.Equal(t, customerID.String(), auditEvent.Data.Metadata["customer_id"])
-	require.Equal(t, externalCustomerID.String(), auditEvent.Data.Metadata["identity_subject_id"])
-	require.Equal(t, decisionID.String(), auditEvent.Data.Metadata["decision_id"])
-	_, hasAccountID := auditEvent.Data.Metadata["credit_account_id"]
-	require.False(t, hasAccountID)
-	_, hasAmount := auditEvent.Data.Metadata["limit_amount_minor"]
-	require.False(t, hasAmount)
-	_, hasStatus := auditEvent.Data.Metadata["status"]
-	require.False(t, hasStatus)
-	_, hasExpires := auditEvent.Data.Metadata["expires_at"]
-	require.False(t, hasExpires)
+	uc := deps.newUseCase()
+	_, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{
+		SubjectID:  model.SubjectID(uuid.New()),
+		MobileE164: assignTestMobileE164,
+	})
+	require.Error(t, err)
+	require.True(t, cerr.IsCode(err, cerr.CodeConflict))
+	require.Equal(t, model.TerminatedCustomerStatus, profile.Status)
 }
 
 func TestAssignInitialLimit_EnsureExistsFailure_ReturnsError(t *testing.T) {
 	t.Parallel()
 
 	ctx := testRequestContext()
-	now := time.Date(
-		2026,
-		7,
-		22,
-		12,
-		0,
-		0,
-		0,
-		time.UTC,
-	)
+	now := time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC)
 	deps := newAssignInitialLimitDeps(t, now)
 	externalCustomerID := model.ExternalCustomerID(uuid.New())
 	repoErr := cerr.InternalError(errors.New("db unavailable"))
 
 	deps.expectConnTx(ctx)
 	deps.customerProfile.EXPECT().Tx(deps.tx).Return(deps.customerProfileTx).Once()
-	deps.creditAccount.EXPECT().Tx(deps.tx).Return(deps.creditAccountTx).Once()
 	deps.customerProfileTx.EXPECT().EnsureExists(
 		ctx,
 		testifymock.Anything,
@@ -544,104 +327,16 @@ func TestAssignInitialLimit_EnsureExistsFailure_ReturnsError(t *testing.T) {
 		model.ActiveCustomerStatus,
 		now,
 		now,
+		"0012345678",
 	).Return(model.CustomerProfile{}, false, repoErr).Once()
-
 	deps.expectResolveActive(ctx, externalCustomerID)
+
 	uc := deps.newUseCase()
-	_, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{SubjectID: model.SubjectID(uuid.New()), MobileE164: assignTestMobileE164})
+	_, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{
+		SubjectID:  model.SubjectID(uuid.New()),
+		MobileE164: assignTestMobileE164,
+	})
 	require.Error(t, err)
 	require.True(t, cerr.IsCode(err, cerr.CodeInternalError))
 }
 
-// TestAssignInitialLimit_DenialPathStampsPolicyRef documents that the
-// denial-path Decision is stamped with the governing initial-limit policy Ref.
-func TestAssignInitialLimit_DenialPathStampsPolicyRef(t *testing.T) {
-	t.Parallel()
-
-	ctx := testRequestContext()
-	now := time.Date(
-		2026,
-		7,
-		22,
-		12,
-		0,
-		0,
-		0,
-		time.UTC,
-	)
-	deps := newAssignInitialLimitDeps(t, now)
-	externalCustomerID := model.ExternalCustomerID(uuid.New())
-	customerID := model.CustomerID(uuid.New())
-	require.NotEqual(t, externalCustomerID.UUID(), customerID.UUID())
-
-	profile := sampleActiveProfile(customerID, externalCustomerID, now)
-	profile.Status = model.TerminatedCustomerStatus
-	decisionID := model.DecisionID(uuid.New())
-	v1Ref := initialcreditlimitv1.New().Ref()
-
-	deps.expectConnTx(ctx)
-	deps.expectPolicyAssignmentDefault(ctx)
-	deps.customerProfile.EXPECT().Tx(deps.tx).Return(deps.customerProfileTx).Once()
-	deps.creditAccount.EXPECT().Tx(deps.tx).Return(deps.creditAccountTx).Once()
-	deps.customerProfileTx.EXPECT().EnsureExists(
-		ctx,
-		testifymock.Anything,
-		externalCustomerID,
-		model.IRJurisdiction,
-		model.ActiveCustomerStatus,
-		now,
-		now,
-	).Return(profile, false, nil).Once()
-
-	deps.expectConnTx(ctx)
-	deps.decision.EXPECT().Tx(deps.tx).Return(deps.decisionTx).Once()
-	deps.creditAccount.EXPECT().Tx(deps.tx).Return(deps.creditAccountTx).Once()
-	deps.decisionTx.EXPECT().GetByIdempotencyKey(ctx, testifymock.Anything).
-		Return(model.Decision{}, cerr.ResourceNotFound(errors.New("missing"))).Once()
-
-	deps.expectConnTx(ctx)
-	deps.customerProfile.EXPECT().Tx(deps.tx).Return(deps.customerProfileTx).Once()
-	deps.creditAccount.EXPECT().Tx(deps.tx).Return(deps.creditAccountTx).Once()
-	deps.decision.EXPECT().Tx(deps.tx).Return(deps.decisionTx).Once()
-	deps.customerProfileTx.EXPECT().LockByID(ctx, customerID).Return(profile, nil).Once()
-	deps.decisionTx.EXPECT().Create(
-		ctx,
-		model.CreditLimitDecisionType,
-		model.CustomerProfileDecisionTargetType,
-		customerID.UUID(),
-		model.DeniedDecisionOutcome,
-		[]string{model.CustomerProfileNotActiveDecisionReason},
-		v1Ref.ID,
-		v1Ref.Version,
-		model.IRJurisdiction,
-		model.SystemDecisionActorType,
-		(*uuid.UUID)(nil),
-		(*model.DecisionID)(nil),
-		(*time.Time)(nil),
-		(*time.Time)(nil),
-		now,
-		now,
-		testifymock.AnythingOfType("string"),
-		testifymock.AnythingOfType("string"),
-	).Return(model.Decision{
-		ID:            decisionID,
-		Outcome:       model.DeniedDecisionOutcome,
-		ReasonCodes:   []string{model.CustomerProfileNotActiveDecisionReason},
-		PolicyID:      v1Ref.ID,
-		PolicyVersion: v1Ref.Version,
-	}, nil).Once()
-	deps.expectAuditOutbox(
-		t,
-		ctx,
-		"audit-event-policy-denied",
-		"customer_profile",
-		customerID.UUID(),
-		audit.DeniedOutcome,
-	)
-
-	deps.expectResolveActive(ctx, externalCustomerID)
-	uc := deps.newUseCase()
-	output, err := uc.AssignInitialLimit(ctx, customercredituc.AssignInitialLimitInput{SubjectID: model.SubjectID(uuid.New()), MobileE164: assignTestMobileE164})
-	require.NoError(t, err)
-	require.Equal(t, customercredituc.AssignInitialLimitResultDenied, output.Result)
-}

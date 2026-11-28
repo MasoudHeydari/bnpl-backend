@@ -9,7 +9,7 @@ import (
 )
 
 type resource struct {
-	merchant      *merchantuc.UseCase
+	merchant   *merchantuc.UseCase
 	creditKind *merchantuc.CreditKindUseCase
 }
 
@@ -37,16 +37,19 @@ func Register(
 	router.GET(
 		"/merchant",
 		authMW.RequireAny(permission.MerchantProfileReadMerchant),
+		authMW.RequireMerchantWorkspace(),
 		rs.Get,
 	)
 	router.GET(
 		"/merchant/branches",
 		authMW.RequireAny(permission.BranchesReadMerchant),
+		authMW.RequireMerchantWorkspace(),
 		rs.ListBranches,
 	)
 	router.GET(
 		"/merchant/sales",
 		authMW.RequireAny(permission.ContractsReadMerchant),
+		authMW.RequireMerchantWorkspace(),
 		rs.ListSales,
 	)
 

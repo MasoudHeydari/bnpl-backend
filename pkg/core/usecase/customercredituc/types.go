@@ -42,6 +42,8 @@ type CreditUsage struct {
 }
 
 type Output struct {
+	CreditRequest *model.CreditRequestSummary
+
 	CreditUsage CreditUsage
 
 	// CustomerID is the internal customer_profiles.id primary key.

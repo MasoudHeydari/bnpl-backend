@@ -121,7 +121,8 @@ type creditLimitResponse struct {
 
 type assignInitialLimitResponse struct {
 	Result              customercredituc.AssignInitialLimitResult `json:"result" example:"created"`
-	CreditLimitDecision decisionResponse                          `json:"credit_limit_decision"`
+	CreditLimitDecision *decisionResponse                         `json:"credit_limit_decision,omitempty"`
+	CreditRequest       *model.CreditRequestSummary               `json:"credit_request,omitempty"`
 	CreditLimit         *creditLimitResponse                      `json:"credit_limit,omitempty"`
 }
 
@@ -134,11 +135,10 @@ func toAssignInitialLimitResponse(output customercredituc.AssignInitialLimitOutp
 	}
 
 	resp := assignInitialLimitResponse{
-		Result: output.Result,
-		CreditLimitDecision: decisionResponse{
-			Outcome:     mapCreditLimitDecisionOutcome(decision.Outcome),
-			ReasonCodes: reasonCodes,
-		},
+		Result: output.Result, CreditRequest: output.CreditRequest,
+	}
+	if decision.Outcome != "" {
+		resp.CreditLimitDecision = &decisionResponse{Outcome: mapCreditLimitDecisionOutcome(decision.Outcome), ReasonCodes: reasonCodes}
 	}
 
 	if output.CreditLimit == nil {

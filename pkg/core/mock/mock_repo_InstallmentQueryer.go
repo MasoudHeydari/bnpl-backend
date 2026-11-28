@@ -173,6 +173,78 @@ func (_c *InstallmentQueryer_GetByID_Call) RunAndReturn(run func(ctx context.Con
 	return _c
 }
 
+// HasDueUnpaidForCreditOwner provides a mock function for the type InstallmentQueryer
+func (_mock *InstallmentQueryer) HasDueUnpaidForCreditOwner(ctx context.Context, requestingCustomer model.CustomerID, asOf time.Time) (bool, error) {
+	ret := _mock.Called(ctx, requestingCustomer, asOf)
+
+	if len(ret) == 0 {
+		panic("no return value specified for HasDueUnpaidForCreditOwner")
+	}
+
+	var r0 bool
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CustomerID, time.Time) (bool, error)); ok {
+		return returnFunc(ctx, requestingCustomer, asOf)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CustomerID, time.Time) bool); ok {
+		r0 = returnFunc(ctx, requestingCustomer, asOf)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.CustomerID, time.Time) error); ok {
+		r1 = returnFunc(ctx, requestingCustomer, asOf)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// InstallmentQueryer_HasDueUnpaidForCreditOwner_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'HasDueUnpaidForCreditOwner'
+type InstallmentQueryer_HasDueUnpaidForCreditOwner_Call struct {
+	*mock.Call
+}
+
+// HasDueUnpaidForCreditOwner is a helper method to define mock.On call
+//   - ctx context.Context
+//   - requestingCustomer model.CustomerID
+//   - asOf time.Time
+func (_e *InstallmentQueryer_Expecter) HasDueUnpaidForCreditOwner(ctx any, requestingCustomer any, asOf any) *InstallmentQueryer_HasDueUnpaidForCreditOwner_Call {
+	return &InstallmentQueryer_HasDueUnpaidForCreditOwner_Call{Call: _e.mock.On("HasDueUnpaidForCreditOwner", ctx, requestingCustomer, asOf)}
+}
+
+func (_c *InstallmentQueryer_HasDueUnpaidForCreditOwner_Call) Run(run func(ctx context.Context, requestingCustomer model.CustomerID, asOf time.Time)) *InstallmentQueryer_HasDueUnpaidForCreditOwner_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.CustomerID
+		if args[1] != nil {
+			arg1 = args[1].(model.CustomerID)
+		}
+		var arg2 time.Time
+		if args[2] != nil {
+			arg2 = args[2].(time.Time)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *InstallmentQueryer_HasDueUnpaidForCreditOwner_Call) Return(b bool, err error) *InstallmentQueryer_HasDueUnpaidForCreditOwner_Call {
+	_c.Call.Return(b, err)
+	return _c
+}
+
+func (_c *InstallmentQueryer_HasDueUnpaidForCreditOwner_Call) RunAndReturn(run func(ctx context.Context, requestingCustomer model.CustomerID, asOf time.Time) (bool, error)) *InstallmentQueryer_HasDueUnpaidForCreditOwner_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListByContractID provides a mock function for the type InstallmentQueryer
 func (_mock *InstallmentQueryer) ListByContractID(ctx context.Context, contractID model.ContractID) ([]model.Installment, error) {
 	ret := _mock.Called(ctx, contractID)
@@ -453,6 +525,74 @@ func (_c *InstallmentQueryer_ListCollectionsObligationsByCustomerID_Call) Return
 }
 
 func (_c *InstallmentQueryer_ListCollectionsObligationsByCustomerID_Call) RunAndReturn(run func(ctx context.Context, customerID model.CustomerID) ([]repo.CollectionsObligation, error)) *InstallmentQueryer_ListCollectionsObligationsByCustomerID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListCollectionsObligationsForCreditOwner provides a mock function for the type InstallmentQueryer
+func (_mock *InstallmentQueryer) ListCollectionsObligationsForCreditOwner(ctx context.Context, requestingCustomer model.CustomerID) ([]repo.CollectionsObligation, error) {
+	ret := _mock.Called(ctx, requestingCustomer)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListCollectionsObligationsForCreditOwner")
+	}
+
+	var r0 []repo.CollectionsObligation
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CustomerID) ([]repo.CollectionsObligation, error)); ok {
+		return returnFunc(ctx, requestingCustomer)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CustomerID) []repo.CollectionsObligation); ok {
+		r0 = returnFunc(ctx, requestingCustomer)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]repo.CollectionsObligation)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.CustomerID) error); ok {
+		r1 = returnFunc(ctx, requestingCustomer)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// InstallmentQueryer_ListCollectionsObligationsForCreditOwner_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListCollectionsObligationsForCreditOwner'
+type InstallmentQueryer_ListCollectionsObligationsForCreditOwner_Call struct {
+	*mock.Call
+}
+
+// ListCollectionsObligationsForCreditOwner is a helper method to define mock.On call
+//   - ctx context.Context
+//   - requestingCustomer model.CustomerID
+func (_e *InstallmentQueryer_Expecter) ListCollectionsObligationsForCreditOwner(ctx any, requestingCustomer any) *InstallmentQueryer_ListCollectionsObligationsForCreditOwner_Call {
+	return &InstallmentQueryer_ListCollectionsObligationsForCreditOwner_Call{Call: _e.mock.On("ListCollectionsObligationsForCreditOwner", ctx, requestingCustomer)}
+}
+
+func (_c *InstallmentQueryer_ListCollectionsObligationsForCreditOwner_Call) Run(run func(ctx context.Context, requestingCustomer model.CustomerID)) *InstallmentQueryer_ListCollectionsObligationsForCreditOwner_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.CustomerID
+		if args[1] != nil {
+			arg1 = args[1].(model.CustomerID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *InstallmentQueryer_ListCollectionsObligationsForCreditOwner_Call) Return(collectionsObligations []repo.CollectionsObligation, err error) *InstallmentQueryer_ListCollectionsObligationsForCreditOwner_Call {
+	_c.Call.Return(collectionsObligations, err)
+	return _c
+}
+
+func (_c *InstallmentQueryer_ListCollectionsObligationsForCreditOwner_Call) RunAndReturn(run func(ctx context.Context, requestingCustomer model.CustomerID) ([]repo.CollectionsObligation, error)) *InstallmentQueryer_ListCollectionsObligationsForCreditOwner_Call {
 	_c.Call.Return(run)
 	return _c
 }

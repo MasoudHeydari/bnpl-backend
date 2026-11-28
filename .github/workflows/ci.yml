@@ -78,7 +78,8 @@ jobs:
     name: Go vulnerability check
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: lint
+    # Vulnerability discovery must not be skipped because lint has existing debt.
+    # Both checks continue to report independently; lint remains a failing gate.
     steps:
       - uses: actions/checkout@v4
 
@@ -90,11 +91,12 @@ jobs:
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
 
+      # Use the same source build tags as Unit and Integration tests.
       # Non-blocking for now — gives time to triage existing findings
       # before this gates merges.
       - name: Run govulncheck
         continue-on-error: true
-        run: govulncheck ./...
+        run: govulncheck -tags=go_json,nomsgpack,development ./...
 
   # ── 3. UNIT TESTS ────────────────────────────────────────────────────────
   unit-test:
@@ -157,7 +159,9 @@ jobs:
     name: Integration tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: [ lint, unit-test ]
+    # Integration correctness is independent of lint debt. Lint still runs
+    # and contributes its own failing status to the overall CI conclusion.
+    needs: [unit-test]
     services:
       postgres:
         image: postgres:18
@@ -208,7 +212,7 @@ jobs:
     name: Security scan (gosec)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: lint
+    # Report security findings even when the independent lint job is red.
     permissions:
       contents: read
       security-events: write
@@ -222,6 +226,7 @@ jobs:
           cache: true
 
       # Pin to an exact release. Latest: https://github.com/securego/gosec/releases
+      # Match the build tags used in project tests and binary builds.
       # -exclude-dir=gen     skips auto-generated protobuf code.
       # -exclude-dir=pkg/core/mock skips mockery-generated mocks.
       # Add a .gosec.yaml to accept specific known findings as acceptable risks.
@@ -234,6 +239,7 @@ jobs:
         continue-on-error: true
         with:
           args: >-
+            -tags=go_json,nomsgpack,development
             -exclude-dir=gen
             -exclude-dir=pkg/core/mock
             -fmt=sarif
@@ -280,9 +286,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build image for scan
+      - name: Build production runtime image for scan
         run: |
+          # Scan the deployed production artifact, not the default
+          # development image which requires private mTLS key files.
           docker build \
+            --target runtime \
+            --build-arg BUILD_ENV=production \
             --tag bnpl-backend:${{ github.sha }} \
             .
 

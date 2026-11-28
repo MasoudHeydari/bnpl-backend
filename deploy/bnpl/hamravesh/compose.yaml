@@ -11,7 +11,7 @@
 
 services:
   bnpl:
-    image: registry.hamdocker.ir/parstis-technology/bnpl-backend:v0.1.0-development
+    image: registry.hamdocker.ir/parstis-technology/bnpl-backend:v0.1.0-development-alloy
     environment:
       CONFIG_FILE: "configs/runtime.yaml"
       APP_ENVIRONMENT: "development"
@@ -156,8 +156,17 @@ services:
       LOG_PROVIDER: "slog"
       LOG_LEVEL: "debug"
       LOG_FORMAT: "json"
-      ERROR_REPORTING_PROVIDER: "noop"
-      SENTRY_DSN: ""
+      # Pretty is independent of level; keep false so Alloy tails compact JSONL.
+      LOG_PRETTY_PRINT: "false"
+      LOG_FILE: "/var/log/services/bnpl-service/bnpl.jsonl"
+      # Edge Alloy → Central Alloy (not Loki directly).
+      ALLOY_PUSH_URL: "http://alloy.parstis-technology-dpay-dev.svc:3500/loki/api/v1/push"
+      # Unexpected errors/panics go through the core error-reporting port.
+      # DSN/release live in the Darkoob panel (see secrets.example); do not
+      # hardcode SENTRY_DSN here or an empty compose value will wipe the secret.
+      ERROR_REPORTING_PROVIDER: "sentry"
+      SENTRY_ENVIRONMENT: "development"
+      SENTRY_SAMPLE_RATE: "1.0"
       SENTRY_DEBUG: "false"
       HTTP_CLIENT_PROVIDER: "standard"
       HTTP_CLIENT_MAX_IN_FLIGHT: "50"
@@ -340,6 +349,16 @@ services:
       TASK_PAYMENT_ATTEMPT_EXPIRATION_HANDLER: "payment_attempt_expiration"
       TASK_REPAYMENT_REMINDER_DISPATCH_HANDLER: "repayment_reminder_dispatch"
       TASK_COLLECTIONS_ASSESSMENT_HANDLER: "collections_assessment"
+      CREDIT_ELIGIBILITY_IMPORT_MAX_ITEMS: "1000"
+      CREDIT_ELIGIBILITY_IMPORT_MAX_BODY_BYTES: "2097152"
+      TASK_CREDIT_REQUEST_PROCESSING_ENABLED: "true"
+      TASK_CREDIT_REQUEST_PROCESSING_EXECUTION: ""
+      TASK_CREDIT_REQUEST_PROCESSING_HANDLER: "credit_request_processing"
+      TASK_CREDIT_REQUEST_PROCESSING_TRIGGER_TYPE: "interval"
+      TASK_CREDIT_REQUEST_PROCESSING_CRON: ""
+      TASK_CREDIT_REQUEST_PROCESSING_TIMEZONE: "UTC"
+      TASK_CREDIT_REQUEST_PROCESSING_INTERVAL: "30s"
+      TASK_CREDIT_REQUEST_PROCESSING_RUN_ON_START: "true"
       TASK_REPAYMENT_BATCH_RECONCILIATION_ENABLED: "false"
       TASK_REPAYMENT_BATCH_RECONCILIATION_EXECUTION: ""
       TASK_REPAYMENT_BATCH_RECONCILIATION_TRIGGER_TYPE: "interval"
@@ -374,12 +393,9 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      # Same named volume as infrastructure Promtail (dpay_service_logs).
-      # BNPL writes LOG_FILE under /var/log/services/bnpl-service/.
+      # BNPL-app disk only (Darkoob disks are not shared across apps). Holds
+      # LOG_FILE, Edge Alloy positions/WAL, and logrotate state.
       - dpay_service_logs:/var/log/services
 
 volumes:
-  # Prefer an external volume created once by infrastructure compose so both
-  # deployments share the same filesystem for Promtail scrape.
   dpay_service_logs:
-    external: true

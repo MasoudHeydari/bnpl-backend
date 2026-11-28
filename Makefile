@@ -108,7 +108,7 @@ init-prod: db-init-production
 init-dev: db-init-development
 
 .PHONY: policy-assignment-import-trusted
-# Bulk-assign the trusted customer policy bundle from an authoritative external customer ID CSV.
+# Import immutable trusted mobile/national-ID pairs offline; policies are granted at credit initiation.
 policy-assignment-import-trusted: build
 	@./build/bin/$(APP_NAME) --config "$(RUNTIME_CONFIG)" policy-assignment import-trusted \
 		--file $(POLICY_ASSIGNMENT_FILE) \

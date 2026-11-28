@@ -102,42 +102,101 @@ permissions.
 
 ### Trusted customer policy import
 
-`policy-assignment import-trusted` is an operational bulk command for assigning
-the code-owned trusted customer policy bundle (`checkout/v2` and
-`initial-credit-limit/v2`). Checkout v2 is full-financing with **3** installments
-due at one, two, and three Jalali months after purchase. Being trusted means the
-customer is later eligible for the special initial credit limit and deferred
-first installment under those policies. Import itself does **not** grant credit
-or create contracts.
+`policy-assignment import-trusted` imports an **immutable raw mobile/national-ID
+pair registry**. The import is intentionally offline: it does **not** call
+Customer Reference Service, assign a credit limit, create a customer account,
+or issue policy assignments.
 
 Shortcut: `make policy-assignment-import-trusted` (defaults:
 `POLICY_ASSIGNMENT_FILE=assets/csv/trusted-customers/trusted-customers.csv`,
-`POLICY_ASSIGNMENT_ACTOR=ops@example`).
+`POLICY_ASSIGNMENT_ACTOR` is set by the operator (defaults are in `Makefile`).
 
-The CSV format is intentionally strict and contains exactly one column of
-Iranian mobiles (`mobile_e164`, either `+989…` or `09…`):
+The CSV contains **exactly two required columns**, in this order. Leading
+zeros in `national_id` must be retained; process this as text, not a number.
 
 ```csv
-mobile_e164
-+989121234567
-+989351234567
-+989191234567
+mobile_e164,national_id
+09121234567,0012345678
++989351234567,1234567891
 ```
 
-Each row is canonicalized, resolved through Customer Reference Service
-(`ResolveCustomerByMobile`) **outside** any database transaction, and — only
-when status is `ACTIVE` — receives the trusted policy bundle atomically under
-the returned `ExternalCustomerID`. The import is **additive and idempotent**:
-customers omitted from a later CSV remain trusted; already-trusted customers are
-counted as `already_exists`. Row-level failures (invalid mobile, not found,
-non-ACTIVE status, Customer Service errors, persistence errors) are logged and
-recorded without stopping the file. A peppered HMAC of each canonical mobile is
-stored on `policy_assignment_import_items.mobile_hash` for audit; raw mobiles are
-never persisted. Import batches and row outcomes live in
-`policy_assignment_imports` and `policy_assignment_import_items`.
+The mobile is normalized to Iranian E.164 (`+989…`). Both canonical mobile and
+national ID are stored **as plaintext** in `trusted_mobile_numbers` as agreed
+for this development version. Reimporting the same pair is idempotent; a new
+pair is added without deleting existing entries. An existing mobile with a
+different national ID is a **conflict**, never an implicit reassignment.
+Import outcomes are recorded in `policy_assignment_imports` and
+`policy_assignment_import_items`.
 
-Requires `EXTERNAL_CUSTOMER_PROVIDER=grpc` (noop is rejected) and
-`POLICY_ASSIGNMENT_MOBILE_HASH_PEPPER_KEYS`.
+On the **first successful credit assignment** for a legal person, BNPL calls
+Customer Reference Service outside the database transaction and verifies
+`national_code` against the imported `national_id` for the authenticated mobile.
+A mismatch must fail with **409 Conflict** and no credit is granted. If the pair
+matches, the initial **200 million toman** limit (`initial-credit-limit/v2`)
+and **three-installment, no-down-payment** Checkout policy (`checkout/v2`) are
+persisted against the person's immutable `CreditOwnerID`. They remain valid
+when the person changes phone numbers. An existing normal person credit is
+never automatically upgraded because another account is trusted.
+
+Every CRS customer account remains distinct. Before a second account can buy,
+its authenticated credit-initiation command must create a
+`customer_credit_enrollments` row and receive HTTP **200 already_assigned**;
+this never creates a second credit account or capacity. Login, GET and merchant
+Checkout do **not** enroll accounts. Contracts, installments, repayments,
+default episodes and collection cases remain visible/operable only for the
+account that originated them. Eligibility restrictions apply to the entire
+legal person. Two simultaneous checkouts by enrolled accounts with the same
+national ID are serialized by a persisted person-level checkout claim; the
+second attempt returns **409 CREDIT_PURCHASE_IN_PROGRESS**.
+
+No external Customer Service provider or mobile hash pepper is required for
+the import command itself; both are needed only where already required by
+credit assignment and other production flows.
+
+### Investigating long-lived credit-owner checkout claims
+
+A checkout claim blocks **all enrolled CRS accounts sharing one legal person**
+while a credit purchase is still in progress. It is durable across BNPL process
+restarts. An elapsed Session TTL alone never means it is safe to unlock a
+financially unresolved claim.
+
+The following **read-only** query shows current claims grouped by checkout
+state; use it for an operational dashboard or periodic review:
+
+```sql
+SELECT
+    s.status AS checkout_status,
+    count(*) AS active_claims,
+    max(now() - c.acquired_at) AS oldest_claim_age
+FROM bnpl.credit_owner_checkout_claims AS c
+JOIN bnpl.checkout_sessions AS s ON s.id = c.checkout_session_id
+WHERE c.released_at IS NULL
+GROUP BY s.status
+ORDER BY oldest_claim_age DESC;
+```
+
+To examine the oldest cases without exposing national codes or phone numbers:
+
+```sql
+SELECT
+    c.credit_owner_id,
+    c.checkout_session_id,
+    s.status,
+    c.acquired_at,
+    now() - c.acquired_at AS claim_age
+FROM bnpl.credit_owner_checkout_claims AS c
+JOIN bnpl.checkout_sessions AS s ON s.id = c.checkout_session_id
+WHERE c.released_at IS NULL
+ORDER BY c.acquired_at ASC
+LIMIT 50;
+```
+
+Operator action: correlate the Checkout Session with its Confirmation Saga,
+Contract, PaymentAttempt and Financial Core reconciliation records. Recover
+using the existing idempotent Saga/reconciliation/terminal commands only.
+**Never DELETE/UPDATE a claim, force a terminal status, or create an
+age-based release task** without verified authoritative payment/cancellation
+truth. Alert thresholds are operational settings, not business expiry rules.
 
 The default HTTP server handles `SIGINT` and `SIGTERM` with graceful shutdown (see below).
 
@@ -336,3 +395,7 @@ Outbox is deliberately at-least-once and requires consumer idempotency.
 - [database.md](database.md)
 - [configuration.md](configuration.md)
 - [security.md](security.md)
+
+## Credit allocation
+
+Enable the `credit_request_processing` task to resume authorized credit requests. Configure `TASK_CREDIT_REQUEST_PROCESSING_*` as shown in `.env.example`. See [Credit allocation](credit-allocation.md) for automatic public assessment, retry behavior and integration requirements.

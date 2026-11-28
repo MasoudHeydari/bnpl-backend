@@ -62,9 +62,16 @@ func (uc *UseCase) CreatePartner(
 		return CreatePartnerOutput{}, bindErr
 	}
 
-	previews, previewErr := uc.buildCreditKindsPreview(ctx, bound)
-	if previewErr != nil {
-		return CreatePartnerOutput{}, previewErr
+	// A replay of a closed or financially in-flight session must not disclose
+	// fresh account-level eligibility. The merchant may still observe the
+	// durable checkout status and use the existing status endpoint.
+	var previews []CreditKindPreview
+	if bound.Status.AllowsCustomerContinuation() && !bound.IsExpiredAt(uc.clock.Now().UTC()) {
+		var previewErr error
+		previews, previewErr = uc.buildCreditKindsPreview(ctx, bound)
+		if previewErr != nil {
+			return CreatePartnerOutput{}, previewErr
+		}
 	}
 
 	return CreatePartnerOutput{
@@ -101,6 +108,21 @@ func (uc *UseCase) ensureExternalCustomerBoundForPreview(
 	}
 
 	if session.CustomerID != nil && !session.CustomerID.IsZero() {
+		// Partner Create can replay a bound Checkout after the merchant's
+		// phone is reassigned. Do not return a person-specific eligibility
+		// preview without verifying the current CRS binding.
+		if err := uc.ensureBoundSessionMobileOwnership(ctx, session); err != nil {
+			if terminateErr := uc.terminateReassignedCheckoutIfSafe(ctx, session, err); terminateErr != nil {
+				return model.CheckoutSession{}, terminateErr
+			}
+
+			if isOpaqueMobileOwnershipFailure(err) {
+				return model.CheckoutSession{}, checkoutCreditPurchaseUnavailableForPhoneError(err)
+			}
+
+			return model.CheckoutSession{}, err
+		}
+
 		return session, nil
 	}
 
@@ -135,7 +157,7 @@ func (uc *UseCase) ensureExternalCustomerBoundForPreview(
 		)
 	}
 
-	bound, err := uc.bindExternalCustomer(ctx, session.PublicToken, externalCustomerID)
+	bound, err := uc.bindExternalCustomer(ctx, session.PublicToken, externalCustomerID, phone)
 	if err != nil {
 		if isCreditPurchaseUnavailableForPhone(err) {
 			unavailable, unavailableErr := uc.persistExternalUnavailable(ctx, session.PublicToken)

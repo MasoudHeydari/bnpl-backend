@@ -85,7 +85,9 @@ type CreditAccount struct {
 	ID CreditAccountID `db:"id" json:"id"`
 
 	CustomerID CustomerID `db:"customer_id" json:"customer_id"`
-	Currency   Currency   `db:"currency" json:"currency"`
+	// CreditOwnerID is the legal person sharing this credit across enrolled accounts.
+	CreditOwnerID CreditOwnerID `db:"credit_owner_id" json:"credit_owner_id"`
+	Currency      Currency      `db:"currency" json:"currency"`
 	// CreditKind is part of the account identity with customer and currency.
 	// It prevents the two products from sharing limit or exposure state.
 	CreditKind CreditKind `db:"credit_kind" json:"credit_kind"`

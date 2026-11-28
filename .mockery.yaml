@@ -16,6 +16,15 @@ packages:
       CreditAccountConnQueryer:
       CreditAccountQueryer:
       CreditAccountTxQueryer:
+      CreditAccountProductQueryer:
+      CreditAccountProductTxQueryer:
+      SharedCredit:
+      SharedCreditTxQueryer:
+      CreditAllocation:
+      CreditAllocationTxQueryer:
+      TrustedMobile:
+      TrustedMobileQueryer:
+      TrustedMobileTxQueryer:
       CheckoutDecisionAllocation:
       CheckoutDecisionAllocationConnQueryer:
       CheckoutDecisionAllocationQueryer:

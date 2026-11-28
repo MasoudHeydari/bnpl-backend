@@ -1134,6 +1134,72 @@ func (_c *ContractTxQueryer_GetPaymentPendingByCreditAccountID_Call) RunAndRetur
 	return _c
 }
 
+// GetPaymentPendingByCreditOwnerID provides a mock function for the type ContractTxQueryer
+func (_mock *ContractTxQueryer) GetPaymentPendingByCreditOwnerID(ctx context.Context, ownerID model.CreditOwnerID) (model.Contract, error) {
+	ret := _mock.Called(ctx, ownerID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetPaymentPendingByCreditOwnerID")
+	}
+
+	var r0 model.Contract
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CreditOwnerID) (model.Contract, error)); ok {
+		return returnFunc(ctx, ownerID)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.CreditOwnerID) model.Contract); ok {
+		r0 = returnFunc(ctx, ownerID)
+	} else {
+		r0 = ret.Get(0).(model.Contract)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.CreditOwnerID) error); ok {
+		r1 = returnFunc(ctx, ownerID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// ContractTxQueryer_GetPaymentPendingByCreditOwnerID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetPaymentPendingByCreditOwnerID'
+type ContractTxQueryer_GetPaymentPendingByCreditOwnerID_Call struct {
+	*mock.Call
+}
+
+// GetPaymentPendingByCreditOwnerID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - ownerID model.CreditOwnerID
+func (_e *ContractTxQueryer_Expecter) GetPaymentPendingByCreditOwnerID(ctx any, ownerID any) *ContractTxQueryer_GetPaymentPendingByCreditOwnerID_Call {
+	return &ContractTxQueryer_GetPaymentPendingByCreditOwnerID_Call{Call: _e.mock.On("GetPaymentPendingByCreditOwnerID", ctx, ownerID)}
+}
+
+func (_c *ContractTxQueryer_GetPaymentPendingByCreditOwnerID_Call) Run(run func(ctx context.Context, ownerID model.CreditOwnerID)) *ContractTxQueryer_GetPaymentPendingByCreditOwnerID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 model.CreditOwnerID
+		if args[1] != nil {
+			arg1 = args[1].(model.CreditOwnerID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *ContractTxQueryer_GetPaymentPendingByCreditOwnerID_Call) Return(contract model.Contract, err error) *ContractTxQueryer_GetPaymentPendingByCreditOwnerID_Call {
+	_c.Call.Return(contract, err)
+	return _c
+}
+
+func (_c *ContractTxQueryer_GetPaymentPendingByCreditOwnerID_Call) RunAndReturn(run func(ctx context.Context, ownerID model.CreditOwnerID) (model.Contract, error)) *ContractTxQueryer_GetPaymentPendingByCreditOwnerID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListActiveByCustomerID provides a mock function for the type ContractTxQueryer
 func (_mock *ContractTxQueryer) ListActiveByCustomerID(ctx context.Context, customerID model.CustomerID, page pagination.KeysetRequest) ([]model.Contract, error) {
 	ret := _mock.Called(ctx, customerID, page)

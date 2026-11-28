@@ -27,7 +27,8 @@ func newCreditUsageBlocked(
 ) (bool, string, error) {
 	const op = "customercredituc.newCreditUsageBlocked"
 
-	activeRestrictions, err := restrictionQ.ListActiveByCustomerID(ctx, customerID)
+	// Person-scoped restrictions block every account that shares the national code.
+	activeRestrictions, err := restrictionQ.ListActiveForCreditOwner(ctx, customerID)
 	if err != nil {
 		return false, "", fmt.Errorf("%s: list active restrictions: %w", op, err)
 	}
@@ -47,6 +48,16 @@ func newCreditUsageBlocked(
 		return true, "collections_default", nil
 	}
 
+	// A default on any account for the same national code blocks all accounts.
+	active, err := episodeQ.HasActiveForCreditOwner(ctx, customerID)
+	if err != nil {
+		return false, "", err
+	}
+
+	if active {
+		return true, "collections_default", nil
+	}
+
 	_, episodeErr := episodeQ.GetActiveByCustomerID(ctx, customerID)
 	if episodeErr == nil {
 		return true, "collections_default", nil
@@ -56,7 +67,7 @@ func newCreditUsageBlocked(
 		return false, "", fmt.Errorf("%s: load active episode: %w", op, episodeErr)
 	}
 
-	obligations, err := installmentQ.ListCollectionsObligationsByCustomerID(ctx, customerID)
+	obligations, err := installmentQ.ListCollectionsObligationsForCreditOwner(ctx, customerID)
 	if err != nil {
 		return false, "", fmt.Errorf("%s: list obligations: %w", op, err)
 	}

@@ -1202,7 +1202,6 @@ func (uc *UseCase) finishConfirm(
 	return linked, nil
 }
 
-
 // ApplyPaymentRetryableFailure returns a processing checkout to open after a
 // terminal FAILED/CANCELED payment attempt while keeping the same Decision and
 // payment_pending Contract so Confirm can mint a new PaymentAttempt.

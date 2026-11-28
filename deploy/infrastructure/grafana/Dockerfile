@@ -2,15 +2,11 @@
 #
 #   docker build -t registry.hamdocker.ir/parstis-technology/dpay-grafana:v0.1.0 \
 #     -f deploy/infrastructure/grafana/Dockerfile deploy/infrastructure/grafana
-FROM docker.arvancloud.ir/grafana/grafana:12.3.0
+FROM docker.arvancloud.ir/grafana/grafana:13.3.2
 
-USER root
+COPY --chown=root:root --chmod=755 provisioning /etc/grafana/provisioning
+COPY --chown=root:root --chmod=755 entrypoint.sh /entrypoint.sh
 
-COPY provisioning /etc/grafana/provisioning
-COPY --chmod=755 entrypoint.sh /entrypoint.sh
-
-RUN chown -R 472:0 /etc/grafana/provisioning /entrypoint.sh
-
-USER 472
+USER grafana
 
 ENTRYPOINT ["/entrypoint.sh"]

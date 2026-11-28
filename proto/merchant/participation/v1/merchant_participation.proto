@@ -1,0 +1,97 @@
+syntax = "proto3";
+
+package parstis.merchant.participation.v1;
+
+option go_package = "github.com/parstis/bnpl-backend/gen/proto/merchant/participation/v1;merchantv1";
+
+// Private Merchant API. The server binds access to the authenticated workload and environment.
+service MerchantParticipationService {
+  rpc GetParticipationRequest(GetParticipationRequestRequest) returns (GetParticipationRequestResponse);
+  rpc ReportParticipationProgress(ReportParticipationProgressRequest) returns (ParticipationSnapshot);
+  rpc GetOutletSetupEligibility(GetOutletSetupEligibilityRequest) returns (GetOutletSetupEligibilityResponse);
+}
+
+enum ParticipationEnvironment {
+  PARTICIPATION_ENVIRONMENT_UNSPECIFIED = 0;
+  PARTICIPATION_ENVIRONMENT_SANDBOX = 1;
+  PARTICIPATION_ENVIRONMENT_LIVE = 2;
+}
+
+enum ParticipationStatus {
+  PARTICIPATION_STATUS_UNSPECIFIED = 0;
+  PARTICIPATION_STATUS_REQUESTED = 1;
+  PARTICIPATION_STATUS_UNDER_REVIEW = 2;
+  PARTICIPATION_STATUS_CHANGES_REQUESTED = 3;
+  PARTICIPATION_STATUS_ACCEPTED = 4;
+  PARTICIPATION_STATUS_PROVISIONING = 5;
+  PARTICIPATION_STATUS_READY = 6;
+  PARTICIPATION_STATUS_REJECTED = 7;
+  PARTICIPATION_STATUS_SUSPENDED = 8;
+}
+
+message GetParticipationRequestRequest {
+  string request_id = 1;
+}
+
+message GetParticipationRequestResponse {
+  string merchant_id = 1;
+  string application_id = 2;
+  string contracting_subject_id = 3;
+  string trade_name = 4;
+  optional string context_id = 5;
+  string workspace_status = 6;
+  string administrator_status = 7;
+  string commercial_status = 8;
+  string base_application_status = 9;
+  ParticipationSnapshot participation = 10;
+  // Absent when the applicant has not supplied all terms; do not provision.
+  MerchantSelfDeclaration self_declaration = 11;
+}
+
+message MerchantSelfDeclaration {
+  uint64 max_amount_minor = 1;
+  string max_amount_currency = 2;
+  uint32 max_tenure_months = 3;
+}
+
+message ParticipationIssue {
+  // Lower snake_case field from the Merchant issue catalog.
+  string field = 1;
+  string code = 2;
+  // Operator-appropriate message; never personal data or credentials.
+  string message = 3;
+}
+
+message ReportParticipationProgressRequest {
+  string request_id = 1;
+  string event_id = 2;
+  int64 owner_version = 3;
+  ParticipationStatus status = 4;
+  optional string external_account_reference = 5;
+  repeated ParticipationIssue issues = 6;
+  // Echo the snapshot revision reviewed by this report. Absent only at revision zero.
+  optional int64 declaration_revision = 7;
+}
+
+message ParticipationSnapshot {
+  string request_id = 1;
+  string business_line_code = 2;
+  ParticipationEnvironment environment = 3;
+  ParticipationStatus status = 4;
+  int64 owner_version = 5;
+  optional string external_account_reference = 6;
+  repeated ParticipationIssue issues = 7;
+  string credential_management_owner = 8;
+  // 0 means there is no complete declaration. Every amendment increments this independently of owner_version.
+  int64 declaration_revision = 9;
+}
+
+message GetOutletSetupEligibilityRequest {
+  string merchant_id = 1;
+  string outlet_id = 2;
+}
+
+message GetOutletSetupEligibilityResponse {
+  bool eligible_for_sandbox_setup = 1;
+  ParticipationEnvironment environment = 2;
+}

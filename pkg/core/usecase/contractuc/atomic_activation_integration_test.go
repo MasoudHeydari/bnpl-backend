@@ -69,7 +69,11 @@ func newActivationFixture(t *testing.T, install bool) *activationFixture {
 		}
 	}
 	merchant, account := uuid.New(), uuid.New()
-	f.exec(t, `INSERT INTO customer_profiles(id,external_subject_id,external_customer_id,jurisdiction,status) VALUES($1,$2,$3,'IR','active')`, f.customer, uuid.New(), uuid.New())
+	f.exec(t, `WITH created_credit_owner AS (
+  INSERT INTO credit_owners(national_code) VALUES (lpad((floor(random()*10000000000)::bigint)::text,10,'0'))
+  RETURNING id
+) INSERT INTO customer_profiles(id,external_subject_id,external_customer_id,credit_owner_id,jurisdiction,status)
+SELECT $1,$2,$3,id,'IR','active' FROM created_credit_owner`, f.customer, uuid.New(), uuid.New())
 	f.exec(t, `INSERT INTO merchant_profiles(id,external_merchant_id,display_name,status,risk_tier,max_tenure_months,jurisdiction) VALUES($1,$2,'test','active','low',12,'IR')`, merchant, uuid.New())
 	// Checkout Policy identity is required: activation resolves Reminder/schedule
 	// terms through the decision policy ref.
@@ -259,10 +263,10 @@ func TestPostgreSQLFirstInstallment_AtomicActivationWithFeesAndDiscount(t *testi
 	}))
 }
 
-
 func rewriteActivationFixtureSchemaSQL(sql, schema string) string {
 	out := strings.ReplaceAll(sql, "SET search_path TO bnpl;", "SET search_path TO "+schema+";")
 	out = strings.ReplaceAll(out, "bnpl.", schema+".")
+	out = strings.ReplaceAll(out, "SET search_path = bnpl, pg_temp", "SET search_path = "+schema+", pg_temp")
 	out = strings.ReplaceAll(out, "pg_catalog, bnpl", "pg_catalog, "+schema)
 	return out
 }

@@ -34,21 +34,21 @@ const (
 	creditDebitedVarDebitedAmount            = "debited_amount"
 	creditDebitedVarRemainingAvailableCredit = "remaining_available_credit"
 	creditDebitedVarCurrency                 = "currency"
-	creditDebitedCurrencyIRR                  = "IRR"
-	creditDebitedCurrencyTOMAN                = "TOMAN"
+	creditDebitedCurrencyIRR                 = "IRR"
+	creditDebitedCurrencyTOMAN               = "TOMAN"
 )
 
 // CreditDebitedCommandInput carries durable fields for a credit-debited command.
 type CreditDebitedCommandInput struct {
-	SourceEventID             string
-	IdempotencyKey            string
-	NotificationType          string
-	ExternalCustomerID        string
-	CheckoutSessionID         string
-	DebitedAmountMinor        uint64
-	RemainingAvailableCredit  uint64
-	Currency                  string
-	ExpiresAt                 time.Time
+	SourceEventID            string
+	IdempotencyKey           string
+	NotificationType         string
+	ExternalCustomerID       string
+	CheckoutSessionID        string
+	DebitedAmountMinor       uint64
+	RemainingAvailableCredit uint64
+	Currency                 string
+	ExpiresAt                time.Time
 }
 
 // CreditDebitedIdempotencyKey builds the stable Notification idempotency key
